@@ -213,16 +213,10 @@ Fix commands that are called but don't exist:
 
 Merge 12 init files into 2:
 
-- [ ] Create unified `speckit.init.md` with state machine
-- [ ] Interview states: `context → decisions → stack → standards → review → export`
-- [ ] Inline controls via AskUserQuestion:
-  - "deeper" → expand current topic
-  - "faster" → skip optional questions
-  - "focus X" → jump to specific topic
-  - "pause" → save and exit
-  - "compare" → show options table
-- [ ] Remove old `speckit.init-*.md` files (12 files)
-- [ ] Update `speckit.start.md` to use new init
+- [x] Create unified `speckit.init.md` with argument routing
+- [x] Inline controls: status, pause, skip, revisit, validate, export, faster, deeper, focus, research, compare
+- [x] Archive old `speckit.init-*.md` files (moved to commands/archive/)
+- [x] Verify `speckit.start.md` uses consolidated init
 - [ ] Migration: auto-detect v1 interview state, continue seamlessly
 
 ### Phase 3: State Simplification (P1) (2-3 hours)

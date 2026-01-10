@@ -261,15 +261,21 @@ Remove/merge redundant commands:
 > Note: Clarify and checklist remain as separate commands because they're well-designed
 > and the handoff system already provides integration with specify and verify.
 
-### Phase 6: User Story Focus (P3) (2-3 hours)
+### Phase 6: User Story Focus (P3) (2-3 hours) ✅ COMPLETE (already implemented)
 
 Align with vanilla spec-kit's user story independence:
 
-- [ ] Update `spec-template.md` to emphasize story independence
-- [ ] Update `tasks-template.md` to organize by story, not phase
-- [ ] Add "MVP checkpoint" after each story
-- [ ] Update orchestrate to support story-based flow
-- [ ] Add `speckit tasks next-story` command
+- [x] `spec-template.md` already emphasizes story independence
+  - Stories marked as "independently testable"
+  - Priority levels (P1, P2, P3)
+  - Independent test descriptions
+- [x] `tasks-template.md` already organized by story
+  - Story labels [US1], [US2], [US3]
+  - MVP checkpoints after each story
+  - Parallel team strategy documented
+- [x] MVP checkpoints already present in tasks template
+- [ ] Update orchestrate to support story-based flow - deferred
+- [ ] Add `speckit tasks next-story` command - deferred
 
 ### Phase 7: Documentation & Testing (P3) (2-3 hours)
 

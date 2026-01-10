@@ -68,9 +68,39 @@ Given that feature description, do this:
    - The JSON output will contain BRANCH_NAME and SPEC_FILE paths
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot")
 
-3. Load `.specify/templates/spec-template.md` to understand required sections.
+3. **Check for deferred items from previous phases:**
 
-4. Follow this execution flow:
+   Before creating the spec, check if this phase inherits deferred items:
+
+   a. **Check ROADMAP.md for "Deferred from Previous Phases" section:**
+   ```bash
+   # Look for deferred items in the current phase's ROADMAP.md section
+   grep -A 10 "Deferred from Previous Phases" ROADMAP.md
+   ```
+
+   b. **Check previous phase's deferred.md if it exists:**
+   ```bash
+   # Find previous phase number (current - 1)
+   # Check for deferred.md in previous phase
+   ls specs/[PREV_PHASE]*/checklists/deferred.md
+   ```
+
+   c. **Check project-level BACKLOG.md:**
+   ```bash
+   # Check if any backlog items are targeted for this phase
+   grep -i "Phase [CURRENT_PHASE]" BACKLOG.md
+   ```
+
+   d. **If deferred items are found:**
+   - List them in a "## Inherited Deferred Items" section at the top of the spec
+   - Include each item with a note about its source
+   - Ask user: "These items were deferred from previous phases. Which should be included in this phase's scope?"
+   - Move confirmed items into the appropriate spec sections (User Stories, Requirements, etc.)
+   - Items NOT included should be explicitly noted in Non-Goals with "Deferred to Phase [NNN]" or "Remains in Backlog"
+
+4. Load `.specify/templates/spec-template.md` to understand required sections.
+
+5. Follow this execution flow:
    1. Parse user description from Input
       If empty: ERROR "No feature description provided"
    2. Extract key concepts from description
@@ -95,9 +125,9 @@ Given that feature description, do this:
    7. Identify Key Entities (if data involved)
    8. Return: SUCCESS (spec ready for planning)
 
-5. Write the specification to SPEC_FILE using the template structure, replacing placeholders with concrete details derived from the feature description (arguments) while preserving section order and headings.
+6. Write the specification to SPEC_FILE using the template structure, replacing placeholders with concrete details derived from the feature description (arguments) while preserving section order and headings.
 
-6. **Specification Quality Validation**: After writing the initial spec, validate it against quality criteria:
+7. **Specification Quality Validation**: After writing the initial spec, validate it against quality criteria:
 
    a. **Create Spec Quality Checklist**: Generate a checklist file at `FEATURE_DIR/checklists/requirements.md` using the checklist template structure with these validation items:
 
@@ -143,7 +173,7 @@ Given that feature description, do this:
    - Document specific issues found (quote relevant spec sections)
 
    c. **Handle Validation Results**:
-   - **If all items pass**: Mark checklist complete and proceed to step 6
+   - **If all items pass**: Mark checklist complete and proceed to step 8
 
    - **If items fail (excluding [NEEDS CLARIFICATION])**:
      1. List the failing items and specific issues
@@ -188,7 +218,7 @@ Given that feature description, do this:
 
    d. **Update Checklist**: After each validation iteration, update the checklist file with current pass/fail status
 
-7. Report completion with branch name, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
+8. Report completion with branch name, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
 
 **NOTE:** The script creates and checks out the new branch and initializes the spec file before writing.
 

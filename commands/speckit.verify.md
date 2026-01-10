@@ -183,28 +183,63 @@ For each incomplete item:
 speckit checklist status
 ```
 
-### 5. Deferred Items Identification
+### 5. Deferred Items Identification and Documentation
 
 **5a. Scan for deferred/future work indicators:**
 
-- Search tasks.md for items marked as deferred
+- Search spec.md Non-Goals section for explicitly deferred features
+- Search tasks.md for incomplete items marked as deferred
 - Search plan.md for "future", "later phase", "out of scope"
-- Search spec.md for "deferred", "P3", "nice to have"
+- Search spec.md for "deferred", "P3", "nice to have", "not in scope"
 - Check for TODO comments in any created/modified files
 
-**5b. Produce deferred items table:**
+**5b. For each deferred item, determine target phase:**
+
+- If deferred to specific phase → Use that phase number
+- If deferred to "later" or "future" → Assign to next logical phase or "Backlog"
+- If unclear → Mark as "Backlog" for project-level tracking
+
+**5c. Create/update deferred items file:**
+
+If ANY deferred items are found, create `CHECKLISTS_DIR/deferred.md`:
+
+```bash
+# Check if deferred.md already exists
+ls -la "$CHECKLISTS_DIR/deferred.md"
+```
+
+Load template from `.specify/templates/deferred-template.md` and populate with:
+- Summary table of all deferred items
+- Detailed rationale for each item
+- Target phase assignments
+- Prerequisites for future implementation
+
+Write the file to `CHECKLISTS_DIR/deferred.md`.
+
+**5d. Produce deferred items table for report:**
 
 ```text
 ## Deferred Items
 
 | Item | Source | Reason | Target Phase |
 |------|--------|--------|--------------|
-| Dark mode support | spec.md:US6 | P3 priority, not MVP | Phase 015 or later |
-| Analytics dashboard | plan.md:L234 | Out of scope for foundation | Phase 016+ |
+| Dark mode support | spec.md:Non-Goals | P3 priority, not MVP | Phase 015 |
+| Analytics dashboard | plan.md:L234 | Out of scope for foundation | Phase 016 |
 | Multi-language support | tasks.md:T099 | Deferred to post-launch | Backlog |
+
+**Documented in**: `specs/[phase]/checklists/deferred.md`
 ```
 
-**5c. If no deferred items found, state "No deferred items identified."**
+**5e. If no deferred items found:**
+- State "No deferred items identified."
+- Do NOT create deferred.md file
+
+**5f. For Backlog items, also update project BACKLOG.md:**
+
+If any items are marked "Backlog" (not assigned to a specific phase):
+- Check if `BACKLOG.md` exists in repo root
+- If exists, append new backlog items
+- If not exists, create it using `.specify/templates/backlog-template.md`
 
 ### 6. User Verification Gate Check
 
@@ -289,6 +324,28 @@ User must explicitly confirm before marking complete
 ```bash
 speckit roadmap status
 ```
+
+**7e. If deferred items exist, update NEXT phase in ROADMAP.md:**
+
+If the phase has deferred items (deferred.md was created), update the NEXT phase's section in ROADMAP.md:
+
+1. Identify the next phase number (current + 1)
+2. Read ROADMAP.md and find the next phase's section
+3. Add a "Deferred from Previous Phases" subsection after the Goal:
+
+```markdown
+**Deferred from Previous Phases** (see `specs/[CURRENT_PHASE]/checklists/deferred.md`):
+- [Item 1 brief description]
+- [Item 2 brief description]
+- [Item 3 brief description]
+```
+
+4. If items were added to project BACKLOG.md, note this in the roadmap section:
+```markdown
+**Note**: Some items deferred to project Backlog - see `BACKLOG.md`
+```
+
+This ensures the next phase's spec will automatically reference inherited deferred items.
 
 ### 8. Generate Verification Report
 

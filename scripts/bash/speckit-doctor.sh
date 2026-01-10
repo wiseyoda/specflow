@@ -47,6 +47,8 @@ CHECK AREAS:
     paths               Config path existence
     git                 Git repository status
     templates           Template versions
+    version             Version file and updates
+    reality             State vs actual files comparison
     all                 Run all checks (default)
 
 EXAMPLES:
@@ -449,6 +451,167 @@ check_templates() {
   fi
 }
 
+# Check version file
+check_version() {
+  local fix="${1:-false}"
+
+  log_step "Checking version"
+
+  # Check for VERSION file in system installation
+  local version_file="${SPECKIT_SYSTEM_DIR}/VERSION"
+
+  if [[ -f "$version_file" ]]; then
+    local installed_version
+    installed_version=$(cat "$version_file" | tr -d '\n')
+    print_status ok "VERSION file exists: v${installed_version}"
+
+    # Check if speckit command returns same version
+    if command_exists speckit; then
+      local cli_version
+      cli_version=$(speckit version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+      if [[ "$cli_version" == "$installed_version" ]]; then
+        print_status ok "CLI version matches: v${cli_version}"
+      else
+        print_status warn "CLI version mismatch: file=${installed_version}, cli=${cli_version}"
+        add_warning "Version mismatch between VERSION file and CLI"
+      fi
+    fi
+  else
+    print_status error "VERSION file missing: $version_file"
+    add_issue "VERSION file not found in installation"
+
+    if [[ "$fix" == "true" ]]; then
+      # Try to get version from CLI and create file
+      if command_exists speckit; then
+        local cli_version
+        cli_version=$(speckit version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "2.0.0")
+        echo "$cli_version" > "$version_file"
+        add_fixed "Created VERSION file with v${cli_version}"
+        print_status ok "Created VERSION file"
+      fi
+    fi
+  fi
+}
+
+# Check reality - state vs actual files
+check_reality() {
+  local fix="${1:-false}"
+
+  log_step "Checking state vs reality"
+
+  local state_file
+  state_file="$(get_state_file)"
+
+  if [[ ! -f "$state_file" ]]; then
+    print_status skip "No state file to compare"
+    return
+  fi
+
+  # If fix mode, offer to use file-based inference
+  if [[ "$fix" == "true" ]]; then
+    log_info "Running file-based state inference..."
+    if bash "${SCRIPT_DIR}/speckit-state.sh" infer --apply 2>/dev/null; then
+      add_fixed "Recovered state from file system"
+    fi
+    return
+  fi
+
+  local repo_root
+  repo_root="$(get_repo_root)"
+
+  # Check specify step completion vs spec.md existence
+  local specify_status
+  specify_status=$(jq -r '.orchestration.steps.specify.status // "pending"' "$state_file" 2>/dev/null)
+  local current_phase
+  current_phase=$(jq -r '.orchestration.phase_number // empty' "$state_file" 2>/dev/null)
+
+  if [[ -n "$current_phase" ]]; then
+    local phase_dir
+    phase_dir=$(find "${repo_root}/specs" -maxdepth 1 -type d -name "${current_phase}-*" 2>/dev/null | head -1)
+
+    # Check spec.md
+    if [[ "$specify_status" == "completed" ]]; then
+      if [[ -n "$phase_dir" && -f "${phase_dir}/spec.md" ]]; then
+        print_status ok "Specify: state=completed, spec.md exists"
+      else
+        print_status error "Specify: state=completed but spec.md missing"
+        add_issue "State says specify complete but spec.md not found"
+      fi
+    elif [[ "$specify_status" == "pending" ]]; then
+      if [[ -n "$phase_dir" && -f "${phase_dir}/spec.md" ]]; then
+        print_status warn "Specify: state=pending but spec.md exists"
+        add_warning "spec.md exists but state says specify pending"
+      else
+        print_status ok "Specify: state=pending, no spec.md"
+      fi
+    fi
+
+    # Check plan.md
+    local plan_status
+    plan_status=$(jq -r '.orchestration.steps.plan.status // "pending"' "$state_file" 2>/dev/null)
+
+    if [[ "$plan_status" == "completed" ]]; then
+      if [[ -n "$phase_dir" && -f "${phase_dir}/plan.md" ]]; then
+        print_status ok "Plan: state=completed, plan.md exists"
+      else
+        print_status error "Plan: state=completed but plan.md missing"
+        add_issue "State says plan complete but plan.md not found"
+      fi
+    elif [[ "$plan_status" == "pending" ]]; then
+      if [[ -n "$phase_dir" && -f "${phase_dir}/plan.md" ]]; then
+        print_status warn "Plan: state=pending but plan.md exists"
+        add_warning "plan.md exists but state says plan pending"
+      fi
+    fi
+
+    # Check tasks.md
+    local tasks_status
+    tasks_status=$(jq -r '.orchestration.steps.tasks.status // "pending"' "$state_file" 2>/dev/null)
+
+    if [[ "$tasks_status" == "completed" ]]; then
+      if [[ -n "$phase_dir" && -f "${phase_dir}/tasks.md" ]]; then
+        print_status ok "Tasks: state=completed, tasks.md exists"
+      else
+        print_status error "Tasks: state=completed but tasks.md missing"
+        add_issue "State says tasks complete but tasks.md not found"
+      fi
+    elif [[ "$tasks_status" == "pending" ]]; then
+      if [[ -n "$phase_dir" && -f "${phase_dir}/tasks.md" ]]; then
+        print_status warn "Tasks: state=pending but tasks.md exists"
+        add_warning "tasks.md exists but state says tasks pending"
+      fi
+    fi
+  else
+    print_status ok "No active phase - skipping file checks"
+  fi
+
+  # Compare task completion count
+  local state_tasks_completed
+  state_tasks_completed=$(jq -r '.orchestration.steps.implement.tasks_completed // 0' "$state_file" 2>/dev/null)
+  local state_tasks_total
+  state_tasks_total=$(jq -r '.orchestration.steps.implement.tasks_total // 0' "$state_file" 2>/dev/null)
+
+  if [[ -n "$phase_dir" && -f "${phase_dir}/tasks.md" ]]; then
+    local file_completed file_total
+    file_completed=$(grep -c '^\s*- \[x\]' "${phase_dir}/tasks.md" 2>/dev/null || echo "0")
+    file_total=$(grep -c '^\s*- \[' "${phase_dir}/tasks.md" 2>/dev/null || echo "0")
+
+    if [[ "$state_tasks_completed" -eq "$file_completed" && "$state_tasks_total" -eq "$file_total" ]]; then
+      print_status ok "Task counts: ${file_completed}/${file_total} (in sync)"
+    else
+      print_status warn "Task counts: state=${state_tasks_completed}/${state_tasks_total}, file=${file_completed}/${file_total}"
+      add_warning "Task completion counts don't match"
+
+      if [[ "$fix" == "true" ]]; then
+        json_set "$state_file" ".orchestration.steps.implement.tasks_completed" "$file_completed"
+        json_set "$state_file" ".orchestration.steps.implement.tasks_total" "$file_total"
+        add_fixed "Updated task counts from file"
+        print_status ok "Fixed task counts"
+      fi
+    fi
+  fi
+}
+
 # =============================================================================
 # Main Check Runner
 # =============================================================================
@@ -476,6 +639,12 @@ run_checks() {
     templates)
       check_templates "$fix"
       ;;
+    version)
+      check_version "$fix"
+      ;;
+    reality)
+      check_reality "$fix"
+      ;;
     all)
       check_system "$fix"
       echo ""
@@ -488,10 +657,14 @@ run_checks() {
       check_git "$fix"
       echo ""
       check_templates "$fix"
+      echo ""
+      check_version "$fix"
+      echo ""
+      check_reality "$fix"
       ;;
     *)
       log_error "Unknown check area: $check_area"
-      log_info "Valid areas: system, project, state, paths, git, templates, all"
+      log_info "Valid areas: system, project, state, paths, git, templates, version, reality, all"
       exit 1
       ;;
   esac

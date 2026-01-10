@@ -150,6 +150,15 @@ COMMANDS:
                         Clears orchestration state
                         Called automatically after phase completion
 
+    infer               Infer orchestration state from file existence
+                        Checks for spec.md, plan.md, tasks.md
+                        Counts completed tasks
+                        Use --apply to update state file
+
+    rollback [file]     Rollback state to a backup
+                        Lists available backups if no file specified
+                        Creates backup of current state before rollback
+
     registry [cmd]      Manage central project registry
                         list  - List all registered projects
                         sync  - Update last_seen for current project
@@ -720,6 +729,92 @@ cmd_archive() {
   fi
 }
 
+# =============================================================================
+# V1 Discovery Detection
+# =============================================================================
+
+# Detect and parse v1 interview state from discovery files
+detect_v1_discovery() {
+  local repo_root
+  repo_root="$(get_repo_root)"
+  local discovery_dir="${repo_root}/.specify/discovery"
+
+  # Check if discovery directory exists
+  if [[ ! -d "$discovery_dir" ]]; then
+    echo '{"found": false}'
+    return
+  fi
+
+  local has_state=false
+  local has_decisions=false
+  local has_context=false
+  local current_phase=0
+  local decisions_count=0
+  local status="not_started"
+  local paused_at=""
+
+  # Check for state.md
+  if [[ -f "${discovery_dir}/state.md" ]]; then
+    has_state=true
+    # Parse state.md for phase info
+    local state_content
+    state_content=$(cat "${discovery_dir}/state.md")
+
+    # Try to extract current phase
+    if echo "$state_content" | grep -qiE 'current.*phase|phase.*[0-9]+'; then
+      current_phase=$(echo "$state_content" | grep -oE 'phase[^0-9]*([0-9]+)' -i | grep -oE '[0-9]+' | head -1 || echo "0")
+    fi
+
+    # Check if paused
+    if echo "$state_content" | grep -qiE 'paused|status.*paused'; then
+      status="paused"
+      paused_at=$(echo "$state_content" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1 || echo "")
+    elif [[ $current_phase -gt 0 ]]; then
+      status="in_progress"
+    fi
+  fi
+
+  # Check for decisions.md
+  if [[ -f "${discovery_dir}/decisions.md" ]]; then
+    has_decisions=true
+    # Count decisions (look for decision markers)
+    decisions_count=$(grep -cE '^\s*[-*]\s*\*\*|^###.*Decision|^##.*Decision' "${discovery_dir}/decisions.md" 2>/dev/null || echo "0")
+    if [[ $decisions_count -eq 0 ]]; then
+      # Try counting list items as fallback
+      decisions_count=$(grep -cE '^\s*[-*]\s+[A-Z]' "${discovery_dir}/decisions.md" 2>/dev/null || echo "0")
+    fi
+  fi
+
+  # Check for context.md
+  if [[ -f "${discovery_dir}/context.md" ]]; then
+    has_context=true
+  fi
+
+  # Determine overall status
+  if [[ "$has_state" == "true" || "$has_decisions" == "true" ]]; then
+    if [[ "$status" == "not_started" && "$decisions_count" -gt 0 ]]; then
+      status="in_progress"
+    fi
+  fi
+
+  cat << EOF
+{
+  "found": true,
+  "files": {
+    "state_md": $has_state,
+    "decisions_md": $has_decisions,
+    "context_md": $has_context
+  },
+  "interview": {
+    "status": "$status",
+    "current_phase": $current_phase,
+    "decisions_count": $decisions_count,
+    "paused_at": $(if [[ -n "$paused_at" ]]; then echo "\"$paused_at\""; else echo "null"; fi)
+  }
+}
+EOF
+}
+
 # Migrate state file from v1.x to v2.0
 cmd_migrate() {
   local state_file
@@ -771,6 +866,27 @@ cmd_migrate() {
   local project_name
   project_name="$(basename "$repo_root")"
 
+  # Check for v1 discovery files (interview state in markdown)
+  local v1_discovery
+  v1_discovery=$(detect_v1_discovery)
+  local has_v1_discovery=false
+  local v1_interview_status="not_started"
+  local v1_current_phase=0
+  local v1_decisions_count=0
+
+  if echo "$v1_discovery" | jq -e '.found == true' >/dev/null 2>&1; then
+    has_v1_discovery=true
+    v1_interview_status=$(echo "$v1_discovery" | jq -r '.interview.status')
+    v1_current_phase=$(echo "$v1_discovery" | jq -r '.interview.current_phase')
+    v1_decisions_count=$(echo "$v1_discovery" | jq -r '.interview.decisions_count')
+
+    log_info "Found v1 discovery files:"
+    log_info "  Interview status: $v1_interview_status"
+    log_info "  Current phase: $v1_current_phase"
+    log_info "  Decisions: $v1_decisions_count"
+    log_info "  Discovery files will be preserved and state incorporated"
+  fi
+
   # Detect format and extract data
   local temp_file
   temp_file=$(mktemp)
@@ -783,7 +899,11 @@ cmd_migrate() {
     jq --arg ts "$timestamp" \
        --arg id "$project_id" \
        --arg path "$repo_root" \
-       --arg name "$project_name" '
+       --arg name "$project_name" \
+       --arg v1_status "$v1_interview_status" \
+       --argjson v1_phase "$v1_current_phase" \
+       --argjson v1_decisions "$v1_decisions_count" \
+       --argjson has_v1 "$has_v1_discovery" '
       {
         "schema_version": "2.0",
         "project": {
@@ -803,15 +923,31 @@ cmd_migrate() {
           "scripts_path": (.project.scripts_path // ".specify/scripts/"),
           "templates_path": (.project.templates_path // ".specify/templates/")
         },
-        "interview": (.interview // {
-          "status": "not_started",
-          "current_phase": 0,
-          "current_question": 0,
-          "decisions_count": 0,
-          "phases": {},
-          "started_at": null,
-          "completed_at": null
-        }),
+        "interview": (
+          # Merge existing interview with v1 discovery if found
+          if $has_v1 then
+            (.interview // {}) * {
+              "status": (if $v1_status != "not_started" then $v1_status else (.interview.status // "not_started") end),
+              "current_phase": (if $v1_phase > 0 then $v1_phase else (.interview.current_phase // 0) end),
+              "current_question": (.interview.current_question // 0),
+              "decisions_count": (if $v1_decisions > 0 then $v1_decisions else (.interview.decisions_count // 0) end),
+              "phases": (.interview.phases // {}),
+              "started_at": (.interview.started_at // null),
+              "completed_at": (.interview.completed_at // null),
+              "v1_discovery_imported": true
+            }
+          else
+            (.interview // {
+              "status": "not_started",
+              "current_phase": 0,
+              "current_question": 0,
+              "decisions_count": 0,
+              "phases": {},
+              "started_at": null,
+              "completed_at": null
+            })
+          end
+        ),
         "orchestration": {
           "phase": {
             "number": (.orchestration.phase_number // null),
@@ -858,7 +994,11 @@ cmd_migrate() {
     jq --arg ts "$timestamp" \
        --arg id "$project_id" \
        --arg path "$repo_root" \
-       --arg name "$project_name" '
+       --arg name "$project_name" \
+       --arg v1_status "$v1_interview_status" \
+       --argjson v1_phase "$v1_current_phase" \
+       --argjson v1_decisions "$v1_decisions_count" \
+       --argjson has_v1 "$has_v1_discovery" '
       {
         "schema_version": "2.0",
         "project": ((.project // {}) + {
@@ -875,15 +1015,30 @@ cmd_migrate() {
           "scripts_path": ".specify/scripts/",
           "templates_path": ".specify/templates/"
         }),
-        "interview": (.interview // {
-          "status": "not_started",
-          "current_phase": 0,
-          "current_question": 0,
-          "decisions_count": 0,
-          "phases": {},
-          "started_at": null,
-          "completed_at": null
-        }),
+        "interview": (
+          if $has_v1 then
+            (.interview // {}) * {
+              "status": (if $v1_status != "not_started" then $v1_status else (.interview.status // "not_started") end),
+              "current_phase": (if $v1_phase > 0 then $v1_phase else (.interview.current_phase // 0) end),
+              "current_question": (.interview.current_question // 0),
+              "decisions_count": (if $v1_decisions > 0 then $v1_decisions else (.interview.decisions_count // 0) end),
+              "phases": (.interview.phases // {}),
+              "started_at": (.interview.started_at // null),
+              "completed_at": (.interview.completed_at // null),
+              "v1_discovery_imported": true
+            }
+          else
+            (.interview // {
+              "status": "not_started",
+              "current_phase": 0,
+              "current_question": 0,
+              "decisions_count": 0,
+              "phases": {},
+              "started_at": null,
+              "completed_at": null
+            })
+          end
+        ),
         "orchestration": (
           if .orchestration.phase then .orchestration
           else {
@@ -933,7 +1088,11 @@ cmd_migrate() {
     jq --arg ts "$timestamp" \
        --arg id "$project_id" \
        --arg path "$repo_root" \
-       --arg name "$project_name" '
+       --arg name "$project_name" \
+       --arg v1_status "$v1_interview_status" \
+       --argjson v1_phase "$v1_current_phase" \
+       --argjson v1_decisions "$v1_decisions_count" \
+       --argjson has_v1 "$has_v1_discovery" '
       {
         "schema_version": "2.0",
         "project": {
@@ -953,15 +1112,30 @@ cmd_migrate() {
           "scripts_path": ".specify/scripts/",
           "templates_path": ".specify/templates/"
         },
-        "interview": {
-          "status": "not_started",
-          "current_phase": 0,
-          "current_question": 0,
-          "decisions_count": 0,
-          "phases": {},
-          "started_at": null,
-          "completed_at": null
-        },
+        "interview": (
+          if $has_v1 then
+            {
+              "status": $v1_status,
+              "current_phase": $v1_phase,
+              "current_question": 0,
+              "decisions_count": $v1_decisions,
+              "phases": {},
+              "started_at": null,
+              "completed_at": null,
+              "v1_discovery_imported": true
+            }
+          else
+            {
+              "status": "not_started",
+              "current_phase": 0,
+              "current_question": 0,
+              "decisions_count": 0,
+              "phases": {},
+              "started_at": null,
+              "completed_at": null
+            }
+          end
+        ),
         "orchestration": {
           "phase": { "number": null, "name": null, "branch": null, "status": "not_started" },
           "step": { "current": null, "index": 0, "status": "not_started" },
@@ -1001,6 +1175,316 @@ cmd_migrate() {
 
   if is_json_output; then
     echo "{\"migrated\": true, \"from\": \"$source_version\", \"to\": \"2.0\", \"project_id\": \"$final_id\", \"backup\": \"$backup_file\"}"
+  fi
+}
+
+# =============================================================================
+# Infer State from Files
+# =============================================================================
+
+# Infer orchestration state from file existence
+cmd_infer() {
+  local apply="${1:-false}"
+  local state_file
+  state_file="$(get_state_file)"
+  local repo_root
+  repo_root="$(get_repo_root)"
+
+  if [[ ! -f "$state_file" ]]; then
+    log_error "State file not found. Run 'speckit state init' first."
+    exit 1
+  fi
+
+  log_step "Inferring state from files"
+
+  # Get current phase from state or detect from specs directory
+  local current_phase
+  current_phase=$(jq -r '.orchestration.phase.number // empty' "$state_file" 2>/dev/null)
+
+  # If no phase in state, try to detect from specs directory
+  if [[ -z "$current_phase" || "$current_phase" == "null" ]]; then
+    # Check if specs directory exists
+    if [[ ! -d "${repo_root}/specs" ]]; then
+      log_info "No specs/ directory found"
+      if is_json_output; then
+        echo '{"phase": null, "inferred": {}, "message": "no_specs_directory"}'
+      else
+        echo ""
+        log_info "No specs/ directory - nothing to infer"
+      fi
+      return 0
+    fi
+
+    # Find most recent phase directory
+    local latest_phase_dir
+    latest_phase_dir=$(find "${repo_root}/specs" -maxdepth 1 -type d -name "[0-9][0-9][0-9]-*" 2>/dev/null | sort -r | head -1)
+    if [[ -n "$latest_phase_dir" ]]; then
+      current_phase=$(basename "$latest_phase_dir" | grep -oE '^[0-9]{3}')
+      log_info "Detected phase from specs: $current_phase"
+    else
+      log_info "No phase directories found in specs/"
+      if is_json_output; then
+        echo '{"phase": null, "inferred": {}, "message": "no_phases"}'
+      else
+        echo ""
+        log_info "No phase directories - nothing to infer"
+      fi
+      return 0
+    fi
+  fi
+
+  # Find the phase directory
+  local phase_dir
+  phase_dir=$(find "${repo_root}/specs" -maxdepth 1 -type d -name "${current_phase}-*" 2>/dev/null | head -1)
+
+  if [[ -z "$phase_dir" ]]; then
+    log_warn "Phase directory not found for phase $current_phase"
+    if is_json_output; then
+      echo "{\"phase\": \"$current_phase\", \"inferred\": {}, \"error\": \"phase_dir_not_found\"}"
+    fi
+    return
+  fi
+
+  local phase_name
+  phase_name=$(basename "$phase_dir")
+
+  # Infer step completion from file existence
+  local spec_exists=false
+  local plan_exists=false
+  local tasks_exists=false
+  local checklists_exist=false
+  local tasks_completed=0
+  local tasks_total=0
+
+  [[ -f "${phase_dir}/spec.md" ]] && spec_exists=true
+  [[ -f "${phase_dir}/plan.md" ]] && plan_exists=true
+  [[ -f "${phase_dir}/tasks.md" ]] && tasks_exists=true
+  [[ -d "${phase_dir}/checklists" ]] && checklists_exist=true
+
+  # Count tasks if tasks.md exists
+  if [[ "$tasks_exists" == "true" ]]; then
+    tasks_completed=$(grep -c '^\s*- \[x\]' "${phase_dir}/tasks.md" 2>/dev/null || echo "0")
+    tasks_total=$(grep -c '^\s*- \[' "${phase_dir}/tasks.md" 2>/dev/null || echo "0")
+  fi
+
+  # Determine inferred step
+  local inferred_step="specify"
+  local inferred_step_status="pending"
+
+  if [[ "$spec_exists" == "true" ]]; then
+    inferred_step="plan"
+    if [[ "$plan_exists" == "true" ]]; then
+      inferred_step="tasks"
+      if [[ "$tasks_exists" == "true" ]]; then
+        inferred_step="implement"
+        if [[ "$tasks_total" -gt 0 && "$tasks_completed" -eq "$tasks_total" ]]; then
+          inferred_step="verify"
+          inferred_step_status="pending"
+        elif [[ "$tasks_completed" -gt 0 ]]; then
+          inferred_step_status="in_progress"
+        else
+          inferred_step_status="pending"
+        fi
+      fi
+    fi
+  fi
+
+  # Calculate percentage
+  local percentage=0
+  if [[ "$tasks_total" -gt 0 ]]; then
+    percentage=$((tasks_completed * 100 / tasks_total))
+  fi
+
+  # Build inferred state object
+  local inferred_json
+  inferred_json=$(cat << EOF
+{
+  "phase": {
+    "number": "$current_phase",
+    "name": "$phase_name",
+    "detected": true
+  },
+  "files": {
+    "spec_md": $spec_exists,
+    "plan_md": $plan_exists,
+    "tasks_md": $tasks_exists,
+    "checklists": $checklists_exist
+  },
+  "progress": {
+    "tasks_completed": $tasks_completed,
+    "tasks_total": $tasks_total,
+    "percentage": $percentage
+  },
+  "inferred_step": "$inferred_step",
+  "inferred_status": "$inferred_step_status"
+}
+EOF
+)
+
+  if is_json_output; then
+    echo "$inferred_json"
+  else
+    print_header "Inferred State"
+    echo ""
+    echo "  Phase: $current_phase ($phase_name)"
+    echo ""
+    echo "  Files:"
+    [[ "$spec_exists" == "true" ]] && print_status ok "spec.md" || print_status pending "spec.md (missing)"
+    [[ "$plan_exists" == "true" ]] && print_status ok "plan.md" || print_status pending "plan.md (missing)"
+    [[ "$tasks_exists" == "true" ]] && print_status ok "tasks.md" || print_status pending "tasks.md (missing)"
+    [[ "$checklists_exist" == "true" ]] && print_status ok "checklists/" || print_status pending "checklists/ (missing)"
+    echo ""
+    echo "  Progress: $tasks_completed / $tasks_total ($percentage%)"
+    echo "  Inferred step: $inferred_step ($inferred_step_status)"
+  fi
+
+  # Apply to state file if requested
+  if [[ "$apply" == "--apply" || "$apply" == "-a" ]]; then
+    echo ""
+    log_step "Applying inferred state"
+
+    local temp_file
+    temp_file=$(mktemp)
+
+    jq --arg phase "$current_phase" \
+       --arg name "$phase_name" \
+       --arg step "$inferred_step" \
+       --arg status "$inferred_step_status" \
+       --argjson completed "$tasks_completed" \
+       --argjson total "$tasks_total" \
+       --argjson pct "$percentage" \
+       --arg ts "$(iso_timestamp)" \
+       '.orchestration.phase.number = $phase |
+        .orchestration.phase.name = $name |
+        .orchestration.phase.status = "in_progress" |
+        .orchestration.step.current = $step |
+        .orchestration.step.status = $status |
+        .orchestration.progress.tasks_completed = $completed |
+        .orchestration.progress.tasks_total = $total |
+        .orchestration.progress.percentage = $pct |
+        .last_updated = $ts' "$state_file" > "$temp_file"
+
+    mv "$temp_file" "$state_file"
+    log_success "State updated from file system"
+  else
+    if ! is_json_output; then
+      echo ""
+      log_info "Run 'speckit state infer --apply' to update state file"
+    fi
+  fi
+}
+
+# =============================================================================
+# Rollback State
+# =============================================================================
+
+# Rollback state to a backup
+cmd_rollback() {
+  local backup_file="${1:-}"
+  local state_file
+  state_file="$(get_state_file)"
+  local repo_root
+  repo_root="$(get_repo_root)"
+  local backup_dir="${repo_root}/.specify/backup"
+
+  # If no backup specified, list available backups
+  if [[ -z "$backup_file" ]]; then
+    if [[ ! -d "$backup_dir" ]]; then
+      log_info "No backup directory found at $backup_dir"
+      if is_json_output; then
+        echo '{"backups": [], "message": "no_backup_directory"}'
+      fi
+      return 0
+    fi
+
+    local backups
+    backups=$(find "$backup_dir" -name "*.json" -type f 2>/dev/null | sort -r)
+
+    if [[ -z "$backups" ]]; then
+      log_info "No backup files found"
+      if is_json_output; then
+        echo '{"backups": [], "message": "no_backups"}'
+      fi
+      return 0
+    fi
+
+    if is_json_output; then
+      local backup_json="[]"
+      while IFS= read -r file; do
+        local filename size date_str
+        filename=$(basename "$file")
+        size=$(wc -c < "$file" | tr -d ' ')
+        date_str=$(stat -f "%Sm" -t "%Y-%m-%d %H:%M" "$file" 2>/dev/null || stat -c "%y" "$file" 2>/dev/null | cut -d'.' -f1)
+        backup_json=$(echo "$backup_json" | jq \
+          --arg file "$filename" \
+          --arg path "$file" \
+          --argjson size "$size" \
+          --arg date "$date_str" \
+          '. + [{"file": $file, "path": $path, "size": $size, "date": $date}]')
+      done <<< "$backups"
+      echo "{\"backups\": $backup_json}"
+    else
+      print_header "Available Backups"
+      echo ""
+      local count=0
+      while IFS= read -r file; do
+        ((count++)) || true
+        local filename size date_str
+        filename=$(basename "$file")
+        size=$(wc -c < "$file" | tr -d ' ')
+        date_str=$(stat -f "%Sm" -t "%Y-%m-%d %H:%M" "$file" 2>/dev/null || stat -c "%y" "$file" 2>/dev/null | cut -d'.' -f1)
+        printf "  %d. %s (%s bytes, %s)\n" "$count" "$filename" "$size" "$date_str"
+      done <<< "$backups"
+      echo ""
+      log_info "To rollback: speckit state rollback <filename>"
+    fi
+    return 0
+  fi
+
+  # Find the backup file
+  local full_path
+  if [[ -f "$backup_file" ]]; then
+    full_path="$backup_file"
+  elif [[ -f "${backup_dir}/${backup_file}" ]]; then
+    full_path="${backup_dir}/${backup_file}"
+  else
+    log_error "Backup file not found: $backup_file"
+    exit 1
+  fi
+
+  # Validate the backup file is valid JSON
+  if ! jq '.' "$full_path" >/dev/null 2>&1; then
+    log_error "Backup file is not valid JSON: $full_path"
+    exit 1
+  fi
+
+  # Create backup of current state before rollback
+  if [[ -f "$state_file" ]]; then
+    ensure_dir "$backup_dir"
+    local pre_rollback_backup="${backup_dir}/pre-rollback-$(date +%Y%m%d%H%M%S).json"
+    cp "$state_file" "$pre_rollback_backup"
+    log_info "Created pre-rollback backup: $(basename "$pre_rollback_backup")"
+  fi
+
+  # Perform rollback
+  cp "$full_path" "$state_file"
+  log_success "Rolled back to: $(basename "$full_path")"
+
+  # Show what was restored
+  if ! is_json_output; then
+    echo ""
+    log_info "Restored state:"
+    local version
+    version=$(jq -r '.schema_version // .version // "unknown"' "$state_file" 2>/dev/null)
+    echo "  Version: $version"
+
+    local interview_status orch_status
+    interview_status=$(jq -r '.interview.status // "unknown"' "$state_file" 2>/dev/null)
+    orch_status=$(jq -r '.orchestration.status // .orchestration.phase.status // "unknown"' "$state_file" 2>/dev/null)
+    echo "  Interview: $interview_status"
+    echo "  Orchestration: $orch_status"
+  else
+    echo "{\"rolledBack\": true, \"from\": \"$(basename "$full_path")\"}"
   fi
 }
 
@@ -1045,6 +1529,12 @@ main() {
       ;;
     archive)
       cmd_archive
+      ;;
+    infer)
+      cmd_infer "${1:-}"
+      ;;
+    rollback)
+      cmd_rollback "${1:-}"
       ;;
     registry)
       cmd_registry "${1:-list}"

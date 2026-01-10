@@ -47,7 +47,7 @@ speckit roadmap status            # Get phase statuses
 
 Before routing, perform these checks in order:
 
-### Check 0: CLI Availability
+### Check 0a: CLI Availability
 
 ```bash
 # Check if speckit CLI is available
@@ -72,6 +72,61 @@ Display installation instructions and stop:
 ║   export PATH="$HOME/.claude/speckit-system/bin:$PATH"        ║
 ║                                                               ║
 ║ Then run /speckit.start again.                                ║
+╚══════════════════════════════════════════════════════════════╝
+```
+
+### Check 0b: Write Permissions
+
+```bash
+# Check if we can write to the current directory
+touch .speckit-write-test 2>/dev/null && rm -f .speckit-write-test
+```
+
+**If write permission is denied:**
+
+```text
+╔══════════════════════════════════════════════════════════════╗
+║              Write Permission Denied                          ║
+╠══════════════════════════════════════════════════════════════╣
+║ Cannot write to the current directory.                        ║
+║                                                               ║
+║ SpecKit needs write access to create:                         ║
+║ • .specify/         (state and configuration)                 ║
+║ • specs/            (feature specifications)                  ║
+║ • ROADMAP.md        (development phases)                      ║
+║                                                               ║
+║ Please check:                                                 ║
+║ 1. You own this directory                                     ║
+║ 2. Directory is not read-only                                 ║
+║ 3. You're not in a system/protected location                  ║
+╚══════════════════════════════════════════════════════════════╝
+```
+
+### Check 0c: Git Repository (Optional)
+
+```bash
+# Check if in a git repository (recommended but not required)
+git rev-parse --git-dir 2>/dev/null
+```
+
+**If NOT in a git repository:**
+
+Display a warning but continue:
+
+```text
+╔══════════════════════════════════════════════════════════════╗
+║              Not a Git Repository (Warning)                   ║
+╠══════════════════════════════════════════════════════════════╣
+║ This directory is not a Git repository.                       ║
+║                                                               ║
+║ SpecKit works best with Git for:                              ║
+║ • Branch management per phase                                 ║
+║ • Feature isolation                                           ║
+║ • Safe rollbacks                                              ║
+║                                                               ║
+║ To initialize: git init                                       ║
+║                                                               ║
+║ Continuing without Git (some features limited)...             ║
 ╚══════════════════════════════════════════════════════════════╝
 ```
 

@@ -53,6 +53,11 @@ description: 'Project roadmap template'
 
 **Goal**: [PHASE_002_GOAL]
 
+<!-- Include this section if previous phase had deferred items targeting this phase -->
+**Deferred from Previous Phases** (see `specs/001-[name]/checklists/deferred.md`):
+- [DEFERRED_ITEM_1]
+- [DEFERRED_ITEM_2]
+
 **Scope**:
 - [PHASE_002_SCOPE_ITEM_1]
 - [PHASE_002_SCOPE_ITEM_2]
@@ -113,8 +118,16 @@ Each phase is designed to be:
 
 If a phase is running long:
 1. Cut scope to MVP for that phase
-2. Create a follow-up phase for deferred items
-3. Prioritize verification gate requirements
+2. Document deferred items in `specs/[phase]/checklists/deferred.md`
+3. Update next phase's section with "Deferred from Previous Phases"
+4. Prioritize verification gate requirements
+
+### Deferred Items Flow
+When items are deferred from a phase:
+1. `/speckit.verify` creates `checklists/deferred.md` with full documentation
+2. ROADMAP.md next phase section gets updated with reference
+3. `/speckit.specify` for next phase automatically checks for inherited items
+4. Items not assigned to a specific phase go to project `BACKLOG.md`
 
 ---
 

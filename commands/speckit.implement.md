@@ -15,6 +15,77 @@ $ARGUMENTS
 
 You **MUST** consider the user input before proceeding (if not empty).
 
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| (empty) | Execute all tasks in standard order |
+| `--tdd` | Enforce test-driven development: write tests first, run after each task |
+| `continue` | Resume from last incomplete task |
+| `phase <N>` | Start at a specific phase |
+
+## TDD Mode (`--tdd`)
+
+When `--tdd` flag is provided, enforce strict test-driven development:
+
+### TDD Workflow
+
+1. **Test First**: For each implementation task, write or verify tests exist BEFORE writing implementation code
+2. **Red Phase**: Run tests to confirm they fail (expected - no implementation yet)
+3. **Green Phase**: Implement the minimum code to make tests pass
+4. **Refactor Phase**: Clean up code while keeping tests green
+5. **Validate**: Run full test suite after each task completion
+
+### TDD Execution Rules
+
+```text
+For each task in tasks.md:
+  1. IF task has corresponding test task:
+     a. Execute test task FIRST (write/verify tests)
+     b. Run tests - confirm they fail appropriately
+     c. Execute implementation task
+     d. Run tests - confirm they pass
+     e. Mark both tasks complete
+  2. ELSE (no corresponding test task):
+     a. Generate tests for the functionality being implemented
+     b. Run tests - confirm they fail
+     c. Execute implementation task
+     d. Run tests - confirm they pass
+     e. Mark task complete
+
+  3. AFTER each task completion:
+     - Run: npm test / pytest / go test / cargo test (detect from project)
+     - IF tests fail: STOP and report failure
+     - IF tests pass: Continue to next task
+```
+
+### Test Detection
+
+Match implementation tasks to test tasks:
+- `T003: Implement UserService` → Look for `T0XX: Test UserService`
+- `T005: Add validation logic` → Look for `T0XX: Add validation tests`
+- If no matching test task exists, create tests inline before implementing
+
+### TDD Output Format
+
+```text
+╔════════════════════════════════════════════════════════════════╗
+║ TDD Mode: Task T003 - Implement UserService                     ║
+╠════════════════════════════════════════════════════════════════╣
+║ 🔴 RED:    Writing tests for UserService...                     ║
+║           Created: tests/services/user.test.ts                  ║
+║           Running tests: 5 tests, 5 failures (expected)         ║
+╠════════════════════════════════════════════════════════════════╣
+║ 🟢 GREEN: Implementing UserService...                           ║
+║           Created: src/services/user.ts                         ║
+║           Running tests: 5 tests, 5 passing                     ║
+╠════════════════════════════════════════════════════════════════╣
+║ 🔄 REFACTOR: Cleaning up implementation...                      ║
+║           No changes needed                                     ║
+║           Running tests: 5 tests, 5 passing ✓                   ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
 ## Outline
 
 1. Run `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
@@ -114,7 +185,11 @@ You **MUST** consider the user input before proceeding (if not empty).
 6. Execute implementation following the task plan:
    - **Phase-by-phase execution**: Complete each phase before moving to the next
    - **Respect dependencies**: Run sequential tasks in order, parallel tasks [P] can run together
-   - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
+   - **TDD Mode** (if `--tdd` flag provided): Follow the TDD Workflow section above
+     - Write/verify tests BEFORE each implementation task
+     - Run tests after each task (fail fast if tests fail)
+     - Use Red-Green-Refactor cycle
+   - **Standard Mode** (no `--tdd` flag): Execute test tasks before their corresponding implementation tasks
    - **File-based coordination**: Tasks affecting the same files must run sequentially
    - **Validation checkpoints**: Verify each phase completion before proceeding
 

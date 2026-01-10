@@ -1,5 +1,7 @@
 # SpecKit - Spec-Driven Development for Claude Code
 
+> **Version 2.0** - Simplified architecture with web UI support
+
 SpecKit is a comprehensive framework for spec-driven development (SDD) that integrates with [Claude Code](https://claude.ai/claude-code). It provides structured workflows for requirements gathering, specification writing, planning, implementation, and verification.
 
 ## Features
@@ -113,13 +115,9 @@ your-project/
 │   │   ├── decisions.md     # Captured decisions
 │   │   └── state.md         # Interview progress
 │   ├── memory/              # Project memory documents
-│   │   ├── constitution.md  # Core principles
-│   │   ├── tech-stack.md    # Technology choices
-│   │   ├── coding-standards.md
-│   │   ├── api-standards.md
-│   │   ├── security-checklist.md
-│   │   ├── testing-strategy.md
-│   │   ├── glossary.md
+│   │   ├── constitution.md  # Core principles (REQUIRED)
+│   │   ├── tech-stack.md    # Technology choices (recommended)
+│   │   ├── coding-standards.md  (recommended)
 │   │   └── adrs/            # Architecture Decision Records
 │   ├── templates/           # Project-specific templates
 │   ├── scripts/bash/        # Project-specific scripts
@@ -135,17 +133,39 @@ your-project/
 └── CLAUDE.md               # Agent instructions
 ```
 
+> **Note**: Only `constitution.md` is required. Other memory documents are generated on demand based on project needs.
+
 ## CLI Reference
+
+### Context & Prerequisites
+
+```bash
+speckit context                      # Show project context (JSON)
+speckit context --check              # Verify prerequisites
+speckit context --summary            # Human-readable summary
+```
+
+### Feature Management
+
+```bash
+speckit feature create <name>        # Create feature directory and branch
+speckit feature list                 # List all features
+speckit feature current              # Show current feature
+```
 
 ### State Management
 
 ```bash
 speckit state get                    # Show full state
-speckit state get config             # Get config section
+speckit state get orchestration      # Get orchestration section
 speckit state set "key=value"        # Set value
-speckit state init                   # Initialize state file
+speckit state init                   # Initialize state file (generates UUID)
 speckit state reset                  # Reset to defaults
 speckit state validate               # Validate state
+speckit state migrate                # Migrate v1.x to v2.0
+speckit state registry list          # List all registered projects
+speckit state registry sync          # Sync registry with project
+speckit state registry clean         # Remove stale entries
 ```
 
 ### Project Scaffolding
@@ -259,22 +279,53 @@ speckit tasks status --json
 
 ## Configuration
 
-SpecKit uses a state file at `.specify/orchestration-state.json`:
+SpecKit uses a state file at `.specify/orchestration-state.json` with v2.0 schema:
 
 ```json
 {
-  "version": "2.0",
-  "config": {
-    "roadmap_path": "ROADMAP.md",
-    "memory_path": ".specify/memory/",
-    "specs_path": "specs/",
-    "scripts_path": ".specify/scripts/",
-    "templates_path": ".specify/templates/"
+  "schema_version": "2.0",
+  "project": {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "my-project",
+    "path": "/absolute/path/to/project",
+    "created_at": "2026-01-10T12:00:00Z"
+  },
+  "orchestration": {
+    "phase": {
+      "number": "001",
+      "name": "feature-name",
+      "status": "in_progress"
+    },
+    "step": {
+      "current": "implement",
+      "index": 4
+    }
+  },
+  "health": {
+    "status": "healthy",
+    "last_check": "2026-01-10T12:00:00Z"
   }
 }
 ```
 
-All paths are configurable to match your project structure.
+Projects are also registered in `~/.speckit/registry.json` for web UI discovery.
+
+## Migrating from v1.x
+
+If you have an existing v1.x project:
+
+```bash
+# Automatic migration
+speckit state migrate
+
+# This will:
+# 1. Backup current state to .specify/archive/
+# 2. Generate project UUID
+# 3. Convert to v2.0 schema
+# 4. Register in ~/.speckit/registry.json
+```
+
+In-progress interviews will continue seamlessly after migration.
 
 ## Troubleshooting
 

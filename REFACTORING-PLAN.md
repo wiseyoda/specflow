@@ -3,7 +3,7 @@
 > Simplification and hardening of SpecKit based on analysis of [GitHub's vanilla spec-kit](https://github.com/github/spec-kit), [Anthropic's best practices](https://www.anthropic.com/engineering/claude-code-best-practices), and industry SDD patterns.
 
 **Created**: 2026-01-10
-**Status**: Planning
+**Status**: Complete
 **Target**: v2.0
 
 ---
@@ -277,13 +277,13 @@ Align with vanilla spec-kit's user story independence:
 - [ ] Update orchestrate to support story-based flow - deferred
 - [ ] Add `speckit tasks next-story` command - deferred
 
-### Phase 7: Documentation & Testing (P3) (2-3 hours)
+### Phase 7: Documentation & Testing (P3) (2-3 hours) ✅ COMPLETE
 
-- [ ] Update README.md for v2.0
-- [ ] Update CLAUDE.md for v2.0
-- [ ] Create migration guide for v1.x users
-- [ ] Add integration tests for full workflow
-- [ ] Update IMPROVEMENT-PLAN.md to reflect completed work
+- [x] Update README.md for v2.0
+- [x] Update CLAUDE.md for v2.0
+- [x] Create migration guide for v1.x users (in README.md)
+- [ ] Add integration tests for full workflow (deferred)
+- [x] Update REFACTORING-PLAN.md to reflect completed work
 
 ---
 

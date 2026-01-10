@@ -1,0 +1,191 @@
+# OpenAPI Template
+# version: 1.0
+# Extracted from: .specify/memory/api-standards.md
+# Purpose: Starter template for new API endpoint specifications
+#
+# Usage:
+#   1. Copy this file to specs/[feature]/contracts/[feature].yaml
+#   2. Replace placeholder values with actual endpoint definitions
+#   3. Ensure all paths follow URL conventions in api-standards.md
+
+openapi: 3.1.0
+info:
+  title: Story Sprout - [Feature] API
+  version: 1.0.0
+
+paths:
+  /api/flows:
+    get:
+      operationId: listFlows
+      summary: List all flows
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, published, archived]
+      responses:
+        '200':
+          description: Flows retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlowListResponse'
+
+    post:
+      operationId: createFlow
+      summary: Create a new flow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFlowRequest'
+      responses:
+        '201':
+          description: Flow created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlowResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/flows/{flowId}:
+    get:
+      operationId: getFlow
+      summary: Get flow by ID
+      parameters:
+        - $ref: '#/components/parameters/FlowIdParam'
+      responses:
+        '200':
+          description: Flow retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlowResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  parameters:
+    FlowIdParam:
+      name: flowId
+      in: path
+      required: true
+      schema:
+        type: string
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  schemas:
+    Flow:
+      type: object
+      required: [id, name, status, createdAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [draft, published, archived]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateFlowRequest:
+      type: object
+      required: [name, steps]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        steps:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Step'
+
+    FlowResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Flow'
+
+    FlowListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Flow'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+        hasNext:
+          type: boolean
+        hasPrev:
+          type: boolean
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+
+  responses:
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

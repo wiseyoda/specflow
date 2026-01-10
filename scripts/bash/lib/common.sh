@@ -1,0 +1,369 @@
+#!/usr/bin/env bash
+#
+# common.sh - Shared functions for SpecKit scripts
+#
+# Source this file at the start of each script:
+#   source "$(dirname "$0")/lib/common.sh"
+#
+
+# Guard against double-sourcing
+if [[ -n "${SPECKIT_COMMON_LOADED:-}" ]]; then
+  return 0 2>/dev/null || exit 0
+fi
+SPECKIT_COMMON_LOADED=1
+
+# Strict mode
+set -euo pipefail
+
+# =============================================================================
+# Colors (disabled if not a terminal or NO_COLOR is set)
+# =============================================================================
+
+if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]]; then
+  readonly RED='\033[0;31m'
+  readonly GREEN='\033[0;32m'
+  readonly YELLOW='\033[0;33m'
+  readonly BLUE='\033[0;34m'
+  readonly MAGENTA='\033[0;35m'
+  readonly CYAN='\033[0;36m'
+  readonly BOLD='\033[1m'
+  readonly DIM='\033[2m'
+  readonly RESET='\033[0m'
+else
+  readonly RED=''
+  readonly GREEN=''
+  readonly YELLOW=''
+  readonly BLUE=''
+  readonly MAGENTA=''
+  readonly CYAN=''
+  readonly BOLD=''
+  readonly DIM=''
+  readonly RESET=''
+fi
+
+# =============================================================================
+# Logging
+# =============================================================================
+
+log_info() {
+  echo -e "${BLUE}INFO${RESET}: $*"
+}
+
+log_success() {
+  echo -e "${GREEN}OK${RESET}: $*"
+}
+
+log_warn() {
+  echo -e "${YELLOW}WARN${RESET}: $*" >&2
+}
+
+log_error() {
+  echo -e "${RED}ERROR${RESET}: $*" >&2
+}
+
+log_debug() {
+  if [[ "${SPECKIT_DEBUG:-}" == "1" ]]; then
+    echo -e "${DIM}DEBUG: $*${RESET}" >&2
+  fi
+}
+
+# Log a step in a process
+log_step() {
+  echo -e "${CYAN}==>${RESET} ${BOLD}$*${RESET}"
+}
+
+# =============================================================================
+# Output Formatting
+# =============================================================================
+
+# Print a header
+print_header() {
+  local title="$1"
+  local width="${2:-60}"
+  local line
+  line=$(printf '%*s' "$width" '' | tr ' ' '=')
+  echo ""
+  echo -e "${BOLD}${line}${RESET}"
+  echo -e "${BOLD}  $title${RESET}"
+  echo -e "${BOLD}${line}${RESET}"
+}
+
+# Print a section
+print_section() {
+  local title="$1"
+  echo ""
+  echo -e "${BOLD}## $title${RESET}"
+  echo ""
+}
+
+# Print status with icon
+print_status() {
+  local status="$1"
+  local message="$2"
+  case "$status" in
+    ok|pass|complete|completed)
+      echo -e "  ${GREEN}✓${RESET} $message"
+      ;;
+    warn|warning)
+      echo -e "  ${YELLOW}!${RESET} $message"
+      ;;
+    error|fail|failed)
+      echo -e "  ${RED}✗${RESET} $message"
+      ;;
+    skip|skipped)
+      echo -e "  ${DIM}○${RESET} $message"
+      ;;
+    pending)
+      echo -e "  ${BLUE}◯${RESET} $message"
+      ;;
+    progress|in_progress)
+      echo -e "  ${CYAN}◉${RESET} $message"
+      ;;
+    *)
+      echo -e "  • $message"
+      ;;
+  esac
+}
+
+# =============================================================================
+# Path Utilities
+# =============================================================================
+
+# Get the repository root (where .git is)
+get_repo_root() {
+  git rev-parse --show-toplevel 2>/dev/null || pwd
+}
+
+# Get the SpecKit system directory
+get_speckit_system_dir() {
+  echo "${HOME}/.claude/speckit-system"
+}
+
+# Get the project's .specify directory
+get_specify_dir() {
+  local repo_root
+  repo_root="$(get_repo_root)"
+  echo "${repo_root}/.specify"
+}
+
+# Get the state file path
+get_state_file() {
+  echo "$(get_specify_dir)/orchestration-state.json"
+}
+
+# Check if we're in a git repository
+is_git_repo() {
+  git rev-parse --git-dir &>/dev/null
+}
+
+# Check if we're in a SpecKit project
+is_speckit_project() {
+  [[ -d "$(get_specify_dir)" ]]
+}
+
+# =============================================================================
+# Dependency Checking
+# =============================================================================
+
+# Check if a command exists
+command_exists() {
+  command -v "$1" &>/dev/null
+}
+
+# Require a command or exit with error
+require_command() {
+  local cmd="$1"
+  local install_hint="${2:-}"
+
+  if ! command_exists "$cmd"; then
+    log_error "Required command not found: $cmd"
+    if [[ -n "$install_hint" ]]; then
+      echo "  Install with: $install_hint" >&2
+    fi
+    exit 1
+  fi
+}
+
+# Check for jq (required for JSON operations)
+require_jq() {
+  if ! command_exists jq; then
+    log_error "jq is required for JSON operations but not installed."
+    echo "" >&2
+    echo "Install jq:" >&2
+    echo "  macOS:  brew install jq" >&2
+    echo "  Ubuntu: sudo apt-get install jq" >&2
+    echo "  Fedora: sudo dnf install jq" >&2
+    exit 1
+  fi
+}
+
+# =============================================================================
+# File Operations
+# =============================================================================
+
+# Ensure a directory exists
+ensure_dir() {
+  local dir="$1"
+  if [[ ! -d "$dir" ]]; then
+    mkdir -p "$dir"
+    log_debug "Created directory: $dir"
+  fi
+}
+
+# Check if file exists and is readable
+file_exists() {
+  [[ -f "$1" ]] && [[ -r "$1" ]]
+}
+
+# Get file modification timestamp (ISO format)
+get_file_mtime() {
+  local file="$1"
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    stat -f "%Sm" -t "%Y-%m-%dT%H:%M:%S" "$file"
+  else
+    stat -c "%y" "$file" | cut -d'.' -f1 | tr ' ' 'T'
+  fi
+}
+
+# =============================================================================
+# Date/Time
+# =============================================================================
+
+# Get current ISO timestamp
+iso_timestamp() {
+  date -u +"%Y-%m-%dT%H:%M:%SZ"
+}
+
+# Get current date
+current_date() {
+  date +"%Y-%m-%d"
+}
+
+# =============================================================================
+# User Interaction
+# =============================================================================
+
+# Confirm action (returns 0 for yes, 1 for no)
+confirm() {
+  local prompt="${1:-Continue?}"
+  local default="${2:-n}"
+
+  local yn_prompt
+  if [[ "$default" == "y" ]]; then
+    yn_prompt="[Y/n]"
+  else
+    yn_prompt="[y/N]"
+  fi
+
+  read -r -p "$prompt $yn_prompt " response
+  response="${response:-$default}"
+
+  case "$response" in
+    [yY][eE][sS]|[yY]) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# =============================================================================
+# Validation
+# =============================================================================
+
+# Validate that we're in a valid working context
+validate_context() {
+  if ! is_git_repo; then
+    log_error "Not in a git repository"
+    exit 1
+  fi
+}
+
+# Validate that a SpecKit project exists
+validate_speckit_project() {
+  if ! is_speckit_project; then
+    log_error "Not a SpecKit project (no .specify/ directory)"
+    log_info "Run 'speckit scaffold' to initialize, or use /speckit.init"
+    exit 1
+  fi
+}
+
+# Validate that state file exists
+validate_state_file() {
+  local state_file
+  state_file="$(get_state_file)"
+  if [[ ! -f "$state_file" ]]; then
+    log_error "State file not found: $state_file"
+    log_info "Run 'speckit state init' to create one"
+    exit 1
+  fi
+}
+
+# =============================================================================
+# JSON Output Mode
+# =============================================================================
+
+# Global flag for JSON output
+SPECKIT_JSON_OUTPUT="${SPECKIT_JSON_OUTPUT:-0}"
+
+# Enable JSON output mode
+enable_json_output() {
+  SPECKIT_JSON_OUTPUT=1
+}
+
+# Check if JSON output is enabled
+is_json_output() {
+  [[ "$SPECKIT_JSON_OUTPUT" == "1" ]]
+}
+
+# Output as JSON if JSON mode, otherwise run callback
+output_or_json() {
+  local json_data="$1"
+  local callback="${2:-}"
+
+  if is_json_output; then
+    echo "$json_data"
+  elif [[ -n "$callback" ]]; then
+    $callback
+  fi
+}
+
+# =============================================================================
+# Argument Parsing Helpers
+# =============================================================================
+
+# Parse common flags from arguments
+# Sets globals: SPECKIT_VERBOSE, SPECKIT_JSON_OUTPUT, REMAINING_ARGS
+parse_common_flags() {
+  SPECKIT_VERBOSE=0
+  SPECKIT_JSON_OUTPUT=0
+  REMAINING_ARGS=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -v|--verbose)
+        SPECKIT_VERBOSE=1
+        shift
+        ;;
+      --json)
+        SPECKIT_JSON_OUTPUT=1
+        shift
+        ;;
+      -h|--help)
+        # Let individual scripts handle help
+        REMAINING_ARGS+=("$1")
+        shift
+        ;;
+      *)
+        REMAINING_ARGS+=("$1")
+        shift
+        ;;
+    esac
+  done
+}
+
+# =============================================================================
+# Exit Codes
+# =============================================================================
+
+readonly EXIT_SUCCESS=0
+readonly EXIT_ERROR=1
+readonly EXIT_WARNING=2
+readonly EXIT_USAGE=64  # EX_USAGE from sysexits.h

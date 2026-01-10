@@ -1,0 +1,62 @@
+# CI Test Workflow Template
+# version: 1.0
+# Extracted from: .specify/memory/testing-strategy.md
+# Purpose: GitHub Actions workflow for running tests in CI
+#
+# Usage:
+#   1. Copy to .github/workflows/test.yml
+#   2. Adjust Node.js version if needed
+#   3. Update coverage upload if using different service
+
+name: Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm type-check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit & Integration Tests
+        run: pnpm test:ci
+
+      - name: Install Playwright browsers
+        run: pnpm playwright install --with-deps chromium
+
+      - name: E2E Tests
+        run: pnpm test:e2e
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results
+          path: |
+            coverage/
+            playwright-report/
+          retention-days: 7
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: success()
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false

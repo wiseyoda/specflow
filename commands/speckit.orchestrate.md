@@ -202,9 +202,34 @@ speckit state validate
 
 # Check task completion status
 speckit tasks status
+
+# Check ROADMAP phase status
+speckit roadmap status --json
 ```
 
-Verification checks:
+**CRITICAL Phase Completion Check**:
+
+FIRST, compare state file phase with ROADMAP status:
+
+```bash
+# Get current phase from state
+STATE_PHASE=$(speckit state get current.phase_number)
+
+# Get ROADMAP status for that phase
+speckit roadmap status --json | grep "$STATE_PHASE"
+```
+
+If ROADMAP shows the state file's phase as "✅ Complete" but state still shows that phase:
+1. **This phase is already done** - The state file is stale
+2. Log: "Phase {phase_number} is already complete in ROADMAP.md. Resetting state for next phase."
+3. Archive current state and reset:
+   ```bash
+   # Archive to history and reset
+   speckit state archive
+   ```
+4. Continue to Section 1 to determine and start the NEXT phase
+
+Additional verification checks:
 1. Check current git branch matches `current.branch` (use `speckit git branch current`)
 2. Check feature directory exists at `{config.specs_path}{phase_number}-{phase_name}/`
 3. For each step marked "completed", verify artifacts exist:
@@ -800,7 +825,7 @@ speckit roadmap update "{phase_number}" awaiting
 
 - Wait for explicit `next-phase` command
 
-**9d. Update State**
+**9d. Update State and Trigger Phase Transition**
 
 Use SpecKit CLI to update state:
 
@@ -808,14 +833,19 @@ Use SpecKit CLI to update state:
 speckit state set "steps.verify.status=completed"
 speckit state set "steps.verify.completed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 speckit state set 'steps.verify.artifacts=["ROADMAP.md (updated)"]'
+```
 
-# Set final status based on gate type
-# For non-USER GATE phases:
-speckit state set "current.status=completed"
+**For non-USER GATE phases** - Automatically proceed to Phase Transition (Section 10):
+- Set `current.status=completed`
+- Immediately proceed to Section 10 (commit, merge, archive state, start next phase)
 
-# For USER GATE phases:
+**For USER GATE phases** - Stop and wait for user:
+```bash
 speckit state set "current.status=awaiting_user_gate"
 ```
+- Display USER GATE prompt (Section 9b)
+- Do NOT proceed to Section 10 automatically
+- Wait for user to run `/speckit.orchestrate next-phase`
 
 ### 10. Phase Transition (After Verify Completes)
 
@@ -842,7 +872,37 @@ speckit git merge main
 speckit git push
 ```
 
-**10c. Determine Next Phase**
+**10c. Archive State and Prepare for Next Phase**
+
+**CRITICAL**: Archive current state BEFORE determining next phase:
+
+```bash
+# Archive completed phase to history and reset current state
+speckit state archive
+
+# This command:
+# 1. Moves current phase data to history array
+# 2. Clears current.* fields
+# 3. Clears all steps back to "pending"
+# 4. Updates last_updated timestamp
+```
+
+The archived state looks like:
+
+```json
+{
+  "history": [
+    {
+      "phase_number": "001",
+      "phase_name": "project-architecture-setup",
+      "completed_at": "{timestamp}",
+      "steps": { ... }
+    }
+  ]
+}
+```
+
+**10d. Determine and Start Next Phase**
 
 Use SpecKit CLI to find next phase:
 
@@ -853,29 +913,14 @@ speckit roadmap next --json
 # If no more phases, this returns empty/error
 ```
 
-1. If no more phases: Report "All phases complete!"
+1. If no more phases:
+   - Report "All phases complete! 🎉"
+   - State file remains archived with no current phase
+
 2. If next phase exists:
    - Create new branch: `speckit git branch create {new_branch}`
-   - Reset state file: `speckit state reset`
-   - Begin workflow from step 1
-
-**10d. Archive Current State**
-
-Move completed state to history:
-
-```json
-{
-  "history": [
-    {
-      "phase": "001-project-architecture-setup",
-      "completed_at": "{timestamp}",
-      "steps": { ... }
-    }
-  ]
-}
-```
-
-Reset current state for new phase.
+   - Initialize state for new phase (Section 1d)
+   - Begin workflow from step 1 (specify)
 
 ## CLI Dependencies
 

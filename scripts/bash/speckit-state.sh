@@ -9,6 +9,7 @@
 #   speckit state reset                  Reset to defaults
 #   speckit state validate               Validate state file
 #   speckit state migrate                Migrate v1.0 state to v2.0
+#   speckit state archive                Archive current phase and reset for next
 #
 
 set -euo pipefail
@@ -144,6 +145,11 @@ COMMANDS:
                         Creates backup before migration
                         Generates UUID and registers with central registry
 
+    archive             Archive completed phase and reset for next
+                        Moves current phase to history
+                        Clears orchestration state
+                        Called automatically after phase completion
+
     registry [cmd]      Manage central project registry
                         list  - List all registered projects
                         sync  - Update last_seen for current project
@@ -164,6 +170,7 @@ EXAMPLES:
     speckit state init                    # Create new state file
     speckit state validate                # Check state validity
     speckit state migrate                 # Upgrade to v2.0 schema
+    speckit state archive                 # Archive phase, reset for next
     speckit state registry list           # List all projects
 EOF
 }
@@ -632,6 +639,87 @@ cmd_registry() {
   esac
 }
 
+# Archive completed phase and reset for next phase
+cmd_archive() {
+  local state_file
+  state_file="$(get_state_file)"
+
+  if [[ ! -f "$state_file" ]]; then
+    log_error "State file not found: $state_file"
+    exit 1
+  fi
+
+  # Check if there's a current phase to archive
+  local phase_number
+  phase_number=$(json_get "$state_file" ".orchestration.phase.number" 2>/dev/null || echo "")
+
+  if [[ -z "$phase_number" || "$phase_number" == "null" ]]; then
+    log_warn "No current phase to archive"
+    if is_json_output; then
+      echo '{"archived": false, "reason": "no_current_phase"}'
+    fi
+    exit 0
+  fi
+
+  local temp_file
+  temp_file=$(mktemp)
+  local timestamp
+  timestamp="$(iso_timestamp)"
+
+  # Archive current phase to history and reset orchestration
+  jq --arg ts "$timestamp" '
+    # Create archive entry from current phase
+    .actions.history += [{
+      "type": "phase_completed",
+      "phase_number": .orchestration.phase.number,
+      "phase_name": .orchestration.phase.name,
+      "branch": .orchestration.phase.branch,
+      "completed_at": $ts,
+      "tasks_completed": .orchestration.progress.tasks_completed,
+      "tasks_total": .orchestration.progress.tasks_total
+    }] |
+
+    # Reset orchestration for next phase
+    .orchestration = {
+      "phase": {
+        "number": null,
+        "name": null,
+        "branch": null,
+        "status": "not_started"
+      },
+      "step": {
+        "current": null,
+        "index": 0,
+        "status": "not_started"
+      },
+      "progress": {
+        "tasks_completed": 0,
+        "tasks_total": 0,
+        "percentage": 0
+      }
+    } |
+
+    # Update health and timestamps
+    .health.status = "ready" |
+    .health.last_check = $ts |
+    .project.updated_at = $ts
+  ' "$state_file" > "$temp_file"
+
+  if ! jq '.' "$temp_file" >/dev/null 2>&1; then
+    log_error "Archive produced invalid JSON - aborting"
+    rm "$temp_file"
+    exit 1
+  fi
+
+  mv "$temp_file" "$state_file"
+
+  log_success "Archived phase $phase_number and reset state"
+
+  if is_json_output; then
+    echo "{\"archived\": true, \"phase_number\": \"$phase_number\", \"timestamp\": \"$timestamp\"}"
+  fi
+}
+
 # Migrate state file from v1.x to v2.0
 cmd_migrate() {
   local state_file
@@ -954,6 +1042,9 @@ main() {
       ;;
     migrate)
       cmd_migrate
+      ;;
+    archive)
+      cmd_archive
       ;;
     registry)
       cmd_registry "${1:-list}"

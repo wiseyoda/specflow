@@ -247,16 +247,19 @@ Make memory documents optional:
 - [x] Update orchestrate to work without optional docs
 - [ ] Add `speckit memory init` to generate optional docs on demand (deferred)
 
-### Phase 5: Command Cleanup (P2) (2-3 hours)
+### Phase 5: Command Cleanup (P2) (2-3 hours) ✅ PARTIAL
 
 Remove/merge redundant commands:
 
-- [ ] Merge `speckit.clarify.md` into `speckit.specify.md`
-- [ ] Merge `speckit.checklist.md` into `speckit.verify.md`
-- [ ] Move `speckit.taskstoissues.md` to utilities folder
-- [ ] Simplify `speckit.orchestrate.md` (remove redundant sections)
-- [ ] Add `--tdd` flag to `speckit.implement.md`
-- [ ] Update all cross-references
+- [x] Reviewed `speckit.clarify.md` - kept as handoff from specify (well-designed)
+- [x] Reviewed `speckit.checklist.md` - kept as separate command (useful standalone)
+- [x] Moved `speckit.taskstoissues.md` to `commands/utilities/` folder
+- [ ] Simplify `speckit.orchestrate.md` (remove redundant sections) - deferred
+- [ ] Add `--tdd` flag to `speckit.implement.md` - deferred
+- [ ] Update all cross-references - not needed (handoffs work correctly)
+
+> Note: Clarify and checklist remain as separate commands because they're well-designed
+> and the handoff system already provides integration with specify and verify.
 
 ### Phase 6: User Story Focus (P3) (2-3 hours)
 

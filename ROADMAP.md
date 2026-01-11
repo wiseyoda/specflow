@@ -213,11 +213,12 @@ This allows inserting urgent work without renumbering existing phases.
 
 ## Backlog
 
-> Uncommitted work. May be promoted to a phase or combined into hotfixes.
+> All deferred scope and new ideas live here. Reviewed at end of each phase.
+> Run `/speckit.backlog` to triage items into future phases.
 
 | Item | Description | Priority | Notes |
 |------|-------------|----------|-------|
-| `/speckit.merge` command | One command to: push, merge to main, cleanup branches, update state/roadmap | High | Common end-of-phase workflow |
+| `/speckit.merge` command | Push, merge to main, cleanup branches, update state/roadmap, show backlog summary | High | End-of-phase workflow |
 | `/speckit.backlog` command | Intelligent backlog triage: assess each item against phases, auto-assign to best fit, analyze unassignable items, create new phases for remaining work | High | Continuous workflow support |
 | Multi-language templates | Auto-detect project type (Python, Rust, Go) and use appropriate templates | Medium | Could be part of 0020 |
 | Parallel phase execution | Run independent phases concurrently | Low | Requires dependency graph |

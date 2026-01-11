@@ -8,6 +8,9 @@ handoffs:
     agent: speckit.orchestrate
     prompt: Continue to the next phase
     send: true
+  - label: Continue Later
+    agent: speckit.start
+    prompt: Resume work on this project
 ---
 
 ## User Input

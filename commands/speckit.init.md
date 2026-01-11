@@ -7,6 +7,9 @@ handoffs:
   - label: Finalize Constitution
     agent: speckit.constitution
     prompt: Finalize the project constitution based on interview decisions
+  - label: Continue Later
+    agent: speckit.start
+    prompt: Resume work on this project
 ---
 
 # SpecKit Project Initialization

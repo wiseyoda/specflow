@@ -8,6 +8,9 @@ handoffs:
   - label: View Backlog
     agent: speckit.backlog
     prompt: Triage backlog items
+  - label: Continue Later
+    agent: speckit.start
+    prompt: Resume work on this project
 ---
 
 ## User Input
@@ -238,6 +241,108 @@ speckit phase archive "$PHASE_NUMBER"
 
 This moves the phase's detailed content (goal, scope, deliverables, verification gate) from ROADMAP.md to `.specify/history/HISTORY.md`, keeping ROADMAP.md lightweight.
 
+### 6.5. Extract Handoff Items
+
+**6.5a. Scan tasks.md for deferred items:**
+
+```bash
+echo "Checking for handoff items..."
+
+TASKS_FILE="specs/${PHASE_NUMBER}-*/tasks.md"
+HANDOFF_FILE=".specify/phases/${PHASE_NUMBER}-handoff.md"
+
+# Look for deferred/handoff sections in tasks.md
+if ls $TASKS_FILE 1>/dev/null 2>&1; then
+  TASKS_PATH=$(ls $TASKS_FILE | head -1)
+
+  # Check for deferred items section (various patterns)
+  if grep -qiE "(^#+.*deferred|^#+.*handoff|## Deferred Items|## Handoff)" "$TASKS_PATH"; then
+    echo "Found deferred items in tasks.md"
+    FOUND_DEFERRED=true
+  fi
+fi
+```
+
+**6.5b. Generate handoff file if deferred items exist:**
+
+If deferred items are found, extract them and create a structured handoff file:
+
+```bash
+if [[ "$FOUND_DEFERRED" == "true" ]]; then
+  # Determine next phase number
+  NEXT_PHASE=$(speckit roadmap next --json 2>/dev/null | jq -r '.number // empty')
+
+  if [[ -z "$NEXT_PHASE" ]]; then
+    echo "No next phase found - handoff items will remain in tasks.md"
+  else
+    # Extract deferred section content
+    # Use awk to capture from "Deferred" or "Handoff" header to next major section or EOF
+    DEFERRED_CONTENT=$(awk '
+      /^#+ *(Deferred|Handoff)/ { capture=1 }
+      capture && /^#+ / && !/^#+ *(Deferred|Handoff)/ { capture=0 }
+      capture { print }
+    ' "$TASKS_PATH")
+
+    if [[ -n "$DEFERRED_CONTENT" ]]; then
+      # Create handoff file
+      mkdir -p .specify/phases
+
+      cat > "$HANDOFF_FILE" << HANDOFF_EOF
+---
+source_phase: $PHASE_NUMBER
+target_phase: $NEXT_PHASE
+created: $(date +%Y-%m-%d)
+status: pending
+---
+
+# Handoff from Phase $PHASE_NUMBER
+
+These items were deferred from Phase $PHASE_NUMBER and must be incorporated into Phase $NEXT_PHASE.
+
+**IMPORTANT**: When running \`/speckit.specify\` for Phase $NEXT_PHASE, these items must be:
+1. Reviewed and confirmed for inclusion
+2. Added to the spec's Requirements section
+3. Marked as "inherited" in the requirements checklist
+
+---
+
+$DEFERRED_CONTENT
+
+---
+
+## Verification
+
+- [ ] All deferred items reviewed
+- [ ] Confirmed items added to Phase $NEXT_PHASE spec
+- [ ] Rejected items documented with rationale
+HANDOFF_EOF
+
+      echo "✓ Created handoff file: $HANDOFF_FILE"
+      echo ""
+      echo "╔══════════════════════════════════════════════════════════════╗"
+      echo "║              Handoff Items Detected                          ║"
+      echo "╠══════════════════════════════════════════════════════════════╣"
+      echo "║ Deferred items from Phase $PHASE_NUMBER have been extracted. ║"
+      echo "║ When Phase $NEXT_PHASE is specified, these items will be     ║"
+      echo "║ automatically presented for inclusion.                       ║"
+      echo "║                                                              ║"
+      echo "║ Review: $HANDOFF_FILE                                        ║"
+      echo "╚══════════════════════════════════════════════════════════════╝"
+      echo ""
+    fi
+  fi
+fi
+```
+
+**6.5c. Add handoff file to git:**
+
+```bash
+if [[ -f "$HANDOFF_FILE" ]]; then
+  git add "$HANDOFF_FILE"
+  git commit -m "chore: extract handoff items from phase $PHASE_NUMBER" --allow-empty
+fi
+```
+
 ### 7. Update ROADMAP
 
 **7a. Mark phase complete:**
@@ -336,9 +441,10 @@ DRY RUN - Would execute:
 4. Checkout main: git checkout main && git pull
 5. Archive state: speckit state archive
 6. Archive phase details: speckit phase archive 0015
-7. Update ROADMAP: speckit roadmap update 0015 complete
-8. (if --next-phase) Create branch for next phase
-9. (if --next-phase) Initialize state for next phase
+7. Extract handoff items from tasks.md (if deferred items exist)
+8. Update ROADMAP: speckit roadmap update 0015 complete
+9. (if --next-phase) Create branch for next phase
+10. (if --next-phase) Initialize state for next phase
 
 No changes made.
 ```
@@ -366,6 +472,7 @@ No changes made.
 ✓ Cleaned up branch
 ✓ Archived phase state
 ✓ Archived phase details to HISTORY.md
+✓ Extracted handoff items to .specify/phases/0015-handoff.md
 ✓ Updated ROADMAP to complete
 
 ============================================
@@ -376,6 +483,15 @@ Phase Complete! Backlog Summary:
   • [Low] Team collaboration
 
 Total: 2 item(s)
+
+╔══════════════════════════════════════════════════════════════╗
+║              Handoff Items Detected                          ║
+╠══════════════════════════════════════════════════════════════╣
+║ 3 deferred items extracted for Phase 0020.                   ║
+║ These will be presented when /speckit.specify runs.          ║
+║                                                              ║
+║ Review: .specify/phases/0015-handoff.md                      ║
+╚══════════════════════════════════════════════════════════════╝
 
 Run /speckit.backlog to triage items
 Run /speckit.orchestrate to start next phase

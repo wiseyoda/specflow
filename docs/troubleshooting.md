@@ -108,6 +108,10 @@ speckit reconcile --trust-files
 speckit reconcile --trust-state
 ```
 
+**Note:** `speckit status` automatically derives progress from filesystem artifacts. If your state file is outdated, the correct step and task counts will be detected from:
+- Existing files: spec.md → plan.md → tasks.md → checklists/
+- Task checkboxes in tasks.md
+
 ---
 
 ## Project Structure Issues
@@ -314,8 +318,9 @@ speckit status --quick
 
 ## Getting Help
 
-1. **Run diagnostics:** `speckit doctor`
-2. **Check specific area:** `speckit doctor --check <area>`
-3. **Verbose output:** Add `--verbose` to most commands
-4. **JSON output:** Add `--json` for machine-readable errors
-5. **File an issue:** https://github.com/wiseyoda/claude-speckit-orchestration/issues
+1. **Smart entry point:** `/speckit.start` - auto-detects project state and routes to the right command
+2. **Run diagnostics:** `speckit doctor`
+3. **Check specific area:** `speckit doctor --check <area>`
+4. **Verbose output:** Add `--verbose` to most commands
+5. **JSON output:** Add `--json` for machine-readable errors
+6. **File an issue:** https://github.com/wiseyoda/claude-speckit-orchestration/issues

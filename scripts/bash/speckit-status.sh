@@ -58,6 +58,77 @@ EOF
 }
 
 # =============================================================================
+# Artifact Detection Functions
+# =============================================================================
+
+# Detect step from filesystem artifacts
+# Returns the highest step that can be inferred from existing artifacts
+detect_step_from_artifacts() {
+  local feature_dir="$1"
+  local detected_step="specify"
+  local detected_index=0
+
+  if [[ ! -d "$feature_dir" ]]; then
+    echo "specify:0"
+    return
+  fi
+
+  # Check spec.md exists (step 1: clarify)
+  if [[ -f "${feature_dir}/spec.md" ]]; then
+    detected_step="clarify"
+    detected_index=1
+  fi
+
+  # Check plan.md exists (step 3: plan -> tasks)
+  if [[ -f "${feature_dir}/plan.md" ]]; then
+    detected_step="tasks"
+    detected_index=3
+  fi
+
+  # Check tasks.md exists (step 4: analyze)
+  if [[ -f "${feature_dir}/tasks.md" ]]; then
+    detected_step="analyze"
+    detected_index=4
+  fi
+
+  # Check checklists/ exists (step 6: implement)
+  if [[ -d "${feature_dir}/checklists" ]] && [[ -n "$(ls -A "${feature_dir}/checklists" 2>/dev/null)" ]]; then
+    detected_step="implement"
+    detected_index=6
+  fi
+
+  # Check task completion (step 7: verify)
+  if [[ -f "${feature_dir}/tasks.md" ]]; then
+    local total_tasks completed_tasks
+    total_tasks=$(grep -cE '^\s*- \[.\] T[0-9]{3}' "${feature_dir}/tasks.md" 2>/dev/null || echo 0)
+    completed_tasks=$(grep -cE '^\s*- \[x\] T[0-9]{3}' "${feature_dir}/tasks.md" 2>/dev/null || echo 0)
+
+    if [[ "$total_tasks" -gt 0 && "$completed_tasks" -eq "$total_tasks" ]]; then
+      detected_step="verify"
+      detected_index=7
+    fi
+  fi
+
+  echo "${detected_step}:${detected_index}"
+}
+
+# Get actual task counts from filesystem
+get_task_counts_from_file() {
+  local tasks_file="$1"
+
+  if [[ ! -f "$tasks_file" ]]; then
+    echo "0:0"
+    return
+  fi
+
+  local total completed
+  total=$(grep -cE '^\s*- \[.\] T[0-9]{3}' "$tasks_file" 2>/dev/null || echo 0)
+  completed=$(grep -cE '^\s*- \[x\] T[0-9]{3}' "$tasks_file" 2>/dev/null || echo 0)
+
+  echo "${completed}:${total}"
+}
+
+# =============================================================================
 # Status Collection
 # =============================================================================
 
@@ -138,13 +209,45 @@ collect_status() {
   step_index=$(jq -r '.orchestration.step.index // 0' "$state_file")
   step_status=$(jq -r '.orchestration.step.status // "not_started"' "$state_file")
 
-  local tasks_completed tasks_total tasks_percentage
-  tasks_completed=$(jq -r '.orchestration.progress.tasks_completed // 0' "$state_file")
-  tasks_total=$(jq -r '.orchestration.progress.tasks_total // 0' "$state_file")
+  # -------------------------------------------------------------------------
+  # Filesystem-Derived State (source of truth)
+  # -------------------------------------------------------------------------
+
+  # Find feature directory for artifact detection
+  local feature_dir=""
+  if [[ -n "$phase_number" && "$phase_number" != "null" ]]; then
+    feature_dir=$(find "${repo_root}/specs" -maxdepth 1 -type d -name "*${phase_number}*" 2>/dev/null | head -1)
+  fi
+
+  # Derive step from filesystem artifacts
+  local derived_step="" derived_index=0
+  local state_mismatch=false
+  if [[ -n "$feature_dir" && -d "$feature_dir" ]]; then
+    local derived_result
+    derived_result=$(detect_step_from_artifacts "$feature_dir")
+    derived_step="${derived_result%%:*}"
+    derived_index="${derived_result##*:}"
+
+    # Check if state file is behind filesystem
+    if [[ "$derived_index" -gt "$step_index" ]]; then
+      state_mismatch=true
+      # Use derived values as source of truth
+      step_current="$derived_step"
+      step_index="$derived_index"
+    fi
+  fi
+
+  # Get task counts from filesystem (source of truth)
+  local tasks_completed=0 tasks_total=0 tasks_percentage=0
+  if [[ -n "$feature_dir" && -f "${feature_dir}/tasks.md" ]]; then
+    local task_counts
+    task_counts=$(get_task_counts_from_file "${feature_dir}/tasks.md")
+    tasks_completed="${task_counts%%:*}"
+    tasks_total="${task_counts##*:}"
+  fi
+
   if [[ "$tasks_total" -gt 0 ]]; then
     tasks_percentage=$((tasks_completed * 100 / tasks_total))
-  else
-    tasks_percentage=0
   fi
 
   result=$(echo "$result" | jq \
@@ -158,8 +261,11 @@ collect_status() {
     --argjson tc "$tasks_completed" \
     --argjson tt "$tasks_total" \
     --argjson tp "$tasks_percentage" \
+    --argjson sm "$state_mismatch" \
+    --arg ds "$derived_step" \
+    --argjson di "$derived_index" \
     '.phase = {number: $pn, name: $pname, branch: $pb, status: $ps} |
-     .step = {current: $sc, index: $si, status: $ss} |
+     .step = {current: $sc, index: $si, status: $ss, derived_from_files: $sm, derived_step: $ds, derived_index: $di} |
      .tasks = {completed: $tc, total: $tt, percentage: $tp}')
 
   # -------------------------------------------------------------------------
@@ -227,19 +333,15 @@ collect_status() {
   # -------------------------------------------------------------------------
 
   local artifacts='{}'
-  if [[ -n "$phase_number" && "$phase_number" != "null" ]]; then
-    local feature_dir
-    feature_dir=$(find "${repo_root}/specs" -maxdepth 1 -type d -name "*${phase_number}*" 2>/dev/null | head -1)
-
-    if [[ -n "$feature_dir" && -d "$feature_dir" ]]; then
-      artifacts=$(echo "$artifacts" | jq \
-        --argjson spec "$([[ -f "${feature_dir}/spec.md" ]] && echo true || echo false)" \
-        --argjson plan "$([[ -f "${feature_dir}/plan.md" ]] && echo true || echo false)" \
-        --argjson tasks "$([[ -f "${feature_dir}/tasks.md" ]] && echo true || echo false)" \
-        --argjson checklists "$([[ -d "${feature_dir}/checklists" ]] && echo true || echo false)" \
-        --argjson research "$([[ -f "${feature_dir}/research.md" ]] && echo true || echo false)" \
-        '. + {spec: $spec, plan: $plan, tasks: $tasks, checklists: $checklists, research: $research}')
-    fi
+  # feature_dir already found above in Filesystem-Derived State section
+  if [[ -n "$feature_dir" && -d "$feature_dir" ]]; then
+    artifacts=$(echo "$artifacts" | jq \
+      --argjson spec "$([[ -f "${feature_dir}/spec.md" ]] && echo true || echo false)" \
+      --argjson plan "$([[ -f "${feature_dir}/plan.md" ]] && echo true || echo false)" \
+      --argjson tasks "$([[ -f "${feature_dir}/tasks.md" ]] && echo true || echo false)" \
+      --argjson checklists "$([[ -d "${feature_dir}/checklists" ]] && echo true || echo false)" \
+      --argjson research "$([[ -f "${feature_dir}/research.md" ]] && echo true || echo false)" \
+      '. + {spec: $spec, plan: $plan, tasks: $tasks, checklists: $checklists, research: $research}')
   fi
 
   result=$(echo "$result" | jq --argjson a "$artifacts" '.artifacts = $a')

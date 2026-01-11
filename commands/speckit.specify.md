@@ -8,6 +8,9 @@ handoffs:
     agent: speckit.clarify
     prompt: Clarify specification requirements
     send: true
+  - label: Continue Later
+    agent: speckit.start
+    prompt: Resume work on this project
 ---
 
 ## User Input
@@ -71,26 +74,67 @@ Given that feature description, do this:
 
    Before creating the spec, check if this phase inherits deferred items:
 
-   a. **Check ROADMAP.md for "Deferred from Previous Phases" section:**
+   a. **Check for handoff files (PRIMARY SOURCE):**
+   ```bash
+   # Look for handoff files targeting this phase
+   # Handoff files are created by /speckit.merge when a phase has deferred items
+   ls .specify/phases/*-handoff.md 2>/dev/null
+
+   # Check each handoff file's target_phase in frontmatter
+   for f in .specify/phases/*-handoff.md; do
+     TARGET=$(grep "target_phase:" "$f" | cut -d: -f2 | tr -d ' ')
+     if [[ "$TARGET" == "$CURRENT_PHASE" ]]; then
+       echo "Found handoff: $f"
+       HANDOFF_FILES+=("$f")
+     fi
+   done
+   ```
+
+   b. **Check ROADMAP.md for "Deferred from Previous Phases" section:**
    ```bash
    # Look for deferred items in the current phase's ROADMAP.md section
    grep -A 10 "Deferred from Previous Phases" ROADMAP.md
    ```
 
-   b. **Check previous phase's deferred.md if it exists:**
+   c. **Check previous phase's tasks.md for deferred sections:**
    ```bash
-   # Find previous phase number (current - 1)
-   # Check for deferred.md in previous phase
-   ls specs/[PREV_PHASE]*/checklists/deferred.md
+   # Find previous phase number and check for deferred items
+   # Look for "## Deferred Items" or "## Handoff" sections
+   grep -l -E "^#+ *(Deferred|Handoff)" specs/*/tasks.md
    ```
 
-   c. **Check project-level BACKLOG.md:**
+   d. **Check project-level BACKLOG.md:**
    ```bash
    # Check if any backlog items are targeted for this phase
    grep -i "Phase [CURRENT_PHASE]" BACKLOG.md
    ```
 
-   d. **If deferred items are found:**
+   e. **If handoff files are found (CRITICAL):**
+   - Read each handoff file completely
+   - Display a prominent notice:
+     ```
+     ╔══════════════════════════════════════════════════════════════╗
+     ║           INHERITED REQUIREMENTS FROM PHASE [NNN]            ║
+     ╠══════════════════════════════════════════════════════════════╣
+     ║ The following items were deferred from a previous phase.     ║
+     ║ They MUST be reviewed and incorporated into this spec.       ║
+     ╚══════════════════════════════════════════════════════════════╝
+     ```
+   - List each deferred item with its original context
+   - Ask user: "These items were deferred from Phase [NNN]. Which should be included?"
+     - Option A: Include all items (recommended)
+     - Option B: Select specific items
+     - Option C: Defer all to next phase (requires justification)
+   - For confirmed items:
+     - Add to spec under "## Inherited Requirements" section
+     - Create corresponding entries in requirements.md with "[INHERITED]" prefix
+     - Mark handoff file items as "incorporated" with the requirement ID
+   - For rejected items:
+     - Document in Non-Goals with explicit rationale
+     - Update handoff file with rejection reason
+   - Update handoff file status from "pending" to "processed"
+
+   f. **If other deferred items are found:**
    - List them in a "## Inherited Deferred Items" section at the top of the spec
    - Include each item with a note about its source
    - Ask user: "These items were deferred from previous phases. Which should be included in this phase's scope?"
@@ -154,6 +198,7 @@ Given that feature description, do this:
    - [ ] Edge cases are identified
    - [ ] Scope is clearly bounded
    - [ ] Dependencies and assumptions identified
+   - [ ] All inherited requirements from handoff files incorporated or explicitly rejected
 
    ## Feature Readiness
 
@@ -218,6 +263,33 @@ Given that feature description, do this:
    d. **Update Checklist**: After each validation iteration, update the checklist file with current pass/fail status
 
 8. Report completion with branch name, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
+
+9. **UI Detection and Design Documentation**:
+
+   After creating the spec, check if this phase involves visual UI changes:
+
+   a. **Detect UI Keywords**: Scan the feature description and spec for these keywords:
+   ```
+   dashboard, form, button, screen, page, view, component,
+   interface, modal, dialog, panel, widget, layout,
+   navigation, menu, sidebar, header, footer
+   ```
+
+   b. **If UI keywords found**:
+   1. Create `ui/` folder in the spec directory: `mkdir -p specs/<phase>/ui/`
+   2. Copy UI design template: `cp templates/ui-design-template.md specs/<phase>/ui/design.md`
+   3. Fill in the template with:
+      - Phase name and number
+      - Current state description (existing UI or "New feature")
+      - Proposed design based on spec requirements
+      - Initial component inventory from spec
+   4. Add inline reference to spec.md: `(see [ui/design.md](ui/design.md))`
+
+   c. **Report UI status**:
+   ```
+   UI Phase Detected: Yes/No
+   Design Document: specs/<phase>/ui/design.md (if created)
+   ```
 
 **NOTE:** The script creates and checks out the new branch and initializes the spec file before writing.
 

@@ -183,9 +183,12 @@ speckit import adrs docs/adr
 
 Once ADRs are imported, SpecKit's AI workflows can reference them:
 
+- The `/speckit.start` command auto-detects your project state and routes to the right workflow
 - The `/speckit.specify` command can consider existing decisions
 - The `/speckit.plan` command can reference ADRs for context
 - Memory documents can link to relevant ADRs
+
+**Recommended**: Use `/speckit.start` to begin any workflow - it will detect your imported ADRs and current project state automatically.
 
 ## Troubleshooting
 

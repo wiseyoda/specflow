@@ -59,6 +59,16 @@ speckit state reset                  # Reset to defaults
 speckit state validate               # Validate structure
 ```
 
+### Filesystem-Derived State
+
+The `speckit status` command derives progress from filesystem artifacts:
+
+- **Step detection**: Determined by which files exist (spec.md → plan.md → tasks.md → checklists/)
+- **Task counts**: Parsed directly from tasks.md checkbox status
+- **Source of truth**: Filesystem artifacts take precedence over state file if ahead
+
+This means orchestration can recover automatically if the state file is outdated.
+
 ## Central Registry
 
 Projects are registered in `~/.speckit/registry.json` for web UI discovery.

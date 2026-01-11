@@ -9,6 +9,11 @@ $ARGUMENTS
 ```
 
 You **MUST** consider the user input before proceeding (if not empty). User may specify:
+
+**Subcommands:**
+- `generate [doc]`: Generate memory documents from codebase analysis (see Generate Section below)
+
+**Flags:**
 - `--dry-run`: Analyze only, do not make changes
 - `--verbose`: Show detailed analysis for each document
 - `--fix`: Auto-fix issues without confirmation (default prompts before fixes)
@@ -16,6 +21,7 @@ You **MUST** consider the user input before proceeding (if not empty). User may 
 - `--no-reconcile`: Skip ROADMAP and codebase checks (faster, memory-only)
 - `--promote`: Scan completed specs for decisions to promote to memory
 - `--deep`: Full codebase scan (slower, more thorough dependency analysis)
+- `--force`: (generate only) Overwrite existing documents
 
 ## Goal
 
@@ -721,6 +727,59 @@ When drift is detected, resolve using this priority:
 - **ALWAYS** create backup (archive) before destructive operations
 - **ALWAYS** verify git state before and after operations
 - **ALWAYS** ask before resolving CRITICAL drift issues
+
+---
+
+## Generate Subcommand
+
+When invoked with `generate`, this command analyzes the actual codebase to create memory documents (previously `/speckit.memory-init`).
+
+### Usage
+
+```
+/speckit.memory generate all           # Generate all documents
+/speckit.memory generate recommended   # Generate recommended set
+/speckit.memory generate coding-standards
+/speckit.memory generate tech-stack
+/speckit.memory generate testing-strategy
+/speckit.memory generate glossary
+/speckit.memory generate --dry-run     # Preview without writing
+/speckit.memory generate --force       # Overwrite existing
+```
+
+### Available Documents
+
+| Document | Description |
+|----------|-------------|
+| `coding-standards` | Code conventions extracted from codebase |
+| `testing-strategy` | Test framework and patterns detected |
+| `glossary` | Domain terms and project concepts |
+| `tech-stack` | Technologies and versions detected |
+| `all` | Generate all documents |
+| `recommended` | Generate coding-standards + testing-strategy |
+
+### Generate Process
+
+1. **Detect Project Type**: Scan for package.json, Cargo.toml, go.mod, pyproject.toml, or bash scripts
+2. **Analyze Codebase**: Extract patterns, conventions, terminology
+3. **Cross-reference Constitution**: Ensure alignment with project principles
+4. **Generate Documents**: Create well-structured markdown files
+
+### Example Output
+
+```markdown
+## Memory Documents Generated
+
+| Document | Status | Lines | Notes |
+|----------|--------|-------|-------|
+| coding-standards.md | Created | 150 | Bash conventions extracted |
+| testing-strategy.md | Created | 80 | Custom bash framework |
+| glossary.md | Skipped | - | Already exists |
+```
+
+**Note**: Use `--force` to overwrite existing documents. Without it, existing docs are skipped.
+
+---
 
 ## Context
 

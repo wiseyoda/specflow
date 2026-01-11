@@ -5,10 +5,35 @@ description: 'Feature specification template'
 
 # Feature Specification: [FEATURE NAME]
 
-**Feature Branch**: `[###-feature-name]`  
-**Created**: [DATE]  
-**Status**: Draft  
+**Feature Branch**: `[###-feature-name]`
+**Created**: [DATE]
+**Status**: Draft
 **Input**: User description: "$ARGUMENTS"
+
+## Inherited Requirements _(if applicable)_
+
+<!--
+  This section is populated automatically when handoff files exist from previous phases.
+  Each inherited requirement was deferred from a prior phase and MUST be addressed.
+
+  If no handoff files exist, DELETE this entire section.
+-->
+
+### From Phase [NNN] - [Phase Name]
+
+| ID | Requirement | Original Context | Status |
+|----|-------------|------------------|--------|
+| IR-001 | [Inherited requirement description] | [Why it was deferred] | ⬜ Pending |
+| IR-002 | [Inherited requirement description] | [Why it was deferred] | ⬜ Pending |
+
+**Handoff Source**: `.specify/phases/[NNN]-handoff.md`
+
+**Resolution**:
+- Items marked ✅ Incorporated are included in this spec's Requirements section
+- Items marked ❌ Rejected are documented in Non-Goals with rationale
+- Items marked ➡️ Re-deferred are moved to the next phase's handoff
+
+---
 
 ## User Scenarios & Testing _(mandatory)_
 

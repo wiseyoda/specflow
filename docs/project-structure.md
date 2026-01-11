@@ -38,8 +38,6 @@ your-project/
 │   ├── templates/               # Project-specific templates (optional)
 │   │   └── spec-template.md     # Overrides system template
 │   │
-│   ├── scripts/bash/            # Project-specific scripts
-│   │
 │   ├── archive/                 # State backups
 │   │
 │   └── orchestration-state.json # Current state (v2.0 schema)
@@ -53,7 +51,8 @@ your-project/
 │           └── checklist.md
 │
 ├── ROADMAP.md                   # Development phases (lightweight index)
-└── CLAUDE.md                    # Agent instructions
+├── CLAUDE.md                    # Agent instructions (minimal SpecKit section)
+└── .specify/USAGE.md            # Full CLI and command reference
 ```
 
 ## Key Files

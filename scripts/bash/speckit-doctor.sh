@@ -561,41 +561,55 @@ check_templates() {
     return
   fi
 
-  # Compare template versions
-  local outdated=0
-  while IFS= read -r sys_template; do
-    local filename
-    filename=$(basename "$sys_template")
-    local proj_template="${project_templates}/${filename}"
+  # Use speckit templates check for accurate comparison
+  # This ensures doctor uses the same logic as the templates command
+  local templates_output
+  if templates_output=$(bash "${SCRIPT_DIR}/speckit-templates.sh" check 2>/dev/null); then
+    # Parse the output - count outdated templates
+    local outdated current
+    outdated=$(echo "$templates_output" | grep -c '^[[:space:]]*!' 2>/dev/null) || outdated=0
+    current=$(echo "$templates_output" | grep -c '^[[:space:]]*✓' 2>/dev/null) || current=0
 
-    if [[ -f "$proj_template" ]]; then
-      # Check for version header
-      local sys_version proj_version
-      sys_version=$(grep -oE 'version:\s*[0-9.]+' "$sys_template" 2>/dev/null | head -1 | grep -oE '[0-9.]+' || echo "")
-      proj_version=$(grep -oE 'version:\s*[0-9.]+' "$proj_template" 2>/dev/null | head -1 | grep -oE '[0-9.]+' || echo "")
+    if [[ "$outdated" -gt 0 ]]; then
+      # Show individual template status
+      while IFS= read -r line; do
+        if [[ "$line" =~ ^[[:space:]]*✓ ]]; then
+          # Extract filename and version from "  ✓ filename.md (vX.X)"
+          local name version
+          name=$(echo "$line" | sed 's/^[[:space:]]*✓[[:space:]]*//' | sed 's/ (v.*//')
+          version=$(echo "$line" | grep -oE 'v[0-9]+\.[0-9]+' | sed 's/^v//' || echo "")
+          if [[ -n "$version" ]]; then
+            print_status ok "$name (v$version)"
+          else
+            print_status ok "$name"
+          fi
+        elif [[ "$line" =~ ^[[:space:]]*! ]]; then
+          # Extract from "  ! filename.md: vX.X -> vY.Y available"
+          local info
+          info=$(echo "$line" | sed 's/^[[:space:]]*![[:space:]]*//')
+          print_status warn "$info"
+        fi
+      done <<< "$templates_output"
 
-      if [[ -n "$sys_version" && -n "$proj_version" ]]; then
-        if [[ "$sys_version" != "$proj_version" ]]; then
-          print_status warn "$filename: $proj_version -> $sys_version available"
-          ((outdated++))
-        else
-          print_status ok "$filename: v$proj_version"
-        fi
-      else
-        # Compare by modification time as fallback
-        if [[ "$sys_template" -nt "$proj_template" ]]; then
-          print_status warn "$filename: newer version available"
-          ((outdated++))
-        else
-          print_status ok "$filename"
-        fi
-      fi
+      add_warning "$outdated template(s) have updates available"
+      log_info "Run 'speckit templates update-all' to update"
+    else
+      # All current - show summary
+      print_status ok "All $current template(s) are current"
     fi
-  done < <(find "$system_templates" -name "*.md" -o -name "*.yaml" 2>/dev/null)
-
-  if [[ $outdated -gt 0 ]]; then
-    add_warning "$outdated template(s) have updates available"
-    log_info "Run 'speckit templates check' for details"
+  else
+    # Fallback: basic check if templates script fails
+    local count=0
+    while IFS= read -r sys_template; do
+      local filename
+      filename=$(basename "$sys_template")
+      local proj_template="${project_templates}/${filename}"
+      if [[ -f "$proj_template" ]]; then
+        print_status ok "$filename"
+        ((count++)) || true
+      fi
+    done < <(find "$system_templates" \( -name "*.md" -o -name "*.yaml" \) 2>/dev/null)
+    print_status ok "$count template(s) found"
   fi
 }
 

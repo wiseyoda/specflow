@@ -384,11 +384,7 @@ EOF
         echo "AVAILABLE_DOCS:"
       fi
     else
-      if ! $quiet; then
-        print_header "Feature Context"
-        echo ""
-      fi
-
+      # Three-line rule: Essential info first
       echo "FEATURE_DIR: $feature_dir"
       echo "BRANCH: $branch"
       echo "PHASE: $phase"

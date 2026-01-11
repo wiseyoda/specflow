@@ -466,8 +466,7 @@ cmd_validate() {
   local errors=0
   local warnings=0
 
-  log_step "Validating $(basename "$pdr_file")"
-
+  # Three-line rule: Validation results shown first
   # Check for required sections
   for section in "${REQUIRED_SECTIONS[@]}"; do
     if has_section "$pdr_file" "$section"; then

@@ -87,7 +87,7 @@ compare_tasks() {
   local state_file
   state_file="$(get_state_file)"
 
-  log_step "Checking task completion"
+  # Three-line rule: Status output via print_status below
 
   if [[ ! -f "$state_file" ]]; then
     print_status skip "No state file"
@@ -137,7 +137,7 @@ compare_git_branch() {
   local state_file
   state_file="$(get_state_file)"
 
-  log_step "Checking git branch"
+  # Three-line rule: Status output via print_status below
 
   if ! is_git_repo; then
     print_status skip "Not a git repository"
@@ -171,7 +171,7 @@ compare_specs() {
   local state_file
   state_file="$(get_state_file)"
 
-  log_step "Checking spec artifacts"
+  # Three-line rule: Status output via print_status below
 
   if [[ ! -f "$state_file" ]]; then
     print_status skip "No state file"
@@ -218,7 +218,7 @@ compare_roadmap() {
   local state_file
   state_file="$(get_state_file)"
 
-  log_step "Checking ROADMAP consistency"
+  # Three-line rule: Status output via print_status below
 
   if [[ ! -f "${repo_root}/ROADMAP.md" ]]; then
     print_status skip "No ROADMAP.md"
@@ -271,7 +271,7 @@ compare_interview() {
   local state_file
   state_file="$(get_state_file)"
 
-  log_step "Checking interview state"
+  # Three-line rule: Status output via print_status below
 
   if [[ ! -f "$state_file" ]]; then
     print_status skip "No state file"
@@ -333,8 +333,9 @@ apply_fixes() {
     return
   fi
 
+  # Three-line rule: Status first, then details
   echo ""
-  print_header "Applying Fixes"
+  echo "Applying fixes..."
   echo ""
 
   while IFS= read -r diff; do
@@ -376,8 +377,7 @@ apply_fixes() {
 }
 
 show_summary() {
-  echo ""
-  print_header "Summary"
+  # Three-line rule: Status first
   echo ""
 
   # Count differences and fixes (POSIX-compatible)
@@ -473,10 +473,7 @@ main() {
     esac
   done
 
-  if ! is_json_output; then
-    print_header "SpecKit Reconciliation"
-    echo ""
-  fi
+  # Three-line rule: Skip decorative header, status comes from comparisons
 
   # Run comparisons
   compare_tasks

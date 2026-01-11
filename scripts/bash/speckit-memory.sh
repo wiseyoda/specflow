@@ -662,7 +662,7 @@ cmd_init() {
       ;;
   esac
 
-  log_step "Initializing memory documents"
+  # Three-line rule: Status via print_status below
 
   local created=0
   local skipped=0
@@ -759,9 +759,7 @@ cmd_list() {
   repo_root="$(get_repo_root)"
   local memory_dir="${repo_root}/.specify/memory"
 
-  if ! is_json_output; then
-    log_step "Memory documents in $memory_dir"
-  fi
+  # Three-line rule: Table output starts immediately
 
   if [[ ! -d "$memory_dir" ]]; then
     if is_json_output; then
@@ -824,7 +822,7 @@ cmd_check() {
   repo_root="$(get_repo_root)"
   local memory_dir="${repo_root}/.specify/memory"
 
-  log_step "Checking memory document health"
+  # Three-line rule: Status via log_success/log_error below
 
   local issues=()
   local warnings=()

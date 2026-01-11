@@ -58,108 +58,108 @@
 ## US1: CLI Output Clarity (Three-Line Rule)
 
 ### speckit-detect.sh
-- [ ] T012 [P2] [US1] Refactor `main()` in `scripts/bash/speckit-detect.sh` for three-line output
+- [x] T012 [P2] [US1] Refactor `main()` in `scripts/bash/speckit-detect.sh` for three-line output
 
 ### speckit-gate.sh
-- [ ] T013 [P2] [US1] Refactor `main()` in `scripts/bash/speckit-gate.sh` for three-line output
+- [x] T013 [P2] [US1] Refactor `main()` in `scripts/bash/speckit-gate.sh` for three-line output
 
 ### speckit-lessons.sh
-- [ ] T014 [P2] [US1] Refactor `search()` in `scripts/bash/speckit-lessons.sh` for three-line output
-- [ ] T015 [P2] [US1] Refactor `list()` in `scripts/bash/speckit-lessons.sh` for three-line output
+- [x] T014 [P2] [US1] Refactor `search()` in `scripts/bash/speckit-lessons.sh` for three-line output
+- [x] T015 [P2] [US1] Refactor `list()` in `scripts/bash/speckit-lessons.sh` for three-line output
 
 ### speckit-import.sh
-- [ ] T016 [P2] [US1] Refactor `import()` in `scripts/bash/speckit-import.sh` for three-line output
+- [x] T016 [P2] [US1] Refactor `import()` in `scripts/bash/speckit-import.sh` for three-line output
 
 ### speckit-context.sh
-- [ ] T017 [P2] [US1] Refactor `context()` in `scripts/bash/speckit-context.sh` for three-line output
+- [x] T017 [P2] [US1] Refactor `context()` in `scripts/bash/speckit-context.sh` for three-line output
 
 ### speckit-git.sh
-- [ ] T018 [P2] [US1] Refactor `branches()` in `scripts/bash/speckit-git.sh` for three-line output
+- [x] T018 [P2] [US1] Refactor `branches()` in `scripts/bash/speckit-git.sh` for three-line output
 
 ### speckit-manifest.sh
-- [ ] T019 [P2] [US1] Refactor `status()` in `scripts/bash/speckit-manifest.sh` for three-line output
+- [x] T019 [P2] [US1] Refactor `status()` in `scripts/bash/speckit-manifest.sh` for three-line output
 
 ### speckit-reconcile.sh
-- [ ] T020 [P2] [US1] Refactor `main()` in `scripts/bash/speckit-reconcile.sh` for three-line output
-- [ ] T021 [P2] [US1] Refactor `apply_fixes()` in `scripts/bash/speckit-reconcile.sh` for three-line output
-- [ ] T022 [P2] [US1] Refactor `show_summary()` in `scripts/bash/speckit-reconcile.sh` for three-line output
+- [x] T020 [P2] [US1] Refactor `main()` in `scripts/bash/speckit-reconcile.sh` for three-line output
+- [x] T021 [P2] [US1] Refactor `apply_fixes()` in `scripts/bash/speckit-reconcile.sh` for three-line output
+- [x] T022 [P2] [US1] Refactor `show_summary()` in `scripts/bash/speckit-reconcile.sh` for three-line output
 
 ### speckit-templates.sh
-- [ ] T023 [P2] [US1] Refactor `cmd_check()` in `scripts/bash/speckit-templates.sh` for three-line output
-- [ ] T024 [P2] [US1] Refactor `cmd_diff()` in `scripts/bash/speckit-templates.sh` for three-line output
-- [ ] T025 [P2] [US1] Refactor `cmd_list()` in `scripts/bash/speckit-templates.sh` for three-line output
+- [x] T023 [P2] [US1] Refactor `cmd_check()` in `scripts/bash/speckit-templates.sh` for three-line output
+- [x] T024 [P2] [US1] Refactor `cmd_diff()` in `scripts/bash/speckit-templates.sh` for three-line output
+- [x] T025 [P2] [US1] Refactor `cmd_list()` in `scripts/bash/speckit-templates.sh` for three-line output
 
 ### speckit-phase.sh
-- [ ] T026 [P2] [US1] Refactor `cmd_migrate()` in `scripts/bash/speckit-phase.sh` for three-line output
+- [x] T026 [P2] [US1] Refactor `cmd_migrate()` in `scripts/bash/speckit-phase.sh` for three-line output
 
 ### speckit-roadmap.sh
-- [ ] T027 [P2] [US1] Refactor `cmd_validate()` in `scripts/bash/speckit-roadmap.sh` for three-line output
-- [ ] T028 [P2] [US1] Refactor `cmd_renumber()` in `scripts/bash/speckit-roadmap.sh` for three-line output
+- [x] T027 [P2] [US1] Refactor `cmd_validate()` in `scripts/bash/speckit-roadmap.sh` for three-line output
+- [x] T028 [P2] [US1] Refactor `cmd_renumber()` in `scripts/bash/speckit-roadmap.sh` for three-line output
 
 ### speckit-memory.sh
-- [ ] T029 [P2] [US1] Refactor `cmd_init()` in `scripts/bash/speckit-memory.sh` for three-line output
-- [ ] T030 [P2] [US1] Refactor `cmd_list()` in `scripts/bash/speckit-memory.sh` for three-line output
-- [ ] T031 [P2] [US1] Refactor `cmd_check()` in `scripts/bash/speckit-memory.sh` for three-line output
+- [x] T029 [P2] [US1] Refactor `cmd_init()` in `scripts/bash/speckit-memory.sh` for three-line output
+- [x] T030 [P2] [US1] Refactor `cmd_list()` in `scripts/bash/speckit-memory.sh` for three-line output
+- [x] T031 [P2] [US1] Refactor `cmd_check()` in `scripts/bash/speckit-memory.sh` for three-line output
 
 ### speckit-migrate.sh
-- [ ] T032 [P2] [US1] Refactor `cmd_roadmap()` in `scripts/bash/speckit-migrate.sh` for three-line output
+- [x] T032 [P2] [US1] Refactor `cmd_roadmap()` in `scripts/bash/speckit-migrate.sh` for three-line output
 
 ### speckit-pdr.sh
-- [ ] T033 [P2] [US1] Refactor `cmd_validate()` in `scripts/bash/speckit-pdr.sh` for three-line output
+- [x] T033 [P2] [US1] Refactor `cmd_validate()` in `scripts/bash/speckit-pdr.sh` for three-line output
 
 ### speckit-scaffold.sh
-- [ ] T034 [P2] [US1] Refactor `cmd_scaffold()` in `scripts/bash/speckit-scaffold.sh` for three-line output
+- [x] T034 [P2] [US1] Refactor `cmd_scaffold()` in `scripts/bash/speckit-scaffold.sh` for three-line output
 
 ### speckit-state.sh
-- [ ] T035 [P2] [US1] Refactor `cmd_reconcile()` in `scripts/bash/speckit-state.sh` for three-line output
-- [ ] T036 [P2] [US1] Refactor `cmd_migrate()` in `scripts/bash/speckit-state.sh` for three-line output
-- [ ] T037 [P2] [US1] Refactor `cmd_infer()` in `scripts/bash/speckit-state.sh` for three-line output
+- [x] T035 [P2] [US1] Refactor `cmd_reconcile()` in `scripts/bash/speckit-state.sh` for three-line output
+- [x] T036 [P2] [US1] Refactor `cmd_migrate()` in `scripts/bash/speckit-state.sh` for three-line output
+- [x] T037 [P2] [US1] Refactor `cmd_infer()` in `scripts/bash/speckit-state.sh` for three-line output
 
 ---
 
 ## POSIX Compliance Fixes
 
-- [ ] T038 [P2] [US4] Fix sed -i usage in `scripts/bash/speckit-lessons.sh:302` to use `sed_in_place()`
-- [ ] T039 [P3] [US4] Add `shopt -s extglob` to `scripts/bash/speckit-feature.sh` where needed
+- [x] T038 [P2] [US4] Fix sed -i usage in `scripts/bash/speckit-lessons.sh:302` to use `sed_in_place()`
+- [x] T039 [P3] [US4] Add `shopt -s extglob` to `scripts/bash/speckit-feature.sh` where needed
 
 ---
 
 ## Library Fixes
 
-- [ ] T040 [P2] [US4] Add double-source guard to `scripts/bash/lib/json.sh`
-- [ ] T041 [P2] [US4] Fix unquoted variable in jq interpolation at `scripts/bash/lib/json.sh:84`
-- [ ] T042 [P2] [US4] Fix json_array_append unquoted interpolation at `scripts/bash/lib/json.sh:217`
-- [ ] T043 [P3] [US4] Fix arithmetic in `scripts/bash/speckit-issue.sh` to avoid set -e exit
+- [x] T040 [P2] [US4] Add double-source guard to `scripts/bash/lib/json.sh`
+- [x] T041 [P2] [US4] Fix unquoted variable in jq interpolation at `scripts/bash/lib/json.sh:84`
+- [x] T042 [P2] [US4] Fix json_array_append unquoted interpolation at `scripts/bash/lib/json.sh:217`
+- [x] T043 [P3] [US4] Fix arithmetic in `scripts/bash/speckit-issue.sh` to avoid set -e exit
 
 ---
 
 ## US2: Consistent Command Behavior (Slash Commands)
 
-- [ ] T044 [P2] [US2] Update `commands/speckit.specify.md` to remove setup-plan.sh reference
-- [ ] T045 [P2] [US2] Update `commands/speckit.plan.md` to remove deprecated script references
-- [ ] T046 [P2] [US2] Remove update-agent-context.sh references from slash commands
-- [ ] T047 [P2] [US2] Update `commands/speckit.verify.md` to use `speckit tasks mark`
-- [ ] T048 [P2] [US2] Update `commands/speckit.backlog.md` to use proper CLI commands
-- [ ] T049 [P2] [US2] Verify `commands/speckit.phase.md` uses speckit pdr commands (already updated)
-- [ ] T050 [P2] [US2] Update `commands/speckit.init.md` to use `speckit state set`
+- [x] T044 [P2] [US2] Update `commands/speckit.specify.md` to remove setup-plan.sh reference
+- [x] T045 [P2] [US2] Update `commands/speckit.plan.md` to remove deprecated script references
+- [x] T046 [P2] [US2] Remove update-agent-context.sh references from slash commands
+- [x] T047 [P2] [US2] Update `commands/speckit.verify.md` to use `speckit tasks mark`
+- [x] T048 [P2] [US2] Update `commands/speckit.backlog.md` to use proper CLI commands
+- [x] T049 [P2] [US2] Verify `commands/speckit.phase.md` uses speckit pdr commands (already updated)
+- [x] T050 [P2] [US2] Update `commands/speckit.init.md` to use `speckit state set`
 
 ---
 
 ## US4: Single Template Source (Templates)
 
-- [ ] T051 [P2] [US4] Update `templates/backlog-template.md` to 4-digit ABBC format
-- [ ] T052 [P2] [US4] Update `templates/deferred-template.md` to 4-digit ABBC format
-- [ ] T053 [P2] [US4] Update `templates/plan-template.md` to 4-digit ABBC format
-- [ ] T054 [P2] [US4] Update `templates/spec-template.md` to 4-digit ABBC format
-- [ ] T055 [P2] [US4] Update `templates/tasks-template.md` to 4-digit ABBC format
-- [ ] T056 [P3] [US4] Clean `templates/openapi-template.yaml` of project-specific references
+- [x] T051 [P2] [US4] Update `templates/backlog-template.md` to 4-digit ABBC format
+- [x] T052 [P2] [US4] Update `templates/deferred-template.md` to 4-digit ABBC format
+- [x] T053 [P2] [US4] Update `templates/plan-template.md` to 4-digit ABBC format
+- [x] T054 [P2] [US4] Update `templates/spec-template.md` to 4-digit ABBC format
+- [x] T055 [P2] [US4] Update `templates/tasks-template.md` to 4-digit ABBC format
+- [x] T056 [P3] [US4] Clean `templates/openapi-template.yaml` of project-specific references
 
 ---
 
 ## Documentation
 
-- [ ] T057 [P2] [US4] Fix README.md --check description (verify installation, not run tests)
-- [ ] T058 [P3] [US4] Verify all README.md doc links exist and update if needed
+- [x] T057 [P2] [US4] Fix README.md --check description (verify installation, not run tests)
+- [x] T058 [P3] [US4] Verify all README.md doc links exist and update if needed
 
 ---
 

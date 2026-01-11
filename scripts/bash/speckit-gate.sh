@@ -206,9 +206,7 @@ gate_specify() {
   local errors=0
   local warnings=0
 
-  print_header "Gate: Specify"
-  echo ""
-
+  # Three-line rule: Status first (via log_success/error below)
   # Check file exists
   if ! check_file_exists "$spec_file" "spec.md"; then
     ((errors++)) || true
@@ -261,9 +259,7 @@ gate_plan() {
   local errors=0
   local warnings=0
 
-  print_header "Gate: Plan"
-  echo ""
-
+  # Three-line rule: Status first (via log_success/error below)
   # Check file exists
   if ! check_file_exists "$plan_file" "plan.md"; then
     ((errors++)) || true
@@ -314,9 +310,7 @@ gate_tasks() {
   local errors=0
   local warnings=0
 
-  print_header "Gate: Tasks"
-  echo ""
-
+  # Three-line rule: Status first (via log_success/error below)
   # Check file exists
   if ! check_file_exists "$tasks_file" "tasks.md"; then
     ((errors++)) || true
@@ -381,9 +375,7 @@ gate_implement() {
   local errors=0
   local warnings=0
 
-  print_header "Gate: Implement"
-  echo ""
-
+  # Three-line rule: Status first (via log_success/error below)
   # Check tasks file exists
   if ! check_file_exists "$tasks_file" "tasks.md"; then
     ((errors++)) || true
@@ -456,9 +448,7 @@ gate_all() {
   local passed=0
   local failed=0
 
-  print_header "Running All Gates"
-  echo ""
-
+  # Three-line rule: Gate results will be shown via log_success/error
   # Determine which gates to run based on what files exist
   if [[ -f "${feature_dir}/spec.md" ]]; then
     if gate_specify; then
@@ -487,12 +477,9 @@ gate_all() {
     echo ""
   fi
 
-  # Summary
-  print_header "Gate Summary"
+  # Summary - Three-line rule compliant
   echo ""
-  echo "  Passed: $passed"
-  echo "  Failed: $failed"
-  echo ""
+  echo "Gates: $passed passed, $failed failed"
 
   if [[ $failed -gt 0 ]]; then
     log_error "Some gates failed"
@@ -537,12 +524,23 @@ gate_status() {
 
     echo "$status_json"
   else
-    print_header "Gate Status"
-    echo ""
-    echo -e "  ${DIM}Feature: $rel_dir${RESET}"
-    echo ""
-
+    # Three-line rule: Status output first
+    local ready_count=0
+    local pending_count=0
     local gates=("specify:spec.md" "plan:plan.md" "tasks:tasks.md" "implement:tasks.md")
+
+    for gate_info in "${gates[@]}"; do
+      local file="${gate_info#*:}"
+      if [[ -f "${feature_dir}/${file}" ]]; then
+        ((ready_count++)) || true
+      else
+        ((pending_count++)) || true
+      fi
+    done
+
+    echo "Gate status: $ready_count ready, $pending_count pending"
+    echo "Feature: $rel_dir"
+    echo ""
 
     for gate_info in "${gates[@]}"; do
       local gate="${gate_info%%:*}"

@@ -765,8 +765,8 @@ cmd_scaffold() {
     exit 0
   fi
 
-  log_step "Creating SpecKit project structure"
-  log_info "Detected project type: $project_type_name"
+  # Three-line rule: Status comes from print_status below
+  log_info "Project type: $project_type_name"
 
   # Create directories
   local dirs=(

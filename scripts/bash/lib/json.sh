@@ -8,6 +8,9 @@
 # Requires: jq
 #
 
+# Double-source guard
+[[ -n "${SPECKIT_JSON_LOADED:-}" ]] && return 0
+
 # Source common if not already sourced
 SCRIPT_DIR_JSON="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -z "${SPECKIT_COMMON_LOADED:-}" ]]; then
@@ -70,24 +73,24 @@ json_set() {
     return 1
   fi
 
-  # Determine if value is a string or other type
-  local jq_value
-  if [[ "$value" == "true" ]] || [[ "$value" == "false" ]] || [[ "$value" == "null" ]]; then
-    jq_value="$value"
-  elif [[ "$value" =~ ^[0-9]+$ ]]; then
-    jq_value="$value"
-  elif [[ "$value" == "["* ]] || [[ "$value" == "{"* ]]; then
-    # JSON array or object
-    jq_value="$value"
-  else
-    # String - needs quoting
-    jq_value="\"$value\""
-  fi
-
   local temp_file
   temp_file=$(mktemp)
 
-  if jq "$key = $jq_value" "$file" > "$temp_file"; then
+  # Use --argjson for non-string types, --arg for strings
+  local jq_result=false
+  if [[ "$value" == "true" ]] || [[ "$value" == "false" ]] || [[ "$value" == "null" ]]; then
+    jq_result=$(jq --argjson v "$value" "$key = \$v" "$file" > "$temp_file" && echo true || echo false)
+  elif [[ "$value" =~ ^-?[0-9]+$ ]]; then
+    jq_result=$(jq --argjson v "$value" "$key = \$v" "$file" > "$temp_file" && echo true || echo false)
+  elif [[ "$value" == "["* ]] || [[ "$value" == "{"* ]]; then
+    # JSON array or object - use --argjson
+    jq_result=$(jq --argjson v "$value" "$key = \$v" "$file" > "$temp_file" && echo true || echo false)
+  else
+    # String - use --arg for safe quoting
+    jq_result=$(jq --arg v "$value" "$key = \$v" "$file" > "$temp_file" && echo true || echo false)
+  fi
+
+  if [[ "$jq_result" == "true" ]]; then
     mv "$temp_file" "$file"
     return 0
   else
@@ -212,15 +215,15 @@ json_array_append() {
   local temp_file
   temp_file=$(mktemp)
 
-  # Check if value is a string or JSON
-  local jq_expr
+  # Use --argjson for JSON objects/arrays, --arg for strings (safe quoting)
+  local jq_result=false
   if [[ "$value" == "{"* ]] || [[ "$value" == "["* ]]; then
-    jq_expr="$key += [$value]"
+    jq_result=$(jq --argjson v "$value" "$key += [\$v]" "$file" > "$temp_file" && echo true || echo false)
   else
-    jq_expr="$key += [\"$value\"]"
+    jq_result=$(jq --arg v "$value" "$key += [\$v]" "$file" > "$temp_file" && echo true || echo false)
   fi
 
-  if jq "$jq_expr" "$file" > "$temp_file"; then
+  if [[ "$jq_result" == "true" ]]; then
     mv "$temp_file" "$file"
     return 0
   else

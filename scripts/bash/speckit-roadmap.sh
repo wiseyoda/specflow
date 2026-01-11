@@ -303,43 +303,50 @@ cmd_status() {
   local roadmap_path
   roadmap_path="$(get_roadmap_path)"
 
+  # Collect all phase data first
+  local phase_nums=()
+  local phase_names=()
+  local phase_statuses=()
+  local total=0
+  local complete=0
+  local in_progress=0
+
+  while IFS='|' read -r phase_num name status gate; do
+    phase_nums+=("$phase_num")
+    phase_names+=("$name")
+    phase_statuses+=("$status")
+    ((total++)) || true
+    case "$status" in
+      complete) ((complete++)) || true ;;
+      in_progress) ((in_progress++)) || true ;;
+    esac
+  done < <(parse_phase_table)
+
   if is_json_output; then
     local phases="[]"
-    while IFS='|' read -r phase_num name status gate; do
-      phases=$(echo "$phases" | jq --arg num "$phase_num" --arg name "$name" --arg status "$status" --arg gate "$gate" \
-        '. + [{"phase": $num, "name": $name, "status": $status, "gate": $gate}]')
-    done < <(parse_phase_table)
+    for i in "${!phase_nums[@]}"; do
+      phases=$(echo "$phases" | jq --arg num "${phase_nums[$i]}" --arg name "${phase_names[$i]}" --arg status "${phase_statuses[$i]}" \
+        '. + [{"phase": $num, "name": $name, "status": $status}]')
+    done
     echo "$phases"
   else
-    print_header "Roadmap Status"
-    echo ""
-
-    local total=0
-    local complete=0
-    local in_progress=0
-
-    while IFS='|' read -r phase_num name status gate; do
-      ((total++)) || true
-      case "$status" in
-        complete)
-          ((complete++)) || true
-          print_status ok "$phase_num - $name"
-          ;;
-        in_progress)
-          ((in_progress++)) || true
-          print_status progress "$phase_num - $name"
-          ;;
-        *)
-          print_status pending "$phase_num - $name"
-          ;;
-      esac
-    done < <(parse_phase_table)
-
-    echo ""
-    echo "Progress: $complete/$total complete"
-    if [[ $in_progress -gt 0 ]]; then
-      echo "Currently in progress: $in_progress phase(s)"
+    # Three-Line Rule: Summary first
+    if [[ "$complete" -eq "$total" ]]; then
+      echo -e "${GREEN}OK${RESET}: All $total phases complete"
+    elif [[ $in_progress -gt 0 ]]; then
+      echo -e "${BLUE}INFO${RESET}: $complete/$total phases complete ($in_progress in progress)"
+    else
+      echo -e "${BLUE}INFO${RESET}: $complete/$total phases complete"
     fi
+    echo ""
+    # Phase list (line 3+)
+    for i in "${!phase_nums[@]}"; do
+      case "${phase_statuses[$i]}" in
+        complete) print_status ok "${phase_nums[$i]} - ${phase_names[$i]}" ;;
+        in_progress) print_status progress "${phase_nums[$i]} - ${phase_names[$i]}" ;;
+        *) print_status pending "${phase_nums[$i]} - ${phase_names[$i]}" ;;
+      esac
+    done
   fi
 }
 
@@ -1271,24 +1278,24 @@ cmd_backlog_list() {
     done
     echo "$json_items" | jq "{items: ., count: (. | length)}"
   else
+    # Three-Line Rule: Summary first
     if [[ ${#items[@]} -eq 0 ]]; then
-      log_info "Backlog is empty"
+      echo -e "${GREEN}OK${RESET}: Backlog is empty"
     else
-      print_header "Backlog Items"
+      echo -e "${BLUE}INFO${RESET}: ${#items[@]} backlog item(s)"
       echo ""
+      # Item list (line 3+)
       for item_line in "${items[@]}"; do
         local item
         item=$(echo "$item_line" | cut -d'|' -f2 | xargs)
         local priority
         priority=$(echo "$item_line" | cut -d'|' -f4 | xargs)
         if [[ "$priority" != "-" && -n "$priority" ]]; then
-          echo "  • [$priority] $item"
+          echo "  - [$priority] $item"
         else
-          echo "  • $item"
+          echo "  - $item"
         fi
       done
-      echo ""
-      echo "Total: ${#items[@]} item(s)"
     fi
   fi
 }

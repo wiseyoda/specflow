@@ -81,12 +81,27 @@ The output includes:
 speckit tasks incomplete
 ```
 
-For each incomplete task, determine if it is:
-- **Blocked**: Waiting on external dependency
-- **Deferred**: Intentionally moved to future phase
-- **Missed**: Should have been completed
+**CRITICAL**: A phase cannot be marked complete with incomplete tasks. For each incomplete task:
 
-For **Missed** tasks, attempt to complete them or flag for user action
+1. **Complete it now** - If feasible, finish the task and mark it done:
+   ```bash
+   speckit tasks mark T###
+   ```
+
+2. **Move to backlog** - If task should be deferred, add to ROADMAP.md backlog:
+   ```bash
+   speckit roadmap backlog add "[Deferred from PHASE] T###: Task description - REASON"
+   ```
+   Then mark the task complete with a note in tasks.md:
+   ```bash
+   # Edit tasks.md to mark as complete with deferral note
+   # Change: - [ ] T### Description
+   # To:     - [x] T### Description *(deferred to backlog)*
+   ```
+
+3. **Block verification** - If task cannot be completed or deferred, verification FAILS
+
+**All tasks must be either completed OR explicitly deferred to backlog before verification can pass.**
 
 ### 3. Memory Document Compliance Check
 
@@ -141,6 +156,8 @@ Produce compliance summary:
 
 ### 4. Checklist Verification and Completion
 
+**CRITICAL**: This step requires ACTIVELY RUNNING verification items, not just checking status.
+
 Use the SpecKit CLI for checklist verification:
 
 **4a. Get checklist status:**
@@ -161,7 +178,7 @@ speckit checklist status --json
 - Completion percentage
 - Pass/Fail status indicators
 
-**4c. For any incomplete checklist items:**
+**4c. For any incomplete checklist items - ACTIVELY VERIFY EACH ONE:**
 
 ```bash
 # List incomplete items across all checklists
@@ -169,19 +186,64 @@ speckit checklist incomplete
 
 # Show specific checklist details
 speckit checklist show requirements.md
+speckit checklist show verification.md
 ```
 
-For each incomplete item:
-- Attempt to verify and complete each item
-- If item cannot be completed, document why
-- Update checklist file with verification status and notes
-- If item reveals a genuine gap, flag for remediation
+**For each incomplete item, you MUST:**
 
-**4d. After completing items, re-verify all checklists pass:**
+1. **Read the verification item** - Understand what needs to be tested
+2. **Execute the verification** - Run commands, check code, verify behavior
+3. **Mark the item complete** - Use the CLI command:
+   ```bash
+   # Mark item V-001 complete (auto-finds file)
+   speckit checklist mark V-001
+
+   # Or specify file explicitly
+   speckit checklist mark CHK005 specs/0010-example/checklists/requirements.md
+   ```
+4. **Document failures** - If item cannot pass, add a note explaining why
+
+**Verification Execution Process:**
+
+For **verification.md** (post-implementation checks):
+- These are functional tests - actually run the commands and verify they work
+- Example: If item says "speckit roadmap insert creates phase 0021", RUN that command and verify
+- Mark `[x]` only if the verification passes
+
+For **requirements.md** (requirements quality checks):
+- These validate requirements completeness/clarity
+- Review spec.md against each item
+- Mark `[x]` if the requirement is properly documented
+
+**4d. Check for inline Verification Checklist in tasks.md:**
+
+Some tasks.md files include an inline "Verification Checklist" section at the bottom. If present:
+
+1. **Locate the section** - Look for `## Verification Checklist` heading in TASKS file
+2. **Process each item** - Same process as checklists/verification.md:
+   - Read the verification command/criteria
+   - **Actually execute** the command and verify it works correctly
+   - Mark complete with sed (inline items don't use standard IDs):
+     ```bash
+     # macOS (note the '' after -i)
+     sed -i '' 's/- \[ \] `speckit roadmap insert --after 0020/- [x] `speckit roadmap insert --after 0020/' "$TASKS"
+
+     # Linux
+     sed -i 's/- \[ \] `speckit roadmap insert --after 0020/- [x] `speckit roadmap insert --after 0020/' "$TASKS"
+     ```
+3. **All items must pass** before proceeding
+
+**NOTE**: The inline Verification Checklist in tasks.md contains functional tests that should be RUN, not just reviewed. For example, if an item says `speckit roadmap insert --after 0020 "Test"` creates phase 0021, you must actually RUN that command and verify it creates the expected phase.
+
+**4e. After completing items, re-verify all checklists pass:**
 
 ```bash
 speckit checklist status
 ```
+
+Also manually verify the inline tasks.md Verification Checklist (if present) shows all items marked `[x]`.
+
+All checklists should show 100% completion before proceeding.
 
 ### 5. Deferred Items Identification and Documentation
 
@@ -475,7 +537,7 @@ speckit --help
 
 Key CLI commands used:
 - `speckit tasks` - Task completion verification (status, incomplete, phase-status)
-- `speckit checklist` - Checklist verification (status, list, incomplete, show)
+- `speckit checklist` - Checklist verification and completion (status, list, incomplete, show, **mark**)
 - `speckit roadmap` - ROADMAP.md operations (status, current, update, validate)
 - `speckit claude-md` - CLAUDE.md updates (update)
 - `speckit doctor` - Diagnostics if verification finds issues

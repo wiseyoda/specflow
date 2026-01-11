@@ -36,6 +36,10 @@ COMMANDS:
 
     show <file>         Show status of a specific checklist file
 
+    mark <id> [file]    Mark a checklist item as complete
+                        ID format: V-001, CHK001, FR-001, etc.
+                        If no file specified, searches all checklists
+
 OPTIONS:
     --json              Output in JSON format
     -h, --help          Show this help
@@ -46,6 +50,8 @@ EXAMPLES:
     speckit checklist list
     speckit checklist incomplete
     speckit checklist show specs/001-auth/checklists/security.md
+    speckit checklist mark V-001
+    speckit checklist mark CHK005 specs/001-auth/checklists/requirements.md
 EOF
 }
 
@@ -171,17 +177,20 @@ cmd_status() {
     echo "{\"files\": $file_count, \"completed\": $completed_items, \"total\": $total_items, \"percent\": $percent}"
   else
     if [[ $file_count -eq 0 ]]; then
-      log_info "No checklists found in: $dir"
+      echo -e "${YELLOW}WARN${RESET}: No checklists found"
+      echo "  Path: $dir"
       exit 0
     fi
 
-    print_header "Checklist Status"
-    echo ""
-    echo "  Files:     $file_count"
-    echo "  Completed: $completed_items / $total_items ($percent%)"
-    echo ""
+    # Three-Line Rule: Summary first
+    if [[ "$percent" -eq 100 ]]; then
+      echo -e "${GREEN}OK${RESET}: Checklists $completed_items/$total_items complete (100%)"
+    else
+      echo -e "${BLUE}INFO${RESET}: Checklists $completed_items/$total_items complete ($percent%)"
+    fi
+    echo "  Files: $file_count"
 
-    # Progress bar
+    # Progress bar (line 3+)
     local bar_width=40
     local filled=$((percent * bar_width / 100))
     local empty=$((bar_width - filled))
@@ -204,51 +213,60 @@ cmd_list() {
     exit 1
   fi
 
+  # Collect all checklist data first
   local files_json="[]"
-  local file_count=0
+  local file_paths=()
+  local file_completed=()
+  local file_total=()
+  local file_percent=()
   local repo_root
   repo_root="$(get_repo_root)"
 
-  if ! is_json_output; then
-    print_header "Checklists"
-    echo ""
-  fi
-
   while IFS= read -r file; do
     [[ -z "$file" ]] && continue
-
     local counts
     counts=$(count_checkboxes "$file")
     local completed total
     read -r completed total <<< "$counts"
-
     local percent
     percent=$(calc_percent "$completed" "$total")
-
-    # Get relative path
     local rel_path="${file#$repo_root/}"
 
-    ((file_count++)) || true
-
-    if is_json_output; then
-      files_json=$(echo "$files_json" | jq --arg path "$rel_path" --argjson completed "$completed" --argjson total "$total" --argjson percent "$percent" \
-        '. + [{"path": $path, "completed": $completed, "total": $total, "percent": $percent}]')
-    else
-      if [[ "$percent" -eq 100 ]]; then
-        print_status complete "$rel_path ($completed/$total)"
-      elif [[ "$percent" -gt 0 ]]; then
-        print_status progress "$rel_path ($completed/$total - $percent%)"
-      else
-        print_status pending "$rel_path ($completed/$total)"
-      fi
-    fi
+    file_paths+=("$rel_path")
+    file_completed+=("$completed")
+    file_total+=("$total")
+    file_percent+=("$percent")
   done < <(find_checklists "$dir")
 
+  local file_count=${#file_paths[@]}
+
   if is_json_output; then
+    for i in "${!file_paths[@]}"; do
+      files_json=$(echo "$files_json" | jq --arg path "${file_paths[$i]}" \
+        --argjson completed "${file_completed[$i]}" \
+        --argjson total "${file_total[$i]}" \
+        --argjson percent "${file_percent[$i]}" \
+        '. + [{"path": $path, "completed": $completed, "total": $total, "percent": $percent}]')
+    done
     echo "$files_json"
   else
+    # Three-Line Rule: Summary first
     if [[ $file_count -eq 0 ]]; then
-      log_info "No checklists found in: $dir"
+      echo -e "${YELLOW}WARN${RESET}: No checklists found"
+      echo "  Path: $dir"
+    else
+      echo -e "${BLUE}INFO${RESET}: Found $file_count checklist(s)"
+      echo ""
+      # File list (line 3+)
+      for i in "${!file_paths[@]}"; do
+        if [[ "${file_percent[$i]}" -eq 100 ]]; then
+          print_status complete "${file_paths[$i]} (${file_completed[$i]}/${file_total[$i]})"
+        elif [[ "${file_percent[$i]}" -gt 0 ]]; then
+          print_status progress "${file_paths[$i]} (${file_completed[$i]}/${file_total[$i]} - ${file_percent[$i]}%)"
+        else
+          print_status pending "${file_paths[$i]} (${file_completed[$i]}/${file_total[$i]})"
+        fi
+      done
     fi
   fi
 }
@@ -267,49 +285,49 @@ cmd_incomplete() {
 
   local repo_root
   repo_root="$(get_repo_root)"
-  local items_json="[]"
-  local total_incomplete=0
 
-  if ! is_json_output; then
-    print_header "Incomplete Checklist Items"
-    echo ""
-  fi
+  # Collect all incomplete items first
+  local items_json="[]"
+  local all_files=()
+  local all_items=()
+  local current_file=""
 
   while IFS= read -r file; do
     [[ -z "$file" ]] && continue
-
     local rel_path="${file#$repo_root/}"
-    local has_items=false
 
     while IFS= read -r item; do
       [[ -z "$item" ]] && continue
-
-      has_items=true
-      ((total_incomplete++)) || true
+      all_files+=("$rel_path")
+      all_items+=("$item")
 
       if is_json_output; then
         items_json=$(echo "$items_json" | jq --arg file "$rel_path" --arg item "$item" \
           '. + [{"file": $file, "item": $item}]')
-      else
-        if [[ "$has_items" == "true" ]] && [[ "$total_incomplete" -eq 1 || "$(get_incomplete_items "$file" | head -1)" == "$item" ]]; then
-          echo -e "${DIM}$rel_path${RESET}"
-        fi
-        echo "  - $item"
       fi
     done < <(get_incomplete_items "$file")
-
-    if ! is_json_output && [[ "$has_items" == "true" ]]; then
-      echo ""
-    fi
   done < <(find_checklists "$dir")
+
+  local total_incomplete=${#all_items[@]}
 
   if is_json_output; then
     echo "{\"total\": $total_incomplete, \"items\": $items_json}"
   else
+    # Three-Line Rule: Summary first
     if [[ $total_incomplete -eq 0 ]]; then
-      log_success "All checklist items complete!"
+      echo -e "${GREEN}OK${RESET}: All checklist items complete"
     else
-      echo "Total incomplete: $total_incomplete"
+      echo -e "${YELLOW}WARN${RESET}: $total_incomplete incomplete item(s)"
+      echo ""
+      # Item list (line 3+)
+      current_file=""
+      for i in "${!all_items[@]}"; do
+        if [[ "${all_files[$i]}" != "$current_file" ]]; then
+          current_file="${all_files[$i]}"
+          echo -e "${DIM}$current_file${RESET}"
+        fi
+        echo "  - ${all_items[$i]}"
+      done
     fi
   fi
 }
@@ -356,11 +374,16 @@ cmd_show() {
 
     echo "{\"completed\": $completed, \"total\": $total, \"percent\": $percent, \"items\": $items_json}"
   else
-    print_header "$(basename "$file")"
+    # Three-Line Rule: Summary first
+    local filename
+    filename=$(basename "$file")
+    if [[ "$percent" -eq 100 ]]; then
+      echo -e "${GREEN}OK${RESET}: $filename - $completed/$total complete (100%)"
+    else
+      echo -e "${BLUE}INFO${RESET}: $filename - $completed/$total complete ($percent%)"
+    fi
     echo ""
-    echo "  Status: $completed / $total ($percent%)"
-    echo ""
-
+    # Item list (line 3+)
     while IFS= read -r line; do
       if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[x\][[:space:]]*(.+)$ ]]; then
         print_status complete "${BASH_REMATCH[1]}"
@@ -368,6 +391,101 @@ cmd_show() {
         print_status pending "${BASH_REMATCH[1]}"
       fi
     done < "$file"
+  fi
+}
+
+cmd_mark() {
+  local item_id="${1:-}"
+  local file="${2:-}"
+
+  if [[ -z "$item_id" ]]; then
+    log_error "Item ID required"
+    echo "Usage: speckit checklist mark <id> [file]"
+    echo "Example: speckit checklist mark V-001"
+    exit 1
+  fi
+
+  local repo_root
+  repo_root="$(get_repo_root)"
+
+  # If file provided, resolve path
+  if [[ -n "$file" ]]; then
+    if [[ ! "$file" = /* ]]; then
+      file="$repo_root/$file"
+    fi
+
+    if [[ ! -f "$file" ]]; then
+      log_error "File not found: $file"
+      exit 1
+    fi
+  else
+    # Search all checklists for the item
+    local base_dir
+    base_dir="$(get_checklists_base)"
+    local found_file=""
+    local found_count=0
+
+    while IFS= read -r check_file; do
+      [[ -z "$check_file" ]] && continue
+      # Look for the item ID in the file (both bold and plain format)
+      if grep -qE "^\s*-\s*\[ \].*\*?\*?${item_id}\*?\*?" "$check_file" 2>/dev/null; then
+        found_file="$check_file"
+        ((found_count++))
+      fi
+    done < <(find_checklists "$base_dir")
+
+    if [[ $found_count -eq 0 ]]; then
+      log_error "Item $item_id not found in any checklist"
+      echo "Hint: Check item ID format (V-001, CHK001, FR-001)"
+      exit 1
+    elif [[ $found_count -gt 1 ]]; then
+      log_error "Item $item_id found in multiple files. Please specify file:"
+      while IFS= read -r check_file; do
+        if grep -qE "^\s*-\s*\[ \].*\*?\*?${item_id}\*?\*?" "$check_file" 2>/dev/null; then
+          local rel_path="${check_file#$repo_root/}"
+          echo "  speckit checklist mark $item_id $rel_path"
+        fi
+      done < <(find_checklists "$base_dir")
+      exit 1
+    fi
+
+    file="$found_file"
+  fi
+
+  # Check if item exists and is not already complete
+  if ! grep -qE "^\s*-\s*\[ \].*\*?\*?${item_id}\*?\*?" "$file" 2>/dev/null; then
+    # Check if it's already complete
+    if grep -qE "^\s*-\s*\[x\].*\*?\*?${item_id}\*?\*?" "$file" 2>/dev/null; then
+      local rel_path="${file#$repo_root/}"
+      if is_json_output; then
+        echo "{\"status\": \"already_complete\", \"id\": \"$item_id\", \"file\": \"$rel_path\"}"
+      else
+        echo -e "${YELLOW}WARN${RESET}: $item_id already marked complete"
+        echo "  File: $rel_path"
+      fi
+      exit 0
+    fi
+
+    log_error "Item $item_id not found in $file"
+    exit 1
+  fi
+
+  # Mark the item complete using sed
+  # Handle both **V-001** (bold) and V-001 (plain) formats
+  # macOS sed requires -i '' for in-place editing
+  if [[ "$(uname)" == "Darwin" ]]; then
+    sed -i '' "s/^\([[:space:]]*-[[:space:]]*\)\[ \]\(.*${item_id}.*\)$/\1[x]\2/" "$file"
+  else
+    sed -i "s/^\([[:space:]]*-[[:space:]]*\)\[ \]\(.*${item_id}.*\)$/\1[x]\2/" "$file"
+  fi
+
+  local rel_path="${file#$repo_root/}"
+
+  if is_json_output; then
+    echo "{\"status\": \"marked\", \"id\": \"$item_id\", \"file\": \"$rel_path\"}"
+  else
+    echo -e "${GREEN}OK${RESET}: Marked $item_id complete"
+    echo "  File: $rel_path"
   fi
 }
 
@@ -399,6 +517,9 @@ main() {
       ;;
     show)
       cmd_show "${1:-}"
+      ;;
+    mark)
+      cmd_mark "${1:-}" "${2:-}"
       ;;
     help|--help|-h)
       show_help

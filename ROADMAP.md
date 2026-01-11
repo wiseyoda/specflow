@@ -31,8 +31,8 @@ This allows inserting urgent work without renumbering existing phases.
 | Phase | Name | Status | Verification Gate |
 |-------|------|--------|-------------------|
 | 0010 | Roadmap Flexibility | ✅ Complete | Insert/defer commands work |
-| 0015 | Workflow Commands | 🔄 In Progress | Merge and backlog commands work |
-| 0020 | Onboarding Polish | ⬜ Not Started | New user can set up without confusion |
+| 0015 | Workflow Commands | ✅ In Progress | Merge and backlog commands work |
+| 0020 | Onboarding Polish | ✅ Not Started | New user can set up without confusion |
 | 0030 | Test Suite Completion | ⬜ Not Started | All tests pass on macOS and Linux |
 | 0040 | Integration Options | ⬜ Not Started | Existing docs imported successfully |
 | 0050 | Story-Based Orchestration | ⬜ Not Started | **USER GATE**: Stories execute independently |
@@ -248,6 +248,7 @@ This allows inserting urgent work without renumbering existing phases.
 
 | Item | Description | Priority | Notes |
 |------|-------------|----------|-------|
+| Test item | Added 2026-01-10 | - | |
 | Parallel phase execution | Run independent phases concurrently | Low | Requires dependency graph |
 | Team collaboration | Multi-user roadmap editing, conflict resolution | Low | Future vision |
 

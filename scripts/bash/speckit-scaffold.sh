@@ -6,6 +6,8 @@
 #   speckit scaffold              Create .specify/ structure
 #   speckit scaffold --force      Recreate (overwrites existing)
 #   speckit scaffold --status     Check what exists
+#   speckit scaffold --safe       Preview changes without writing
+#   speckit scaffold --type TYPE  Force specific project type
 #
 
 set -euo pipefail
@@ -14,6 +16,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/json.sh"
+source "${SCRIPT_DIR}/lib/detection.sh"
 
 # =============================================================================
 # Constants
@@ -34,11 +37,24 @@ USAGE:
 
 OPTIONS:
     --force             Overwrite existing files
+    --safe              Preview what would be created (no changes made)
     --status            Show what exists vs what's needed
+    --type TYPE         Force project type (typescript, javascript, python,
+                        rust, go, bash, generic). Auto-detected if not set.
     --skip-templates    Don't copy templates
     --skip-scripts      Don't copy scripts
     --json              Output in JSON format
     -h, --help          Show this help
+
+PROJECT DETECTION:
+    SpecKit auto-detects your project type and customizes templates:
+    - tsconfig.json       → TypeScript
+    - package.json        → JavaScript/Node.js
+    - Cargo.toml          → Rust
+    - go.mod              → Go
+    - pyproject.toml      → Python
+    - *.sh files          → Bash/Shell
+    - (none)              → Generic
 
 CREATES:
     .specify/
@@ -47,6 +63,8 @@ CREATES:
     │   ├── state.md
     │   └── decisions.md
     ├── memory/
+    │   ├── constitution.md  (customized for project type)
+    │   ├── tech-stack.md    (customized for project type)
     │   └── adrs/
     ├── templates/
     ├── scripts/
@@ -57,10 +75,96 @@ CREATES:
     specs/                  (feature specifications)
 
 EXAMPLES:
-    speckit scaffold            # Create structure
+    speckit scaffold            # Create structure (auto-detect type)
+    speckit scaffold --safe     # Preview changes without writing
+    speckit scaffold --type python  # Force Python templates
     speckit scaffold --status   # Check what exists
     speckit scaffold --force    # Recreate everything
 EOF
+}
+
+# =============================================================================
+# Safe Mode Preview
+# =============================================================================
+
+cmd_scaffold_preview() {
+  local repo_root="$1"
+  local project_type="$2"
+  local project_type_name="$3"
+  local specify_dir="${repo_root}/.specify"
+
+  # Track what would be created/modified
+  local would_create=()
+  local would_modify=()
+  local would_skip=()
+
+  # Check directories
+  local dirs=(
+    ".specify"
+    ".specify/discovery"
+    ".specify/memory"
+    ".specify/memory/adrs"
+    ".specify/templates"
+    ".specify/scripts"
+    ".specify/scripts/bash"
+    ".specify/archive"
+    "specs"
+  )
+
+  for dir in "${dirs[@]}"; do
+    local full_path="${repo_root}/${dir}"
+    if [[ -d "$full_path" ]]; then
+      would_skip+=("$dir/ (exists)")
+    else
+      would_create+=("$dir/")
+    fi
+  done
+
+  # Check files
+  local files=(
+    ".specify/discovery/context.md"
+    ".specify/discovery/state.md"
+    ".specify/discovery/decisions.md"
+    ".specify/orchestration-state.json"
+    ".specify/memory/constitution.md"
+    ".specify/memory/tech-stack.md"
+  )
+
+  for file in "${files[@]}"; do
+    local full_path="${repo_root}/${file}"
+    if [[ -f "$full_path" ]]; then
+      would_skip+=("$file (exists)")
+    else
+      would_create+=("$file")
+    fi
+  done
+
+  # Three-Line Rule: Summary first
+  local create_count=${#would_create[@]}
+  local skip_count=${#would_skip[@]}
+  echo -e "${BLUE}INFO${RESET}: Preview for $project_type_name project"
+  echo "  Would create: $create_count items, skip: $skip_count items"
+  echo ""
+
+  # Details (line 4+)
+  if [[ $create_count -gt 0 ]]; then
+    echo "Would create:"
+    for item in "${would_create[@]}"; do
+      echo "  + $item"
+    done
+    echo ""
+  fi
+
+  if [[ $skip_count -gt 0 ]]; then
+    echo "Would skip:"
+    for item in "${would_skip[@]}"; do
+      echo "  - $item"
+    done
+    echo ""
+  fi
+
+  echo "Run 'speckit scaffold' to apply changes."
+  echo "Run 'speckit scaffold --force' to overwrite existing files."
 }
 
 # =============================================================================
@@ -155,6 +259,383 @@ EOF
 }
 
 # =============================================================================
+# Project-Type-Specific Templates
+# =============================================================================
+
+# Generate constitution.md based on project type
+create_constitution_for_type() {
+  local project_type="$1"
+  local project_type_name
+  project_type_name=$(get_project_type_name "$project_type")
+
+  cat << EOF
+# Project Constitution
+
+> Core principles and governance for this project. All implementation decisions must align with these principles.
+
+**Version**: 1.0.0
+**Created**: $(date +%Y-%m-%d)
+**Status**: ACTIVE
+**Project Type**: $project_type_name
+
+---
+
+## Preamble
+
+This constitution defines the fundamental principles guiding development of this project.
+
+---
+
+## Core Principles
+
+EOF
+
+  # Language-specific principles
+  case "$project_type" in
+    typescript)
+      cat << 'EOF'
+### I. Type Safety First
+All code uses TypeScript with strict mode enabled.
+- **Rationale**: Type errors caught at compile time, not runtime
+- **Implications**: `strict: true` in tsconfig, no `any` without justification
+
+### II. Test-Driven Development
+Write tests before implementation where practical.
+- **Rationale**: Tests document behavior and prevent regressions
+- **Implications**: Vitest/Jest for unit tests, high coverage goals
+
+### III. Modern JavaScript
+Use latest stable ECMAScript features.
+- **Rationale**: Cleaner code, better performance
+- **Implications**: ESNext target, ESM modules preferred
+EOF
+      ;;
+    javascript)
+      cat << 'EOF'
+### I. Clean JavaScript
+Write readable, maintainable JavaScript.
+- **Rationale**: Code is read more often than written
+- **Implications**: ESLint rules, consistent style, clear naming
+
+### II. Test Coverage
+Maintain comprehensive test coverage.
+- **Rationale**: Confidence in changes, documentation of behavior
+- **Implications**: Jest/Vitest, integration tests for key flows
+
+### III. Dependency Management
+Minimal, audited dependencies.
+- **Rationale**: Security, bundle size, maintainability
+- **Implications**: npm audit, regular updates, justify additions
+EOF
+      ;;
+    python)
+      cat << 'EOF'
+### I. Type Hints
+Use type hints for all public APIs.
+- **Rationale**: Better tooling, documentation, error prevention
+- **Implications**: mypy validation, typed function signatures
+
+### II. Test-Driven Development
+Write tests with pytest before implementation.
+- **Rationale**: Tests document behavior and prevent regressions
+- **Implications**: pytest with fixtures, high coverage goals
+
+### III. Pythonic Code
+Follow PEP 8 and Python idioms.
+- **Rationale**: Consistency, readability, community standards
+- **Implications**: ruff for linting and formatting
+EOF
+      ;;
+    rust)
+      cat << 'EOF'
+### I. Safe Rust
+No `unsafe` blocks without documented justification.
+- **Rationale**: Memory safety is Rust's core value
+- **Implications**: Prefer safe abstractions, document unsafe usage
+
+### II. Error Handling
+Use Result<T, E> for fallible operations.
+- **Rationale**: Explicit error handling, no hidden panics
+- **Implications**: Avoid unwrap() in library code, use ? operator
+
+### III. Idiomatic Rust
+Follow Rust API guidelines and idioms.
+- **Rationale**: Consistency, interoperability, community standards
+- **Implications**: clippy lints, rustfmt, ownership patterns
+EOF
+      ;;
+    go)
+      cat << 'EOF'
+### I. Simplicity
+Write simple, idiomatic Go.
+- **Rationale**: Go prioritizes clarity over cleverness
+- **Implications**: gofmt, golangci-lint, minimal abstractions
+
+### II. Error Handling
+Handle errors explicitly at every level.
+- **Rationale**: Errors are values, handle them properly
+- **Implications**: No ignored error returns, wrap with context
+
+### III. Testing
+Comprehensive tests with table-driven patterns.
+- **Rationale**: Built-in testing is powerful, use it fully
+- **Implications**: go test, testify assertions, benchmarks
+EOF
+      ;;
+    bash)
+      cat << 'EOF'
+### I. POSIX Compliance
+All scripts are POSIX-compliant bash.
+- **Rationale**: Portability across macOS and Linux
+- **Implications**: No bash 4.0+ features without fallbacks, shellcheck
+
+### II. CLI Best Practices
+Support --help and --json flags on all commands.
+- **Rationale**: Discoverability and scripting support
+- **Implications**: Consistent option parsing, documented exit codes
+
+### III. Helpful Errors
+Every error provides context and suggests next steps.
+- **Rationale**: Users shouldn't guess what went wrong
+- **Implications**: All errors include actionable guidance
+EOF
+      ;;
+    *)
+      cat << 'EOF'
+### I. Code Quality
+Maintain high code quality standards.
+- **Rationale**: Quality code is easier to maintain
+- **Implications**: Linting, formatting, code review
+
+### II. Testing
+Comprehensive test coverage.
+- **Rationale**: Tests prevent regressions
+- **Implications**: Unit and integration tests
+
+### III. Documentation
+Document public APIs and complex logic.
+- **Rationale**: Code should be understandable
+- **Implications**: Comments for non-obvious code
+EOF
+      ;;
+  esac
+
+  cat << 'EOF'
+
+---
+
+## Governance
+
+### Decision Making
+- Architecture decisions documented in ADRs
+- Principle changes require documented rationale
+
+### Enforcement
+- All code passes linting
+- All tests pass before merge
+- Code review required
+
+---
+
+## Amendment Process
+
+1. Propose change with rationale
+2. Document impact on existing code
+3. Update version number and changelog
+EOF
+}
+
+# Generate tech-stack.md based on project type
+create_tech_stack_for_type() {
+  local project_type="$1"
+  local project_type_name
+  project_type_name=$(get_project_type_name "$project_type")
+
+  cat << EOF
+# Tech Stack
+
+> Approved technologies and versions for this project.
+
+**Last Updated**: $(date +%Y-%m-%d)
+**Project Type**: $project_type_name
+
+---
+
+## Core Technologies
+
+EOF
+
+  case "$project_type" in
+    typescript)
+      cat << 'EOF'
+| Technology | Version | Purpose | Notes |
+|------------|---------|---------|-------|
+| TypeScript | 5.x | Primary language | Strict mode enabled |
+| Node.js | 20.x+ | Runtime | LTS version |
+| pnpm | 8.x+ | Package manager | Preferred over npm |
+
+## Testing
+
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Vitest | Latest | Unit testing |
+| Testing Library | Latest | Component testing |
+
+## Code Quality
+
+| Tool | Purpose |
+|------|---------|
+| ESLint | Linting |
+| Prettier | Formatting |
+| tsc | Type checking |
+EOF
+      ;;
+    javascript)
+      cat << 'EOF'
+| Technology | Version | Purpose | Notes |
+|------------|---------|---------|-------|
+| Node.js | 20.x+ | Runtime | LTS version |
+| npm/pnpm | Latest | Package manager | |
+
+## Testing
+
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Jest/Vitest | Latest | Testing framework |
+
+## Code Quality
+
+| Tool | Purpose |
+|------|---------|
+| ESLint | Linting |
+| Prettier | Formatting |
+EOF
+      ;;
+    python)
+      cat << 'EOF'
+| Technology | Version | Purpose | Notes |
+|------------|---------|---------|-------|
+| Python | 3.11+ | Primary language | Type hints required |
+| uv | Latest | Package manager | Fast, recommended |
+
+## Testing
+
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| pytest | Latest | Testing framework |
+| pytest-cov | Latest | Coverage reporting |
+
+## Code Quality
+
+| Tool | Purpose |
+|------|---------|
+| ruff | Linting and formatting |
+| mypy | Type checking |
+EOF
+      ;;
+    rust)
+      cat << 'EOF'
+| Technology | Version | Purpose | Notes |
+|------------|---------|---------|-------|
+| Rust | Stable | Primary language | Edition 2021+ |
+| Cargo | Built-in | Build/package manager | |
+
+## Testing
+
+| Technology | Purpose |
+|------------|---------|
+| cargo test | Built-in testing |
+| cargo bench | Benchmarking |
+
+## Code Quality
+
+| Tool | Purpose |
+|------|---------|
+| rustfmt | Formatting |
+| clippy | Linting |
+EOF
+      ;;
+    go)
+      cat << 'EOF'
+| Technology | Version | Purpose | Notes |
+|------------|---------|---------|-------|
+| Go | 1.21+ | Primary language | Modules enabled |
+
+## Testing
+
+| Technology | Purpose |
+|------------|---------|
+| go test | Built-in testing |
+| testify | Assertions (optional) |
+
+## Code Quality
+
+| Tool | Purpose |
+|------|---------|
+| gofmt | Formatting |
+| golangci-lint | Linting |
+| go vet | Static analysis |
+EOF
+      ;;
+    bash)
+      cat << 'EOF'
+| Technology | Version | Purpose | Notes |
+|------------|---------|---------|-------|
+| Bash | 3.2+ | Shell scripting | POSIX-compliant |
+| jq | 1.6+ | JSON processing | Required |
+| git | 2.x | Version control | Required |
+
+## Testing
+
+| Technology | Purpose |
+|------------|---------|
+| bash | Custom test runner |
+| assert functions | In-script assertions |
+
+## Code Quality
+
+| Tool | Purpose |
+|------|---------|
+| shellcheck | Linting |
+| bash -n | Syntax checking |
+EOF
+      ;;
+    *)
+      cat << 'EOF'
+| Technology | Version | Purpose | Notes |
+|------------|---------|---------|-------|
+| (TBD) | - | Primary language | Customize this section |
+
+## Testing
+
+| Technology | Purpose |
+|------------|---------|
+| (TBD) | Testing framework |
+
+## Code Quality
+
+| Tool | Purpose |
+|------|---------|
+| (TBD) | Linting |
+| (TBD) | Formatting |
+EOF
+      ;;
+  esac
+
+  cat << 'EOF'
+
+---
+
+## Adding New Technologies
+
+Before adding a new dependency:
+1. Check constitution alignment
+2. Verify it works on target platforms
+3. Document in this file with rationale
+EOF
+}
+
+# =============================================================================
 # Commands
 # =============================================================================
 
@@ -164,11 +645,15 @@ cmd_status() {
   repo_root="$(get_repo_root)"
   local specify_dir="${repo_root}/.specify"
 
-  print_header "SpecKit Project Status"
+  # Collect counts
+  local dirs_ok=0
+  local dirs_missing=0
+  local files_ok=0
+  local files_missing=0
+  local template_count=0
+  local script_count=0
 
   # Check directories
-  print_section "Directories"
-
   local dirs=(
     ".specify"
     ".specify/discovery"
@@ -181,18 +666,17 @@ cmd_status() {
     "specs"
   )
 
+  local missing_dirs=()
   for dir in "${dirs[@]}"; do
-    local full_path="${repo_root}/${dir}"
-    if [[ -d "$full_path" ]]; then
-      print_status "ok" "$dir/"
+    if [[ -d "${repo_root}/${dir}" ]]; then
+      ((dirs_ok++)) || true
     else
-      print_status "pending" "$dir/ (missing)"
+      ((dirs_missing++)) || true
+      missing_dirs+=("$dir/")
     fi
   done
 
   # Check files
-  print_section "Files"
-
   local files=(
     ".specify/discovery/context.md"
     ".specify/discovery/state.md"
@@ -200,49 +684,75 @@ cmd_status() {
     ".specify/orchestration-state.json"
   )
 
+  local missing_files=()
   for file in "${files[@]}"; do
-    local full_path="${repo_root}/${file}"
-    if [[ -f "$full_path" ]]; then
-      print_status "ok" "$file"
+    if [[ -f "${repo_root}/${file}" ]]; then
+      ((files_ok++)) || true
     else
-      print_status "pending" "$file (missing)"
+      ((files_missing++)) || true
+      missing_files+=("$file")
     fi
   done
 
-  # Check templates
-  print_section "Templates"
-  local template_dir="${specify_dir}/templates"
-  if [[ -d "$template_dir" ]]; then
-    local count
-    count=$(find "$template_dir" -name "*.md" -o -name "*.yaml" 2>/dev/null | wc -l | tr -d ' ')
-    print_status "ok" "$count template(s) in .specify/templates/"
-  else
-    print_status "pending" "No templates copied yet"
+  # Count templates and scripts
+  if [[ -d "${specify_dir}/templates" ]]; then
+    template_count=$(find "${specify_dir}/templates" -name "*.md" -o -name "*.yaml" 2>/dev/null | wc -l | tr -d ' ')
+  fi
+  if [[ -d "${specify_dir}/scripts/bash" ]]; then
+    script_count=$(find "${specify_dir}/scripts/bash" -name "*.sh" 2>/dev/null | wc -l | tr -d ' ')
   fi
 
-  # Check scripts
-  print_section "Scripts"
-  local scripts_dir="${specify_dir}/scripts/bash"
-  if [[ -d "$scripts_dir" ]]; then
-    local count
-    count=$(find "$scripts_dir" -name "*.sh" 2>/dev/null | wc -l | tr -d ' ')
-    print_status "ok" "$count script(s) in .specify/scripts/bash/"
+  # Three-Line Rule: Summary first
+  local total_missing=$((dirs_missing + files_missing))
+  if [[ $total_missing -eq 0 ]]; then
+    echo -e "${GREEN}OK${RESET}: SpecKit project fully initialized"
+    echo "  Dirs: $dirs_ok, Files: $files_ok, Templates: $template_count, Scripts: $script_count"
   else
-    print_status "pending" "No scripts copied yet"
+    echo -e "${YELLOW}WARN${RESET}: SpecKit project incomplete"
+    echo "  Missing: $dirs_missing dirs, $files_missing files"
+    echo ""
+    # Details (line 4+)
+    if [[ ${#missing_dirs[@]} -gt 0 ]]; then
+      echo "Missing directories:"
+      for item in "${missing_dirs[@]}"; do
+        echo "  - $item"
+      done
+    fi
+    if [[ ${#missing_files[@]} -gt 0 ]]; then
+      echo "Missing files:"
+      for item in "${missing_files[@]}"; do
+        echo "  - $item"
+      done
+    fi
+    echo ""
+    echo "Run 'speckit scaffold' to create missing items."
   fi
-
-  echo ""
 }
 
 # Create scaffold
 cmd_scaffold() {
-  local force="${1:-}"
-  local skip_templates="${2:-}"
-  local skip_scripts="${3:-}"
+  local force="${1:-false}"
+  local skip_templates="${2:-false}"
+  local skip_scripts="${3:-false}"
+  local safe_mode="${4:-false}"
+  local project_type="${5:-}"
 
   local repo_root
   repo_root="$(get_repo_root)"
   local specify_dir="${repo_root}/.specify"
+
+  # Auto-detect project type if not specified
+  if [[ -z "$project_type" ]]; then
+    project_type=$(detect_project_type "$repo_root")
+  fi
+  local project_type_name
+  project_type_name=$(get_project_type_name "$project_type")
+
+  # Safe mode: preview only
+  if [[ "$safe_mode" == "true" ]]; then
+    cmd_scaffold_preview "$repo_root" "$project_type" "$project_type_name"
+    return 0
+  fi
 
   # Check if already exists
   if [[ -d "$specify_dir" ]] && [[ "$force" != "true" ]]; then
@@ -252,6 +762,7 @@ cmd_scaffold() {
   fi
 
   log_step "Creating SpecKit project structure"
+  log_info "Detected project type: $project_type_name"
 
   # Create directories
   local dirs=(
@@ -292,6 +803,22 @@ cmd_scaffold() {
   fi
 
   print_status "ok" "Created discovery files"
+
+  # Create memory documents with project-type-specific content
+  local constitution_file="${specify_dir}/memory/constitution.md"
+  local tech_stack_file="${specify_dir}/memory/tech-stack.md"
+
+  if [[ ! -f "$constitution_file" ]] || [[ "$force" == "true" ]]; then
+    create_constitution_for_type "$project_type" > "$constitution_file"
+    log_debug "Created: constitution.md ($project_type_name)"
+  fi
+
+  if [[ ! -f "$tech_stack_file" ]] || [[ "$force" == "true" ]]; then
+    create_tech_stack_for_type "$project_type" > "$tech_stack_file"
+    log_debug "Created: tech-stack.md ($project_type_name)"
+  fi
+
+  print_status "ok" "Created memory documents for $project_type_name"
 
   # Initialize state file
   local json_state_file="${specify_dir}/orchestration-state.json"
@@ -416,13 +943,11 @@ EOF
     fi
   fi
 
-  echo ""
-  log_success "SpecKit project structure created!"
-  echo ""
-  echo "Next steps:"
-  echo "  1. Run /speckit.init to start the requirements interview"
-  echo "  2. Or run /speckit.roadmap to create a project roadmap"
-  echo ""
+  # Summary output (first 3 lines are user-critical)
+  print_summary "ok" \
+    "Created SpecKit project structure for $project_type_name" \
+    "Created .specify/, specs/, memory docs" \
+    "Run /speckit.init or /speckit.roadmap to continue"
 }
 
 # =============================================================================
@@ -431,9 +956,11 @@ EOF
 
 main() {
   local force="false"
+  local safe_mode="false"
   local skip_templates="false"
   local skip_scripts="false"
   local status_only="false"
+  local project_type=""
 
   # Parse arguments
   while [[ $# -gt 0 ]]; do
@@ -442,9 +969,26 @@ main() {
         force="true"
         shift
         ;;
+      --safe)
+        safe_mode="true"
+        shift
+        ;;
       --status|-s)
         status_only="true"
         shift
+        ;;
+      --type)
+        if [[ -z "${2:-}" ]]; then
+          log_error "--type requires a value"
+          exit 1
+        fi
+        project_type="$2"
+        if ! is_valid_project_type "$project_type"; then
+          log_error "Invalid project type: $project_type"
+          log_info "Valid types: typescript, javascript, python, rust, go, bash, generic"
+          exit 1
+        fi
+        shift 2
         ;;
       --skip-templates)
         skip_templates="true"
@@ -475,7 +1019,7 @@ main() {
   if [[ "$status_only" == "true" ]]; then
     cmd_status
   else
-    cmd_scaffold "$force" "$skip_templates" "$skip_scripts"
+    cmd_scaffold "$force" "$skip_templates" "$skip_scripts" "$safe_mode" "$project_type"
   fi
 }
 

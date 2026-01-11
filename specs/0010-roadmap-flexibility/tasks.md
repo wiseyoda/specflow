@@ -94,12 +94,12 @@ T023, T024 (Templates/Help)
 ## Verification Checklist
 
 After all tasks complete:
-- [ ] `speckit roadmap insert --after 0020 "Test"` creates phase 0021
-- [ ] `speckit roadmap insert --after 0090 "Edge"` creates phase 0100 (next decade)
-- [ ] `speckit roadmap defer 0040` moves phase to Backlog
-- [ ] `speckit roadmap defer 0010` fails without --force (in-progress protection)
-- [ ] `speckit roadmap restore 0040` restores from Backlog
-- [ ] `speckit migrate roadmap` converts 001→0010 format
-- [ ] All scripts pass `shellcheck`
-- [ ] All scripts have `--help` output
-- [ ] All scripts support `--json` output where applicable
+- [x] `speckit roadmap insert --after 0020 "Test"` creates phase 0021
+- [x] `speckit roadmap insert --after 0090 "Edge"` creates phase 0100 (next decade)
+- [x] `speckit roadmap defer 0040` moves phase to Backlog
+- [x] `speckit roadmap defer 0010` fails without --force (in-progress protection)
+- [x] `speckit roadmap restore 0040` restores from Backlog
+- [x] `speckit migrate roadmap` converts 001→0010 format
+- [x] All scripts pass `shellcheck`
+- [x] All scripts have `--help` output
+- [x] All scripts support `--json` output where applicable

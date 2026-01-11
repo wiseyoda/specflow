@@ -125,6 +125,52 @@ print_status() {
   esac
 }
 
+# Print a command summary (first 3 lines are user-critical)
+# Use this at the end of commands to provide clear status
+#
+# Args:
+#   $1 - status: ok, warn, error
+#   $2 - action: what was done (e.g., "Created project structure")
+#   $3 - detail: key result (e.g., "5 directories, 3 files")
+#   $4 - hint: next step (e.g., "Run /speckit.init to start")
+#
+print_summary() {
+  local status="${1:-ok}"
+  local action="${2:-Action completed}"
+  local detail="${3:-}"
+  local hint="${4:-}"
+
+  echo ""
+
+  # Line 1: Status + Action
+  case "$status" in
+    ok|success)
+      echo -e "${GREEN}OK${RESET}: $action"
+      ;;
+    warn|warning)
+      echo -e "${YELLOW}WARN${RESET}: $action"
+      ;;
+    error|fail)
+      echo -e "${RED}ERROR${RESET}: $action"
+      ;;
+    *)
+      echo -e "${BLUE}INFO${RESET}: $action"
+      ;;
+  esac
+
+  # Line 2: Detail (if provided)
+  if [[ -n "$detail" ]]; then
+    echo "  $detail"
+  fi
+
+  # Line 3: Hint/Next step (if provided)
+  if [[ -n "$hint" ]]; then
+    echo "  Next: $hint"
+  fi
+
+  echo ""
+}
+
 # =============================================================================
 # Path Utilities
 # =============================================================================

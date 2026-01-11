@@ -681,47 +681,54 @@ run_checks() {
 }
 
 show_summary() {
-  echo ""
-  print_header "Summary"
-  echo ""
-
   local issue_count=${#ISSUES[@]}
   local warning_count=${#WARNINGS[@]}
   local fixed_count=${#FIXED[@]}
 
+  echo ""
+  # Three-Line Rule: Summary first
+  if [[ $issue_count -eq 0 && $warning_count -eq 0 ]]; then
+    echo -e "${GREEN}OK${RESET}: All checks passed"
+    if [[ $fixed_count -gt 0 ]]; then
+      echo "  Fixed: $fixed_count issue(s)"
+    fi
+  elif [[ $issue_count -eq 0 ]]; then
+    echo -e "${YELLOW}WARN${RESET}: $warning_count warning(s)"
+    if [[ $fixed_count -gt 0 ]]; then
+      echo "  Fixed: $fixed_count issue(s)"
+    fi
+  else
+    echo -e "${RED}ERROR${RESET}: $issue_count issue(s), $warning_count warning(s)"
+    if [[ $fixed_count -gt 0 ]]; then
+      echo "  Fixed: $fixed_count issue(s)"
+    else
+      echo "  Run: speckit doctor --fix"
+    fi
+  fi
+
+  # Details (line 4+)
   if [[ $fixed_count -gt 0 ]]; then
-    echo -e "${GREEN}Fixed ($fixed_count):${RESET}"
+    echo ""
+    echo -e "${GREEN}Fixed:${RESET}"
     for item in "${FIXED[@]}"; do
       echo "  - $item"
     done
-    echo ""
   fi
 
   if [[ $issue_count -gt 0 ]]; then
-    echo -e "${RED}Issues ($issue_count):${RESET}"
+    echo ""
+    echo -e "${RED}Issues:${RESET}"
     for item in "${ISSUES[@]}"; do
       echo "  - $item"
     done
-    echo ""
   fi
 
   if [[ $warning_count -gt 0 ]]; then
-    echo -e "${YELLOW}Warnings ($warning_count):${RESET}"
+    echo ""
+    echo -e "${YELLOW}Warnings:${RESET}"
     for item in "${WARNINGS[@]}"; do
       echo "  - $item"
     done
-    echo ""
-  fi
-
-  if [[ $issue_count -eq 0 && $warning_count -eq 0 ]]; then
-    log_success "All checks passed!"
-  elif [[ $issue_count -eq 0 ]]; then
-    log_success "No critical issues found ($warning_count warning(s))"
-  else
-    log_error "Found $issue_count issue(s) and $warning_count warning(s)"
-    if [[ $fixed_count -eq 0 ]]; then
-      log_info "Run 'speckit doctor --fix' to auto-fix issues"
-    fi
   fi
 
   if is_json_output; then
@@ -793,11 +800,6 @@ main() {
         ;;
     esac
   done
-
-  if ! is_json_output; then
-    print_header "SpecKit Doctor"
-    echo ""
-  fi
 
   run_checks "$check_area" "$fix"
   show_summary

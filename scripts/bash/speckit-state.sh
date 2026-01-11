@@ -558,9 +558,13 @@ cmd_registry() {
       if is_json_output; then
         cat "$SPECKIT_REGISTRY"
       else
-        print_header "Registered Projects"
+        # Three-Line Rule: Summary first
+        local project_count
+        project_count=$(jq '.projects | length' "$SPECKIT_REGISTRY" 2>/dev/null || echo "0")
+        echo -e "${BLUE}INFO${RESET}: $project_count registered project(s)"
         echo ""
-        jq -r '.projects | to_entries[] | "  \(.value.name) (\(.key | .[0:8])...)\n    Path: \(.value.path)\n    Registered: \(.value.registered_at)\n"' "$SPECKIT_REGISTRY" 2>/dev/null || echo "  (none)"
+        # Details (line 3+)
+        jq -r '.projects | to_entries[] | "  \(.value.name) (\(.key | .[0:8])...)\n    \(.value.path)"' "$SPECKIT_REGISTRY" 2>/dev/null || echo "  (none)"
       fi
       ;;
 
@@ -1337,18 +1341,16 @@ EOF
   if is_json_output; then
     echo "$inferred_json"
   else
-    print_header "Inferred State"
+    # Three-Line Rule: Summary first
+    echo -e "${BLUE}INFO${RESET}: Phase $current_phase ($phase_name)"
+    echo "  Progress: $tasks_completed/$tasks_total ($percentage%), Step: $inferred_step"
     echo ""
-    echo "  Phase: $current_phase ($phase_name)"
-    echo ""
-    echo "  Files:"
+    # Details (line 4+)
+    echo "Files:"
     [[ "$spec_exists" == "true" ]] && print_status ok "spec.md" || print_status pending "spec.md (missing)"
     [[ "$plan_exists" == "true" ]] && print_status ok "plan.md" || print_status pending "plan.md (missing)"
     [[ "$tasks_exists" == "true" ]] && print_status ok "tasks.md" || print_status pending "tasks.md (missing)"
     [[ "$checklists_exist" == "true" ]] && print_status ok "checklists/" || print_status pending "checklists/ (missing)"
-    echo ""
-    echo "  Progress: $tasks_completed / $tasks_total ($percentage%)"
-    echo "  Inferred step: $inferred_step ($inferred_step_status)"
   fi
 
   # Apply to state file if requested
@@ -1437,8 +1439,12 @@ cmd_rollback() {
       done <<< "$backups"
       echo "{\"backups\": $backup_json}"
     else
-      print_header "Available Backups"
+      # Three-Line Rule: Count backups first
+      local backup_count
+      backup_count=$(echo "$backups" | wc -l | tr -d ' ')
+      echo -e "${BLUE}INFO${RESET}: $backup_count backup(s) available"
       echo ""
+      # Details (line 3+)
       local count=0
       while IFS= read -r file; do
         ((count++)) || true
@@ -1449,7 +1455,7 @@ cmd_rollback() {
         printf "  %d. %s (%s bytes, %s)\n" "$count" "$filename" "$size" "$date_str"
       done <<< "$backups"
       echo ""
-      log_info "To rollback: speckit state rollback <filename>"
+      echo "To rollback: speckit state rollback <filename>"
     fi
     return 0
   fi

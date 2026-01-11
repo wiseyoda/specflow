@@ -227,6 +227,15 @@ speckit state archive
 
 This moves the current phase to history and resets orchestration for the next phase.
 
+**6b. Archive phase details to HISTORY.md:**
+
+```bash
+echo "Archiving phase details..."
+speckit phase archive "$PHASE_NUMBER"
+```
+
+This moves the phase's detailed content (goal, scope, deliverables, verification gate) from ROADMAP.md to `.specify/history/HISTORY.md`, keeping ROADMAP.md lightweight.
+
 ### 7. Update ROADMAP
 
 **7a. Mark phase complete:**
@@ -265,7 +274,8 @@ DRY RUN - Would execute:
 3. Merge PR: gh pr merge --squash --delete-branch
 4. Checkout main: git checkout main && git pull
 5. Archive state: speckit state archive
-6. Update ROADMAP: speckit roadmap update 0015 complete
+6. Archive phase details: speckit phase archive 0015
+7. Update ROADMAP: speckit roadmap update 0015 complete
 
 No changes made.
 ```
@@ -292,6 +302,7 @@ No changes made.
 ✓ Merged PR to main
 ✓ Cleaned up branch
 ✓ Archived phase state
+✓ Archived phase details to HISTORY.md
 ✓ Updated ROADMAP to complete
 
 ============================================

@@ -20,6 +20,8 @@
 #   reconcile   Reconcile state with file system
 #   memory      Memory document operations (init, list, check)
 #   pdr         PDR (Product Design Requirements) operations
+#   phase       Phase detail operations (show, list, archive)
+#   issue       Local issue tracking (show, list, create, close)
 #   help        Show this help message
 #   version     Show version
 #
@@ -179,6 +181,23 @@ COMMANDS:
                   path                Show PDR directory path
                   init                Create PDR directory
 
+    phase       Phase detail operations
+                  show <phase>        Show phase details
+                  list [--active]     List phases with status
+                  archive <phase>     Archive phase to HISTORY.md
+                  create <n> <name>   Create new phase detail file
+                  migrate             Migrate ROADMAP.md to modular format
+                  path [phase]        Show phase file path
+
+    issue       Local issue tracking
+                  list [--open]       List issues with status
+                  show <id>           Show issue details
+                  create "<title>"    Create new issue
+                  close <id>          Close an issue
+                  update <id>         Update issue fields
+                  migrate             Migrate issues from ROADMAP.md
+                  path [id]           Show issue file path
+
     help        Show this help message
     version     Show version
 
@@ -289,6 +308,12 @@ main() {
       ;;
     pdr)
       run_script "pdr" "$@"
+      ;;
+    phase)
+      run_script "phase" "$@"
+      ;;
+    issue)
+      run_script "issue" "$@"
       ;;
     help|--help|-h)
       show_help

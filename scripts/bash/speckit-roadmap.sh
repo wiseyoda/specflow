@@ -72,6 +72,12 @@ COMMANDS:
 
     validate            Check ROADMAP.md structure and consistency
 
+    renumber            Renumber all phases to clean sequential numbers
+                        Updates ROADMAP.md, phase files, and references
+        --dry-run       Preview changes without executing
+        --start <n>     Starting phase number (default: 0010)
+        --step <n>      Increment between phases (default: 10)
+
     path                Show path to ROADMAP.md
 
 OPTIONS:
@@ -90,6 +96,7 @@ EXAMPLES:
     speckit roadmap insert --after 0020 "Hotfix Auth"
     speckit roadmap defer 0040
     speckit roadmap restore 0040 --after 0030
+    speckit roadmap renumber --dry-run
     speckit roadmap validate
 EOF
 }
@@ -558,6 +565,242 @@ cmd_validate() {
 
 cmd_path() {
   get_roadmap_path
+}
+
+# Renumber all phases to clean sequential numbers
+cmd_renumber() {
+  local dry_run=false
+  local start_num=10
+  local step=10
+
+  # Parse arguments
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=true
+        shift
+        ;;
+      --start)
+        start_num="$2"
+        shift 2
+        ;;
+      --step)
+        step="$2"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+
+  ensure_roadmap
+  local roadmap_path
+  roadmap_path="$(get_roadmap_path)"
+  local repo_root
+  repo_root="$(get_repo_root)"
+
+  log_step "Analyzing phases for renumbering"
+
+  # Collect current phases in order
+  local old_phases=()
+  local phase_names=()
+
+  while IFS='|' read -r phase_num name phase_status gate; do
+    old_phases+=("$phase_num")
+    phase_names+=("$name")
+  done < <(parse_phase_table)
+
+  local total=${#old_phases[@]}
+  if [[ $total -eq 0 ]]; then
+    log_info "No phases found to renumber"
+    exit 0
+  fi
+
+  # Calculate new phase numbers
+  local new_phases=()
+  local current=$start_num
+  for _ in "${old_phases[@]}"; do
+    new_phases+=("$(printf "%04d" "$current")")
+    current=$((current + step))
+  done
+
+  # Build mapping and display changes
+  echo ""
+  echo "Phase renumbering plan:"
+  echo ""
+
+  local changes=0
+  for i in "${!old_phases[@]}"; do
+    if [[ "${old_phases[$i]}" != "${new_phases[$i]}" ]]; then
+      echo "  ${old_phases[$i]} → ${new_phases[$i]} (${phase_names[$i]})"
+      ((changes++)) || true
+    else
+      echo "  ${old_phases[$i]} (unchanged)"
+    fi
+  done
+
+  echo ""
+  echo "Total: $total phases, $changes need renumbering"
+
+  if [[ $changes -eq 0 ]]; then
+    log_success "No renumbering needed - phases are already sequential"
+    exit 0
+  fi
+
+  if $dry_run; then
+    echo ""
+    echo "DRY RUN - Would update:"
+    echo "  - ROADMAP.md (table and section headers)"
+
+    # Check for phase files
+    local phases_dir="${repo_root}/.specify/phases"
+    if [[ -d "$phases_dir" ]]; then
+      local phase_file_count
+      phase_file_count=$(find "$phases_dir" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+      if [[ "$phase_file_count" -gt 0 ]]; then
+        echo "  - $phase_file_count phase file(s) in .specify/phases/"
+      fi
+    fi
+
+    # Check for spec directories
+    local specs_dir="${repo_root}/specs"
+    if [[ -d "$specs_dir" ]]; then
+      local spec_count=0
+      for old_phase in "${old_phases[@]}"; do
+        if find "$specs_dir" -maxdepth 1 -type d -name "${old_phase}-*" 2>/dev/null | grep -q .; then
+          ((spec_count++)) || true
+        fi
+      done
+      if [[ $spec_count -gt 0 ]]; then
+        echo "  - $spec_count spec directory(ies) in specs/"
+      fi
+    fi
+
+    echo ""
+    echo "No changes made."
+    exit 0
+  fi
+
+  log_step "Renumbering phases..."
+
+  # Create temp file for ROADMAP.md
+  local temp_roadmap
+  temp_roadmap=$(mktemp)
+  cp "$roadmap_path" "$temp_roadmap"
+
+  # Update ROADMAP.md
+  for i in "${!old_phases[@]}"; do
+    local old="${old_phases[$i]}"
+    local new="${new_phases[$i]}"
+
+    if [[ "$old" != "$new" ]]; then
+      # Update table row
+      sed -i.bak "s/^\|[[:space:]]*${old}[[:space:]]*\|/| ${new} |/g" "$temp_roadmap" 2>/dev/null || \
+      sed -i '' "s/^\|[[:space:]]*${old}[[:space:]]*\|/| ${new} |/g" "$temp_roadmap"
+
+      # Update section headers
+      sed -i.bak "s/^### ${old} -/### ${new} -/g" "$temp_roadmap" 2>/dev/null || \
+      sed -i '' "s/^### ${old} -/### ${new} -/g" "$temp_roadmap"
+    fi
+  done
+  rm -f "${temp_roadmap}.bak"
+  mv "$temp_roadmap" "$roadmap_path"
+  print_status ok "Updated ROADMAP.md"
+
+  # Update phase files
+  local phases_dir="${repo_root}/.specify/phases"
+  if [[ -d "$phases_dir" ]]; then
+    for i in "${!old_phases[@]}"; do
+      local old="${old_phases[$i]}"
+      local new="${new_phases[$i]}"
+
+      if [[ "$old" != "$new" ]]; then
+        local old_file
+        old_file=$(find "$phases_dir" -maxdepth 1 -name "${old}-*.md" 2>/dev/null | head -1)
+        if [[ -n "$old_file" ]]; then
+          local base_name
+          base_name=$(basename "$old_file" | sed "s/^${old}-/${new}-/")
+          local new_file="${phases_dir}/${base_name}"
+
+          # Update content references
+          sed -i.bak "s/phase: ${old}/phase: ${new}/g" "$old_file" 2>/dev/null || \
+          sed -i '' "s/phase: ${old}/phase: ${new}/g" "$old_file"
+          sed -i.bak "s/^# ${old} -/# ${new} -/g" "$old_file" 2>/dev/null || \
+          sed -i '' "s/^# ${old} -/# ${new} -/g" "$old_file"
+          rm -f "${old_file}.bak"
+
+          # Rename file
+          mv "$old_file" "$new_file"
+          print_status ok "Renamed phase file: $old → $new"
+        fi
+      fi
+    done
+  fi
+
+  # Update spec directories
+  local specs_dir="${repo_root}/specs"
+  if [[ -d "$specs_dir" ]]; then
+    for i in "${!old_phases[@]}"; do
+      local old="${old_phases[$i]}"
+      local new="${new_phases[$i]}"
+
+      if [[ "$old" != "$new" ]]; then
+        local old_dir
+        old_dir=$(find "$specs_dir" -maxdepth 1 -type d -name "${old}-*" 2>/dev/null | head -1)
+        if [[ -n "$old_dir" ]]; then
+          local base_name
+          base_name=$(basename "$old_dir" | sed "s/^${old}-/${new}-/")
+          local new_dir="${specs_dir}/${base_name}"
+
+          # Update references in files within directory
+          for file in "$old_dir"/*.md; do
+            if [[ -f "$file" ]]; then
+              sed -i.bak "s/${old}/${new}/g" "$file" 2>/dev/null || \
+              sed -i '' "s/${old}/${new}/g" "$file"
+              rm -f "${file}.bak"
+            fi
+          done
+
+          # Rename directory
+          mv "$old_dir" "$new_dir"
+          print_status ok "Renamed spec directory: $old → $new"
+        fi
+      fi
+    done
+  fi
+
+  # Update orchestration state
+  local state_file="${repo_root}/.specify/orchestration-state.json"
+  if [[ -f "$state_file" ]]; then
+    for i in "${!old_phases[@]}"; do
+      local old="${old_phases[$i]}"
+      local new="${new_phases[$i]}"
+
+      if [[ "$old" != "$new" ]]; then
+        # Update phase references in state
+        sed -i.bak "s/\"${old}\"/\"${new}\"/g" "$state_file" 2>/dev/null || \
+        sed -i '' "s/\"${old}\"/\"${new}\"/g" "$state_file"
+        rm -f "${state_file}.bak"
+      fi
+    done
+    print_status ok "Updated orchestration state"
+  fi
+
+  echo ""
+  log_success "Renumbered $changes phase(s)"
+
+  if is_json_output; then
+    local mapping="[]"
+    for i in "${!old_phases[@]}"; do
+      mapping=$(echo "$mapping" | jq \
+        --arg old "${old_phases[$i]}" \
+        --arg new "${new_phases[$i]}" \
+        --arg name "${phase_names[$i]}" \
+        '. + [{old: $old, new: $new, name: $name}]')
+    done
+    echo "$mapping" | jq '{renumbered: true, changes: '$changes', mapping: .}'
+  fi
 }
 
 # Insert a new phase after an existing one
@@ -1405,6 +1648,9 @@ main() {
       ;;
     validate)
       cmd_validate
+      ;;
+    renumber)
+      cmd_renumber "$@"
       ;;
     path)
       cmd_path

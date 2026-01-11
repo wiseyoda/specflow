@@ -486,9 +486,9 @@ cmd_validate() {
     ((errors++))
   fi
 
-  # Check for at least one phase
+  # Check for at least one phase (support both 3-digit and 4-digit ABBC format)
   local phase_count
-  phase_count=$(grep -cE '^\|\s*[0-9]{3}\s*\|' "$roadmap_path" || echo "0")
+  phase_count=$(grep -cE '^\|\s*[0-9]{3,4}\s*\|' "$roadmap_path" 2>/dev/null) || phase_count=0
   if [[ "$phase_count" -eq 0 ]]; then
     log_error "No phases found in table"
     ((errors++))
@@ -496,9 +496,10 @@ cmd_validate() {
     print_status ok "Found $phase_count phase(s)"
   fi
 
-  # Check for duplicate phase numbers
+  # Check for duplicate phase numbers (support both 3-digit and 4-digit ABBC format)
+  # Pattern requires number followed by pipe to avoid matching dates like "2026-01-10"
   local duplicates
-  duplicates=$(grep -oE '^\|\s*[0-9]{3}' "$roadmap_path" | sort | uniq -d | wc -l | tr -d ' ')
+  duplicates=$(grep -oE '^\|\s*[0-9]{3,4}\s*\|' "$roadmap_path" | sed 's/[| ]//g' | sort | uniq -d | wc -l | tr -d ' ')
   if [[ "$duplicates" -gt 0 ]]; then
     log_error "Found duplicate phase numbers"
     ((errors++))
@@ -516,7 +517,7 @@ cmd_validate() {
 
   # Check for multiple in-progress phases
   local in_progress
-  in_progress=$(parse_phase_table | grep -c '|in_progress|' || echo "0")
+  in_progress=$(parse_phase_table | grep -c '|in_progress|') || in_progress=0
   if [[ "$in_progress" -gt 1 ]]; then
     log_warn "Multiple phases in progress ($in_progress) - consider focusing on one"
     ((warnings++))

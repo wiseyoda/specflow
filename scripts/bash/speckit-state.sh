@@ -140,6 +140,12 @@ COMMANDS:
 
     validate            Validate state file structure (v2.0 schema)
 
+    reconcile           Reconcile config paths with file system
+                        Detects missing directories referenced in config
+                        Detects standard paths that exist but aren't configured
+                        --dry-run  Show what would change
+                        --fix      Apply corrections
+
     migrate             Migrate state file from v1.x to v2.0
                         Preserves all existing data
                         Creates backup before migration
@@ -178,6 +184,8 @@ EXAMPLES:
     speckit state set .project.name=MyApp # Set project name
     speckit state init                    # Create new state file
     speckit state validate                # Check state validity
+    speckit state reconcile               # Check config vs file system
+    speckit state reconcile --fix         # Fix config mismatches
     speckit state migrate                 # Upgrade to v2.0 schema
     speckit state archive                 # Archive phase, reset for next
     speckit state registry list           # List all projects
@@ -543,6 +551,139 @@ cmd_path() {
   local state_file
   state_file="$(get_state_file)"
   echo "$state_file"
+}
+
+# Reconcile state config with actual file system
+cmd_reconcile() {
+  local dry_run=false
+  local fix_mode=false
+
+  # Parse arguments
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=true
+        shift
+        ;;
+      --fix)
+        fix_mode=true
+        shift
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+
+  local state_file
+  state_file="$(get_state_file)"
+
+  if [[ ! -f "$state_file" ]]; then
+    log_error "State file not found"
+    exit 1
+  fi
+
+  local repo_root
+  repo_root="$(get_repo_root)"
+
+  log_step "Reconciling state config with file system"
+
+  local issues=()
+  local fixes=()
+
+  # Check each config path
+  local config_paths
+  config_paths=$(jq -r '.config | to_entries[] | select(.key | endswith("_path")) | "\(.key)=\(.value)"' "$state_file" 2>/dev/null)
+
+  while IFS='=' read -r key path; do
+    [[ -z "$key" ]] && continue
+
+    local full_path="${repo_root}/${path}"
+
+    # Check if path exists (as file or directory)
+    if [[ ! -e "$full_path" ]]; then
+      issues+=("Config path missing: $key -> $path")
+      fixes+=("del(.config.$key)")
+    else
+      echo -e "  ${GREEN}✓${RESET} $key: $path"
+    fi
+  done <<< "$config_paths"
+
+  # Check for standard paths that should exist
+  local standard_paths=(
+    "roadmap_path=ROADMAP.md"
+    "memory_path=.specify/memory/"
+    "specs_path=specs/"
+    "templates_path=.specify/templates/"
+  )
+
+  for entry in "${standard_paths[@]}"; do
+    local key="${entry%%=*}"
+    local default_path="${entry#*=}"
+
+    # Check if key exists in config
+    local current_value
+    current_value=$(jq -r ".config.$key // empty" "$state_file" 2>/dev/null)
+
+    if [[ -z "$current_value" ]]; then
+      # Key missing - check if default path exists
+      local full_path="${repo_root}/${default_path}"
+      if [[ -e "$full_path" ]]; then
+        issues+=("Standard path not configured: $key (exists at $default_path)")
+        fixes+=(".config.$key = \"$default_path\"")
+      fi
+    fi
+  done
+
+  echo ""
+
+  if [[ ${#issues[@]} -eq 0 ]]; then
+    log_success "State config is in sync with file system"
+    exit 0
+  fi
+
+  # Report issues
+  echo -e "${YELLOW}Found ${#issues[@]} issue(s):${RESET}"
+  for issue in "${issues[@]}"; do
+    echo "  - $issue"
+  done
+  echo ""
+
+  if $dry_run; then
+    echo "DRY RUN - Would apply these fixes:"
+    for fix in "${fixes[@]}"; do
+      echo "  jq '$fix'"
+    done
+    exit 0
+  fi
+
+  if ! $fix_mode; then
+    echo "Run with --fix to apply corrections"
+    exit 2
+  fi
+
+  # Apply fixes
+  log_step "Applying fixes"
+
+  local temp_file="${state_file}.tmp"
+  cp "$state_file" "$temp_file"
+
+  for fix in "${fixes[@]}"; do
+    if [[ "$fix" == del* ]]; then
+      jq "$fix" "$temp_file" > "${temp_file}.new" && mv "${temp_file}.new" "$temp_file"
+    else
+      jq "$fix" "$temp_file" > "${temp_file}.new" && mv "${temp_file}.new" "$temp_file"
+    fi
+  done
+
+  mv "$temp_file" "$state_file"
+
+  log_success "Applied ${#fixes[@]} fix(es)"
+
+  # Show result
+  echo ""
+  echo "Updated config:"
+  jq '.config' "$state_file"
 }
 
 # List/manage central registry
@@ -1572,6 +1713,9 @@ main() {
       ;;
     validate)
       cmd_validate
+      ;;
+    reconcile)
+      cmd_reconcile "$@"
       ;;
     migrate)
       cmd_migrate

@@ -8,7 +8,7 @@
     "type": "cli-tool",
     "criticality": null,
     "created_at": "2026-01-11T02:54:53Z",
-    "updated_at": "2026-01-11T03:57:51Z"
+    "updated_at": "2026-01-11T04:16:01Z"
   },
   "config": {
     "roadmap_path": "ROADMAP.md",
@@ -28,10 +28,10 @@
   },
   "orchestration": {
     "phase": {
-      "number": "0015",
-      "name": "workflow-commands",
-      "branch": "0015-workflow-commands",
-      "status": "completed"
+      "number": "0020",
+      "name": "onboarding-polish",
+      "branch": "0020-onboarding-polish",
+      "status": "complete"
     },
     "step": {
       "current": "verify",
@@ -39,51 +39,20 @@
       "status": "in_progress"
     },
     "progress": {
-      "tasks_completed": "40",
-      "tasks_total": "40",
+      "tasks_completed": 0,
+      "tasks_total": "30",
       "percentage": 0
     },
     "steps": {
-      "specify": {
-        "status": "completed",
-        "completed_at": "2026-01-11T04:00:43Z"
-      },
-      "clarify": {
-        "status": "completed",
-        "completed_at": "2026-01-11T04:02:29Z"
-      },
-      "plan": {
-        "status": "completed",
-        "completed_at": "2026-01-11T04:03:56Z"
-      },
-      "tasks": {
-        "status": "completed",
-        "completed_at": "2026-01-11T04:04:49Z"
-      },
-      "analyze": {
-        "status": "completed",
-        "completed_at": "2026-01-11T04:05:37Z",
-        "fix_iterations": "1"
-      },
-      "checklist": {
-        "status": "completed",
-        "completed_at": "2026-01-11T04:06:18Z"
-      },
       "implement": {
         "tasks_completed": 40,
-        "tasks_total": 40,
-        "status": "completed",
-        "completed_at": "2026-01-11T04:12:31Z"
-      },
-      "verify": {
-        "status": "completed",
-        "completed_at": "2026-01-11T04:13:18Z"
+        "tasks_total": 40
       }
     }
   },
   "health": {
     "status": "ready",
-    "last_check": "2026-01-11T03:57:51Z",
+    "last_check": "2026-01-11T04:16:01Z",
     "issues": []
   },
   "actions": {
@@ -103,6 +72,15 @@
         "completed_at": "2026-01-11T03:57:51Z",
         "tasks_completed": 0,
         "tasks_total": 0
+      },
+      {
+        "type": "phase_completed",
+        "phase_number": "0015",
+        "phase_name": "workflow-commands",
+        "branch": "0015-workflow-commands",
+        "completed_at": "2026-01-11T04:16:01Z",
+        "tasks_completed": "40",
+        "tasks_total": "40"
       }
     ]
   },
@@ -110,5 +88,5 @@
     "last_sync": null,
     "notifications": []
   },
-  "last_updated": "2026-01-11T04:13:18Z"
+  "last_updated": "2026-01-11T04:35:18Z"
 }

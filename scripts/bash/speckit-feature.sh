@@ -315,15 +315,17 @@ cmd_list() {
     done
     echo "{\"features\": $json_array, \"count\": ${#features[@]}}"
   else
+    # Three-Line Rule: Summary first
     if [[ ${#features[@]} -eq 0 ]]; then
-      log_info "No features found in specs/"
+      echo -e "${YELLOW}WARN${RESET}: No features found"
+      echo "  Path: specs/"
     else
-      print_header "Features"
+      echo -e "${BLUE}INFO${RESET}: ${#features[@]} feature(s)"
+      echo ""
+      # Details (line 3+)
       for feat in "${features[@]}"; do
         echo "  $feat"
       done
-      echo ""
-      echo "Total: ${#features[@]} feature(s)"
     fi
   fi
 }
@@ -364,8 +366,12 @@ cmd_status() {
 
     echo "{\"features\": $features}"
   else
-    print_header "Feature Status"
+    # Three-Line Rule: Count features first
+    local feature_count
+    feature_count=$(find "$specs_dir" -maxdepth 1 -type d -name "[0-9][0-9][0-9]-*" 2>/dev/null | wc -l | tr -d ' ')
+    echo -e "${BLUE}INFO${RESET}: $feature_count feature(s) in specs/"
     echo ""
+    # Details (line 3+)
     printf "%-30s %-10s %-10s %-10s\n" "FEATURE" "SPEC" "PLAN" "TASKS"
     printf "%-30s %-10s %-10s %-10s\n" "-------" "----" "----" "-----"
 

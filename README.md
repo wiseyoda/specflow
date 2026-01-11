@@ -49,33 +49,66 @@ git pull
 ./install.sh --upgrade
 ```
 
-## Quick Start
+## Quickstart (5 Minutes)
 
-### Option 1: Smart Entry (Recommended)
+### 1. Install SpecKit
 
 ```bash
-cd your-project
-# In Claude Code:
+git clone https://github.com/YOUR_USERNAME/claude-speckit-orchestration.git
+cd claude-speckit-orchestration
+./install.sh
+export PATH="$HOME/.claude/speckit-system/bin:$PATH"  # Add to .bashrc/.zshrc
+```
+
+### 2. Set Up Your Project
+
+```bash
+cd your-existing-project
+speckit scaffold            # Creates .specify/ structure
+speckit doctor              # Verify everything is working
+```
+
+SpecKit auto-detects your project type (TypeScript, Python, Rust, Go, Bash) and customizes templates accordingly.
+
+### 3. Start Development
+
+In Claude Code, run:
+```
 /speckit.start
 ```
 
-The `/speckit.start` command automatically:
-- Detects if project needs initialization → routes to `/speckit.init`
-- Detects incomplete interview → resumes interview
-- Detects missing ROADMAP → routes to `/speckit.roadmap`
-- Detects pending work → routes to `/speckit.orchestrate`
+This command auto-detects your project state and routes you to the right workflow.
 
-### Option 2: Manual Workflow
+### CLI vs Slash Commands
 
+SpecKit has two interfaces:
+
+| Type | Syntax | Purpose | Example |
+|------|--------|---------|---------|
+| **CLI** | `speckit <cmd>` | State/file operations | `speckit scaffold`, `speckit doctor` |
+| **Slash** | `/speckit.<cmd>` | Claude Code workflows | `/speckit.start`, `/speckit.orchestrate` |
+
+**Rule of thumb**: Use CLI for setup and diagnostics. Use slash commands for development workflows.
+
+### Quick Options
+
+**Smart Entry (Recommended)**
+```
+/speckit.start
+```
+Detects project state and routes to appropriate workflow.
+
+**Manual Workflow**
+```
+/speckit.init        # Start requirements interview
+/speckit.roadmap     # Create development phases
+/speckit.orchestrate # Run automated workflow
+```
+
+**Preview Before Scaffolding**
 ```bash
-# 1. Initialize project
-/speckit.init
-
-# 2. Create roadmap
-/speckit.roadmap
-
-# 3. Run full workflow
-/speckit.orchestrate
+speckit scaffold --safe    # Preview what would be created
+speckit scaffold           # Actually create structure
 ```
 
 ## Workflow Overview
@@ -172,6 +205,8 @@ speckit state registry clean         # Remove stale entries
 
 ```bash
 speckit scaffold                     # Create .specify/ structure
+speckit scaffold --safe              # Preview changes without writing
+speckit scaffold --type python       # Force specific project type
 speckit scaffold --status            # Check what exists
 speckit scaffold --force             # Recreate (overwrites)
 ```
@@ -367,7 +402,7 @@ apt install jq
 - **Claude Code** - The CLI tool from Anthropic
 - **jq** - For JSON manipulation
 - **git** - For version control
-- **Bash 4+** - For shell scripts
+- **Bash 3.2+** - For shell scripts (macOS default works)
 
 ## Contributing
 

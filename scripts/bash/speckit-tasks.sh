@@ -200,13 +200,17 @@ cmd_status() {
   if is_json_output; then
     echo "{\"file\": \"$rel_path\", \"completed\": $completed, \"total\": $total, \"percent\": $percent}"
   else
-    print_header "Task Status"
-    echo ""
+    # Three-Line Rule: Critical info first
+    if [[ "$percent" -eq 100 ]]; then
+      echo -e "${GREEN}OK${RESET}: Tasks $completed/$total complete (100%)"
+    elif [[ "$percent" -ge 50 ]]; then
+      echo -e "${BLUE}INFO${RESET}: Tasks $completed/$total complete ($percent%)"
+    else
+      echo -e "${YELLOW}WARN${RESET}: Tasks $completed/$total complete ($percent%)"
+    fi
     echo "  File: $rel_path"
-    echo "  Completed: $completed / $total ($percent%)"
-    echo ""
 
-    # Progress bar
+    # Progress bar (line 3+)
     local bar_width=40
     local filled=$((percent * bar_width / 100))
     local empty=$((bar_width - filled))
@@ -248,23 +252,26 @@ cmd_incomplete() {
     count=$(echo "$items_json" | jq 'length')
     echo "{\"file\": \"$rel_path\", \"count\": $count, \"tasks\": $items_json}"
   else
-    print_header "Incomplete Tasks"
-    echo ""
-    echo -e "${DIM}$rel_path${RESET}"
-    echo ""
-
-    local count=0
+    # Collect incomplete tasks first to get count
+    local tasks=()
     while IFS= read -r task; do
       [[ -z "$task" ]] && continue
-      ((count++)) || true
-      echo "  - $task"
+      tasks+=("$task")
     done < <(get_incomplete_tasks "$file")
+    local count=${#tasks[@]}
 
-    echo ""
+    # Three-Line Rule: Critical info first
     if [[ $count -eq 0 ]]; then
-      log_success "All tasks complete!"
+      echo -e "${GREEN}OK${RESET}: All tasks complete"
+      echo "  File: $rel_path"
     else
-      echo "Total incomplete: $count"
+      echo -e "${YELLOW}WARN${RESET}: $count incomplete task(s)"
+      echo "  File: $rel_path"
+      echo ""
+      # Task list (line 4+)
+      for task in "${tasks[@]}"; do
+        echo "  - $task"
+      done
     fi
   fi
 }
@@ -376,75 +383,87 @@ cmd_phase_status() {
   repo_root="$(get_repo_root)"
   local rel_path="${file#$repo_root/}"
 
-  if is_json_output; then
-    local phases_json="[]"
-  else
-    print_header "Task Status by Phase"
-    echo ""
-    echo -e "${DIM}$rel_path${RESET}"
-    echo ""
-  fi
-
+  # Collect all phase data first
+  local phases_json="[]"
+  local phase_names=()
+  local phase_completed_arr=()
+  local phase_total_arr=()
+  local all_completed=0
+  local all_total=0
   local current_phase=""
   local phase_completed=0
   local phase_total=0
 
   while IFS= read -r line; do
-    # Check for phase header
     if [[ "$line" =~ ^##[[:space:]]+Phase[[:space:]]+([0-9]+) ]]; then
-      # Output previous phase if exists
       if [[ -n "$current_phase" ]]; then
-        local phase_percent
-        phase_percent=$(calc_percent "$phase_completed" "$phase_total")
-        if is_json_output; then
-          phases_json=$(echo "$phases_json" | jq --arg name "$current_phase" --argjson completed "$phase_completed" --argjson total "$phase_total" --argjson percent "$phase_percent" \
-            '. + [{"phase": $name, "completed": $completed, "total": $total, "percent": $percent}]')
-        else
-          if [[ "$phase_percent" -eq 100 ]]; then
-            print_status complete "$current_phase ($phase_completed/$phase_total)"
-          elif [[ "$phase_completed" -gt 0 ]]; then
-            print_status progress "$current_phase ($phase_completed/$phase_total - $phase_percent%)"
-          else
-            print_status pending "$current_phase ($phase_completed/$phase_total)"
-          fi
-        fi
+        phase_names+=("$current_phase")
+        phase_completed_arr+=("$phase_completed")
+        phase_total_arr+=("$phase_total")
+        ((all_completed += phase_completed)) || true
+        ((all_total += phase_total)) || true
       fi
-
-      # Start new phase
       current_phase="${line#\#\# }"
       phase_completed=0
       phase_total=0
     fi
-
-    # Count tasks in current phase
     if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[x\][[:space:]]*T[0-9]+ ]]; then
       ((phase_completed++)) || true
-      ((phase_total++)) || true
     elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[[[:space:]]\][[:space:]]*T[0-9]+ ]]; then
+      : # just count total
+    else
+      continue
+    fi
+    if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[[x[:space:]]\][[:space:]]*T[0-9]+ ]]; then
       ((phase_total++)) || true
     fi
   done < "$file"
 
-  # Output last phase
+  # Don't forget last phase
   if [[ -n "$current_phase" ]]; then
-    local phase_percent
-    phase_percent=$(calc_percent "$phase_completed" "$phase_total")
-    if is_json_output; then
-      phases_json=$(echo "$phases_json" | jq --arg name "$current_phase" --argjson completed "$phase_completed" --argjson total "$phase_total" --argjson percent "$phase_percent" \
-        '. + [{"phase": $name, "completed": $completed, "total": $total, "percent": $percent}]')
-    else
-      if [[ "$phase_percent" -eq 100 ]]; then
-        print_status complete "$current_phase ($phase_completed/$phase_total)"
-      elif [[ "$phase_completed" -gt 0 ]]; then
-        print_status progress "$current_phase ($phase_completed/$phase_total - $phase_percent%)"
-      else
-        print_status pending "$current_phase ($phase_completed/$phase_total)"
-      fi
-    fi
+    phase_names+=("$current_phase")
+    phase_completed_arr+=("$phase_completed")
+    phase_total_arr+=("$phase_total")
+    ((all_completed += phase_completed)) || true
+    ((all_total += phase_total)) || true
   fi
 
+  local all_percent
+  all_percent=$(calc_percent "$all_completed" "$all_total")
+
   if is_json_output; then
+    for i in "${!phase_names[@]}"; do
+      local p_percent
+      p_percent=$(calc_percent "${phase_completed_arr[$i]}" "${phase_total_arr[$i]}")
+      phases_json=$(echo "$phases_json" | jq --arg name "${phase_names[$i]}" \
+        --argjson completed "${phase_completed_arr[$i]}" \
+        --argjson total "${phase_total_arr[$i]}" \
+        --argjson percent "$p_percent" \
+        '. + [{"phase": $name, "completed": $completed, "total": $total, "percent": $percent}]')
+    done
     echo "{\"file\": \"$rel_path\", \"phases\": $phases_json}"
+  else
+    # Three-Line Rule: Summary first
+    local phase_count=${#phase_names[@]}
+    if [[ "$all_percent" -eq 100 ]]; then
+      echo -e "${GREEN}OK${RESET}: All phases complete ($all_completed/$all_total tasks)"
+    else
+      echo -e "${BLUE}INFO${RESET}: $phase_count phases, $all_completed/$all_total tasks ($all_percent%)"
+    fi
+    echo "  File: $rel_path"
+    echo ""
+    # Phase details (line 4+)
+    for i in "${!phase_names[@]}"; do
+      local p_percent
+      p_percent=$(calc_percent "${phase_completed_arr[$i]}" "${phase_total_arr[$i]}")
+      if [[ "$p_percent" -eq 100 ]]; then
+        print_status complete "${phase_names[$i]} (${phase_completed_arr[$i]}/${phase_total_arr[$i]})"
+      elif [[ "${phase_completed_arr[$i]}" -gt 0 ]]; then
+        print_status progress "${phase_names[$i]} (${phase_completed_arr[$i]}/${phase_total_arr[$i]} - $p_percent%)"
+      else
+        print_status pending "${phase_names[$i]} (${phase_completed_arr[$i]}/${phase_total_arr[$i]})"
+      fi
+    done
   fi
 }
 
@@ -481,47 +500,63 @@ cmd_list() {
 
     echo "{\"file\": \"$rel_path\", \"tasks\": $items_json}"
   else
-    print_header "All Tasks"
-    echo ""
-    echo -e "${DIM}$rel_path${RESET}"
-    echo ""
-
+    # Collect all tasks first for summary
+    local complete_tasks=()
+    local pending_tasks=()
     while IFS= read -r line; do
       if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[x\][[:space:]]*(T[0-9]+.*)$ ]]; then
-        print_status complete "${BASH_REMATCH[1]}"
+        complete_tasks+=("${BASH_REMATCH[1]}")
       elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[[[:space:]]\][[:space:]]*(T[0-9]+.*)$ ]]; then
-        print_status pending "${BASH_REMATCH[1]}"
+        pending_tasks+=("${BASH_REMATCH[1]}")
       fi
     done < "$file"
+
+    local total=$((${#complete_tasks[@]} + ${#pending_tasks[@]}))
+    local completed=${#complete_tasks[@]}
+
+    # Three-Line Rule: Summary first
+    echo -e "${BLUE}INFO${RESET}: $total tasks ($completed complete, ${#pending_tasks[@]} pending)"
+    echo "  File: $rel_path"
+    echo ""
+    # Task list (line 4+)
+    for task in "${complete_tasks[@]}"; do
+      print_status complete "$task"
+    done
+    for task in "${pending_tasks[@]}"; do
+      print_status pending "$task"
+    done
   fi
 }
 
 cmd_find() {
+  # Collect files first for summary
+  local files=()
+  while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+    local repo_root
+    repo_root="$(get_repo_root)"
+    local rel_path="${file#$repo_root/}"
+    files+=("$rel_path")
+  done < <(find_all_tasks_files)
+
   if is_json_output; then
     local files_json="[]"
-    while IFS= read -r file; do
-      [[ -z "$file" ]] && continue
-      local repo_root
-      repo_root="$(get_repo_root)"
-      local rel_path="${file#$repo_root/}"
-      files_json=$(echo "$files_json" | jq --arg path "$rel_path" '. + [$path]')
-    done < <(find_all_tasks_files)
+    for f in "${files[@]}"; do
+      files_json=$(echo "$files_json" | jq --arg path "$f" '. + [$path]')
+    done
     echo "$files_json"
   else
-    print_header "Task Files"
-    echo ""
-    local count=0
-    while IFS= read -r file; do
-      [[ -z "$file" ]] && continue
-      ((count++)) || true
-      local repo_root
-      repo_root="$(get_repo_root)"
-      local rel_path="${file#$repo_root/}"
-      echo "  $rel_path"
-    done < <(find_all_tasks_files)
-
+    # Three-Line Rule: Summary first
+    local count=${#files[@]}
     if [[ $count -eq 0 ]]; then
-      log_info "No tasks.md files found in specs/"
+      echo -e "${YELLOW}WARN${RESET}: No tasks.md files found"
+      echo "  Search path: specs/"
+    else
+      echo -e "${GREEN}OK${RESET}: Found $count tasks.md file(s)"
+      echo ""
+      for f in "${files[@]}"; do
+        echo "  $f"
+      done
     fi
   fi
 }

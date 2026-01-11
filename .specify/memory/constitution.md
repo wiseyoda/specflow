@@ -2,7 +2,7 @@
 
 > Core principles and governance for SpecKit development. All implementation decisions must align with these principles.
 
-**Version**: 1.0.0
+**Version**: 1.1.0
 **Created**: 2026-01-10
 **Status**: ACTIVE
 
@@ -46,6 +46,22 @@ Features should work partially when dependencies are missing.
 - **Rationale**: Don't block users unnecessarily
 - **Implications**: Warn about missing optional features, continue with core functionality
 
+### VII. Three-Line Output Rule
+CLI output must put user-critical information in the first 3 lines.
+- **Rationale**: Claude Code CLI only shows 3 lines by default; decorative headers waste this space
+- **Implications**:
+  - **Line 1**: Status (OK/ERROR/WARN) + primary result
+  - **Line 2**: Key data or metric (count, percentage, file path)
+  - **Line 3**: Next step hint or secondary info
+  - **Lines 4+**: Detailed output, decorative elements, system info
+- **Pattern**: Use `print_summary()` for final output, avoid leading `print_header()`
+- **Example**:
+  ```
+  OK: Tasks 40/40 complete (100%)
+    File: specs/0020-onboarding-polish/tasks.md
+    Next: Run /speckit.verify to complete phase
+  ```
+
 ---
 
 ## Governance
@@ -75,4 +91,5 @@ To amend this constitution:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1.0 | 2026-01-10 | Added Principle VII: Three-Line Output Rule |
 | 1.0.0 | 2026-01-10 | Initial constitution for SpecKit |

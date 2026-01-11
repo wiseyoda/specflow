@@ -12,7 +12,11 @@ SpecKit is a comprehensive framework for spec-driven development (SDD) that inte
 - **Planning** (`/speckit.plan`) - Create technical implementation plans
 - **Task Generation** (`/speckit.tasks`) - Break down plans into actionable tasks
 - **Orchestration** (`/speckit.orchestrate`) - Automated end-to-end workflow with state persistence
+- **Implementation** (`/speckit.implement`) - Execute tasks with optional TDD mode
 - **Verification** (`/speckit.verify`) - Validate implementations against specifications
+- **Phase Completion** (`/speckit.merge`) - Push, PR, merge, and cleanup in one command
+- **Backlog Management** (`/speckit.backlog`) - Triage orphaned tasks into future phases
+- **Memory Management** (`/speckit.memory`) - Verify and reconcile project memory documents
 - **CLI Tools** (`speckit`) - Bash utilities for state management, git operations, and more
 
 ## Installation
@@ -134,6 +138,18 @@ speckit scaffold           # Actually create structure
     ├── /speckit.checklist  # Create verification checklist
     ├── /speckit.implement  # Execute tasks
     └── /speckit.verify     # Verify and update ROADMAP
+    │
+    ▼
+/speckit.merge              # Complete phase: push, PR, merge, cleanup
+    │
+    ▼
+/speckit.backlog            # Triage backlog items into future phases
+    │
+    └── (repeat for next phase)
+
+Memory Management (run periodically):
+/speckit.memory             # Verify and reconcile memory documents
+/speckit.memory-generate    # Generate docs from codebase analysis
 ```
 
 ## Project Structure
@@ -281,6 +297,61 @@ speckit doctor --fix                 # Auto-fix issues
 speckit doctor --check <area>        # Check specific area
 ```
 
+### Detection & Reconciliation
+
+```bash
+speckit detect                       # Detect existing content
+speckit detect --check system        # Check system installation
+speckit detect --check speckit       # Check SpecKit structure
+speckit detect --check docs          # Check documentation
+speckit detect --check state         # Check state file
+
+speckit reconcile                    # Reconcile state with files
+speckit reconcile --dry-run          # Preview changes only
+speckit reconcile --trust-files      # Trust file system over state
+speckit reconcile --trust-state      # Trust state over file system
+```
+
+### Memory Document Management
+
+```bash
+speckit memory init constitution     # Initialize constitution
+speckit memory init tech-stack       # Initialize tech-stack
+speckit memory init recommended      # Initialize recommended docs
+speckit memory init all              # Initialize all docs
+speckit memory list                  # List documents with status
+speckit memory check                 # Check document health
+```
+
+### Lessons Learned
+
+```bash
+speckit lessons init                 # Initialize lessons-learned.md
+speckit lessons add error "desc"     # Add error entry
+speckit lessons add decision "desc"  # Add decision entry
+speckit lessons add gotcha "desc"    # Add gotcha entry
+speckit lessons check <keyword>      # Search lessons
+speckit lessons list                 # List all entries
+```
+
+### Validation Gates
+
+```bash
+speckit gate specify                 # Validate spec.md before planning
+speckit gate plan                    # Validate plan.md before tasks
+speckit gate tasks                   # Validate tasks.md before implement
+speckit gate implement               # Validate before verification
+speckit gate all                     # Run all applicable gates
+speckit gate status                  # Show gate status
+```
+
+### Migration Utilities
+
+```bash
+speckit migrate roadmap              # Migrate ROADMAP.md 2.0 to 2.1
+                                     # (converts 3-digit to 4-digit phases)
+```
+
 ### JSON Output
 
 All commands support JSON output for scripting:
@@ -293,24 +364,105 @@ speckit tasks status --json
 
 ## Claude Code Commands
 
+### Core Workflow Commands
+
 | Command | Description |
 |---------|-------------|
-| `/speckit.start` | Smart entry point - auto-detects state |
+| `/speckit.start` | Smart entry point - auto-detects project state and routes |
 | `/speckit.init` | Start requirements interview |
-| `/speckit.init status` | Show interview progress |
-| `/speckit.init pause` | Pause interview |
-| `/speckit.roadmap` | Create/update ROADMAP.md |
-| `/speckit.orchestrate` | Run full development workflow |
-| `/speckit.specify` | Create feature specification |
-| `/speckit.clarify` | Clarify specification ambiguities |
-| `/speckit.plan` | Create implementation plan |
-| `/speckit.tasks` | Generate task breakdown |
-| `/speckit.analyze` | Analyze artifacts for issues |
-| `/speckit.checklist` | Create verification checklist |
+| `/speckit.orchestrate` | Run full end-to-end development workflow |
+
+### Specification Commands
+
+| Command | Description |
+|---------|-------------|
+| `/speckit.specify` | Create feature specification from requirements |
+| `/speckit.clarify` | Ask clarifying questions to resolve ambiguities |
+| `/speckit.plan` | Create technical implementation plan |
+| `/speckit.tasks` | Generate actionable task breakdown |
+| `/speckit.analyze` | Cross-artifact consistency analysis |
+| `/speckit.checklist` | Generate requirements quality checklist |
+
+### Implementation Commands
+
+| Command | Description |
+|---------|-------------|
 | `/speckit.implement` | Execute implementation tasks |
-| `/speckit.verify` | Verify implementation completeness |
+| `/speckit.verify` | Verify implementation and update ROADMAP |
+| `/speckit.merge` | Complete phase: push, PR, merge, cleanup |
+
+### Project Management Commands
+
+| Command | Description |
+|---------|-------------|
+| `/speckit.roadmap` | Create/update ROADMAP.md with phases |
+| `/speckit.backlog` | Scan and triage backlog items into phases |
 | `/speckit.constitution` | Create/update project constitution |
-| `/speckit.memory` | Manage memory documents |
+
+### Memory Document Commands
+
+| Command | Description |
+|---------|-------------|
+| `/speckit.memory` | Clean up, verify, and reconcile memory documents |
+| `/speckit.memory-generate` | Generate memory docs from codebase analysis |
+
+### Utility Commands
+
+| Command | Description |
+|---------|-------------|
+| `/speckit.taskstoissues` | Convert tasks to GitHub issues |
+
+### Command Options Reference
+
+**`/speckit.start`**
+- `--skip-detections` - Skip auto-detection
+- `--verbose` - Show detailed output
+
+**`/speckit.init`** (sub-commands)
+- `status` - Show interview progress
+- `pause` - Pause interview for later
+- `deeper` - Go deeper on current topic
+- `faster` - Accelerate interview
+- `skip` - Skip current phase
+- `focus <topic>` - Focus on specific topic
+- `compare` - Compare options
+- `research <topic>` - Research a topic
+- `revisit <phase>` - Revisit a phase
+- `validate` - Validate interview state
+- `export` - Export to memory documents
+
+**`/speckit.orchestrate`**
+- `--resume` - Resume from last step
+- `--skip-gates` - Skip validation gates
+- `--phase <N>` - Start at specific phase
+
+**`/speckit.implement`**
+- `--tdd` - Enforce test-driven development
+- `continue` - Resume from last incomplete task
+- `phase <N>` - Start at specific phase
+
+**`/speckit.memory`**
+- `--dry-run` - Analyze only, no changes
+- `--verbose` - Detailed analysis output
+- `--fix` - Auto-fix without confirmation
+- `--reconcile` - Include ROADMAP/codebase drift detection (default)
+- `--no-reconcile` - Skip drift detection (faster)
+- `--promote` - Scan completed specs for decisions to promote
+- `--deep` - Full codebase scan
+
+**`/speckit.memory-generate`**
+- `<document>` - Document: `coding-standards`, `testing-strategy`, `glossary`, `tech-stack`, `all`, `recommended`
+- `--force` - Overwrite existing documents
+- `--dry-run` - Preview without writing
+
+**`/speckit.merge`**
+- `--pr-only` - Create PR but don't merge
+- `--force` - Skip task completion check
+- `--dry-run` - Preview what would happen
+
+**`/speckit.backlog`**
+- `--auto` - Auto-assign high-confidence matches
+- `--dry-run` - Preview assignments
 
 ## Configuration
 
@@ -406,7 +558,7 @@ apt install jq
 
 ## Contributing
 
-See [IMPROVEMENT-PLAN.md](IMPROVEMENT-PLAN.md) for the development roadmap and contribution guidelines.
+See [ROADMAP.md](ROADMAP.md) for the development phases and contribution guidelines.
 
 ## License
 

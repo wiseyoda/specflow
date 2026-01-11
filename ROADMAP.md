@@ -31,6 +31,7 @@ This allows inserting urgent work without renumbering existing phases.
 | Phase | Name | Status | Verification Gate |
 |-------|------|--------|-------------------|
 | 0010 | Roadmap Flexibility | ✅ Complete | Insert/defer commands work |
+| 0015 | Workflow Commands | ⬜ Not Started | Merge and backlog commands work |
 | 0020 | Onboarding Polish | ⬜ Not Started | New user can set up without confusion |
 | 0030 | Test Suite Completion | ⬜ Not Started | All tests pass on macOS and Linux |
 | 0040 | Integration Options | ⬜ Not Started | Existing docs imported successfully |
@@ -75,13 +76,42 @@ This allows inserting urgent work without renumbering existing phases.
 
 ---
 
+### 0015 - Workflow Commands
+
+**Goal**: Streamline end-of-phase and continuous backlog workflows.
+
+**Scope**:
+- `/speckit.merge` command: push, merge to main, cleanup branches, update state/roadmap, show backlog
+- `/speckit.backlog` command: triage items into phases, analyze unassignable, create phases for remaining
+- `speckit roadmap backlog add "<item>"` CLI to quickly add items
+- End-of-phase backlog summary display
+
+**User Stories**:
+1. As a developer, I can complete a phase with one command that handles all git/state cleanup
+2. As a developer, I can add ideas to backlog anytime and have them auto-triaged into phases
+3. As a reviewer, I can see what's in the backlog after each phase completion
+
+**Deliverables**:
+- `commands/speckit.merge.md` - Slash command for phase completion
+- `commands/speckit.backlog.md` - Slash command for backlog triage
+- `scripts/bash/speckit-roadmap.sh` - Add `backlog add` subcommand
+
+**Verification Gate**:
+- `/speckit.merge` completes phase with single command
+- `/speckit.backlog` assigns items to appropriate phases
+- Backlog summary shown at end of phase
+
+**Estimated Complexity**: Medium
+
+---
+
 ### 0020 - Onboarding Polish
 
 **Goal**: Make the first-run experience smooth and project-agnostic.
 
 **Scope**:
 - ~~Fix memory document templates (TypeScript-focused)~~ ✅ Done
-- Add project type detection to customize templates (bash, node, python, etc.)
+- Multi-language templates: auto-detect project type (bash, node, python, rust, go) and customize
 - Add `--safe` flag to scaffold for non-destructive mode
 - ~~Improve slash command vs CLI confusion~~ ✅ Done
 - Create onboarding guide in README
@@ -218,9 +248,6 @@ This allows inserting urgent work without renumbering existing phases.
 
 | Item | Description | Priority | Notes |
 |------|-------------|----------|-------|
-| `/speckit.merge` command | Push, merge to main, cleanup branches, update state/roadmap, show backlog summary | High | End-of-phase workflow |
-| `/speckit.backlog` command | Intelligent backlog triage: assess each item against phases, auto-assign to best fit, analyze unassignable items, create new phases for remaining work | High | Continuous workflow support |
-| Multi-language templates | Auto-detect project type (Python, Rust, Go) and use appropriate templates | Medium | Could be part of 0020 |
 | Parallel phase execution | Run independent phases concurrently | Low | Requires dependency graph |
 | Team collaboration | Multi-user roadmap editing, conflict resolution | Low | Future vision |
 
@@ -304,3 +331,4 @@ Branch names remain unchanged (branches use short names, not phase numbers).
 |------|--------|
 | 2026-01-10 | Initial roadmap (v2.0, 001-005 numbering) |
 | 2026-01-10 | Migrated to v2.1 ABBC numbering, added Phase 0010 (Roadmap Flexibility) |
+| 2026-01-10 | Backlog triage: created 0015 (Workflow Commands), promoted items to 0020 |

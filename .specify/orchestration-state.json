@@ -27,13 +27,8 @@
     "completed_at": null
   },
   "orchestration": {
-    "phase": {
-      "number": "0040",
-      "name": "integration-options",
-      "branch": "0040-integration-options",
-      "status": "complete"
-    },
-    "step": "complete",
+    "phase": {},
+    "step": null,
     "progress": {
       "tasks_completed": 0,
       "tasks_total": 0,
@@ -42,12 +37,7 @@
     "phase_number": "0040",
     "phase_name": "integration-options",
     "step_status": "null",
-    "steps": {
-      "implement": {
-        "tasks_completed": 19,
-        "tasks_total": 19
-      }
-    }
+    "steps": {}
   },
   "health": {
     "status": "ready",
@@ -66,6 +56,15 @@
         "completed_at": "2026-01-11T06:46:22Z",
         "tasks_completed": 0,
         "tasks_total": 0
+      },
+      {
+        "type": "phase_completed",
+        "phase_number": "0040",
+        "phase_name": "integration-options",
+        "branch": "0040-integration-options",
+        "completed_at": "2026-01-11T07:14:34Z",
+        "tasks_completed": 19,
+        "tasks_total": 19
       }
     ]
   },

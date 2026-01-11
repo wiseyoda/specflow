@@ -25,7 +25,6 @@ Arguments:
 - `reset` - Clear state and restart current phase
 - `status` - Show status only
 - `skip-to [step]` - Skip to step (specify, clarify, plan, tasks, analyze, checklist, implement, verify)
-- `next-phase` - Advance to next ROADMAP phase (after USER GATE approval)
 
 ## Goal
 
@@ -105,7 +104,6 @@ Check `ready`:
 | `reset` | Clear steps, restart from specify |
 | `status` | Display status and exit |
 | `skip-to [step]` | Update `orchestration.step.current` and `orchestration.step.index` |
-| `next-phase` | Merge branch, checkout next, reset steps |
 
 **0d. Auto-Recovery Based on next_action**
 | next_action | Recovery |
@@ -114,8 +112,8 @@ Check `ready`:
 | `fix_branch` | Checkout `phase.branch` (only if branch exists) |
 | `archive_phase` | Run `speckit state archive` (ROADMAP shows complete) |
 | `sync_roadmap` | Run `speckit reconcile --trust-files` |
-| `verify_user_gate` | Phase merged, awaiting user verification - prompt user |
-| `start_next_phase` | Archive current state and start next phase |
+| `verify_user_gate` | Phase merged, awaiting user verification - prompt for `/speckit.merge --next-phase` |
+| `start_next_phase` | Run `/speckit.merge --next-phase` to archive and start next |
 | `start_phase` | Continue to Section 1 |
 | `continue_*` | Resume from that step |
 
@@ -490,7 +488,7 @@ What to Test: {Verification criteria from ROADMAP}
 How to Test: {Instructions for accessing test page/POC}
 
 Please verify the implementation meets your expectations.
-Run `/speckit.orchestrate next-phase` when ready.
+Run `/speckit.merge --next-phase` when ready to complete this phase and start the next.
 ```
 - Set `orchestration.phase.status=awaiting_user_gate`
 - Do NOT auto-advance
@@ -509,26 +507,21 @@ speckit claude-md update "{phase_number}: {phase_name}" "Phase completed"
 
 ### 10. Phase Transition
 
-**10a. Commit and Merge**
-```bash
-speckit git commit "feat({phase_name}): Complete phase {phase_number}"
-speckit git push
-speckit git merge main
-speckit git push
+For non-USER GATE phases that pass verification, delegate to `/speckit.merge`:
+
+```text
+Phase verification complete!
+
+Run `/speckit.merge` to complete this phase.
+Or run `/speckit.merge --next-phase` to complete and start the next phase.
 ```
 
-**10b. Archive and Reset**
-```bash
-speckit state archive            # Archive to history, reset current
-```
-
-**10c. Start Next Phase**
-```bash
-speckit roadmap next --json      # Get next pending phase
-```
-
-If no more phases: Report "All phases complete!"
-If next phase exists: Create branch, initialize state, begin from SPECIFY.
+**Note**: `/speckit.merge` handles all phase completion tasks:
+- Push branch and create PR
+- Merge PR to main
+- Archive state and phase details
+- Update ROADMAP
+- (with --next-phase) Create branch and initialize next phase
 
 ---
 

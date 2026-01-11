@@ -21,6 +21,7 @@ Arguments:
 - `--pr-only`: Create PR but don't merge (for review workflow)
 - `--force`: Skip task completion check
 - `--dry-run`: Show what would happen without executing
+- `--next-phase`: After merge, automatically start the next phase
 
 ## Goal
 
@@ -43,6 +44,7 @@ Complete the current phase with a single command by:
 PR_ONLY=false
 FORCE=false
 DRY_RUN=false
+NEXT_PHASE=false
 
 # Parse $ARGUMENTS
 ```
@@ -259,10 +261,69 @@ speckit roadmap backlog list
 
 echo ""
 echo "Run /speckit.backlog to triage items into future phases"
-echo "Run /speckit.orchestrate to start the next phase"
 ```
 
-### 9. Dry Run Mode
+### 9. Start Next Phase (if --next-phase)
+
+**9a. If `--next-phase` flag is NOT set, show next steps and exit:**
+
+```bash
+if [[ "$NEXT_PHASE" != "true" ]]; then
+  echo "Run /speckit.orchestrate to start the next phase"
+  echo "Or run /speckit.merge --next-phase to merge and start next phase in one command"
+  exit 0
+fi
+```
+
+**9b. Get next pending phase:**
+
+```bash
+echo ""
+echo "Starting next phase..."
+
+NEXT=$(speckit roadmap next --json 2>/dev/null)
+
+if [[ -z "$NEXT" || "$NEXT" == "null" ]]; then
+  echo ""
+  echo "No more pending phases in ROADMAP!"
+  echo "All phases complete or add new phases with: speckit roadmap add"
+  exit 0
+fi
+
+NEXT_NUMBER=$(echo "$NEXT" | jq -r '.number')
+NEXT_NAME=$(echo "$NEXT" | jq -r '.name')
+NEXT_BRANCH="${NEXT_NUMBER}-${NEXT_NAME}"
+```
+
+**9c. Create branch and initialize state:**
+
+```bash
+echo "Creating branch: $NEXT_BRANCH"
+git checkout -b "$NEXT_BRANCH"
+git push -u origin "$NEXT_BRANCH"
+
+# Initialize state for new phase
+speckit state init
+speckit state set "orchestration.phase.number=$NEXT_NUMBER"
+speckit state set "orchestration.phase.name=$NEXT_NAME"
+speckit state set "orchestration.phase.branch=$NEXT_BRANCH"
+speckit state set "orchestration.phase.status=in_progress"
+speckit state set "orchestration.step.current=specify"
+speckit state set "orchestration.step.index=0"
+speckit state set "orchestration.step.status=in_progress"
+
+# Update ROADMAP
+speckit roadmap update "$NEXT_NUMBER" in_progress
+
+echo ""
+echo "============================================"
+echo "Started Phase $NEXT_NUMBER: $NEXT_NAME"
+echo "============================================"
+echo ""
+echo "Run /speckit.orchestrate to continue the workflow"
+```
+
+### 10. Dry Run Mode
 
 If `--dry-run` is specified, display what would happen without executing:
 
@@ -276,6 +337,8 @@ DRY RUN - Would execute:
 5. Archive state: speckit state archive
 6. Archive phase details: speckit phase archive 0015
 7. Update ROADMAP: speckit roadmap update 0015 complete
+8. (if --next-phase) Create branch for next phase
+9. (if --next-phase) Initialize state for next phase
 
 No changes made.
 ```
@@ -316,6 +379,37 @@ Total: 2 item(s)
 
 Run /speckit.backlog to triage items
 Run /speckit.orchestrate to start next phase
+```
+
+**With --next-phase:**
+
+```text
+✓ Pushed branch to origin
+✓ Created PR: https://github.com/org/repo/pull/123
+✓ Merged PR to main
+✓ Cleaned up branch
+✓ Archived phase state
+✓ Archived phase details to HISTORY.md
+✓ Updated ROADMAP to complete
+
+============================================
+Phase Complete! Backlog Summary:
+============================================
+
+  • [Low] Parallel phase execution
+
+Total: 1 item(s)
+
+Starting next phase...
+
+✓ Created branch: 0020-next-feature
+✓ Initialized state for phase 0020
+
+============================================
+Started Phase 0020: next-feature
+============================================
+
+Run /speckit.orchestrate to continue the workflow
 ```
 
 **With --pr-only:**

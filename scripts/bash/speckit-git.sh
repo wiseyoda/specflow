@@ -137,7 +137,7 @@ cmd_branch_create() {
   if has_uncommitted_changes || has_untracked_files; then
     log_warn "You have uncommitted changes"
     if ! confirm "Create branch anyway?"; then
-      log_info "Aborted"
+      log_info "Branch creation cancelled. Commit or stash your changes first."
       exit 0
     fi
   fi
@@ -170,7 +170,7 @@ cmd_branch_checkout() {
   if has_uncommitted_changes; then
     log_warn "You have uncommitted changes"
     if ! confirm "Switch branch anyway? Changes will be kept."; then
-      log_info "Aborted"
+      log_info "Branch switch cancelled. Commit or stash your changes first."
       exit 0
     fi
   fi

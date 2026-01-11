@@ -7,6 +7,15 @@ handoffs:
     send: true
 ---
 
+## CRITICAL RULES
+
+**YOU MUST FOLLOW THESE RULES WITHOUT EXCEPTION:**
+
+1. **NEVER edit `tasks.md` directly to mark tasks complete** - Use `speckit tasks mark T###`
+2. **NEVER edit `.specify/orchestration-state.json` directly** - Use `speckit state set`
+3. **ALWAYS use `speckit tasks mark`** after completing each task
+4. **ALWAYS use `speckit tasks status`** to check progress
+
 ## User Input
 
 ```text
@@ -209,7 +218,7 @@ Match implementation tasks to test tasks:
    - **IMPORTANT** Use the SpecKit CLI to mark completed tasks:
 
      ```bash
-     # Mark individual task as complete (also updates state file)
+     # Mark individual task as complete (also updates state file + dashboard)
      speckit tasks mark T001
      speckit tasks mark T002
 
@@ -218,11 +227,15 @@ Match implementation tasks to test tasks:
 
      # See remaining incomplete tasks
      speckit tasks incomplete
+
+     # Manually regenerate the Progress Dashboard (auto-runs on mark)
+     speckit tasks sync
      ```
 
      The `speckit tasks mark` command automatically:
      - Updates tasks.md (marks `[X]`)
      - Updates the orchestration state file with task counts
+     - Regenerates the Progress Dashboard at top of tasks.md
 
 9. Completion validation:
 

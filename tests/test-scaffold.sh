@@ -74,7 +74,7 @@ test_scaffold_force() {
   bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" --force
 
   # Verify state was recreated (not modified version)
-  assert_json_equals ".specify/orchestration-state.json" ".version" "2.0" "State recreated with force"
+  assert_json_equals ".specify/orchestration-state.json" ".schema_version" "2.0" "State recreated with force"
 }
 
 test_scaffold_idempotent() {

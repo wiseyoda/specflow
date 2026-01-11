@@ -105,7 +105,8 @@ get_recent_changes() {
   fi
 
   # Extract section content (from header to next ## or EOF)
-  sed -n "/${RECENT_CHANGES_HEADER}/,/^## /p" "$claude_path" | head -n -1 | tail -n +2
+  # Using sed '$d' instead of 'head -n -1' for macOS compatibility
+  sed -n "/${RECENT_CHANGES_HEADER}/,/^## /p" "$claude_path" | sed '$d' | tail -n +2
 }
 
 # =============================================================================
@@ -249,7 +250,7 @@ cmd_init() {
 
   if has_recent_changes_section; then
     if ! confirm "Recent Changes section exists. Reset it?"; then
-      log_info "Aborted"
+      log_info "Init cancelled. Existing Recent Changes section preserved."
       exit 0
     fi
 

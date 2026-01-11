@@ -1,9 +1,29 @@
 ---
-version: '1.0'
+version: '1.1'
 description: 'Task list template for feature implementation'
 ---
 
 # Tasks: [FEATURE NAME]
+
+## Progress Dashboard
+
+> Last updated: [TIMESTAMP] | Run `speckit tasks sync` to refresh
+
+| Phase | Status | Progress |
+|-------|--------|----------|
+| Setup | PENDING | 0/0 |
+| Foundational | PENDING | 0/0 |
+| User Story 1 | PENDING | 0/0 |
+| Polish | PENDING | 0/0 |
+
+**Overall**: 0/0 (0%) | **Current**: None
+
+### Quick Status
+
+<!-- Auto-generated task summary. Do not edit manually. -->
+<!-- Run: speckit tasks sync -->
+
+---
 
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/

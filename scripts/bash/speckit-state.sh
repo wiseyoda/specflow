@@ -315,8 +315,10 @@ cmd_init() {
   # Check if state file exists
   if [[ -f "$state_file" ]] && [[ "$force" != "--force" ]]; then
     log_warn "State file already exists: $state_file"
+    log_info "After 'speckit state archive', use 'speckit state set' to configure the next phase"
+    log_info "To completely reinitialize, use 'speckit state init --force'"
     if ! confirm "Overwrite existing state file?"; then
-      log_info "Aborted"
+      log_info "Keeping existing state file. Use 'speckit state set' to update values."
       exit 0
     fi
   fi
@@ -367,20 +369,21 @@ cmd_reset() {
 
   if [[ ! -f "$state_file" ]]; then
     log_error "State file not found: $state_file"
+    log_info "Nothing to reset. Use 'speckit state init' to create a new state file."
     exit 1
   fi
 
   if [[ "$full_reset" == "--full" ]]; then
     # Full reset - recreate entirely
     if ! confirm "This will reset ALL state including config. Continue?"; then
-      log_info "Aborted"
+      log_info "Reset cancelled. State file unchanged."
       exit 0
     fi
     cmd_init --force
   else
     # Partial reset - keep project and config, reset interview and orchestration
     if ! confirm "Reset interview and orchestration state (project/config preserved)?"; then
-      log_info "Aborted"
+      log_info "Reset cancelled. State file unchanged."
       exit 0
     fi
 
@@ -430,6 +433,7 @@ cmd_validate() {
 
   if [[ ! -f "$state_file" ]]; then
     log_error "State file not found: $state_file"
+    log_info "Run 'speckit state init' to create one"
     exit 1
   fi
 
@@ -655,6 +659,7 @@ cmd_archive() {
 
   if [[ ! -f "$state_file" ]]; then
     log_error "State file not found: $state_file"
+    log_info "Run 'speckit state init' to create one, or 'speckit scaffold' for a new project"
     exit 1
   fi
 
@@ -663,7 +668,8 @@ cmd_archive() {
   phase_number=$(json_get "$state_file" ".orchestration.phase.number" 2>/dev/null || echo "")
 
   if [[ -z "$phase_number" || "$phase_number" == "null" ]]; then
-    log_warn "No current phase to archive"
+    log_warn "No current phase to archive (orchestration.phase.number is not set)"
+    log_info "Use 'speckit state set orchestration.phase.number=NNN' to set a phase first"
     if is_json_output; then
       echo '{"archived": false, "reason": "no_current_phase"}'
     fi
@@ -723,6 +729,10 @@ cmd_archive() {
   mv "$temp_file" "$state_file"
 
   log_success "Archived phase $phase_number and reset state"
+  log_info "Next steps:"
+  log_info "  1. Create new branch: git checkout -b NNN-feature-name"
+  log_info "  2. Configure phase: speckit state set \"orchestration.phase.number=NNN\""
+  log_info "  3. Update roadmap: speckit roadmap update NNN in_progress"
 
   if is_json_output; then
     echo "{\"archived\": true, \"phase_number\": \"$phase_number\", \"timestamp\": \"$timestamp\"}"
@@ -950,20 +960,21 @@ cmd_migrate() {
         ),
         "orchestration": {
           "phase": {
-            "number": (.orchestration.phase_number // null),
-            "name": (.orchestration.phase_name // null),
-            "branch": (.orchestration.branch // null),
-            "status": (.orchestration.status // "not_started")
+            "number": (.current.phase_number // null),
+            "name": (.current.phase_name // null),
+            "branch": (.current.branch // null),
+            "status": (.current.status // "not_started")
           },
           "step": {
-            "current": (.orchestration.step // null),
-            "index": 0,
-            "status": "not_started"
+            "current": (.current.step // null),
+            "index": (.current.step_index // 0),
+            "status": (if .current.step then (.current.status // "in_progress") else "not_started" end)
           },
           "progress": {
-            "tasks_completed": 0,
-            "tasks_total": 0,
-            "percentage": 0
+            "tasks_completed": (.steps.implement.tasks_completed // 0),
+            "tasks_total": (.steps.implement.tasks_total // 0),
+            "current_task": (.steps.implement.current_task // null),
+            "percentage": (if (.steps.implement.tasks_total // 0) > 0 then (((.steps.implement.tasks_completed // 0) * 100) / (.steps.implement.tasks_total // 1)) else 0 end)
           }
         },
         "health": {
@@ -982,7 +993,9 @@ cmd_migrate() {
         },
         "_migration": {
           "from_version": "1.0",
-          "migrated_at": $ts
+          "migrated_at": $ts,
+          "v1_steps": (.steps // null),
+          "v1_pending_questions": (.pending_questions // null)
         }
       }
     ' "$state_file" > "$temp_file"

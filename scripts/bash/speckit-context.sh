@@ -110,29 +110,44 @@ find_feature_dir() {
   echo "$feature_dir"
 }
 
+# Document existence variables (set by check_docs)
+# Using individual variables instead of associative arrays for bash 3.x compatibility
+DOC_SPEC="false"
+DOC_PLAN="false"
+DOC_TASKS="false"
+DOC_RESEARCH="false"
+DOC_DATA_MODEL="false"
+DOC_CONTRACTS="false"
+DOC_QUICKSTART="false"
+DOC_CHECKLISTS="false"
+
 # Check which documents exist in feature directory
+# Sets global DOC_* variables
 check_docs() {
   local feature_dir="$1"
-  local -n _docs_result=$2  # nameref for returning associative array
 
-  # Standard document paths
-  _docs_result["spec"]="false"
-  _docs_result["plan"]="false"
-  _docs_result["tasks"]="false"
-  _docs_result["research"]="false"
-  _docs_result["data_model"]="false"
-  _docs_result["contracts"]="false"
-  _docs_result["quickstart"]="false"
-  _docs_result["checklists"]="false"
+  # Reset all to false
+  DOC_SPEC="false"
+  DOC_PLAN="false"
+  DOC_TASKS="false"
+  DOC_RESEARCH="false"
+  DOC_DATA_MODEL="false"
+  DOC_CONTRACTS="false"
+  DOC_QUICKSTART="false"
+  DOC_CHECKLISTS="false"
 
-  [[ -f "${feature_dir}/spec.md" ]] && _docs_result["spec"]="true"
-  [[ -f "${feature_dir}/plan.md" ]] && _docs_result["plan"]="true"
-  [[ -f "${feature_dir}/tasks.md" ]] && _docs_result["tasks"]="true"
-  [[ -f "${feature_dir}/research.md" ]] && _docs_result["research"]="true"
-  [[ -f "${feature_dir}/data-model.md" ]] && _docs_result["data_model"]="true"
-  [[ -d "${feature_dir}/contracts" ]] && [[ -n "$(ls -A "${feature_dir}/contracts" 2>/dev/null)" ]] && _docs_result["contracts"]="true"
-  [[ -f "${feature_dir}/quickstart.md" ]] && _docs_result["quickstart"]="true"
-  [[ -d "${feature_dir}/checklists" ]] && [[ -n "$(ls -A "${feature_dir}/checklists" 2>/dev/null)" ]] && _docs_result["checklists"]="true"
+  # Check each document type
+  [[ -f "${feature_dir}/spec.md" ]] && DOC_SPEC="true"
+  [[ -f "${feature_dir}/plan.md" ]] && DOC_PLAN="true"
+  [[ -f "${feature_dir}/tasks.md" ]] && DOC_TASKS="true"
+  [[ -f "${feature_dir}/research.md" ]] && DOC_RESEARCH="true"
+  [[ -f "${feature_dir}/data-model.md" ]] && DOC_DATA_MODEL="true"
+  [[ -d "${feature_dir}/contracts" ]] && [[ -n "$(ls -A "${feature_dir}/contracts" 2>/dev/null)" ]] && DOC_CONTRACTS="true"
+  [[ -f "${feature_dir}/quickstart.md" ]] && DOC_QUICKSTART="true"
+  [[ -d "${feature_dir}/checklists" ]] && [[ -n "$(ls -A "${feature_dir}/checklists" 2>/dev/null)" ]] && DOC_CHECKLISTS="true"
+
+  # Ensure function returns 0 (set -e would exit on last command's non-zero return)
+  return 0
 }
 
 # =============================================================================
@@ -225,12 +240,11 @@ cmd_context() {
     exit 1
   fi
 
-  # Check available documents
-  declare -A docs
-  check_docs "$feature_dir" docs
+  # Check available documents (sets DOC_* global variables)
+  check_docs "$feature_dir"
 
   # Check requirements
-  if $require_spec && [[ "${docs[spec]}" == "false" ]]; then
+  if $require_spec && [[ "$DOC_SPEC" == "false" ]]; then
     if is_json_output; then
       echo "{\"error\": \"spec.md not found\", \"feature_dir\": \"$feature_dir\"}"
     else
@@ -240,7 +254,7 @@ cmd_context() {
     exit 1
   fi
 
-  if $require_plan && [[ "${docs[plan]}" == "false" ]]; then
+  if $require_plan && [[ "$DOC_PLAN" == "false" ]]; then
     if is_json_output; then
       echo "{\"error\": \"plan.md not found\", \"feature_dir\": \"$feature_dir\"}"
     else
@@ -250,7 +264,7 @@ cmd_context() {
     exit 1
   fi
 
-  if $require_tasks && [[ "${docs[tasks]}" == "false" ]]; then
+  if $require_tasks && [[ "$DOC_TASKS" == "false" ]]; then
     if is_json_output; then
       echo "{\"error\": \"tasks.md not found\", \"feature_dir\": \"$feature_dir\"}"
     else
@@ -262,28 +276,28 @@ cmd_context() {
 
   # Build available docs list
   local available_docs=()
-  [[ "${docs[spec]}" == "true" ]] && available_docs+=("spec.md")
-  [[ "${docs[plan]}" == "true" ]] && available_docs+=("plan.md")
-  [[ "${docs[tasks]}" == "true" ]] && available_docs+=("tasks.md")
-  [[ "${docs[research]}" == "true" ]] && available_docs+=("research.md")
-  [[ "${docs[data_model]}" == "true" ]] && available_docs+=("data-model.md")
-  [[ "${docs[contracts]}" == "true" ]] && available_docs+=("contracts/")
-  [[ "${docs[quickstart]}" == "true" ]] && available_docs+=("quickstart.md")
-  [[ "${docs[checklists]}" == "true" ]] && available_docs+=("checklists/")
+  [[ "$DOC_SPEC" == "true" ]] && available_docs+=("spec.md")
+  [[ "$DOC_PLAN" == "true" ]] && available_docs+=("plan.md")
+  [[ "$DOC_TASKS" == "true" ]] && available_docs+=("tasks.md")
+  [[ "$DOC_RESEARCH" == "true" ]] && available_docs+=("research.md")
+  [[ "$DOC_DATA_MODEL" == "true" ]] && available_docs+=("data-model.md")
+  [[ "$DOC_CONTRACTS" == "true" ]] && available_docs+=("contracts/")
+  [[ "$DOC_QUICKSTART" == "true" ]] && available_docs+=("quickstart.md")
+  [[ "$DOC_CHECKLISTS" == "true" ]] && available_docs+=("checklists/")
 
   # Output results
   if is_json_output; then
     local docs_json
     docs_json=$(cat << EOF
 {
-  "spec": ${docs[spec]},
-  "plan": ${docs[plan]},
-  "tasks": ${docs[tasks]},
-  "research": ${docs[research]},
-  "data_model": ${docs[data_model]},
-  "contracts": ${docs[contracts]},
-  "quickstart": ${docs[quickstart]},
-  "checklists": ${docs[checklists]}
+  "spec": ${DOC_SPEC},
+  "plan": ${DOC_PLAN},
+  "tasks": ${DOC_TASKS},
+  "research": ${DOC_RESEARCH},
+  "data_model": ${DOC_DATA_MODEL},
+  "contracts": ${DOC_CONTRACTS},
+  "quickstart": ${DOC_QUICKSTART},
+  "checklists": ${DOC_CHECKLISTS}
 }
 EOF
 )
@@ -317,14 +331,14 @@ EOF
 
     if ! $quiet; then
       echo "AVAILABLE_DOCS:"
-      [[ "${docs[spec]}" == "true" ]] && print_status ok "spec.md" || print_status fail "spec.md"
-      [[ "${docs[plan]}" == "true" ]] && print_status ok "plan.md" || print_status fail "plan.md"
-      [[ "${docs[tasks]}" == "true" ]] && print_status ok "tasks.md" || print_status fail "tasks.md"
-      [[ "${docs[research]}" == "true" ]] && print_status ok "research.md" || print_status skip "research.md (optional)"
-      [[ "${docs[data_model]}" == "true" ]] && print_status ok "data-model.md" || print_status skip "data-model.md (optional)"
-      [[ "${docs[contracts]}" == "true" ]] && print_status ok "contracts/" || print_status skip "contracts/ (optional)"
-      [[ "${docs[quickstart]}" == "true" ]] && print_status ok "quickstart.md" || print_status skip "quickstart.md (optional)"
-      [[ "${docs[checklists]}" == "true" ]] && print_status ok "checklists/" || print_status skip "checklists/ (optional)"
+      [[ "$DOC_SPEC" == "true" ]] && print_status ok "spec.md" || print_status fail "spec.md"
+      [[ "$DOC_PLAN" == "true" ]] && print_status ok "plan.md" || print_status fail "plan.md"
+      [[ "$DOC_TASKS" == "true" ]] && print_status ok "tasks.md" || print_status fail "tasks.md"
+      [[ "$DOC_RESEARCH" == "true" ]] && print_status ok "research.md" || print_status skip "research.md (optional)"
+      [[ "$DOC_DATA_MODEL" == "true" ]] && print_status ok "data-model.md" || print_status skip "data-model.md (optional)"
+      [[ "$DOC_CONTRACTS" == "true" ]] && print_status ok "contracts/" || print_status skip "contracts/ (optional)"
+      [[ "$DOC_QUICKSTART" == "true" ]] && print_status ok "quickstart.md" || print_status skip "quickstart.md (optional)"
+      [[ "$DOC_CHECKLISTS" == "true" ]] && print_status ok "checklists/" || print_status skip "checklists/ (optional)"
     fi
   fi
 }

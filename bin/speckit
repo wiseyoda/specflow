@@ -140,6 +140,20 @@ COMMANDS:
                   list                List documents with status
                   check               Check document health
 
+    lessons     Lessons learned operations
+                  init                Initialize lessons-learned.md
+                  add <type> <desc>   Add entry (error, decision, gotcha)
+                  check <keyword>     Search lessons
+                  list                List all entries
+
+    gate        Validation gate enforcement
+                  specify             Validate spec.md before planning
+                  plan                Validate plan.md before tasks
+                  tasks               Validate tasks.md before implement
+                  implement           Validate before verification
+                  all                 Run all applicable gates
+                  status              Show gate status
+
     help        Show this help message
     version     Show version
 
@@ -233,6 +247,12 @@ main() {
     memory|mem)
       run_script "memory" "$@"
       ;;
+    lessons)
+      run_script "lessons" "$@"
+      ;;
+    gate)
+      run_script "gate" "$@"
+      ;;
     help|--help|-h)
       show_help
       exit 0
@@ -240,6 +260,19 @@ main() {
     version|--version|-V)
       show_version
       exit 0
+      ;;
+    # Slash commands - these are Claude Code prompts, not CLI commands
+    analyze|specify|clarify|plan|implement|verify|orchestrate|init|constitution|start)
+      log_error "Unknown command: ${command}"
+      echo ""
+      log_info "'${command}' is a Claude Code slash command, not a CLI command."
+      log_info "In Claude Code, type: /speckit.${command}"
+      log_info ""
+      log_info "The 'speckit' CLI provides utility commands like:"
+      log_info "  speckit state, speckit tasks, speckit roadmap, speckit checklist"
+      log_info ""
+      log_info "Run 'speckit help' for all available CLI commands."
+      exit 1
       ;;
     *)
       log_error "Unknown command: ${command}"

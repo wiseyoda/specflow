@@ -170,8 +170,10 @@ cmd_create() {
   fi
 
   # Check if another feature with same phase exists
-  local existing
-  existing=$(find "$specs_dir" -maxdepth 1 -type d -name "${phase}-*" 2>/dev/null | head -1)
+  local existing=""
+  if [[ -d "$specs_dir" ]]; then
+    existing=$(find "$specs_dir" -maxdepth 1 -type d -name "${phase}-*" 2>/dev/null | head -1 || true)
+  fi
   if [[ -n "$existing" ]]; then
     log_error "A feature with phase $phase already exists: $existing"
     log_info "Choose a different phase number"

@@ -106,9 +106,10 @@ run_test() {
   mkdir -p "$test_dir"
 
   # Run test in subshell, capture output
+  # Set SPECKIT_PROJECT_ROOT so scripts use test_dir as repo root
   local test_output
   local test_result=0
-  test_output=$( (cd "$test_dir" && $test_fn) 2>&1 ) || test_result=$?
+  test_output=$( (cd "$test_dir" && SPECKIT_PROJECT_ROOT="$test_dir" $test_fn) 2>&1 ) || test_result=$?
 
   # Show output if verbose or failed
   if [[ "$VERBOSE" == "true" ]] || [[ $test_result -ne 0 ]]; then

@@ -2,6 +2,18 @@
 description: Orchestrate the complete SpecKit workflow from end to end with state persistence, self-healing, and minimal user interaction.
 ---
 
+## CRITICAL RULES
+
+**YOU MUST FOLLOW THESE RULES WITHOUT EXCEPTION:**
+
+1. **NEVER edit `.specify/orchestration-state.json` directly** - Use `speckit state set` commands
+2. **NEVER edit `tasks.md` to mark tasks complete** - Use `speckit tasks mark` commands
+3. **NEVER skip steps** - Execute steps in order: specify → clarify → plan → tasks → analyze → checklist → implement → verify
+4. **ALWAYS verify step completion** before advancing to next step
+5. **ALWAYS use the SpecKit CLI** for all state and task operations
+
+If you find yourself about to use the Edit tool on state files or tasks.md, STOP and use the CLI instead.
+
 ## User Input
 
 ```text
@@ -70,10 +82,10 @@ If ROADMAP.md missing: Ask user to create via `/speckit.roadmap` or manually.
 **0b. Handle Arguments**
 | Argument | Action |
 |----------|--------|
-| `continue`/empty | Resume from `current.step` |
+| `continue`/empty | Resume from `orchestration.step.current` |
 | `reset` | Clear steps, restart from specify |
 | `status` | Display status and exit |
-| `skip-to [step]` | Update `current.step`, mark prior as skipped |
+| `skip-to [step]` | Update `orchestration.step.current` and `orchestration.step.index` |
 | `next-phase` | Merge branch, checkout next, reset steps |
 
 **0c. Verify State Matches Reality**
@@ -109,10 +121,13 @@ If mismatch: Run `speckit doctor --fix`, reset affected step.
 speckit roadmap next --json      # Get next pending phase
 speckit git branch create "NNN-phase-name"
 speckit state init
-speckit state set "current.phase_number=NNN"
-speckit state set "current.phase_name=phase-name"
-speckit state set "current.branch=NNN-phase-name"
-speckit state set "current.step=specify"
+speckit state set "orchestration.phase.number=NNN"
+speckit state set "orchestration.phase.name=phase-name"
+speckit state set "orchestration.phase.branch=NNN-phase-name"
+speckit state set "orchestration.phase.status=in_progress"
+speckit state set "orchestration.step.current=specify"
+speckit state set "orchestration.step.index=0"
+speckit state set "orchestration.step.status=in_progress"
 speckit roadmap update "NNN" in_progress
 ```
 
@@ -120,7 +135,7 @@ speckit roadmap update "NNN" in_progress
 
 ### 2. SPECIFY
 
-Check: If `steps.specify.status === "completed"` and spec.md exists → skip to CLARIFY.
+Check: If `orchestration.step.index > 0` and spec.md exists → skip to CLARIFY.
 
 Execute `/speckit.specify` logic:
 1. Extract Goal, Scope, Deliverables from ROADMAP phase
@@ -132,17 +147,23 @@ Handle `[NEEDS CLARIFICATION]` markers (max 3):
 - Use `AskUserQuestion` with recommended option first
 - Update spec with answers
 
-Update state:
+**VERIFY BEFORE ADVANCING:**
 ```bash
-speckit state set "steps.specify.status=completed"
-speckit state set "current.step=clarify"
+# Verify spec.md was created
+ls specs/*/spec.md || { echo "ERROR: spec.md not created"; exit 1; }
+```
+
+Update state (only after verification passes):
+```bash
+speckit state set "orchestration.step.current=clarify"
+speckit state set "orchestration.step.index=1"
 ```
 
 ---
 
 ### 3. CLARIFY
 
-Check: If `steps.clarify.status === "completed"` and spec.md valid → skip to PLAN.
+Check: If `orchestration.step.index > 1` and spec.md valid → skip to PLAN.
 
 Execute `/speckit.clarify` logic:
 1. Load spec.md
@@ -154,17 +175,20 @@ For each question, use `AskUserQuestion`:
 - Show options table with implications
 - Default behavior if no response
 
-Update state:
+**VERIFY BEFORE ADVANCING:**
+- Confirm clarifications were added to spec.md OR no clarifications were needed
+
+Update state (only after verification passes):
 ```bash
-speckit state set "steps.clarify.status=completed"
-speckit state set "current.step=plan"
+speckit state set "orchestration.step.current=plan"
+speckit state set "orchestration.step.index=2"
 ```
 
 ---
 
 ### 4. PLAN
 
-Check: If `steps.plan.status === "completed"` and plan.md exists → skip to TASKS.
+Check: If `orchestration.step.index > 2` and plan.md exists → skip to TASKS.
 
 Load memory documents for compliance:
 - `constitution.md` (REQUIRED)
@@ -180,17 +204,23 @@ Cross-check against memory documents:
 - Constitution violations: BLOCK until resolved
 - Other violations: Warn but don't block
 
-Update state:
+**VERIFY BEFORE ADVANCING:**
 ```bash
-speckit state set "steps.plan.status=completed"
-speckit state set "current.step=tasks"
+# Verify plan.md was created
+ls specs/*/plan.md || { echo "ERROR: plan.md not created"; exit 1; }
+```
+
+Update state (only after verification passes):
+```bash
+speckit state set "orchestration.step.current=tasks"
+speckit state set "orchestration.step.index=3"
 ```
 
 ---
 
 ### 5. TASKS
 
-Check: If `steps.tasks.status === "completed"` and tasks.md exists → skip to ANALYZE.
+Check: If `orchestration.step.index > 3` and tasks.md exists → skip to ANALYZE.
 
 Execute `/speckit.tasks` logic:
 1. Load plan.md, spec.md, data-model.md, contracts/
@@ -198,17 +228,25 @@ Execute `/speckit.tasks` logic:
 3. Format: `- [ ] T### [P?] [US?] Description with file path`
 4. Generate dependency graph
 
-Update state:
+**VERIFY BEFORE ADVANCING:**
 ```bash
-speckit state set "steps.tasks.status=completed"
-speckit state set "current.step=analyze"
+# Verify tasks.md was created
+ls specs/*/tasks.md || { echo "ERROR: tasks.md not created"; exit 1; }
+```
+
+Update state (only after verification passes):
+```bash
+speckit state set "orchestration.step.current=analyze"
+speckit state set "orchestration.step.index=4"
 ```
 
 ---
 
 ### 6. ANALYZE (Auto-Fix Loop)
 
-Check: If `steps.analyze.status === "completed"` → re-run quick analysis, skip if clean.
+**MANDATORY STEP - DO NOT SKIP**
+
+Check: If `orchestration.step.index > 4` → re-run quick analysis, skip if clean.
 
 Execute `/speckit.analyze` logic, then AUTO-FIX LOOP:
 
@@ -235,17 +273,23 @@ Auto-fix strategies:
 | Coverage gap | Add task or requirement |
 | Constitution violation | Modify to comply OR flag for user |
 
-Update state:
+**VERIFY BEFORE ADVANCING:**
+- Analysis must complete with no critical issues
+- All auto-fixes must be applied
+
+Update state (only after verification passes):
 ```bash
-speckit state set "steps.analyze.status=completed"
-speckit state set "current.step=checklist"
+speckit state set "orchestration.step.current=checklist"
+speckit state set "orchestration.step.index=5"
 ```
 
 ---
 
 ### 7. CHECKLIST
 
-Check: If `steps.checklist.status === "completed"` and checklists/ has files → skip to IMPLEMENT.
+**MANDATORY STEP - DO NOT SKIP**
+
+Check: If `orchestration.step.index > 5` and checklists/ has files → skip to IMPLEMENT.
 
 Use `AskUserQuestion` for scope:
 | Option | Type | Purpose |
@@ -258,17 +302,23 @@ Execute `/speckit.checklist` logic:
 1. Generate checklist testing REQUIREMENTS quality
 2. Create `checklists/verification.md`
 
-Update state:
+**VERIFY BEFORE ADVANCING:**
 ```bash
-speckit state set "steps.checklist.status=completed"
-speckit state set "current.step=implement"
+# Verify checklist was created
+ls specs/*/checklists/verification.md || { echo "ERROR: verification.md not created"; exit 1; }
+```
+
+Update state (only after verification passes):
+```bash
+speckit state set "orchestration.step.current=implement"
+speckit state set "orchestration.step.index=6"
 ```
 
 ---
 
 ### 8. IMPLEMENT
 
-Check: If `steps.implement.status === "completed"`:
+Check: If `orchestration.step.index > 6`:
 ```bash
 speckit tasks status --json
 ```
@@ -278,23 +328,33 @@ Execute `/speckit.implement` logic:
 1. Verify/create ignore files
 2. Parse task phases and dependencies
 3. Execute tasks in order (Setup → Foundational → User Stories → Polish)
-4. Mark each task complete
+4. Mark each task complete **using CLI only**
 
-Progress tracking:
+Progress tracking (**MUST use these CLI commands, not Edit**):
 ```bash
-speckit tasks mark T###          # Mark complete (also updates state)
+speckit tasks mark T001          # Mark task complete
+speckit tasks mark T002          # Mark next task complete
+speckit tasks status             # Check progress
 speckit git commit "feat: implement tasks T001-T010"  # Periodic commits
 ```
+
+**NEVER use Edit tool to modify tasks.md checkboxes. ALWAYS use `speckit tasks mark`.**
 
 Error recovery:
 1. Log error, attempt 1 retry with different approach
 2. If still fails: Mark blocked, continue with non-dependent tasks
 3. If critical path blocked: Halt, report, mark "blocked"
 
-Update state:
+**VERIFY BEFORE ADVANCING:**
 ```bash
-speckit state set "steps.implement.status=completed"
-speckit state set "current.step=verify"
+# Verify all tasks are complete
+speckit tasks status --json | grep -q '"incomplete": 0' || { echo "ERROR: Not all tasks complete"; exit 1; }
+```
+
+Update state (only after verification passes):
+```bash
+speckit state set "orchestration.step.current=verify"
+speckit state set "orchestration.step.index=7"
 ```
 
 ---
@@ -322,7 +382,7 @@ How to Test: {Instructions for accessing test page/POC}
 Please verify the implementation meets your expectations.
 Run `/speckit.orchestrate next-phase` when ready.
 ```
-- Set `current.status=awaiting_user_gate`
+- Set `orchestration.phase.status=awaiting_user_gate`
 - Do NOT auto-advance
 
 **Non-USER GATE Phases**:

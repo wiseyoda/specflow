@@ -300,6 +300,7 @@ main() {
       fi
       check_dependencies || true
       install_speckit true
+      setup_path
       ;;
     uninstall)
       if ! check_existing; then

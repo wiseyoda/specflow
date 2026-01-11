@@ -130,7 +130,12 @@ print_status() {
 # =============================================================================
 
 # Get the repository root (where .git is)
+# Can be overridden with SPECKIT_PROJECT_ROOT env var (useful for testing)
 get_repo_root() {
+  if [[ -n "${SPECKIT_PROJECT_ROOT:-}" ]]; then
+    echo "$SPECKIT_PROJECT_ROOT"
+    return
+  fi
   git rev-parse --show-toplevel 2>/dev/null || pwd
 }
 
@@ -367,3 +372,130 @@ readonly EXIT_SUCCESS=0
 readonly EXIT_ERROR=1
 readonly EXIT_WARNING=2
 readonly EXIT_USAGE=64  # EX_USAGE from sysexits.h
+
+# =============================================================================
+# Atomic File Operations
+# =============================================================================
+
+# Atomically write content to a file (write to temp, then move)
+# Usage: atomic_write "content" "destination_file"
+atomic_write() {
+  local content="$1"
+  local dest="$2"
+  local temp_file
+
+  temp_file=$(mktemp) || {
+    log_error "Failed to create temporary file"
+    return 1
+  }
+
+  # Write content to temp file
+  if ! echo "$content" > "$temp_file" 2>/dev/null; then
+    rm -f "$temp_file"
+    log_error "Failed to write to temporary file"
+    return 1
+  fi
+
+  # Move temp file to destination (atomic on POSIX systems)
+  if ! mv "$temp_file" "$dest" 2>/dev/null; then
+    rm -f "$temp_file"
+    log_error "Failed to move temporary file to destination: $dest"
+    return 1
+  fi
+
+  return 0
+}
+
+# Atomically update a file using a transform command
+# Usage: atomic_transform "sed -e 's/foo/bar/'" "file"
+atomic_transform() {
+  local transform_cmd="$1"
+  local file="$2"
+  local temp_file
+
+  if [[ ! -f "$file" ]]; then
+    log_error "File not found: $file"
+    return 1
+  fi
+
+  temp_file=$(mktemp) || {
+    log_error "Failed to create temporary file"
+    return 1
+  }
+
+  # Apply transform
+  if ! eval "$transform_cmd \"$file\"" > "$temp_file" 2>/dev/null; then
+    rm -f "$temp_file"
+    log_error "Transform failed on: $file"
+    return 1
+  fi
+
+  # Verify output is not empty (unless original was empty)
+  if [[ ! -s "$temp_file" ]] && [[ -s "$file" ]]; then
+    rm -f "$temp_file"
+    log_error "Transform produced empty output, aborting"
+    return 1
+  fi
+
+  # Move temp to destination
+  if ! mv "$temp_file" "$file" 2>/dev/null; then
+    rm -f "$temp_file"
+    log_error "Failed to replace file: $file"
+    return 1
+  fi
+
+  return 0
+}
+
+# Safely update file in place with cleanup on failure
+# Usage: safe_file_update "file" "transform_function"
+# The transform function receives temp_file as argument
+safe_file_update() {
+  local file="$1"
+  local transform_func="$2"
+  local temp_file
+  local backup_file
+
+  if [[ ! -f "$file" ]]; then
+    log_error "File not found: $file"
+    return 1
+  fi
+
+  temp_file=$(mktemp)
+  backup_file="${file}.bak.$$"
+
+  # Cleanup function
+  cleanup() {
+    rm -f "$temp_file" "$backup_file" 2>/dev/null || true
+  }
+  trap cleanup EXIT
+
+  # Copy original to temp
+  cp "$file" "$temp_file" || {
+    log_error "Failed to copy file to temp"
+    return 1
+  }
+
+  # Apply transform
+  if ! "$transform_func" "$temp_file"; then
+    log_error "Transform function failed"
+    return 1
+  fi
+
+  # Create backup
+  cp "$file" "$backup_file" || {
+    log_error "Failed to create backup"
+    return 1
+  }
+
+  # Replace original
+  if mv "$temp_file" "$file"; then
+    rm -f "$backup_file"
+    return 0
+  else
+    # Restore from backup
+    mv "$backup_file" "$file" 2>/dev/null || true
+    log_error "Failed to update file, restored from backup"
+    return 1
+  fi
+}

@@ -42,6 +42,9 @@ COMMANDS:
 
     find                Find all tasks.md files in specs/
 
+    sync [file]         Regenerate Progress Dashboard from checkboxes
+                        Updates the dashboard section at top of tasks.md
+
 OPTIONS:
     --json              Output in JSON format
     -h, --help          Show this help
@@ -52,6 +55,7 @@ EXAMPLES:
     speckit tasks incomplete
     speckit tasks mark T005
     speckit tasks phase-status
+    speckit tasks sync
 EOF
 }
 
@@ -275,11 +279,21 @@ cmd_mark() {
     exit 1
   fi
 
-  # Normalize task ID (ensure uppercase T prefix)
+  # Sanitize and validate task ID
+  # Remove any characters that could be regex-dangerous
+  task_id=$(echo "$task_id" | tr -cd '[:alnum:]')
   task_id=$(echo "$task_id" | tr '[:lower:]' '[:upper:]')
-  if [[ ! "$task_id" =~ ^T[0-9]+$ ]]; then
+
+  # Validate format: T followed by 3+ digits
+  if [[ ! "$task_id" =~ ^T[0-9]{3,}$ ]]; then
     log_error "Invalid task ID format: $task_id"
-    log_info "Expected format: T001, T002, etc."
+    log_info "Expected format: T001, T002, T003, etc. (T followed by 3+ digits)"
+    exit 1
+  fi
+
+  # Additional security: ensure task_id only contains safe characters
+  if [[ "$task_id" =~ [^A-Z0-9] ]]; then
+    log_error "Task ID contains invalid characters"
     exit 1
   fi
 
@@ -308,7 +322,8 @@ cmd_mark() {
   local temp_file
   temp_file=$(mktemp)
 
-  sed -E "s/^(\s*-\s*)\[ \](\s*${task_id}\b)/\1[x]\2/" "$file" > "$temp_file"
+  # Use POSIX-compatible whitespace pattern (macOS sed doesn't support \s)
+  sed -E "s/^([[:space:]]*-[[:space:]]*)\[ \]([[:space:]]*${task_id})/\1[x]\2/" "$file" > "$temp_file"
   mv "$temp_file" "$file"
 
   log_success "Marked complete: $task_id"
@@ -333,8 +348,15 @@ cmd_mark() {
     log_debug "Updated state: $completed/$total tasks complete"
   fi
 
+  # Sync progress dashboard (suppress output unless json mode)
   if is_json_output; then
-    echo "{\"marked\": \"$task_id\", \"status\": \"complete\"}"
+    # In JSON mode, include sync data
+    local sync_json
+    sync_json=$(cmd_sync "$file" 2>/dev/null) || true
+    echo "{\"marked\": \"$task_id\", \"status\": \"complete\", \"dashboard\": $sync_json}"
+  else
+    # Silently sync dashboard
+    cmd_sync "$file" >/dev/null 2>&1 || true
   fi
 }
 
@@ -504,6 +526,174 @@ cmd_find() {
   fi
 }
 
+cmd_sync() {
+  local file="${1:-}"
+
+  if [[ -z "$file" ]]; then
+    file="$(find_tasks_file)"
+  fi
+
+  if [[ -z "$file" || ! -f "$file" ]]; then
+    log_error "No tasks.md file found"
+    exit 1
+  fi
+
+  local repo_root
+  repo_root="$(get_repo_root)"
+  local rel_path="${file#$repo_root/}"
+
+  # Collect phase data
+  local phases_data=""
+  local current_phase=""
+  local phase_completed=0
+  local phase_total=0
+  local total_completed=0
+  local total_tasks=0
+  local current_task=""
+  local quick_status=""
+  local quick_count=0
+
+  while IFS= read -r line; do
+    # Check for phase header
+    if [[ "$line" =~ ^##[[:space:]]+Phase[[:space:]]+([0-9N]+)[[:space:]]*:?[[:space:]]*(.*)$ ]]; then
+      # Save previous phase
+      if [[ -n "$current_phase" ]]; then
+        local status="PENDING"
+        if [[ "$phase_completed" -eq "$phase_total" && "$phase_total" -gt 0 ]]; then
+          status="DONE"
+        elif [[ "$phase_completed" -gt 0 ]]; then
+          status="IN PROGRESS"
+        fi
+        phases_data+="| ${current_phase} | ${status} | ${phase_completed}/${phase_total} |\n"
+      fi
+
+      # Start new phase
+      current_phase="${BASH_REMATCH[2]:-Phase ${BASH_REMATCH[1]}}"
+      # Clean up phase name (remove trailing markers like (DONE))
+      current_phase=$(echo "$current_phase" | sed 's/[[:space:]]*(DONE)[[:space:]]*$//' | sed 's/[[:space:]]*$//')
+      phase_completed=0
+      phase_total=0
+    fi
+
+    # Count and collect tasks
+    if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[x\][[:space:]]*(T[0-9]+.*)$ ]]; then
+      ((phase_completed++)) || true
+      ((phase_total++)) || true
+      ((total_completed++)) || true
+      ((total_tasks++)) || true
+      # Add to quick status (completed tasks)
+      if [[ $quick_count -lt 10 ]]; then
+        quick_status+="- [x] ${BASH_REMATCH[1]}\n"
+        ((quick_count++)) || true
+      fi
+    elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[[[:space:]]\][[:space:]]*(T[0-9]+.*)$ ]]; then
+      ((phase_total++)) || true
+      ((total_tasks++)) || true
+      # First incomplete task is current
+      if [[ -z "$current_task" ]]; then
+        current_task="${BASH_REMATCH[1]}"
+      fi
+      # Add to quick status (incomplete tasks, mark current)
+      if [[ $quick_count -lt 10 ]]; then
+        if [[ "${BASH_REMATCH[1]}" == "$current_task" ]]; then
+          quick_status+="- [ ] **${BASH_REMATCH[1]}** <- CURRENT\n"
+        else
+          quick_status+="- [ ] ${BASH_REMATCH[1]}\n"
+        fi
+        ((quick_count++)) || true
+      fi
+    fi
+  done < "$file"
+
+  # Save last phase
+  if [[ -n "$current_phase" ]]; then
+    local status="PENDING"
+    if [[ "$phase_completed" -eq "$phase_total" && "$phase_total" -gt 0 ]]; then
+      status="DONE"
+    elif [[ "$phase_completed" -gt 0 ]]; then
+      status="IN PROGRESS"
+    fi
+    phases_data+="| ${current_phase} | ${status} | ${phase_completed}/${phase_total} |"
+  fi
+
+  # Calculate percentage
+  local percent=0
+  if [[ "$total_tasks" -gt 0 ]]; then
+    percent=$((total_completed * 100 / total_tasks))
+  fi
+
+  # Current task display
+  local current_display="None"
+  if [[ -n "$current_task" ]]; then
+    current_display=$(echo "$current_task" | cut -c1-40)
+  fi
+
+  # Generate timestamp
+  local timestamp
+  timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  # Build new dashboard
+  local dashboard="## Progress Dashboard
+
+> Last updated: ${timestamp} | Run \`speckit tasks sync\` to refresh
+
+| Phase | Status | Progress |
+|-------|--------|----------|
+$(echo -e "$phases_data")
+
+**Overall**: ${total_completed}/${total_tasks} (${percent}%) | **Current**: ${current_display}
+
+### Quick Status
+
+$(echo -e "$quick_status")
+---"
+
+  # Update file - replace dashboard section
+  local temp_file
+  temp_file=$(mktemp)
+  local in_dashboard=0
+  local dashboard_written=0
+
+  while IFS= read -r line; do
+    if [[ "$line" == "## Progress Dashboard" ]]; then
+      in_dashboard=1
+      if [[ $dashboard_written -eq 0 ]]; then
+        echo "$dashboard" >> "$temp_file"
+        dashboard_written=1
+      fi
+      continue
+    fi
+
+    # End of dashboard section (next ## header or ---)
+    if [[ $in_dashboard -eq 1 ]]; then
+      if [[ "$line" =~ ^##[[:space:]] && "$line" != "## Progress Dashboard" && ! "$line" =~ ^###[[:space:]] ]]; then
+        in_dashboard=0
+        echo "$line" >> "$temp_file"
+      elif [[ "$line" == "---" ]]; then
+        in_dashboard=0
+        # Skip this --- as we already added one in dashboard
+      fi
+      # Skip lines in dashboard section
+      continue
+    fi
+
+    echo "$line" >> "$temp_file"
+  done < "$file"
+
+  mv "$temp_file" "$file"
+
+  if is_json_output; then
+    echo "{\"file\": \"$rel_path\", \"completed\": $total_completed, \"total\": $total_tasks, \"percent\": $percent, \"current\": \"${current_task:-null}\"}"
+  else
+    log_success "Progress Dashboard updated in $rel_path"
+    echo ""
+    echo "  Completed: $total_completed / $total_tasks ($percent%)"
+    if [[ -n "$current_task" ]]; then
+      echo "  Current: $current_task"
+    fi
+  fi
+}
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -538,6 +728,9 @@ main() {
       ;;
     find)
       cmd_find
+      ;;
+    sync)
+      cmd_sync "${1:-}"
       ;;
     help|--help|-h)
       show_help

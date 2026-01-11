@@ -162,9 +162,11 @@ check_project() {
     return
   fi
 
-  # Check subdirectories
-  local subdirs=("discovery" "memory" "templates" "scripts")
-  for dir in "${subdirs[@]}"; do
+  # Check subdirectories (v2.0: discovery is optional, memory is required)
+  local required_dirs=("memory")
+  local optional_dirs=("templates" "scripts" "backup" "archive")
+
+  for dir in "${required_dirs[@]}"; do
     if [[ -d "${specify_dir}/${dir}" ]]; then
       print_status ok "Directory: .specify/${dir}/"
     else
@@ -175,6 +177,12 @@ check_project() {
         mkdir -p "${specify_dir}/${dir}"
         add_fixed "Created .specify/${dir}/"
       fi
+    fi
+  done
+
+  for dir in "${optional_dirs[@]}"; do
+    if [[ -d "${specify_dir}/${dir}" ]]; then
+      print_status ok "Directory: .specify/${dir}/"
     fi
   done
 
@@ -244,12 +252,14 @@ check_state() {
     return
   fi
 
-  # Check version
+  # Check version (schema_version for v2.0, version for v1.x)
   local version
-  version=$(jq -r '.version // empty' "$state_file" 2>/dev/null || echo "")
+  version=$(jq -r '.schema_version // .version // empty' "$state_file" 2>/dev/null || echo "")
   if [[ -n "$version" ]]; then
-    print_status ok "Version: $version"
-    if [[ "$version" != "2.0" ]]; then
+    print_status ok "Schema version: $version"
+    if [[ "$version" == "1.0" ]]; then
+      add_warning "State file is v1.0 - run 'speckit state migrate' to upgrade"
+    elif [[ "$version" != "2.0" ]]; then
       add_warning "State file version $version (latest is 2.0)"
     fi
   else
@@ -591,7 +601,7 @@ check_reality() {
   local state_tasks_total
   state_tasks_total=$(jq -r '.orchestration.steps.implement.tasks_total // 0' "$state_file" 2>/dev/null)
 
-  if [[ -n "$phase_dir" && -f "${phase_dir}/tasks.md" ]]; then
+  if [[ -n "${phase_dir:-}" && -f "${phase_dir}/tasks.md" ]]; then
     local file_completed file_total
     file_completed=$(grep -c '^\s*- \[x\]' "${phase_dir}/tasks.md" 2>/dev/null || echo "0")
     file_total=$(grep -c '^\s*- \[' "${phase_dir}/tasks.md" 2>/dev/null || echo "0")

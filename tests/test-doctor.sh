@@ -174,14 +174,16 @@ test_doctor_json_output() {
   local output
   output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" --json 2>&1)
 
-  # Should include JSON summary
-  if echo "$output" | grep -qE '^\{'; then
-    local json_line
-    json_line=$(echo "$output" | grep -E '^\{' | tail -1)
-    echo "$json_line" | jq '.' >/dev/null 2>&1
+  # Should include JSON summary - extract multi-line JSON block
+  # The JSON starts with {"issues" and ends with ]}
+  if echo "$output" | grep -qE '^\{"issues"'; then
+    local json_block
+    # Extract from {"issues" to the last }
+    json_block=$(echo "$output" | sed -n '/^{"issues"/,/^}/p' | tr '\n' ' ')
+    echo "$json_block" | jq '.' >/dev/null 2>&1
     assert_equals "0" "$?" "JSON output is valid"
   else
-    # JSON might be at the end
+    # JSON might be at the end in some format
     assert_matches "$output" "issues|warnings|fixed" "Contains JSON-like output"
   fi
 }

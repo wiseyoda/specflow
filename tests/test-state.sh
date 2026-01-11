@@ -110,8 +110,8 @@ test_state_reset() {
   # Verify interview was reset
   assert_json_equals ".specify/orchestration-state.json" ".interview.status" "not_started" "Interview was reset"
 
-  # Verify orchestration was reset
-  assert_json_equals ".specify/orchestration-state.json" ".orchestration.step" "null" "Orchestration was reset"
+  # Verify orchestration was reset (v2.0 format uses step.current)
+  assert_json_equals ".specify/orchestration-state.json" ".orchestration.step.current" "null" "Orchestration was reset"
 }
 
 test_state_path() {

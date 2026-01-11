@@ -33,8 +33,8 @@ EOF
   # Run migration
   bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" migrate
 
-  # Verify version updated
-  assert_json_equals ".specify/orchestration-state.json" ".version" "2.0" "Version updated to 2.0"
+  # Verify schema_version updated (v2.0 uses schema_version, not version)
+  assert_json_equals ".specify/orchestration-state.json" ".schema_version" "2.0" "Schema version updated to 2.0"
 
   # Verify config section created
   assert_json_equals ".specify/orchestration-state.json" ".config.roadmap_path" "ROADMAP.md" "Config section created"
@@ -102,30 +102,60 @@ test_migrate_preserves_orchestration_data() {
   git init -q .
   mkdir -p .specify
 
-  # Create v1.0 format with orchestration data
+  # Create v1.0 format with orchestration data in .current (the REAL v1.0 format)
   cat > .specify/orchestration-state.json << 'EOF'
 {
   "version": "1.0",
   "project": {
+    "roadmap_path": "ROADMAP.md",
     "name": "OrchTest"
   },
-  "orchestration": {
+  "current": {
     "phase_number": "003",
-    "phase_name": "Test Phase",
-    "branch": "feat/003-test",
+    "phase_name": "test-phase",
+    "branch": "003-test-phase",
     "step": "implement",
+    "step_index": 6,
     "status": "in_progress"
-  }
+  },
+  "steps": {
+    "specify": {"status": "completed", "completed_at": "2026-01-10T10:00:00Z"},
+    "implement": {"status": "in_progress", "tasks_completed": 5, "tasks_total": 10, "current_task": "T006"}
+  },
+  "history": [
+    {"phase": "001-init", "completed_at": "2026-01-10T08:00:00Z"},
+    {"phase": "002-setup", "completed_at": "2026-01-10T09:00:00Z"}
+  ]
 }
 EOF
 
   # Run migration
   bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" migrate
 
-  # Verify orchestration data preserved
-  assert_json_equals ".specify/orchestration-state.json" ".orchestration.phase_number" "003" "Phase number preserved"
-  assert_json_equals ".specify/orchestration-state.json" ".orchestration.branch" "feat/003-test" "Branch preserved"
-  assert_json_equals ".specify/orchestration-state.json" ".orchestration.step" "implement" "Step preserved"
+  # Verify current phase data migrated to orchestration.phase
+  assert_json_equals ".specify/orchestration-state.json" ".orchestration.phase.number" "003" "Phase number preserved"
+  assert_json_equals ".specify/orchestration-state.json" ".orchestration.phase.name" "test-phase" "Phase name preserved"
+  assert_json_equals ".specify/orchestration-state.json" ".orchestration.phase.branch" "003-test-phase" "Branch preserved"
+  assert_json_equals ".specify/orchestration-state.json" ".orchestration.phase.status" "in_progress" "Phase status preserved"
+
+  # Verify step data migrated
+  assert_json_equals ".specify/orchestration-state.json" ".orchestration.step.current" "implement" "Step current preserved"
+  assert_json_equals ".specify/orchestration-state.json" ".orchestration.step.index" "6" "Step index preserved"
+
+  # Verify progress data extracted from steps.implement
+  assert_json_equals ".specify/orchestration-state.json" ".orchestration.progress.tasks_completed" "5" "Tasks completed preserved"
+  assert_json_equals ".specify/orchestration-state.json" ".orchestration.progress.tasks_total" "10" "Tasks total preserved"
+  assert_json_equals ".specify/orchestration-state.json" ".orchestration.progress.current_task" "T006" "Current task preserved"
+
+  # Verify history moved to actions.history
+  local history_count
+  history_count=$(jq '.actions.history | length' .specify/orchestration-state.json)
+  assert_equals "2" "$history_count" "History phases preserved"
+
+  # Verify v1 steps preserved in migration metadata
+  local v1_steps
+  v1_steps=$(jq '._migration.v1_steps | has("implement")' .specify/orchestration-state.json)
+  assert_equals "true" "$v1_steps" "V1 steps preserved in migration metadata"
 }
 
 test_migrate_already_v2() {

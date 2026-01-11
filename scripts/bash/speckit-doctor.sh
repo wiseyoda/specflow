@@ -48,6 +48,7 @@ CHECK AREAS:
     git                 Git repository status
     templates           Template versions
     version             Version file and updates
+    roadmap             ROADMAP.md format version
     reality             State vs actual files comparison
     all                 Run all checks (default)
 
@@ -503,6 +504,61 @@ check_version() {
   fi
 }
 
+# Check ROADMAP format version
+check_roadmap() {
+  local fix="${1:-false}"
+
+  log_step "Checking ROADMAP format"
+
+  local repo_root
+  repo_root="$(get_repo_root)"
+  local roadmap_path="${repo_root}/ROADMAP.md"
+
+  if [[ ! -f "$roadmap_path" ]]; then
+    print_status pending "ROADMAP.md not found (not created yet)"
+    return
+  fi
+
+  # Detect format using same logic as speckit-migrate.sh
+  local has_3digit=false
+  local has_4digit=false
+
+  # Check for 3-digit phases that are NOT 4-digit
+  if grep -E '^\|\s*[0-9]{3}\s*\|' "$roadmap_path" 2>/dev/null | grep -qvE '^\|\s*[0-9]{4}\s*\|'; then
+    has_3digit=true
+  fi
+
+  if grep -qE '^\|\s*[0-9]{4}\s*\|' "$roadmap_path" 2>/dev/null; then
+    has_4digit=true
+  fi
+
+  if $has_3digit && $has_4digit; then
+    print_status error "ROADMAP has mixed format (both 3-digit and 4-digit phases)"
+    add_issue "ROADMAP.md has inconsistent phase number format"
+    log_info "Run 'speckit migrate roadmap --dry-run' to preview fix"
+  elif $has_4digit; then
+    print_status ok "ROADMAP format: 2.1 (4-digit phases)"
+  elif $has_3digit; then
+    print_status warn "ROADMAP format: 2.0 (3-digit phases) - upgrade available"
+    add_warning "ROADMAP.md uses legacy 3-digit phases"
+
+    if [[ "$fix" == "true" ]]; then
+      log_info "Migrating ROADMAP to 4-digit phases..."
+      if bash "${SCRIPT_DIR}/speckit-migrate.sh" roadmap 2>/dev/null; then
+        add_fixed "Migrated ROADMAP.md to 2.1 format (4-digit phases)"
+        print_status ok "Migrated ROADMAP to 2.1 format"
+      else
+        print_status error "Failed to migrate ROADMAP"
+        add_issue "ROADMAP migration failed"
+      fi
+    else
+      log_info "Run 'speckit migrate roadmap' or 'speckit doctor --fix' to upgrade"
+    fi
+  else
+    print_status ok "ROADMAP exists (no phases defined yet)"
+  fi
+}
+
 # Check reality - state vs actual files
 check_reality() {
   local fix="${1:-false}"
@@ -652,6 +708,9 @@ run_checks() {
     version)
       check_version "$fix"
       ;;
+    roadmap)
+      check_roadmap "$fix"
+      ;;
     reality)
       check_reality "$fix"
       ;;
@@ -670,11 +729,13 @@ run_checks() {
       echo ""
       check_version "$fix"
       echo ""
+      check_roadmap "$fix"
+      echo ""
       check_reality "$fix"
       ;;
     *)
       log_error "Unknown check area: $check_area"
-      log_info "Valid areas: system, project, state, paths, git, templates, version, reality, all"
+      log_info "Valid areas: system, project, state, paths, git, templates, version, roadmap, reality, all"
       exit 1
       ;;
   esac

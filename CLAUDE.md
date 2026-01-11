@@ -64,14 +64,14 @@ templates/                  → Document templates
 
 1. Make changes in this repository
 2. Test with `./bin/speckit <command>`
-3. Update checkboxes in `REFACTORING-PLAN.md`
-4. Commit with conventional commits
-5. Run `./install.sh --upgrade` to deploy locally
+3. Commit with conventional commits
+4. Run `./install.sh --upgrade` to deploy locally
 
 ## Key Files
 
-- `REFACTORING-PLAN.md` - v2.0 refactoring tracking
-- `HANDOFF.md` - Context for continuing development
+- `ROADMAP.md` - Development phases and backlog
+- `.specify/memory/constitution.md` - Project principles
+- `.specify/memory/tech-stack.md` - Approved technologies
 - `scripts/bash/lib/common.sh` - Source this first; provides `log_*`, `get_*`, `validate_*`
 - `commands/speckit.orchestrate.md` - Main workflow command
 - `commands/speckit.init.md` - Unified interview (replaces 12 init-*.md files)

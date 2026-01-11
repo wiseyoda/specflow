@@ -248,6 +248,7 @@ This allows inserting urgent work without renumbering existing phases.
 
 | Item | Description | Priority | Notes |
 |------|-------------|----------|-------|
+| Test item | Added 2026-01-10 | - | |
 | Parallel phase execution | Run independent phases concurrently | Low | Requires dependency graph |
 | Team collaboration | Multi-user roadmap editing, conflict resolution | Low | Future vision |
 

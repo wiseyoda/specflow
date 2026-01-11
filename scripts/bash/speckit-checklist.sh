@@ -36,6 +36,10 @@ COMMANDS:
 
     show <file>         Show status of a specific checklist file
 
+    mark <id> [file]    Mark a checklist item as complete
+                        ID format: V-001, CHK001, FR-001, etc.
+                        If no file specified, searches all checklists
+
 OPTIONS:
     --json              Output in JSON format
     -h, --help          Show this help
@@ -46,6 +50,8 @@ EXAMPLES:
     speckit checklist list
     speckit checklist incomplete
     speckit checklist show specs/001-auth/checklists/security.md
+    speckit checklist mark V-001
+    speckit checklist mark CHK005 specs/001-auth/checklists/requirements.md
 EOF
 }
 
@@ -388,6 +394,101 @@ cmd_show() {
   fi
 }
 
+cmd_mark() {
+  local item_id="${1:-}"
+  local file="${2:-}"
+
+  if [[ -z "$item_id" ]]; then
+    log_error "Item ID required"
+    echo "Usage: speckit checklist mark <id> [file]"
+    echo "Example: speckit checklist mark V-001"
+    exit 1
+  fi
+
+  local repo_root
+  repo_root="$(get_repo_root)"
+
+  # If file provided, resolve path
+  if [[ -n "$file" ]]; then
+    if [[ ! "$file" = /* ]]; then
+      file="$repo_root/$file"
+    fi
+
+    if [[ ! -f "$file" ]]; then
+      log_error "File not found: $file"
+      exit 1
+    fi
+  else
+    # Search all checklists for the item
+    local base_dir
+    base_dir="$(get_checklists_base)"
+    local found_file=""
+    local found_count=0
+
+    while IFS= read -r check_file; do
+      [[ -z "$check_file" ]] && continue
+      # Look for the item ID in the file (both bold and plain format)
+      if grep -qE "^\s*-\s*\[ \].*\*?\*?${item_id}\*?\*?" "$check_file" 2>/dev/null; then
+        found_file="$check_file"
+        ((found_count++))
+      fi
+    done < <(find_checklists "$base_dir")
+
+    if [[ $found_count -eq 0 ]]; then
+      log_error "Item $item_id not found in any checklist"
+      echo "Hint: Check item ID format (V-001, CHK001, FR-001)"
+      exit 1
+    elif [[ $found_count -gt 1 ]]; then
+      log_error "Item $item_id found in multiple files. Please specify file:"
+      while IFS= read -r check_file; do
+        if grep -qE "^\s*-\s*\[ \].*\*?\*?${item_id}\*?\*?" "$check_file" 2>/dev/null; then
+          local rel_path="${check_file#$repo_root/}"
+          echo "  speckit checklist mark $item_id $rel_path"
+        fi
+      done < <(find_checklists "$base_dir")
+      exit 1
+    fi
+
+    file="$found_file"
+  fi
+
+  # Check if item exists and is not already complete
+  if ! grep -qE "^\s*-\s*\[ \].*\*?\*?${item_id}\*?\*?" "$file" 2>/dev/null; then
+    # Check if it's already complete
+    if grep -qE "^\s*-\s*\[x\].*\*?\*?${item_id}\*?\*?" "$file" 2>/dev/null; then
+      local rel_path="${file#$repo_root/}"
+      if is_json_output; then
+        echo "{\"status\": \"already_complete\", \"id\": \"$item_id\", \"file\": \"$rel_path\"}"
+      else
+        echo -e "${YELLOW}WARN${RESET}: $item_id already marked complete"
+        echo "  File: $rel_path"
+      fi
+      exit 0
+    fi
+
+    log_error "Item $item_id not found in $file"
+    exit 1
+  fi
+
+  # Mark the item complete using sed
+  # Handle both **V-001** (bold) and V-001 (plain) formats
+  # macOS sed requires -i '' for in-place editing
+  if [[ "$(uname)" == "Darwin" ]]; then
+    sed -i '' "s/^\([[:space:]]*-[[:space:]]*\)\[ \]\(.*${item_id}.*\)$/\1[x]\2/" "$file"
+  else
+    sed -i "s/^\([[:space:]]*-[[:space:]]*\)\[ \]\(.*${item_id}.*\)$/\1[x]\2/" "$file"
+  fi
+
+  local rel_path="${file#$repo_root/}"
+
+  if is_json_output; then
+    echo "{\"status\": \"marked\", \"id\": \"$item_id\", \"file\": \"$rel_path\"}"
+  else
+    echo -e "${GREEN}OK${RESET}: Marked $item_id complete"
+    echo "  File: $rel_path"
+  fi
+}
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -416,6 +517,9 @@ main() {
       ;;
     show)
       cmd_show "${1:-}"
+      ;;
+    mark)
+      cmd_mark "${1:-}" "${2:-}"
       ;;
     help|--help|-h)
       show_help

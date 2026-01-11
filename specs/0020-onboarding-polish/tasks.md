@@ -2,7 +2,7 @@
 
 ## Progress Dashboard
 
-> Last updated: 2026-01-11T04:33:01Z | Run `speckit tasks sync` to refresh
+> Last updated: 2026-01-11T04:55:43Z | Run `speckit tasks sync` to refresh
 
 | Phase | Status | Progress |
 |-------|--------|----------|
@@ -14,20 +14,20 @@
 | User Story 4 - CLI Output Optimization (Priority: P3) | DONE | 4/4 |
 | Polish & Verification | DONE | 4/4 |
 
-**Overall**: 40/40 (100%) | **Current**: None
+**Overall**: 30/30 (100%) | **Current**: None
 
 ### Quick Status
 
 - [x] T001 Create detection library file scripts/bash/lib/detection.sh with source guard
-- [x] T001 Create detection library file scripts/bash/lib/detection.sh with source guard
-- [x] T001 Create detection library file scripts/bash/lib/detection.sh with source guard
-- [x] T001 Create detection library file scripts/bash/lib/detection.sh with source guard
-- [x] T001 Create detection library file scripts/bash/lib/detection.sh with source guard
-- [x] T001 Create detection library file scripts/bash/lib/detection.sh with source guard
-- [x] T001 Create detection library file scripts/bash/lib/detection.sh with source guard
-- [x] T001 Create detection library file scripts/bash/lib/detection.sh with source guard
-- [x] T001 Create detection library file scripts/bash/lib/detection.sh with source guard
-- [x] T001 Create detection library file scripts/bash/lib/detection.sh with source guard
+- [x] T002 [P] Add test file tests/test-detection.sh with basic structure
+- [x] T003 [P] Implement detect_project_type() function in scripts/bash/lib/detection.sh
+- [x] T004 [P] Implement detection priority order (tsconfig > package.json > Cargo.toml > go.mod > pyproject.toml > *.sh)
+- [x] T005 Add select_template_section() helper in scripts/bash/lib/detection.sh
+- [x] T006 [US1] Integrate detection.sh into speckit-scaffold.sh (source library)
+- [x] T007 [US1] Add --type flag to speckit-scaffold.sh for explicit override
+- [x] T008 [P] [US1] Update constitution-template.md with language-specific sections (TypeScript, Python, Rust, Go, Bash, Generic)
+- [x] T009 [P] [US1] Update tech-stack-template.md with language-specific sections (TypeScript, Python, Rust, Go, Bash, Generic)
+- [x] T010 [US1] Add template section extraction logic to speckit-scaffold.sh (use select_template_section)
 ---
 
 **Input**: Design documents from `/specs/0020-onboarding-polish/`

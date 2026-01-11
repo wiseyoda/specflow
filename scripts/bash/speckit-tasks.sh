@@ -587,8 +587,27 @@ cmd_sync() {
   local current_task=""
   local quick_status=""
   local quick_count=0
+  local in_dashboard_section=0
 
   while IFS= read -r line; do
+    # Skip Progress Dashboard section to avoid counting Quick Status tasks
+    if [[ "$line" == "## Progress Dashboard" ]]; then
+      in_dashboard_section=1
+      continue
+    fi
+    if [[ $in_dashboard_section -eq 1 ]]; then
+      # End of dashboard: next ## header (not ###) or first ---
+      if [[ "$line" =~ ^##[[:space:]] && ! "$line" =~ ^###[[:space:]] ]]; then
+        in_dashboard_section=0
+        # Fall through to process this line
+      elif [[ "$line" == "---" ]]; then
+        in_dashboard_section=0
+        continue
+      else
+        continue
+      fi
+    fi
+
     # Check for phase header
     if [[ "$line" =~ ^##[[:space:]]+Phase[[:space:]]+([0-9N]+)[[:space:]]*:?[[:space:]]*(.*)$ ]]; then
       # Save previous phase

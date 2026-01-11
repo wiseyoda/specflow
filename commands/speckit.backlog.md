@@ -1,5 +1,5 @@
 ---
-description: Triage backlog items into appropriate phases, create new phases for unassignable items.
+description: Scan completed phases for orphaned tasks, then triage backlog items into appropriate phases or create new phases.
 handoffs:
   - label: Continue Development
     agent: speckit.orchestrate
@@ -22,15 +22,77 @@ Arguments:
 
 ## Goal
 
-Intelligently assign backlog items to appropriate ROADMAP phases by:
-1. Parsing all backlog items from ROADMAP.md
-2. Analyzing each phase's Goal and Scope sections
-3. Matching items to phases by keyword and semantic relevance
-4. Proposing assignments with confidence scores
-5. Creating new phases for unassignable items
-6. Updating ROADMAP.md with assignments
+Ensure no work is lost by scanning completed phases and triaging backlog items:
+
+1. **Scan for orphaned tasks** - Find incomplete tasks in completed phases and add to backlog
+2. Parse all backlog items from ROADMAP.md
+3. Analyze each phase's Goal and Scope sections
+4. Match items to phases by keyword and semantic relevance
+5. Propose assignments with confidence scores
+6. Create new phases for unassignable items
+7. Update ROADMAP.md with assignments
 
 ## Execution Steps
+
+### 0. Scan Completed Phases for Orphaned Tasks
+
+**IMPORTANT**: Before triaging existing backlog items, scan previously completed phases for any incomplete tasks that were left behind.
+
+**0a. Find completed phases:**
+
+```bash
+# Get all completed phases from ROADMAP
+speckit roadmap status --json | jq -r '.phases[] | select(.status == "complete") | .number'
+```
+
+**0b. For each completed phase, check for incomplete tasks:**
+
+```bash
+for phase_dir in specs/*/; do
+  phase_name=$(basename "$phase_dir")
+  tasks_file="$phase_dir/tasks.md"
+
+  if [[ -f "$tasks_file" ]]; then
+    # Get incomplete tasks
+    incomplete=$(grep -E '^\s*-\s*\[ \]\s*T[0-9]+' "$tasks_file" || true)
+
+    if [[ -n "$incomplete" ]]; then
+      echo "Found orphaned incomplete tasks in $phase_name:"
+      echo "$incomplete"
+    fi
+  fi
+done
+```
+
+**0c. For each orphaned task, add to backlog:**
+
+For any incomplete task found in a completed phase:
+
+```bash
+# Extract task description and add to backlog
+speckit roadmap backlog add "[Orphaned from PHASE] T###: Task description"
+```
+
+Then update the task in the original tasks.md to mark as deferred:
+```text
+- [x] T### Task description *(deferred to backlog - orphaned)*
+```
+
+**0d. Report orphaned tasks found:**
+
+```text
+============================================
+Orphaned Task Scan Complete
+============================================
+
+Found 2 orphaned tasks in completed phases:
+  • 0010: T015 - Implement edge case handling → Added to backlog
+  • 0015: T032 - Add integration tests → Added to backlog
+
+Proceeding to triage all backlog items...
+```
+
+---
 
 ### 1. Parse Backlog Items
 

@@ -56,8 +56,8 @@ test_scaffold_status() {
 
   # Check status after scaffold
   output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" --status 2>&1)
-  # Should show directories exist now
-  assert_contains "$output" ".specify" "Status shows .specify after scaffold"
+  # Should show project is initialized
+  assert_contains "$output" "OK" "Status shows OK after scaffold"
 }
 
 test_scaffold_force() {

@@ -1,0 +1,43 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Run shellcheck
+        run: |
+          sudo apt-get install -y shellcheck
+          shellcheck --severity=error scripts/bash/*.sh scripts/bash/lib/*.sh
+
+      - name: Run test suite
+        run: ./tests/test-runner.sh
+
+  shellcheck-warnings:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck with warnings
+        run: |
+          shellcheck --severity=warning scripts/bash/*.sh scripts/bash/lib/*.sh || true

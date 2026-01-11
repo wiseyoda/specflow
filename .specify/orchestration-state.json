@@ -1,14 +1,14 @@
 {
   "schema_version": "2.0",
   "project": {
-    "id": "1e17606c-8e0e-4f09-8443-de0aaca8ae79",
+    "id": "d9faf772-66c0-476e-bf4f-c9a33e7b248b",
     "name": "claude-speckit-orchestration",
     "path": "/Users/ppatterson/dev/claude-speckit-orchestration",
-    "description": "SpecKit - Spec-Driven Development Framework for Claude Code",
-    "type": "cli-tool",
+    "description": null,
+    "type": null,
     "criticality": null,
-    "created_at": "2026-01-11T02:54:53Z",
-    "updated_at": "2026-01-11T05:01:17Z"
+    "created_at": "2026-01-11T06:27:38Z",
+    "updated_at": "2026-01-11T06:27:38Z"
   },
   "config": {
     "roadmap_path": "ROADMAP.md",
@@ -28,68 +28,41 @@
   },
   "orchestration": {
     "phase": {
-      "number": null,
-      "name": null,
-      "branch": null,
-      "status": "not_started"
+      "number": "0030",
+      "name": "test-suite-completion",
+      "branch": "0030-test-suite-completion",
+      "status": "in_progress"
     },
     "step": {
-      "current": null,
-      "index": 0,
-      "status": "not_started"
+      "current": "implement",
+      "index": "6",
+      "status": "in_progress"
     },
     "progress": {
       "tasks_completed": 0,
       "tasks_total": 0,
       "percentage": 0
+    },
+    "steps": {
+      "implement": {
+        "tasks_completed": 12,
+        "tasks_total": 15
+      }
     }
   },
   "health": {
-    "status": "ready",
-    "last_check": "2026-01-11T05:01:17Z",
+    "status": "initializing",
+    "last_check": "2026-01-11T06:27:38Z",
     "issues": []
   },
   "actions": {
     "available": [],
     "pending": [],
-    "history": [
-      {
-        "action": "orchestration_started",
-        "phase": "0010",
-        "timestamp": "2026-01-11T03:00:00Z"
-      },
-      {
-        "type": "phase_completed",
-        "phase_number": "0010",
-        "phase_name": "roadmap-flexibility",
-        "branch": "0010-roadmap-flexibility",
-        "completed_at": "2026-01-11T03:57:51Z",
-        "tasks_completed": 0,
-        "tasks_total": 0
-      },
-      {
-        "type": "phase_completed",
-        "phase_number": "0015",
-        "phase_name": "workflow-commands",
-        "branch": "0015-workflow-commands",
-        "completed_at": "2026-01-11T04:16:01Z",
-        "tasks_completed": "40",
-        "tasks_total": "40"
-      },
-      {
-        "type": "phase_completed",
-        "phase_number": "0020",
-        "phase_name": "onboarding-polish",
-        "branch": "0020-onboarding-polish",
-        "completed_at": "2026-01-11T05:01:17Z",
-        "tasks_completed": 0,
-        "tasks_total": "30"
-      }
-    ]
+    "history": []
   },
   "ui": {
     "last_sync": null,
     "notifications": []
   },
-  "last_updated": "2026-01-11T04:35:18Z"
+  "last_updated": "2026-01-11T06:41:14Z"
 }

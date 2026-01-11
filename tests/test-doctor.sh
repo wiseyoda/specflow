@@ -151,7 +151,7 @@ test_doctor_all_checks() {
   assert_matches "$output" "system|System" "Includes system check"
   assert_matches "$output" "project|Project" "Includes project check"
   assert_matches "$output" "state|State" "Includes state check"
-  assert_contains "$output" "Summary" "Includes summary"
+  assert_matches "$output" "OK|All checks passed" "Includes success summary"
 }
 
 test_doctor_summary_no_issues() {

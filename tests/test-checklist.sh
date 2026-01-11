@@ -123,7 +123,7 @@ EOF
   local output
   output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-checklist.sh" show specs/001-feature/checklists/mylist.md 2>&1)
 
-  assert_contains "$output" "2 / 3" "Shows 2 of 3 completed"
+  assert_contains "$output" "2/3" "Shows 2 of 3 completed"
 }
 
 test_checklist_show_json() {

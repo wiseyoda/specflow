@@ -33,7 +33,7 @@ This allows inserting urgent work without renumbering existing phases.
 | 0010 | Roadmap Flexibility | ✅ Complete | Insert/defer commands work |
 | 0015 | Workflow Commands | ✅ In Progress | Merge and backlog commands work |
 | 0020 | Onboarding Polish | ✅ Not Started | New user can set up without confusion |
-| 0030 | Test Suite Completion | ⬜ Not Started | All tests pass on macOS and Linux |
+| 0030 | Test Suite Completion | 🔄 Not Started | All tests pass on macOS and Linux |
 | 0040 | Integration Options | ⬜ Not Started | Existing docs imported successfully |
 | 0050 | Story-Based Orchestration | ⬜ Not Started | **USER GATE**: Stories execute independently |
 | 1010 | Web UI Dashboard | ⬜ Not Started | **USER GATE**: Dashboard shows project status |

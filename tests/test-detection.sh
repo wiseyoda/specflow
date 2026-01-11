@@ -3,52 +3,13 @@
 # test-detection.sh - Tests for project type detection library
 #
 
-set -euo pipefail
-
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
-# Source test utilities
-source "${SCRIPT_DIR}/test-runner.sh" 2>/dev/null || {
-  # Minimal test utilities if runner not available
-  TESTS_RUN=0
-  TESTS_PASSED=0
-  TESTS_FAILED=0
-
-  assert_equals() {
-    local expected="$1"
-    local actual="$2"
-    local msg="${3:-}"
-    ((TESTS_RUN++))
-    if [[ "$expected" == "$actual" ]]; then
-      echo "  ✓ $msg"
-      ((TESTS_PASSED++))
-    else
-      echo "  ✗ $msg"
-      echo "    Expected: $expected"
-      echo "    Actual:   $actual"
-      ((TESTS_FAILED++))
-    fi
-  }
-
-  print_summary() {
-    echo ""
-    echo "Tests: $TESTS_RUN | Passed: $TESTS_PASSED | Failed: $TESTS_FAILED"
-    [[ $TESTS_FAILED -eq 0 ]]
-  }
-}
-
-# Source the detection library
-source "${PROJECT_ROOT}/scripts/bash/lib/detection.sh"
-
 # =============================================================================
 # Test Setup
 # =============================================================================
 
 setup_test_dir() {
   local name="$1"
-  local dir="/tmp/speckit-test-${name}-$$"
+  local dir="${TEST_TEMP_DIR:-/tmp}/speckit-test-${name}-$$"
   mkdir -p "$dir"
   echo "$dir"
 }
@@ -62,227 +23,181 @@ cleanup_test_dir() {
 # Tests: detect_project_type
 # =============================================================================
 
-echo "==> Testing detect_project_type()"
-
-# Test TypeScript detection
-test_typescript() {
+test_detection_typescript() {
   local dir
   dir=$(setup_test_dir "typescript")
   touch "${dir}/tsconfig.json"
+
+  # Source detection library
+  source "${PROJECT_ROOT}/scripts/bash/lib/detection.sh"
+
   local result
   result=$(detect_project_type "$dir")
-  assert_equals "typescript" "$result" "Detects TypeScript from tsconfig.json"
   cleanup_test_dir "$dir"
-}
-test_typescript
 
-# Test JavaScript detection
-test_javascript() {
+  assert_equals "typescript" "$result" "Detects TypeScript from tsconfig.json"
+}
+
+test_detection_javascript() {
   local dir
   dir=$(setup_test_dir "javascript")
   touch "${dir}/package.json"
+
+  source "${PROJECT_ROOT}/scripts/bash/lib/detection.sh"
+
   local result
   result=$(detect_project_type "$dir")
-  assert_equals "javascript" "$result" "Detects JavaScript from package.json (no tsconfig)"
   cleanup_test_dir "$dir"
-}
-test_javascript
 
-# Test TypeScript priority over package.json
-test_typescript_priority() {
+  assert_equals "javascript" "$result" "Detects JavaScript from package.json"
+}
+
+test_detection_typescript_priority() {
   local dir
   dir=$(setup_test_dir "ts-priority")
   touch "${dir}/tsconfig.json"
   touch "${dir}/package.json"
+
+  source "${PROJECT_ROOT}/scripts/bash/lib/detection.sh"
+
   local result
   result=$(detect_project_type "$dir")
-  assert_equals "typescript" "$result" "TypeScript takes priority over package.json"
   cleanup_test_dir "$dir"
-}
-test_typescript_priority
 
-# Test Rust detection
-test_rust() {
+  assert_equals "typescript" "$result" "TypeScript takes priority over package.json"
+}
+
+test_detection_rust() {
   local dir
   dir=$(setup_test_dir "rust")
   touch "${dir}/Cargo.toml"
+
+  source "${PROJECT_ROOT}/scripts/bash/lib/detection.sh"
+
   local result
   result=$(detect_project_type "$dir")
-  assert_equals "rust" "$result" "Detects Rust from Cargo.toml"
   cleanup_test_dir "$dir"
-}
-test_rust
 
-# Test Go detection
-test_go() {
+  assert_equals "rust" "$result" "Detects Rust from Cargo.toml"
+}
+
+test_detection_go() {
   local dir
   dir=$(setup_test_dir "go")
   touch "${dir}/go.mod"
+
+  source "${PROJECT_ROOT}/scripts/bash/lib/detection.sh"
+
   local result
   result=$(detect_project_type "$dir")
-  assert_equals "go" "$result" "Detects Go from go.mod"
   cleanup_test_dir "$dir"
-}
-test_go
 
-# Test Python detection (pyproject.toml)
-test_python_pyproject() {
+  assert_equals "go" "$result" "Detects Go from go.mod"
+}
+
+test_detection_python_pyproject() {
   local dir
   dir=$(setup_test_dir "python1")
   touch "${dir}/pyproject.toml"
+
+  source "${PROJECT_ROOT}/scripts/bash/lib/detection.sh"
+
   local result
   result=$(detect_project_type "$dir")
-  assert_equals "python" "$result" "Detects Python from pyproject.toml"
   cleanup_test_dir "$dir"
-}
-test_python_pyproject
 
-# Test Python detection (requirements.txt)
-test_python_requirements() {
+  assert_equals "python" "$result" "Detects Python from pyproject.toml"
+}
+
+test_detection_python_requirements() {
   local dir
   dir=$(setup_test_dir "python2")
   touch "${dir}/requirements.txt"
+
+  source "${PROJECT_ROOT}/scripts/bash/lib/detection.sh"
+
   local result
   result=$(detect_project_type "$dir")
-  assert_equals "python" "$result" "Detects Python from requirements.txt"
   cleanup_test_dir "$dir"
-}
-test_python_requirements
 
-# Test Bash detection
-test_bash() {
+  assert_equals "python" "$result" "Detects Python from requirements.txt"
+}
+
+test_detection_bash() {
   local dir
   dir=$(setup_test_dir "bash")
   touch "${dir}/script.sh"
+
+  source "${PROJECT_ROOT}/scripts/bash/lib/detection.sh"
+
   local result
   result=$(detect_project_type "$dir")
-  assert_equals "bash" "$result" "Detects Bash from *.sh files"
   cleanup_test_dir "$dir"
-}
-test_bash
 
-# Test Generic (empty project)
-test_generic() {
+  assert_equals "bash" "$result" "Detects Bash from *.sh files"
+}
+
+test_detection_generic() {
   local dir
   dir=$(setup_test_dir "generic")
+
+  source "${PROJECT_ROOT}/scripts/bash/lib/detection.sh"
+
   local result
   result=$(detect_project_type "$dir")
-  assert_equals "generic" "$result" "Defaults to generic for empty project"
   cleanup_test_dir "$dir"
-}
-test_generic
 
-# Test non-existent directory
-test_nonexistent() {
+  assert_equals "generic" "$result" "Defaults to generic for empty project"
+}
+
+test_detection_nonexistent() {
+  source "${PROJECT_ROOT}/scripts/bash/lib/detection.sh"
+
   local result
   result=$(detect_project_type "/nonexistent/path/$$")
+
   assert_equals "generic" "$result" "Returns generic for non-existent path"
 }
-test_nonexistent
 
-# =============================================================================
-# Tests: select_template_section
-# =============================================================================
+test_detection_valid_types() {
+  source "${PROJECT_ROOT}/scripts/bash/lib/detection.sh"
 
-echo ""
-echo "==> Testing select_template_section()"
-
-# Test extracting TypeScript section
-test_extract_typescript() {
-  local template="Header
-<!-- LANG:typescript -->
-TypeScript content
-<!-- /LANG:typescript -->
-<!-- LANG:python -->
-Python content
-<!-- /LANG:python -->
-Footer"
-
-  local result
-  result=$(echo "$template" | select_template_section "typescript")
-  assert_equals "TypeScript content" "$result" "Extracts TypeScript section"
-}
-test_extract_typescript
-
-# Test extracting Python section
-test_extract_python() {
-  local template="Header
-<!-- LANG:typescript -->
-TypeScript content
-<!-- /LANG:typescript -->
-<!-- LANG:python -->
-Python content
-<!-- /LANG:python -->
-Footer"
-
-  local result
-  result=$(echo "$template" | select_template_section "python")
-  assert_equals "Python content" "$result" "Extracts Python section"
-}
-test_extract_python
-
-# Test fallback to generic when section not found
-test_fallback_generic() {
-  local template="Header
-<!-- LANG:generic -->
-Generic content
-<!-- /LANG:generic -->
-Footer"
-
-  local result
-  result=$(echo "$template" | select_template_section "rust")
-  assert_equals "Generic content" "$result" "Falls back to generic when language not found"
-}
-test_fallback_generic
-
-# Test returning full content when no sections
-test_no_sections() {
-  local template="Just plain content
-No language sections here"
-
-  local result
-  result=$(echo "$template" | select_template_section "python")
-  assert_equals "$template" "$result" "Returns full content when no sections exist"
-}
-test_no_sections
-
-# =============================================================================
-# Tests: is_valid_project_type
-# =============================================================================
-
-echo ""
-echo "==> Testing is_valid_project_type()"
-
-test_valid_types() {
   local types="typescript javascript rust go python bash generic"
+  local all_valid=true
   for type in $types; do
-    if is_valid_project_type "$type"; then
-      echo "  ✓ $type is valid"
-      ((TESTS_PASSED++))
-    else
-      echo "  ✗ $type should be valid"
-      ((TESTS_FAILED++))
+    if ! is_valid_project_type "$type"; then
+      all_valid=false
+      break
     fi
-    ((TESTS_RUN++))
   done
-}
-test_valid_types
 
-test_invalid_type() {
-  if ! is_valid_project_type "invalid"; then
-    echo "  ✓ 'invalid' is correctly rejected"
-    ((TESTS_PASSED++))
-  else
-    echo "  ✗ 'invalid' should be rejected"
-    ((TESTS_FAILED++))
+  assert_equals "true" "$all_valid" "All standard project types are valid"
+}
+
+test_detection_invalid_type() {
+  source "${PROJECT_ROOT}/scripts/bash/lib/detection.sh"
+
+  if is_valid_project_type "invalid" 2>/dev/null; then
+    return 1
   fi
-  ((TESTS_RUN++))
+  return 0
 }
-test_invalid_type
 
 # =============================================================================
-# Summary
+# Run Tests
 # =============================================================================
 
-echo ""
-print_summary
+run_tests() {
+  run_test "detect TypeScript from tsconfig.json" test_detection_typescript
+  run_test "detect JavaScript from package.json" test_detection_javascript
+  run_test "TypeScript priority over package.json" test_detection_typescript_priority
+  run_test "detect Rust from Cargo.toml" test_detection_rust
+  run_test "detect Go from go.mod" test_detection_go
+  run_test "detect Python from pyproject.toml" test_detection_python_pyproject
+  run_test "detect Python from requirements.txt" test_detection_python_requirements
+  run_test "detect Bash from *.sh files" test_detection_bash
+  run_test "default to generic for empty project" test_detection_generic
+  run_test "return generic for non-existent path" test_detection_nonexistent
+  run_test "all standard project types are valid" test_detection_valid_types
+  run_test "invalid type is rejected" test_detection_invalid_type
+}

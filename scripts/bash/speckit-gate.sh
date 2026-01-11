@@ -73,22 +73,8 @@ PLACEHOLDER_PATTERNS=(
   '\.\.\.'           # Three dots often indicate incomplete
 )
 
-# Required sections for each document type
-declare -A SPEC_REQUIRED_SECTIONS=(
-  ["Overview"]="## Overview"
-  ["User Stories"]="## User Stories"
-  ["Acceptance Criteria"]="## Acceptance Criteria|## Success Criteria"
-)
-
-declare -A PLAN_REQUIRED_SECTIONS=(
-  ["Tech Stack"]="## Tech Stack|## Technology"
-  ["Architecture"]="## Architecture|## Structure"
-  ["Implementation"]="## Implementation|## Approach"
-)
-
-declare -A TASKS_REQUIRED_SECTIONS=(
-  ["Phase 1"]="## Phase 1"
-)
+# Note: Required sections are passed directly to check_sections() function
+# as name/pattern argument pairs for POSIX compatibility
 
 # =============================================================================
 # Gate Checks

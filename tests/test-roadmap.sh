@@ -22,10 +22,10 @@ create_test_roadmap() {
 
 | Phase | Name | Status | Gate |
 |-------|------|--------|------|
-| 001 | Foundation | ✅ | Core setup complete |
-| 002 | Core Features | 🔄 | Features implemented |
-| 003 | Testing | ⬜ | Tests passing |
-| 004 | Polish | ⬜ | Docs complete |
+| 0010 | Foundation | ✅ | Core setup complete |
+| 0020 | Core Features | 🔄 | Features implemented |
+| 0030 | Testing | ⬜ | Tests passing |
+| 0040 | Polish | ⬜ | Docs complete |
 
 ## Verification Gates
 
@@ -47,8 +47,8 @@ test_roadmap_status() {
   output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" status 2>&1)
 
   # Should show phases
-  assert_contains "$output" "001" "Shows phase 001"
-  assert_contains "$output" "002" "Shows phase 002"
+  assert_contains "$output" "0010" "Shows phase 0010"
+  assert_contains "$output" "0020" "Shows phase 0020"
   assert_matches "$output" "complete|Complete|✅" "Shows complete status"
 }
 
@@ -73,9 +73,9 @@ test_roadmap_next() {
   local output
   output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" next 2>&1)
 
-  # Should return next pending phase (003)
-  # Could return 002 if in_progress counts, or 003 if only pending
-  assert_matches "$output" "003|002" "Returns next phase"
+  # Should return next pending phase (0030)
+  # Could return 0020 if in_progress counts, or 0030 if only pending
+  assert_matches "$output" "0030|0020" "Returns next phase"
 }
 
 test_roadmap_current() {
@@ -86,8 +86,8 @@ test_roadmap_current() {
   local output
   output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" current 2>&1)
 
-  # Should return current in-progress phase (002)
-  assert_contains "$output" "002" "Returns current phase"
+  # Should return current in-progress phase (0020)
+  assert_contains "$output" "0020" "Returns current phase"
 }
 
 test_roadmap_validate_valid() {
@@ -110,8 +110,8 @@ test_roadmap_update_status() {
   git init -q .
   create_test_roadmap
 
-  # Update phase 003 to in_progress
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" update 003 in_progress 2>&1
+  # Update phase 0030 to in_progress
+  bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" update 0030 in_progress 2>&1
 
   # Verify update
   local content
@@ -123,14 +123,14 @@ test_roadmap_update_complete() {
   git init -q .
   create_test_roadmap
 
-  # Update phase 002 to complete
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" update 002 complete 2>&1
+  # Update phase 0020 to complete
+  bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" update 0020 complete 2>&1
 
-  # Verify update - Phase 002 should now have ✅ instead of 🔄
-  if grep -qE '^\|\s*002.*✅' ROADMAP.md 2>/dev/null; then
+  # Verify update - Phase 0020 should now have ✅ instead of 🔄
+  if grep -qE '^\|\s*0020.*✅' ROADMAP.md 2>/dev/null; then
     return 0
   else
-    echo "Phase 002 not marked complete"
+    echo "Phase 0020 not marked complete"
     cat ROADMAP.md
     return 1
   fi
@@ -178,23 +178,23 @@ test_roadmap_complex_format() {
 
 | Phase | Name | Status | Gate |
 |-------|------|--------|------|
-| 001 | Setup & Foundation | ✅ | Sprint 1-2 |
-| 002 | Feature Development | 🔄 | Sprint 3-5 |
-| 003 | Testing & QA | ⬜ | Sprint 6-7 |
+| 0010 | Setup & Foundation | ✅ | Sprint 1-2 |
+| 0020 | Feature Development | 🔄 | Sprint 3-5 |
+| 0030 | Testing & QA | ⬜ | Sprint 6-7 |
 
 ---
 
 ## Phase Details
 
-### Phase 001: Setup & Foundation
+### Phase 0010: Setup & Foundation
 - Project setup
 - Core infrastructure
 
-### Phase 002: Feature Development
+### Phase 0020: Feature Development
 - Main features
 - API development
 
-### Phase 003: Testing & QA
+### Phase 0030: Testing & QA
 - Unit tests
 - Integration tests
 
@@ -209,9 +209,9 @@ EOF
   output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" status 2>&1)
 
   # Should parse all phases
-  assert_contains "$output" "001" "Parses phase 001"
-  assert_contains "$output" "002" "Parses phase 002"
-  assert_contains "$output" "003" "Parses phase 003"
+  assert_contains "$output" "0010" "Parses phase 0010"
+  assert_contains "$output" "0020" "Parses phase 0020"
+  assert_contains "$output" "0030" "Parses phase 0030"
 }
 
 test_roadmap_json_structure() {

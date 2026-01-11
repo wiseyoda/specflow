@@ -55,6 +55,20 @@ templates/                  → Document templates
 
 **Central registry**: `~/.speckit/registry.json` - Tracks all projects for web UI discovery.
 
+## CLI Syntax Notes
+
+Commands with non-standard syntax (differs from common CLI patterns):
+
+```bash
+# State set uses key=value (NOT key value)
+speckit state set orchestration.phase.status=complete    # Correct
+speckit state set orchestration.phase.status complete    # Wrong
+
+# State get uses dot notation
+speckit state get orchestration.phase.status
+speckit state get orchestration --json
+```
+
 ## Code Style
 
 - POSIX-compliant bash, validated with shellcheck

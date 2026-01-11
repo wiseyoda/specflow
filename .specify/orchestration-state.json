@@ -1,0 +1,61 @@
+{
+  "schema_version": "2.0",
+  "project": {
+    "id": "1e17606c-8e0e-4f09-8443-de0aaca8ae79",
+    "name": "claude-speckit-orchestration",
+    "path": "/Users/ppatterson/dev/claude-speckit-orchestration",
+    "description": null,
+    "type": null,
+    "criticality": null,
+    "created_at": "2026-01-11T02:54:53Z",
+    "updated_at": "2026-01-11T02:54:53Z"
+  },
+  "config": {
+    "roadmap_path": "ROADMAP.md",
+    "memory_path": ".specify/memory/",
+    "specs_path": "specs/",
+    "scripts_path": ".specify/scripts/",
+    "templates_path": ".specify/templates/"
+  },
+  "interview": {
+    "status": "not_started",
+    "current_phase": 0,
+    "current_question": 0,
+    "decisions_count": 0,
+    "phases": {},
+    "started_at": null,
+    "completed_at": null
+  },
+  "orchestration": {
+    "phase": {
+      "number": null,
+      "name": null,
+      "branch": null,
+      "status": "not_started"
+    },
+    "step": {
+      "current": null,
+      "index": 0,
+      "status": "not_started"
+    },
+    "progress": {
+      "tasks_completed": 0,
+      "tasks_total": 0,
+      "percentage": 0
+    }
+  },
+  "health": {
+    "status": "initializing",
+    "last_check": "2026-01-11T02:54:53Z",
+    "issues": []
+  },
+  "actions": {
+    "available": [],
+    "pending": [],
+    "history": []
+  },
+  "ui": {
+    "last_sync": null,
+    "notifications": []
+  }
+}

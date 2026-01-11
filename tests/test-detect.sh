@@ -217,6 +217,57 @@ test_detect_all() {
 # Run Tests
 # =============================================================================
 
+test_detect_adr_directories() {
+  git init -q .
+  mkdir -p docs/adr
+  echo "# ADR 001" > docs/adr/001-use-react.md
+  echo "# ADR 002" > docs/adr/002-use-postgres.md
+
+  local output
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --docs 2>&1)
+
+  assert_contains "$output" "ADR" "Detects ADR directory"
+  assert_contains "$output" "2 ADRs" "Counts ADR files"
+}
+
+test_detect_adr_files_patterns() {
+  git init -q .
+  mkdir -p adr
+  echo "# ADR" > adr/001-decision.md
+  echo "# ADR" > adr/ADR-002-another.md
+  echo "# ADR" > adr/0003-four-digit.md
+
+  local output
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --docs 2>&1)
+
+  assert_contains "$output" "ADR" "Detects root-level ADR directory"
+  assert_contains "$output" "3 ADRs" "Counts all ADR file patterns"
+}
+
+test_detect_docs_alias() {
+  git init -q .
+  mkdir -p docs
+  echo "# Test" > docs/test.md
+
+  # Test --docs alias
+  local output
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --docs 2>&1)
+
+  assert_contains "$output" "docs/" "Detects docs with --docs flag"
+}
+
+test_detect_key_architecture_docs() {
+  git init -q .
+  echo "# Architecture" > ARCHITECTURE.md
+  echo "# Contributing" > CONTRIBUTING.md
+
+  local output
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --docs 2>&1)
+
+  assert_contains "$output" "ARCHITECTURE.md" "Detects ARCHITECTURE.md"
+  assert_contains "$output" "CONTRIBUTING.md" "Detects CONTRIBUTING.md"
+}
+
 run_tests() {
   run_test "detect system shows dependencies" test_detect_system
   run_test "detect handles empty project" test_detect_empty_project
@@ -230,4 +281,8 @@ run_tests() {
   run_test "detect finds OpenAPI files" test_detect_openapi
   run_test "detect supports JSON output" test_detect_json_output
   run_test "detect all runs complete scan" test_detect_all
+  run_test "detect finds ADR directories" test_detect_adr_directories
+  run_test "detect finds ADR file patterns" test_detect_adr_files_patterns
+  run_test "detect --docs alias works" test_detect_docs_alias
+  run_test "detect finds key architecture docs" test_detect_key_architecture_docs
 }

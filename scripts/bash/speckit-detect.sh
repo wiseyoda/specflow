@@ -222,6 +222,8 @@ detect_docs() {
   log_step "Existing Documentation"
 
   local found_patterns=()
+  local adr_dir=""
+  local adr_count=0
 
   # docs/ directory
   if [[ -d "${repo_root}/docs" ]]; then
@@ -229,11 +231,13 @@ detect_docs() {
     print_status ok "docs/ directory (${doc_count} markdown files)"
     found_patterns+=("docs")
 
-    # Check for specific patterns inside docs/
-    if [[ -d "${repo_root}/docs/adr" ]] || [[ -d "${repo_root}/docs/ADR" ]] || [[ -d "${repo_root}/docs/adrs" ]]; then
-      print_status ok "  └─ ADR directory detected"
-      found_patterns+=("adr")
-    fi
+    # Check for ADR patterns inside docs/
+    for dir in "docs/adr" "docs/ADR" "docs/adrs" "docs/ADRs" "docs/decisions" "doc/adr" "doc/decisions"; do
+      if [[ -d "${repo_root}/${dir}" ]]; then
+        adr_dir="${repo_root}/${dir}"
+        break
+      fi
+    done
 
     if [[ -d "${repo_root}/docs/rfc" ]] || [[ -d "${repo_root}/docs/RFC" ]] || [[ -d "${repo_root}/docs/rfcs" ]]; then
       print_status ok "  └─ RFC directory detected"
@@ -246,10 +250,33 @@ detect_docs() {
     fi
   fi
 
-  # ADR at root level
-  if [[ -d "${repo_root}/ADR" ]] || [[ -d "${repo_root}/adr" ]] || [[ -d "${repo_root}/architecture/decisions" ]]; then
-    print_status ok "Architecture Decision Records (root level)"
-    found_patterns+=("adr-root")
+  # ADR at root level (check multiple patterns)
+  if [[ -z "$adr_dir" ]]; then
+    for dir in "adr" "ADR" "adrs" "ADRs" "architecture/decisions"; do
+      if [[ -d "${repo_root}/${dir}" ]]; then
+        adr_dir="${repo_root}/${dir}"
+        break
+      fi
+    done
+  fi
+
+  # If ADR directory found, count ADR files
+  if [[ -n "$adr_dir" ]]; then
+    # Count files matching ADR naming patterns: NNN-*.md, ADR-NNN-*.md, NNNN-*.md
+    adr_count=$(find "$adr_dir" -maxdepth 1 -type f \( \
+      -name "[0-9][0-9][0-9]-*.md" -o \
+      -name "[0-9][0-9][0-9][0-9]-*.md" -o \
+      -name "ADR-[0-9]*-*.md" -o \
+      -name "adr-[0-9]*-*.md" \
+    \) 2>/dev/null | wc -l | tr -d ' ')
+
+    local rel_dir="${adr_dir#$repo_root/}"
+    print_status ok "ADR directory: ${rel_dir}/ (${adr_count} ADRs)"
+    found_patterns+=("adr")
+
+    if [[ $adr_count -gt 0 ]] && ! is_json_output; then
+      echo -e "  ${DIM}Import with: speckit import adrs ${rel_dir}${RESET}"
+    fi
   fi
 
   # OpenAPI / Swagger
@@ -260,6 +287,21 @@ detect_docs() {
       break
     fi
   done
+
+  # Key documentation files
+  local key_docs=""
+  [[ -f "${repo_root}/ARCHITECTURE.md" ]] && key_docs+="ARCHITECTURE.md, "
+  [[ -f "${repo_root}/architecture.md" ]] && key_docs+="architecture.md, "
+  [[ -f "${repo_root}/CONTRIBUTING.md" ]] && key_docs+="CONTRIBUTING.md, "
+  [[ -f "${repo_root}/contributing.md" ]] && key_docs+="contributing.md, "
+  [[ -f "${repo_root}/DESIGN.md" ]] && key_docs+="DESIGN.md, "
+  [[ -f "${repo_root}/design.md" ]] && key_docs+="design.md, "
+  key_docs="${key_docs%, }"
+
+  if [[ -n "$key_docs" ]]; then
+    print_status ok "Key docs: ${key_docs}"
+    found_patterns+=("key-docs")
+  fi
 
   # wiki/
   if [[ -d "${repo_root}/wiki" ]] || [[ -d "${repo_root}/.wiki" ]]; then
@@ -288,7 +330,9 @@ detect_docs() {
 
   if is_json_output; then
     local patterns_json=$(printf '%s\n' "${found_patterns[@]}" | jq -R -s 'split("\n") | map(select(. != ""))')
-    echo "{\"patterns\": $patterns_json, \"has_existing_docs\": $(if [[ ${#found_patterns[@]} -gt 0 ]]; then echo "true"; else echo "false"; fi)}"
+    local adr_dir_json="null"
+    [[ -n "$adr_dir" ]] && adr_dir_json="\"${adr_dir#$repo_root/}\""
+    echo "{\"patterns\": $patterns_json, \"has_existing_docs\": $(if [[ ${#found_patterns[@]} -gt 0 ]]; then echo "true"; else echo "false"; fi), \"adr_dir\": $adr_dir_json, \"adr_count\": $adr_count}"
   fi
 }
 
@@ -530,6 +574,11 @@ main() {
       --check)
         check_area="${2:-all}"
         shift 2
+        ;;
+      --docs)
+        # Alias for --check docs
+        check_area="docs"
+        shift
         ;;
       --json)
         enable_json_output

@@ -34,7 +34,7 @@ This command produces a detailed verification report and updates ROADMAP.md stat
 
 ### 1. Initialize Verification Context
 
-Run `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks` from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS.
+Run `speckit context --json --require-tasks --include-tasks` from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS.
 
 If the script doesn't exist or fails, manually determine feature directory:
 

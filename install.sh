@@ -145,6 +145,14 @@ install_speckit() {
     fi
   done
 
+  # Copy utility commands
+  for cmd in "${REPO_DIR}/commands/utilities/"speckit.*.md; do
+    if [[ -f "$cmd" ]]; then
+      local filename=$(basename "$cmd")
+      cp "$cmd" "${SPECKIT_COMMANDS}/${filename}"
+    fi
+  done
+
   # Copy QUESTION_CATEGORIES
   if [[ -f "${REPO_DIR}/QUESTION_CATEGORIES.md" ]]; then
     cp "${REPO_DIR}/QUESTION_CATEGORIES.md" "${SPECKIT_HOME}/"

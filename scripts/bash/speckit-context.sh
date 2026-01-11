@@ -41,6 +41,8 @@ OPTIONS:
     --require-spec      Require spec.md to exist (exit 1 if missing)
     --require-plan      Require plan.md to exist (exit 1 if missing)
     --require-tasks     Require tasks.md to exist (exit 1 if missing)
+    --include-tasks     Include tasks.md in available docs (default, for compatibility)
+    --paths-only        Output only path variables (minimal output)
     --quiet, -q         Suppress non-essential output
     -h, --help          Show this help
 
@@ -81,10 +83,11 @@ EOF
 # Helpers
 # =============================================================================
 
-# Extract phase number from branch name (e.g., "001-feature-name" -> "001")
+# Extract phase number from branch name (e.g., "001-feature-name" -> "001", "0010-feature" -> "0010")
 get_phase_from_branch() {
   local branch="$1"
-  if [[ "$branch" =~ ^([0-9]{3})- ]]; then
+  # Support both 3-digit (NNN-) and 4-digit (NNNN-) phase numbers
+  if [[ "$branch" =~ ^([0-9]{3,4})- ]]; then
     echo "${BASH_REMATCH[1]}"
   else
     echo ""
@@ -158,6 +161,8 @@ cmd_context() {
   local require_spec=false
   local require_plan=false
   local require_tasks=false
+  local include_tasks=false  # No-op, tasks always included, kept for compatibility
+  local paths_only=false
   local quiet=false
 
   # Parse options
@@ -173,6 +178,14 @@ cmd_context() {
         ;;
       --require-tasks)
         require_tasks=true
+        shift
+        ;;
+      --include-tasks)
+        include_tasks=true  # No-op, kept for backward compatibility
+        shift
+        ;;
+      --paths-only)
+        paths_only=true
         shift
         ;;
       --quiet|-q)
@@ -217,10 +230,10 @@ cmd_context() {
 
   if [[ -z "$phase" ]]; then
     if is_json_output; then
-      echo "{\"error\": \"Branch '$branch' does not match feature branch pattern (NNN-feature-name)\", \"branch\": \"$branch\"}"
+      echo "{\"error\": \"Branch '$branch' does not match feature branch pattern (NNN-name or NNNN-name)\", \"branch\": \"$branch\"}"
     else
-      log_error "Branch '$branch' does not match feature branch pattern (NNN-feature-name)"
-      log_info "Feature branches should be named: 001-project-setup, 002-core-engine, etc."
+      log_error "Branch '$branch' does not match feature branch pattern (NNN-name or NNNN-name)"
+      log_info "Feature branches should be named: 001-project-setup, 0010-core-engine, etc."
     fi
     exit 1
   fi
@@ -287,8 +300,23 @@ cmd_context() {
 
   # Output results
   if is_json_output; then
-    local docs_json
-    docs_json=$(cat << EOF
+    # Paths-only mode: minimal JSON output
+    if $paths_only; then
+      local available_json="[]"
+      if [[ ${#available_docs[@]} -gt 0 ]]; then
+        available_json=$(printf '"%s",' "${available_docs[@]}")
+        available_json="[${available_json%,}]"
+      fi
+      cat << EOF
+{
+  "FEATURE_DIR": "$feature_dir",
+  "AVAILABLE_DOCS": $available_json
+}
+EOF
+    else
+      # Full JSON output
+      local docs_json
+      docs_json=$(cat << EOF
 {
   "spec": ${DOC_SPEC},
   "plan": ${DOC_PLAN},
@@ -302,43 +330,57 @@ cmd_context() {
 EOF
 )
 
-    local available_json="[]"
-    if [[ ${#available_docs[@]} -gt 0 ]]; then
-      available_json=$(printf '"%s",' "${available_docs[@]}")
-      available_json="[${available_json%,}]"
-    fi
+      local available_json="[]"
+      if [[ ${#available_docs[@]} -gt 0 ]]; then
+        available_json=$(printf '"%s",' "${available_docs[@]}")
+        available_json="[${available_json%,}]"
+      fi
 
-    cat << EOF
+      cat << EOF
 {
   "feature_dir": "$feature_dir",
   "branch": "$branch",
   "phase": "$phase",
   "repo_root": "$repo_root",
   "docs": $docs_json,
-  "available_docs": $available_json
+  "available_docs": $available_json,
+  "FEATURE_DIR": "$feature_dir",
+  "AVAILABLE_DOCS": $available_json
 }
 EOF
-  else
-    if ! $quiet; then
-      print_header "Feature Context"
-      echo ""
     fi
+  else
+    # Text output
+    if $paths_only; then
+      # Minimal text output for paths-only mode
+      echo "FEATURE_DIR: $feature_dir"
+      if [[ ${#available_docs[@]} -gt 0 ]]; then
+        echo "AVAILABLE_DOCS: ${available_docs[*]}"
+      else
+        echo "AVAILABLE_DOCS:"
+      fi
+    else
+      if ! $quiet; then
+        print_header "Feature Context"
+        echo ""
+      fi
 
-    echo "FEATURE_DIR: $feature_dir"
-    echo "BRANCH: $branch"
-    echo "PHASE: $phase"
-    echo ""
+      echo "FEATURE_DIR: $feature_dir"
+      echo "BRANCH: $branch"
+      echo "PHASE: $phase"
+      echo ""
 
-    if ! $quiet; then
-      echo "AVAILABLE_DOCS:"
-      [[ "$DOC_SPEC" == "true" ]] && print_status ok "spec.md" || print_status fail "spec.md"
-      [[ "$DOC_PLAN" == "true" ]] && print_status ok "plan.md" || print_status fail "plan.md"
-      [[ "$DOC_TASKS" == "true" ]] && print_status ok "tasks.md" || print_status fail "tasks.md"
-      [[ "$DOC_RESEARCH" == "true" ]] && print_status ok "research.md" || print_status skip "research.md (optional)"
-      [[ "$DOC_DATA_MODEL" == "true" ]] && print_status ok "data-model.md" || print_status skip "data-model.md (optional)"
-      [[ "$DOC_CONTRACTS" == "true" ]] && print_status ok "contracts/" || print_status skip "contracts/ (optional)"
-      [[ "$DOC_QUICKSTART" == "true" ]] && print_status ok "quickstart.md" || print_status skip "quickstart.md (optional)"
-      [[ "$DOC_CHECKLISTS" == "true" ]] && print_status ok "checklists/" || print_status skip "checklists/ (optional)"
+      if ! $quiet; then
+        echo "AVAILABLE_DOCS:"
+        [[ "$DOC_SPEC" == "true" ]] && print_status ok "spec.md" || print_status fail "spec.md"
+        [[ "$DOC_PLAN" == "true" ]] && print_status ok "plan.md" || print_status fail "plan.md"
+        [[ "$DOC_TASKS" == "true" ]] && print_status ok "tasks.md" || print_status fail "tasks.md"
+        [[ "$DOC_RESEARCH" == "true" ]] && print_status ok "research.md" || print_status skip "research.md (optional)"
+        [[ "$DOC_DATA_MODEL" == "true" ]] && print_status ok "data-model.md" || print_status skip "data-model.md (optional)"
+        [[ "$DOC_CONTRACTS" == "true" ]] && print_status ok "contracts/" || print_status skip "contracts/ (optional)"
+        [[ "$DOC_QUICKSTART" == "true" ]] && print_status ok "quickstart.md" || print_status skip "quickstart.md (optional)"
+        [[ "$DOC_CHECKLISTS" == "true" ]] && print_status ok "checklists/" || print_status skip "checklists/ (optional)"
+      fi
     fi
   fi
 }

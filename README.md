@@ -314,6 +314,17 @@ speckit reconcile --trust-files      # Trust file system over state
 speckit reconcile --trust-state      # Trust state over file system
 ```
 
+### Integration (Importing Existing Docs)
+
+```bash
+speckit detect --docs                # Detect existing documentation
+speckit import adrs <path>           # Import ADRs from directory
+speckit import adrs docs/adr --dry-run   # Preview import
+speckit import adrs docs/adr --force     # Overwrite existing imports
+```
+
+See [docs/integration-guide.md](docs/integration-guide.md) for detailed integration workflows.
+
 ### Memory Document Management
 
 ```bash

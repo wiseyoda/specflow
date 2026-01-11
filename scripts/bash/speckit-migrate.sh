@@ -28,6 +28,7 @@ USAGE:
 TARGETS:
     roadmap             Migrate ROADMAP.md from 2.0 to 2.1 format
                         Converts 3-digit phases (001, 002) to 4-digit (0010, 0020)
+                        Also renames specs directories to match (001-foo -> 0010-foo)
 
 OPTIONS:
     --dry-run           Preview changes without applying
@@ -186,6 +187,34 @@ cmd_roadmap() {
   echo ""
 
   if $dry_run; then
+    # Show specs directories that would be renamed
+    local repo_root
+    repo_root="$(get_repo_root)"
+    local specs_dir="${repo_root}/specs"
+    local specs_to_rename=()
+
+    if [[ -d "$specs_dir" ]]; then
+      for old_phase in "${phases[@]}"; do
+        new_phase=$(convert_phase_number "$old_phase")
+        while IFS= read -r old_dir; do
+          if [[ -d "$old_dir" ]]; then
+            local dir_name
+            dir_name=$(basename "$old_dir")
+            local suffix="${dir_name#${old_phase}-}"
+            specs_to_rename+=("${old_phase}-${suffix} -> ${new_phase}-${suffix}")
+          fi
+        done < <(find "$specs_dir" -maxdepth 1 -type d -name "${old_phase}-*" 2>/dev/null)
+      done
+    fi
+
+    if [[ ${#specs_to_rename[@]} -gt 0 ]]; then
+      echo "Specs directories to rename:"
+      for rename in "${specs_to_rename[@]}"; do
+        echo "  specs/$rename"
+      done
+      echo ""
+    fi
+
     log_info "Dry run - no changes made"
     if is_json_output; then
       local changes="[]"
@@ -252,6 +281,38 @@ cmd_roadmap() {
   fi
 
   log_success "Migrated ${#phases[@]} phase(s) from 2.0 to 2.1 format"
+
+  # Rename specs directories to match new phase numbers
+  local repo_root
+  repo_root="$(get_repo_root)"
+  local specs_dir="${repo_root}/specs"
+
+  if [[ -d "$specs_dir" ]]; then
+    local renamed_count=0
+    for old_phase in "${phases[@]}"; do
+      new_phase=$(convert_phase_number "$old_phase")
+
+      # Find directories matching the old phase pattern
+      while IFS= read -r old_dir; do
+        if [[ -d "$old_dir" ]]; then
+          local dir_name
+          dir_name=$(basename "$old_dir")
+          local suffix="${dir_name#${old_phase}-}"
+          local new_dir="${specs_dir}/${new_phase}-${suffix}"
+
+          if [[ ! -d "$new_dir" ]]; then
+            mv "$old_dir" "$new_dir"
+            log_info "Renamed: specs/${old_phase}-${suffix} -> specs/${new_phase}-${suffix}"
+            ((renamed_count++))
+          fi
+        fi
+      done < <(find "$specs_dir" -maxdepth 1 -type d -name "${old_phase}-*" 2>/dev/null)
+    done
+
+    if [[ $renamed_count -gt 0 ]]; then
+      log_success "Renamed $renamed_count specs director(y/ies)"
+    fi
+  fi
 
   # Update manifest to record the migration
   local manifest_script="${SCRIPT_DIR}/speckit-manifest.sh"

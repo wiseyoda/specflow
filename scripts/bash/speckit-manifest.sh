@@ -294,11 +294,17 @@ cmd_get() {
 }
 
 cmd_set() {
-  local key="$1"
-  local value="$2"
+  local key="${1:-}"
+  local value="${2:-}"
+
+  # Support both "key=value" and "key value" formats
+  if [[ -z "$value" && "$key" == *"="* ]]; then
+    value="${key#*=}"
+    key="${key%%=*}"
+  fi
 
   if [[ -z "$key" || -z "$value" ]]; then
-    log_error "Usage: speckit manifest set <key> <value>"
+    log_error "Usage: speckit manifest set <key>=<value> or <key> <value>"
     exit 1
   fi
 

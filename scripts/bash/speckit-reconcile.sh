@@ -96,13 +96,13 @@ compare_tasks() {
 
   # Get tasks completed from state
   local state_completed
-  state_completed=$(jq -r '.orchestration.steps.implement.tasks_completed // 0' "$state_file" 2>/dev/null)
+  state_completed=$(jq -r '.orchestration.progress.tasks_completed // 0' "$state_file" 2>/dev/null)
   local state_total
-  state_total=$(jq -r '.orchestration.steps.implement.tasks_total // 0' "$state_file" 2>/dev/null)
+  state_total=$(jq -r '.orchestration.progress.tasks_total // 0' "$state_file" 2>/dev/null)
 
   # Find tasks.md file
   local current_phase
-  current_phase=$(jq -r '.orchestration.phase_number // empty' "$state_file" 2>/dev/null)
+  current_phase=$(jq -r '.orchestration.phase.number // empty' "$state_file" 2>/dev/null)
 
   if [[ -z "$current_phase" ]]; then
     print_status skip "No active phase"
@@ -118,11 +118,11 @@ compare_tasks() {
     return
   fi
 
-  # Count from file
+  # Count from file (grep -c exits 1 when no matches, so capture output first)
   local file_completed
-  file_completed=$(grep -c '^\s*- \[x\]' "$tasks_file" 2>/dev/null || echo "0")
+  file_completed=$(grep -c '^\s*- \[x\]' "$tasks_file" 2>/dev/null) || file_completed=0
   local file_total
-  file_total=$(grep -c '^\s*- \[' "$tasks_file" 2>/dev/null || echo "0")
+  file_total=$(grep -c '^\s*- \[' "$tasks_file" 2>/dev/null) || file_total=0
 
   if [[ "$state_completed" -eq "$file_completed" && "$state_total" -eq "$file_total" ]]; then
     print_status ok "Tasks: ${file_completed}/${file_total} (in sync)"
@@ -150,7 +150,7 @@ compare_git_branch() {
   fi
 
   local state_branch
-  state_branch=$(jq -r '.orchestration.branch // empty' "$state_file" 2>/dev/null)
+  state_branch=$(jq -r '.orchestration.phase.branch // empty' "$state_file" 2>/dev/null)
   local current_branch
   current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 
@@ -178,28 +178,36 @@ compare_specs() {
     return
   fi
 
-  # Check if specify step is marked complete
-  local specify_status
-  specify_status=$(jq -r '.orchestration.steps.specify.status // "pending"' "$state_file" 2>/dev/null)
+  # Check if specify step is complete (index > 0 means we've passed specify)
+  local step_index
+  step_index=$(jq -r '.orchestration.step.index // 0' "$state_file" 2>/dev/null)
+  local current_phase
+  current_phase=$(jq -r '.orchestration.phase.number // empty' "$state_file" 2>/dev/null)
 
-  if [[ "$specify_status" == "completed" ]]; then
-    # Check if spec.md exists
-    local current_phase
-    current_phase=$(jq -r '.orchestration.phase_number // empty' "$state_file" 2>/dev/null)
+  if [[ -z "$current_phase" ]]; then
+    print_status skip "No active phase"
+    return
+  fi
 
-    if [[ -n "$current_phase" ]]; then
-      local spec_file
-      spec_file=$(find "${repo_root}/specs" -path "*${current_phase}*" -name "spec.md" 2>/dev/null | head -1)
+  # Check if spec.md exists
+  local spec_file
+  spec_file=$(find "${repo_root}/specs" -path "*${current_phase}*" -name "spec.md" 2>/dev/null | head -1)
 
-      if [[ -n "$spec_file" && -f "$spec_file" ]]; then
-        print_status ok "Spec: exists (state=completed)"
-      else
-        print_status warn "Spec: state=completed but spec.md not found"
-        add_difference "specify" "completed" "file missing" "Spec marked complete but file missing"
-      fi
+  if [[ "$step_index" -gt 0 ]]; then
+    # We're past the specify step, so spec.md should exist
+    if [[ -n "$spec_file" && -f "$spec_file" ]]; then
+      print_status ok "Spec: exists (step ${step_index} past specify)"
+    else
+      print_status warn "Spec: past specify step but spec.md not found"
+      add_difference "specify" "completed" "file missing" "Spec should exist but file missing"
     fi
   else
-    print_status ok "Spec: not marked complete (${specify_status})"
+    # We're on specify step or earlier
+    if [[ -n "$spec_file" && -f "$spec_file" ]]; then
+      print_status ok "Spec: exists (step ${step_index})"
+    else
+      print_status ok "Spec: not yet created (step ${step_index})"
+    fi
   fi
 }
 
@@ -223,9 +231,9 @@ compare_roadmap() {
   fi
 
   local orch_status
-  orch_status=$(jq -r '.orchestration.status // "not_started"' "$state_file" 2>/dev/null)
+  orch_status=$(jq -r '.orchestration.phase.status // "not_started"' "$state_file" 2>/dev/null)
   local current_phase
-  current_phase=$(jq -r '.orchestration.phase_number // empty' "$state_file" 2>/dev/null)
+  current_phase=$(jq -r '.orchestration.phase.number // empty' "$state_file" 2>/dev/null)
 
   if [[ -z "$current_phase" ]]; then
     print_status ok "No active phase in state"
@@ -233,13 +241,14 @@ compare_roadmap() {
   fi
 
   # Check ROADMAP for phase status
-  # Look for patterns like "## Phase 003" and status indicators
+  # Look for patterns in both table format (| 0170 | ... | ✅ Complete |)
+  # and header format (## 0170 ... ✅)
   local roadmap_status="unknown"
-  if grep -qE "^##.*${current_phase}.*✅" "${repo_root}/ROADMAP.md" 2>/dev/null; then
+  if grep -qE "^\|.*${current_phase}.*\|.*✅|^##.*${current_phase}.*✅" "${repo_root}/ROADMAP.md" 2>/dev/null; then
     roadmap_status="complete"
-  elif grep -qE "^##.*${current_phase}.*🔄|IN PROGRESS" "${repo_root}/ROADMAP.md" 2>/dev/null; then
+  elif grep -qE "^\|.*${current_phase}.*\|.*🔄|^\|.*${current_phase}.*\|.*In Progress|^##.*${current_phase}.*🔄" "${repo_root}/ROADMAP.md" 2>/dev/null; then
     roadmap_status="in_progress"
-  elif grep -qE "^##.*${current_phase}" "${repo_root}/ROADMAP.md" 2>/dev/null; then
+  elif grep -qE "^\|.*${current_phase}.*\||^##.*${current_phase}" "${repo_root}/ROADMAP.md" 2>/dev/null; then
     roadmap_status="pending"
   fi
 
@@ -337,8 +346,8 @@ apply_fixes() {
         if [[ "$trust_mode" == "files" ]]; then
           local completed="${file_value%%/*}"
           local total="${file_value##*/}"
-          json_set "$state_file" ".orchestration.steps.implement.tasks_completed" "$completed"
-          json_set "$state_file" ".orchestration.steps.implement.tasks_total" "$total"
+          json_set "$state_file" ".orchestration.progress.tasks_completed" "$completed"
+          json_set "$state_file" ".orchestration.progress.tasks_total" "$total"
           log_success "Updated tasks to ${file_value}"
           add_fix "Updated task counts from files"
         else
@@ -347,7 +356,7 @@ apply_fixes() {
         ;;
       branch)
         if [[ "$trust_mode" == "files" ]]; then
-          json_set_string "$state_file" ".orchestration.branch" "$file_value"
+          json_set_string "$state_file" ".orchestration.phase.branch" "$file_value"
           log_success "Updated branch to ${file_value}"
           add_fix "Updated branch from git"
         else

@@ -208,6 +208,11 @@ cmd_get() {
       json_pretty "$state_file"
     fi
   else
+    # Ensure key starts with .
+    if [[ ! "$key" =~ ^\. ]]; then
+      key=".$key"
+    fi
+
     # Show specific key
     local value
     value=$(json_get "$state_file" "$key")

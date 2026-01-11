@@ -385,3 +385,4 @@ Branch names remain unchanged (branches use short names, not phase numbers).
 | 2026-01-10 | Backlog triage: created 0015 (Workflow Commands), promoted items to 0020 |
 | 2026-01-11 | Added Phase 0041 (Code Review Findings) - 36 findings from /speckit.review |
 | 2026-01-11 | Added Phase 0042 (Code Review 2026-01-11) - 18 findings from /speckit.review |
+| 2026-01-11 | Added modular ROADMAP: speckit phase, speckit issue, speckit roadmap renumber, /speckit.merge auto-archive |

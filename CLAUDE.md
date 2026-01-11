@@ -39,6 +39,9 @@ scripts/bash/
 ├── speckit-context.sh      → Project context
 ├── speckit-feature.sh      → Feature management
 ├── speckit-scaffold.sh     → Project structure creation
+├── speckit-phase.sh        → Phase detail management (show, archive, migrate)
+├── speckit-issue.sh        → Local issue tracking (list, create, close)
+├── speckit-roadmap.sh      → ROADMAP operations including renumber
 └── speckit-*.sh            → Other commands
 
 commands/speckit.*.md       → Claude Code slash commands
@@ -70,14 +73,20 @@ templates/                  → Document templates
 
 ## Key Files
 
-- `ROADMAP.md` - Development phases and backlog
+- `ROADMAP.md` - Development phases and backlog (lightweight index)
+- `.specify/phases/` - Individual phase detail files
+- `.specify/issues/` - Local issue tracking files
+- `.specify/history/HISTORY.md` - Archived completed phases
 - `.specify/memory/constitution.md` - Project principles
 - `.specify/memory/tech-stack.md` - Approved technologies
 - `scripts/bash/lib/common.sh` - Source this first; provides `log_*`, `get_*`, `validate_*`
+- `scripts/bash/speckit-phase.sh` - Phase detail management
+- `scripts/bash/speckit-issue.sh` - Local issue tracking
 - `scripts/bash/speckit-gate.sh` - Validation gate enforcement
 - `scripts/bash/speckit-lessons.sh` - Lessons learned management
 - `commands/speckit.orchestrate.md` - Main workflow command
 - `commands/speckit.init.md` - Unified interview (replaces 12 init-*.md files)
+- `commands/speckit.merge.md` - Phase completion with auto-archiving
 - `commands/speckit.review.md` - Systematic code review workflow
 
 ## v2.0 Key Changes
@@ -90,3 +99,5 @@ templates/                  → Document templates
 - **Workflow integration**: `speckit gate` (validation gates) and `speckit lessons` (lessons learned) integrated into orchestrate workflow
 - **Memory commands**: `/speckit.memory` (verify/reconcile) and `/speckit.memory-init` (generate from codebase)
 - **Phase completion**: `/speckit.merge` and `/speckit.backlog` for end-of-phase workflows
+- **Modular ROADMAP**: `speckit phase` (detail management), `speckit issue` (local tracking), `speckit roadmap renumber`
+- **Auto-archiving**: `/speckit.merge` archives phase details to HISTORY.md automatically

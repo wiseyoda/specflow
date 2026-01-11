@@ -20,6 +20,8 @@ SpecKit is a comprehensive framework for spec-driven development (SDD) that inte
 - **Backlog Management** (`/speckit.backlog`) - Triage orphaned tasks into future phases
 - **Memory Management** (`/speckit.memory`) - Verify and reconcile project memory documents
 - **CLI Tools** (`speckit`) - Bash utilities for state management, git operations, and more
+- **Phase Archives** (`speckit phase`) - Manage phase details, archive to HISTORY.md
+- **Issue Tracking** (`speckit issue`) - Local issue management with frontmatter-based files
 
 ## Installation
 
@@ -170,17 +172,23 @@ your-project/
 │   │   ├── tech-stack.md    # Technology choices (recommended)
 │   │   ├── coding-standards.md  (recommended)
 │   │   └── adrs/            # Architecture Decision Records
+│   ├── phases/              # Individual phase detail files
+│   │   └── 0010-feature-name.md
+│   ├── issues/              # Local issue tracking
+│   │   └── 001.md
+│   ├── history/             # Completed phase archives
+│   │   └── HISTORY.md
 │   ├── templates/           # Project-specific templates
 │   ├── scripts/bash/        # Project-specific scripts
 │   ├── orchestration-state.json
 │   └── archive/
 ├── specs/                   # Feature specifications
-│   └── 001-feature-name/
+│   └── 0010-feature-name/
 │       ├── spec.md
 │       ├── plan.md
 │       ├── tasks.md
 │       └── checklists/
-├── ROADMAP.md              # Development phases
+├── ROADMAP.md              # Development phases (lightweight index)
 └── CLAUDE.md               # Agent instructions
 ```
 
@@ -301,6 +309,28 @@ speckit roadmap update <phase> <status>  # Update phase status
 speckit roadmap next                 # Get next pending phase
 speckit roadmap current              # Get current phase
 speckit roadmap validate             # Check structure
+speckit roadmap renumber             # Smart renumber all phases
+```
+
+### Phase Detail Management
+
+```bash
+speckit phase list                   # List all phases with location
+speckit phase show <num>             # Show phase details
+speckit phase archive <num>          # Archive to HISTORY.md
+speckit phase create <num> <name>    # Create phase detail file
+speckit phase migrate                # Migrate inline to files
+```
+
+### Issue Tracking
+
+```bash
+speckit issue list                   # List all issues
+speckit issue show <id>              # Show issue details
+speckit issue create "<title>"       # Create new issue
+speckit issue close <id>             # Close an issue
+speckit issue update <id>            # Update an issue
+speckit issue migrate                # Migrate ROADMAP issues to files
 ```
 
 ### CLAUDE.md Operations

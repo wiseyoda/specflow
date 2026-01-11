@@ -49,20 +49,21 @@ description: 'Project constitution template'
 **Rationale**: [PRINCIPLE_3_RATIONALE]
 
 <!-- Add more principles as needed. Common principles include:
-- TypeScript Throughout
-- Test-First Quality
+- Code Quality & Type Safety (if applicable to your language)
+- Test-First Development
 - Security by Default
 - Accessibility & UX Excellence
 - Simplicity & Maintainability
 - API-First Architecture
-- Data-Driven Extensibility
+- POSIX Compliance (for shell scripts)
+- Documentation as Code
 -->
 
 ## Technology Stack
 
 <!-- Optional: Link to tech-stack.md if it exists, otherwise document key technologies here -->
 
-**Core Technologies**: [List key technologies, e.g., TypeScript, React, PostgreSQL]
+**Core Technologies**: [List key technologies for your project]
 
 **Deviation Process**: Any deviation from approved technologies MUST be documented in the
 feature's `plan.md` with clear justification.
@@ -82,7 +83,7 @@ feature's `plan.md` with clear justification.
 
 Before merge, all PRs MUST pass:
 
-1. TypeScript compilation with no errors (if applicable)
+1. Build/compilation with no errors
 2. Linter with no errors (warnings acceptable with justification)
 3. All automated tests passing
 4. Code formatting check

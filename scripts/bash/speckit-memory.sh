@@ -113,10 +113,10 @@ All features prioritize user experience and accessibility.
 - **Rationale**: Users are the ultimate judge of product value
 - **Implications**: Performance budgets, accessibility requirements, intuitive interfaces
 
-### II. Type Safety
-Leverage TypeScript's type system for reliability.
-- **Rationale**: Catch errors at compile time, improve developer experience
-- **Implications**: Strict mode, no \`any\` types, typed APIs
+### II. Code Quality
+Maintain high code quality through appropriate tooling and practices.
+- **Rationale**: Catch errors early, improve developer experience
+- **Implications**: Linting, formatting, code review, consistent patterns
 
 ### III. Simplicity Over Cleverness
 Prefer readable, maintainable code over clever optimizations.
@@ -143,7 +143,7 @@ Security is built-in, not bolted-on.
 - **Principle changes**: Require team consensus
 
 ### Enforcement
-- **CI/CD gates**: Automated checks for type safety, tests, security
+- **CI/CD gates**: Automated checks for quality, tests, security
 - **Code review**: Constitution alignment verified in reviews
 - **Retrospectives**: Principle effectiveness reviewed periodically
 
@@ -174,61 +174,60 @@ generate_tech_stack() {
 > Approved technologies and versions for the project.
 
 **Last Updated**: $(date +%Y-%m-%d)
-**Constitution Alignment**: Principles II (Type Safety), III (Simplicity)
+**Constitution Alignment**: Principles II (Code Quality), III (Simplicity)
 
 ---
 
 ## Core Technologies
 
-### Runtime & Language
+### Language & Runtime
 | Technology | Version | Purpose | Notes |
 |------------|---------|---------|-------|
-| Node.js | 20.x LTS | Runtime | Use latest LTS |
-| TypeScript | 5.x | Language | Strict mode enabled |
+| (your language) | x.x | Primary language | Add version constraints |
+| (runtime/interpreter) | x.x | Runtime | Add specific requirements |
 
-### Framework
+### Frameworks & Libraries
 | Technology | Version | Purpose | Notes |
 |------------|---------|---------|-------|
-| Next.js | 14.x | Framework | App Router preferred |
-| React | 18.x | UI Library | Server Components where applicable |
-
-### Database & ORM
-| Technology | Version | Purpose | Notes |
-|------------|---------|---------|-------|
-| PostgreSQL | 15.x | Database | Primary data store |
-| Drizzle ORM | Latest | ORM | Type-safe queries |
+| (framework) | x.x | Application framework | Add rationale |
+| (key library) | x.x | Specific purpose | Add constraints |
 
 ### Testing
 | Technology | Version | Purpose | Notes |
 |------------|---------|---------|-------|
-| Vitest | Latest | Unit/Integration | Fast, ESM-native |
-| Playwright | Latest | E2E | Cross-browser testing |
+| (test framework) | x.x | Unit/Integration | Add coverage goals |
+| (e2e tool) | x.x | End-to-end | If applicable |
+
+### Development Tools
+| Technology | Version | Purpose | Notes |
+|------------|---------|---------|-------|
+| (linter) | x.x | Code quality | Required for CI |
+| (formatter) | x.x | Code style | Automated |
 
 ---
 
-## Package Management
+## Dependency Management
 
-- **Package Manager**: pnpm (preferred for monorepos)
-- **Lock File**: pnpm-lock.yaml (committed)
-- **Node Version**: Specified in .nvmrc
+- **Package Manager**: (your package manager)
+- **Lock File**: (lock file name, committed)
+- **Version Pinning**: (your strategy)
 
 ---
 
-## Banned Technologies
+## Banned Patterns
 
-| Technology | Reason | Alternative |
-|------------|--------|-------------|
-| moment.js | Large bundle, deprecated | date-fns, dayjs |
-| lodash (full) | Large bundle | Native methods, lodash-es cherry-pick |
+| Pattern | Reason | Alternative |
+|---------|--------|-------------|
+| (problematic pattern) | Why to avoid | What to use instead |
 
 ---
 
 ## Adding New Technologies
 
-Before adding a new package:
+Before adding a new dependency:
 1. Check constitution alignment (especially Principles II, III)
-2. Evaluate bundle size impact
-3. Check maintenance status and community
+2. Evaluate maintenance status and community support
+3. Check compatibility with existing stack
 4. Document in this file with rationale
 EOF
 }
@@ -240,7 +239,7 @@ generate_coding_standards() {
 > Code style, patterns, and conventions for the project.
 
 **Last Updated**: $(date +%Y-%m-%d)
-**Constitution Alignment**: Principles II (Type Safety), III (Simplicity)
+**Constitution Alignment**: Principles II (Code Quality), III (Simplicity)
 
 ---
 
@@ -248,79 +247,61 @@ generate_coding_standards() {
 
 ### Directory Structure
 \`\`\`
-src/
-├── app/              # Next.js app router pages
-├── components/       # React components
-│   ├── ui/           # Primitive UI components
-│   └── features/     # Feature-specific components
-├── lib/              # Utilities and helpers
-├── hooks/            # Custom React hooks
-├── types/            # TypeScript type definitions
-└── services/         # External service integrations
+(Document your project's directory structure here)
+src/           # or lib/, scripts/, etc.
+├── ...
+└── ...
 \`\`\`
 
 ### Naming Conventions
 | Type | Convention | Example |
 |------|------------|---------|
-| Files (components) | PascalCase | \`UserProfile.tsx\` |
-| Files (utilities) | camelCase | \`formatDate.ts\` |
-| Files (types) | camelCase | \`user.types.ts\` |
-| Directories | kebab-case | \`user-profile/\` |
-| Components | PascalCase | \`UserProfile\` |
-| Functions | camelCase | \`formatDate\` |
-| Constants | UPPER_SNAKE | \`MAX_RETRIES\` |
-| Types/Interfaces | PascalCase | \`UserProfile\` |
+| Files | (your convention) | \`example\` |
+| Directories | (your convention) | \`example-dir/\` |
+| Functions | (your convention) | \`example_function\` |
+| Constants | (your convention) | \`EXAMPLE_CONSTANT\` |
+| Classes/Types | (your convention) | \`ExampleClass\` |
 
 ---
 
-## TypeScript Conventions
+## Language-Specific Conventions
 
-### Type Definitions
-- Use \`interface\` for objects that can be extended
-- Use \`type\` for unions, intersections, primitives
-- Export types from dedicated \`.types.ts\` files
-- No \`any\` - use \`unknown\` and narrow
+### (Your Primary Language)
+- (Convention 1)
+- (Convention 2)
+- (Convention 3)
 
-### Strict Mode
-\`\`\`json
-{
-  "strict": true,
-  "noUncheckedIndexedAccess": true,
-  "noImplicitReturns": true
-}
-\`\`\`
+### Code Style
+- **Indentation**: (spaces/tabs, count)
+- **Line length**: (max characters)
+- **Trailing commas**: (yes/no)
+- **Formatting tool**: (tool name, if any)
 
 ---
 
-## React Conventions
+## Patterns
 
-### Component Structure
-1. Imports (external, internal, types)
-2. Type definitions
-3. Component function
-4. Hooks
-5. Event handlers
-6. Render
+### Preferred Patterns
+- (Pattern 1 with brief explanation)
+- (Pattern 2 with brief explanation)
 
-### Hooks
-- Custom hooks in \`src/hooks/\`
-- Prefix with \`use\`
-- Return typed objects, not arrays
+### Anti-Patterns to Avoid
+- (Anti-pattern 1 with rationale)
+- (Anti-pattern 2 with rationale)
 
 ---
 
 ## Error Handling
 
-### Result Pattern (preferred)
-\`\`\`typescript
-type Result<T, E = Error> =
-  | { success: true; data: T }
-  | { success: false; error: E };
-\`\`\`
+### Strategy
+- (How errors should be handled)
+- (Logging requirements)
+- (User-facing error messages)
 
-### Error Boundaries
-- Wrap feature sections with error boundaries
-- Provide meaningful fallback UI
+### Exit Codes (for CLI projects)
+- 0: Success
+- 1: Error
+- 2: Warning (optional)
 EOF
 }
 
@@ -492,22 +473,21 @@ generate_testing_strategy() {
 
 ---
 
-## Testing Pyramid
+## Testing Approach
 
-### Unit Tests (70%)
-- Pure functions, utilities
-- Isolated component logic
+### Unit Tests
+- Pure functions and utilities
+- Isolated logic
 - Business rules and validations
 
-### Integration Tests (20%)
-- Component with dependencies
-- API endpoints
-- Database operations
+### Integration Tests
+- Component interactions
+- API endpoints (if applicable)
+- Database operations (if applicable)
 
-### E2E Tests (10%)
+### End-to-End Tests (if applicable)
 - Critical user journeys
-- Cross-browser verification
-- Production-like environment
+- Full system verification
 
 ---
 
@@ -515,52 +495,40 @@ generate_testing_strategy() {
 
 | Category | Target | Required |
 |----------|--------|----------|
-| Overall | 80% | 70% |
-| Critical paths | 95% | 90% |
-| Utilities | 90% | 80% |
-| UI components | 70% | 60% |
+| Overall | (set target) | (set minimum) |
+| Critical paths | (set target) | (set minimum) |
+| Utilities | (set target) | (set minimum) |
 
 ---
 
 ## Test Patterns
 
 ### Naming Convention
-\`\`\`typescript
-describe('ComponentName', () => {
-  it('should [expected behavior] when [condition]', () => {
-    // Arrange
-    // Act
-    // Assert
-  });
-});
+\`\`\`
+(Use your testing framework's conventions)
+# Example: test_should_do_something_when_condition
+# Example: it('should do something when condition')
 \`\`\`
 
 ### Test Data
-- Use factories for complex objects
-- Avoid hardcoded IDs
+- Use fixtures or factories for complex objects
+- Avoid hardcoded values where possible
 - Reset state between tests
 
 ### Mocking
-- Mock external services
-- Use MSW for API mocking
-- Avoid mocking too deep
+- Mock external services and dependencies
+- Keep mocks close to real behavior
+- Avoid over-mocking
 
 ---
 
 ## Running Tests
 
 \`\`\`bash
-# Unit tests
-pnpm test
-
-# Watch mode
-pnpm test:watch
-
-# Coverage report
-pnpm test:coverage
-
-# E2E tests
-pnpm test:e2e
+# (Add your test commands here)
+# Example: ./tests/test-runner.sh
+# Example: npm test
+# Example: pytest
 \`\`\`
 
 ---
@@ -568,9 +536,8 @@ pnpm test:e2e
 ## CI/CD Integration
 
 - Tests run on every PR
-- Coverage gates enforced
-- E2E runs on staging deploy
-- Flaky tests quarantined
+- Coverage gates enforced (if applicable)
+- Test results visible in PR
 EOF
 }
 

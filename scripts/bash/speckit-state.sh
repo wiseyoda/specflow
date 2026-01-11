@@ -1185,6 +1185,37 @@ cmd_migrate() {
   final_name=$(jq -r '.project.name' "$state_file")
   register_project "$final_id" "$repo_root" "$final_name"
 
+  # Initialize or update manifest if not exists
+  local manifest_script="${SCRIPT_DIR}/speckit-manifest.sh"
+  local manifest_file="${specify_dir}/manifest.json"
+  if [[ -f "$manifest_script" ]]; then
+    if [[ ! -f "$manifest_file" ]]; then
+      # Initialize manifest for first time
+      bash "$manifest_script" init 2>/dev/null || true
+      log_info "Created version manifest"
+    else
+      # Record the migration in manifest
+      local migration_timestamp
+      migration_timestamp="$(iso_timestamp)"
+      local migration_entry
+      migration_entry=$(jq -n \
+        --arg from "$source_version" \
+        --arg to "2.0" \
+        --arg at "$migration_timestamp" \
+        '{"from": $from, "to": $to, "target": "state", "migrated_at": $at}')
+
+      # Append to migrations array
+      local manifest_temp
+      manifest_temp=$(mktemp)
+      if jq --argjson entry "$migration_entry" '.migrations += [$entry]' "$manifest_file" > "$manifest_temp" 2>/dev/null; then
+        mv "$manifest_temp" "$manifest_file"
+        log_info "Recorded migration in manifest"
+      else
+        rm -f "$manifest_temp"
+      fi
+    fi
+  fi
+
   log_success "Migration complete!"
   log_info "Migrated: v${source_version} → v2.0"
   log_info "Project ID: $final_id"

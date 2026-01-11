@@ -253,6 +253,35 @@ cmd_roadmap() {
 
   log_success "Migrated ${#phases[@]} phase(s) from 2.0 to 2.1 format"
 
+  # Update manifest to record the migration
+  local manifest_script="${SCRIPT_DIR}/speckit-manifest.sh"
+  if [[ -f "$manifest_script" ]]; then
+    # Update roadmap format version in manifest
+    bash "$manifest_script" set "schema.roadmap=2.1" 2>/dev/null || true
+
+    # Record the migration in manifest
+    local timestamp
+    timestamp="$(iso_timestamp)"
+    local repo_root
+    repo_root="$(get_repo_root)"
+    local manifest_file="${repo_root}/.specify/manifest.json"
+
+    if [[ -f "$manifest_file" ]]; then
+      local migration_entry
+      migration_entry=$(jq -n \
+        --arg from "2.0" \
+        --arg to "2.1" \
+        --arg at "$timestamp" \
+        '{"from": $from, "to": $to, "target": "roadmap", "migrated_at": $at}')
+
+      # Append to migrations array
+      local temp_file
+      temp_file=$(mktemp)
+      jq --argjson entry "$migration_entry" '.migrations += [$entry]' "$manifest_file" > "$temp_file" && mv "$temp_file" "$manifest_file"
+      log_info "Recorded migration in manifest"
+    fi
+  fi
+
   if is_json_output; then
     local changes="[]"
     for old_phase in "${phases[@]}"; do

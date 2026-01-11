@@ -126,6 +126,7 @@ cmd_scaffold_preview() {
     ".specify/discovery/state.md"
     ".specify/discovery/decisions.md"
     ".specify/orchestration-state.json"
+    ".specify/manifest.json"
     ".specify/memory/constitution.md"
     ".specify/memory/tech-stack.md"
   )
@@ -682,6 +683,7 @@ cmd_status() {
     ".specify/discovery/state.md"
     ".specify/discovery/decisions.md"
     ".specify/orchestration-state.json"
+    ".specify/manifest.json"
   )
 
   local missing_files=()
@@ -879,6 +881,17 @@ EOF
   fi
 
   print_status "ok" "Created state file"
+
+  # Initialize version manifest
+  local manifest_file="${specify_dir}/manifest.json"
+  if [[ ! -f "$manifest_file" ]] || [[ "$force" == "true" ]]; then
+    bash "${SCRIPT_DIR}/speckit-manifest.sh" init 2>/dev/null || {
+      log_warn "Could not initialize manifest.json (non-critical)"
+    }
+    if [[ -f "$manifest_file" ]]; then
+      print_status "ok" "Created version manifest"
+    fi
+  fi
 
   # Copy templates
   if [[ "$skip_templates" != "true" ]]; then

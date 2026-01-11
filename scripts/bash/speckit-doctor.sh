@@ -44,6 +44,7 @@ CHECK AREAS:
     system              SpecKit system installation
     project             Project structure (.specify/)
     state               State file validity
+    manifest            Version manifest validity and compatibility
     paths               Config path existence
     git                 Git repository status
     templates           Template versions
@@ -278,6 +279,142 @@ check_state() {
       add_issue "State missing section: $section"
     fi
   done
+}
+
+# Check version manifest
+check_manifest() {
+  local fix="${1:-false}"
+
+  log_step "Checking version manifest"
+
+  local repo_root
+  repo_root="$(get_repo_root)"
+  local manifest_file="${repo_root}/.specify/manifest.json"
+
+  if [[ ! -f "$manifest_file" ]]; then
+    print_status warn "Manifest file not found: .specify/manifest.json"
+    add_warning "Version manifest missing"
+
+    if [[ "$fix" == "true" ]]; then
+      log_info "Creating version manifest..."
+      if bash "${SCRIPT_DIR}/speckit-manifest.sh" init 2>/dev/null; then
+        add_fixed "Created version manifest"
+        print_status ok "Created manifest.json"
+      else
+        print_status error "Failed to create manifest"
+      fi
+    else
+      log_info "Run 'speckit manifest init' or 'speckit doctor --fix' to create"
+    fi
+    return
+  fi
+
+  print_status ok "Manifest file exists"
+
+  # Validate JSON syntax
+  if ! jq '.' "$manifest_file" >/dev/null 2>&1; then
+    print_status error "Invalid JSON in manifest.json"
+    add_issue "Manifest has invalid JSON"
+
+    if [[ "$fix" == "true" ]]; then
+      log_info "Recreating manifest..."
+      if bash "${SCRIPT_DIR}/speckit-manifest.sh" init --force 2>/dev/null; then
+        add_fixed "Recreated manifest with valid JSON"
+      fi
+    fi
+    return
+  fi
+
+  # Check manifest schema version
+  local manifest_schema
+  manifest_schema=$(jq -r '.manifest_schema // empty' "$manifest_file" 2>/dev/null)
+  if [[ -n "$manifest_schema" ]]; then
+    print_status ok "Manifest schema: v$manifest_schema"
+  else
+    print_status warn "Missing manifest_schema field"
+    add_warning "Manifest missing schema version"
+  fi
+
+  # Check speckit version
+  local manifest_speckit_version
+  manifest_speckit_version=$(jq -r '.speckit_version // empty' "$manifest_file" 2>/dev/null)
+  if [[ -n "$manifest_speckit_version" ]]; then
+    print_status ok "SpecKit version in manifest: v$manifest_speckit_version"
+
+    # Compare with actual CLI version
+    if command_exists speckit; then
+      local cli_version
+      cli_version=$(speckit version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+      if [[ "$cli_version" != "unknown" && "$cli_version" != "$manifest_speckit_version" ]]; then
+        print_status warn "CLI version mismatch: manifest=${manifest_speckit_version}, installed=${cli_version}"
+        add_warning "Manifest version differs from installed CLI"
+        log_info "Run 'speckit manifest upgrade' to update manifest"
+      fi
+    fi
+  else
+    print_status warn "Missing speckit_version in manifest"
+    add_warning "Manifest missing SpecKit version"
+  fi
+
+  # Check minimum CLI compatibility
+  local min_cli
+  min_cli=$(jq -r '.compatibility.min_cli // empty' "$manifest_file" 2>/dev/null)
+  if [[ -n "$min_cli" ]]; then
+    if command_exists speckit; then
+      local cli_version
+      cli_version=$(speckit version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "0.0.0")
+
+      # Simple version comparison (major.minor.patch)
+      local min_major min_minor min_patch cli_major cli_minor cli_patch
+      IFS='.' read -r min_major min_minor min_patch <<< "$min_cli"
+      IFS='.' read -r cli_major cli_minor cli_patch <<< "$cli_version"
+
+      local cli_ok=true
+      if [[ "$cli_major" -lt "$min_major" ]]; then
+        cli_ok=false
+      elif [[ "$cli_major" -eq "$min_major" && "$cli_minor" -lt "$min_minor" ]]; then
+        cli_ok=false
+      elif [[ "$cli_major" -eq "$min_major" && "$cli_minor" -eq "$min_minor" && "$cli_patch" -lt "$min_patch" ]]; then
+        cli_ok=false
+      fi
+
+      if [[ "$cli_ok" == "true" ]]; then
+        print_status ok "CLI meets minimum: v$cli_version >= v$min_cli"
+      else
+        print_status error "CLI too old: v$cli_version < v$min_cli required"
+        add_issue "CLI version $cli_version below required minimum $min_cli"
+        log_info "Run './install.sh --upgrade' to update SpecKit"
+      fi
+    fi
+  fi
+
+  # Check schema versions match actual files
+  local state_schema
+  state_schema=$(jq -r '.schema.state // empty' "$manifest_file" 2>/dev/null)
+  if [[ -n "$state_schema" ]]; then
+    local state_file
+    state_file="$(get_state_file)"
+    if [[ -f "$state_file" ]]; then
+      local actual_state_schema
+      actual_state_schema=$(jq -r '.schema_version // .version // empty' "$state_file" 2>/dev/null)
+      if [[ -n "$actual_state_schema" && "$actual_state_schema" != "$state_schema" ]]; then
+        print_status warn "State schema mismatch: manifest=${state_schema}, actual=${actual_state_schema}"
+        add_warning "State schema version differs from manifest"
+      else
+        print_status ok "State schema matches: v$state_schema"
+      fi
+    fi
+  fi
+
+  # Run full validation
+  log_info "Running manifest validation..."
+  if bash "${SCRIPT_DIR}/speckit-manifest.sh" validate >/dev/null 2>&1; then
+    print_status ok "Manifest validation passed"
+  else
+    print_status warn "Manifest validation has warnings"
+    add_warning "Manifest has validation issues"
+    log_info "Run 'speckit manifest validate' for details"
+  fi
 }
 
 # Check config paths exist
@@ -696,6 +833,9 @@ run_checks() {
     state)
       check_state "$fix"
       ;;
+    manifest)
+      check_manifest "$fix"
+      ;;
     paths)
       check_paths "$fix"
       ;;
@@ -721,6 +861,8 @@ run_checks() {
       echo ""
       check_state "$fix"
       echo ""
+      check_manifest "$fix"
+      echo ""
       check_paths "$fix"
       echo ""
       check_git "$fix"
@@ -735,7 +877,7 @@ run_checks() {
       ;;
     *)
       log_error "Unknown check area: $check_area"
-      log_info "Valid areas: system, project, state, paths, git, templates, version, roadmap, reality, all"
+      log_info "Valid areas: system, project, state, manifest, paths, git, templates, version, roadmap, reality, all"
       exit 1
       ;;
   esac

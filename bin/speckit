@@ -158,6 +158,14 @@ COMMANDS:
                   roadmap             Migrate ROADMAP.md from 2.0 to 2.1
                                       (converts 3-digit to 4-digit phases)
 
+    manifest    Version manifest operations
+                  init                Create manifest.json
+                  get [key]           Get version info
+                  set <key> <val>     Set version value
+                  validate            Validate compatibility
+                  upgrade             Apply available upgrades
+                  status              Show version status
+
     help        Show this help message
     version     Show version
 
@@ -259,6 +267,9 @@ main() {
       ;;
     migrate)
       run_script "migrate" "$@"
+      ;;
+    manifest)
+      run_script "manifest" "$@"
       ;;
     help|--help|-h)
       show_help

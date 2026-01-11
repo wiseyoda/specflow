@@ -112,11 +112,15 @@ count_tasks() {
 
   local total completed
 
-  # Count all task items: - [ ] Txxx or - [x] Txxx
-  total=$(grep -cE '^\s*-\s*\[[x ]\]\s*T[0-9]+' "$file" 2>/dev/null) || total=0
+  # Count all task items - supports multiple formats:
+  # - [ ] T001: description (legacy format)
+  # - [x] **A1.1**: description (ABBC format with bold)
+  # - [x] A1.1: description (ABBC format without bold)
+  # Pattern: checkbox followed by optional bold, then letter+digits or T+digits
+  total=$(grep -cE '^\s*-\s*\[[x ]\]\s*\*?\*?[A-Z][0-9]+' "$file" 2>/dev/null) || total=0
 
-  # Count completed tasks: - [x] Txxx
-  completed=$(grep -cE '^\s*-\s*\[x\]\s*T[0-9]+' "$file" 2>/dev/null) || completed=0
+  # Count completed tasks
+  completed=$(grep -cE '^\s*-\s*\[x\]\s*\*?\*?[A-Z][0-9]+' "$file" 2>/dev/null) || completed=0
 
   echo "$completed $total"
 }
@@ -129,8 +133,8 @@ get_incomplete_tasks() {
     return
   fi
 
-  # Find unchecked tasks with ID
-  grep -E '^\s*-\s*\[ \]\s*T[0-9]+' "$file" 2>/dev/null | sed 's/^\s*-\s*\[ \]\s*//'
+  # Find unchecked tasks with ID (supports T001 and A1.1 formats)
+  grep -E '^\s*-\s*\[ \]\s*\*?\*?[A-Z][0-9]+' "$file" 2>/dev/null | sed 's/^\s*-\s*\[ \]\s*//'
 }
 
 # Get all tasks from a file
@@ -141,7 +145,8 @@ get_all_tasks() {
     return
   fi
 
-  grep -E '^\s*-\s*\[[x ]\]\s*T[0-9]+' "$file" 2>/dev/null
+  # Match tasks with ID (supports T001 and A1.1 formats)
+  grep -E '^\s*-\s*\[[x ]\]\s*\*?\*?[A-Z][0-9]+' "$file" 2>/dev/null
 }
 
 # Extract phase sections from tasks file
@@ -241,9 +246,9 @@ cmd_incomplete() {
     local items_json="[]"
     while IFS= read -r task; do
       [[ -z "$task" ]] && continue
-      # Extract task ID
+      # Extract task ID (supports T001 and **A1.1** formats)
       local task_id
-      task_id=$(echo "$task" | grep -oE '^T[0-9]+' || echo "")
+      task_id=$(echo "$task" | sed 's/^\*\*//' | grep -oE '^[A-Z][0-9]+(\.[0-9]+)?' || echo "")
       items_json=$(echo "$items_json" | jq --arg id "$task_id" --arg task "$task" \
         '. + [{"id": $id, "task": $task}]')
     done < <(get_incomplete_tasks "$file")
@@ -411,14 +416,15 @@ cmd_phase_status() {
       phase_completed=0
       phase_total=0
     fi
-    if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[x\][[:space:]]*T[0-9]+ ]]; then
+    # Support both T001 and **A1.1** task formats
+    if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[x\][[:space:]]*\*?\*?[A-Z][0-9]+ ]]; then
       ((phase_completed++)) || true
-    elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[[[:space:]]\][[:space:]]*T[0-9]+ ]]; then
+    elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[[[:space:]]\][[:space:]]*\*?\*?[A-Z][0-9]+ ]]; then
       : # just count total
     else
       continue
     fi
-    if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[[x[:space:]]\][[:space:]]*T[0-9]+ ]]; then
+    if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[[x[:space:]]\][[:space:]]*\*?\*?[A-Z][0-9]+ ]]; then
       ((phase_total++)) || true
     fi
   done < "$file"
@@ -490,11 +496,12 @@ cmd_list() {
   if is_json_output; then
     local items_json="[]"
     while IFS= read -r line; do
-      if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[([x[:space:]])\][[:space:]]*(T[0-9]+.*)$ ]]; then
+      # Support both T001 and **A1.1** task formats
+      if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[([x[:space:]])\][[:space:]]*(\*?\*?[A-Z][0-9]+.*)$ ]]; then
         local checked="${BASH_REMATCH[1]}"
         local task="${BASH_REMATCH[2]}"
         local task_id
-        task_id=$(echo "$task" | grep -oE '^T[0-9]+' || echo "")
+        task_id=$(echo "$task" | sed 's/^\*\*//' | grep -oE '^[A-Z][0-9]+(\.[0-9]+)?' || echo "")
         local status="incomplete"
         [[ "$checked" == "x" ]] && status="complete"
         items_json=$(echo "$items_json" | jq --arg id "$task_id" --arg task "$task" --arg status "$status" \
@@ -508,9 +515,10 @@ cmd_list() {
     local complete_tasks=()
     local pending_tasks=()
     while IFS= read -r line; do
-      if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[x\][[:space:]]*(T[0-9]+.*)$ ]]; then
+      # Support both T001 and **A1.1** task formats
+      if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[x\][[:space:]]*(\*?\*?[A-Z][0-9]+.*)$ ]]; then
         complete_tasks+=("${BASH_REMATCH[1]}")
-      elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[[[:space:]]\][[:space:]]*(T[0-9]+.*)$ ]]; then
+      elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[[[:space:]]\][[:space:]]*(\*?\*?[A-Z][0-9]+.*)$ ]]; then
         pending_tasks+=("${BASH_REMATCH[1]}")
       fi
     done < "$file"
@@ -633,8 +641,8 @@ cmd_sync() {
       phase_total=0
     fi
 
-    # Count and collect tasks
-    if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[x\][[:space:]]*(T[0-9]+.*)$ ]]; then
+    # Count and collect tasks (supports both T001 and **A1.1** formats)
+    if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[x\][[:space:]]*(\*?\*?[A-Z][0-9]+.*)$ ]]; then
       ((phase_completed++)) || true
       ((phase_total++)) || true
       ((total_completed++)) || true
@@ -644,7 +652,7 @@ cmd_sync() {
         quick_status+="- [x] ${BASH_REMATCH[1]}\n"
         ((quick_count++)) || true
       fi
-    elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[[[:space:]]\][[:space:]]*(T[0-9]+.*)$ ]]; then
+    elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*\[[[:space:]]\][[:space:]]*(\*?\*?[A-Z][0-9]+.*)$ ]]; then
       ((phase_total++)) || true
       ((total_tasks++)) || true
       # First incomplete task is current

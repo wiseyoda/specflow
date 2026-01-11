@@ -154,6 +154,10 @@ COMMANDS:
                   all                 Run all applicable gates
                   status              Show gate status
 
+    migrate     Migration utilities
+                  roadmap             Migrate ROADMAP.md from 2.0 to 2.1
+                                      (converts 3-digit to 4-digit phases)
+
     help        Show this help message
     version     Show version
 
@@ -252,6 +256,9 @@ main() {
       ;;
     gate)
       run_script "gate" "$@"
+      ;;
+    migrate)
+      run_script "migrate" "$@"
       ;;
     help|--help|-h)
       show_help

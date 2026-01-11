@@ -4,11 +4,11 @@
     "id": "1e17606c-8e0e-4f09-8443-de0aaca8ae79",
     "name": "claude-speckit-orchestration",
     "path": "/Users/ppatterson/dev/claude-speckit-orchestration",
-    "description": null,
-    "type": null,
+    "description": "SpecKit - Spec-Driven Development Framework for Claude Code",
+    "type": "cli-tool",
     "criticality": null,
     "created_at": "2026-01-11T02:54:53Z",
-    "updated_at": "2026-01-11T02:54:53Z"
+    "updated_at": "2026-01-11T03:00:00Z"
   },
   "config": {
     "roadmap_path": "ROADMAP.md",
@@ -28,15 +28,60 @@
   },
   "orchestration": {
     "phase": {
-      "number": null,
-      "name": null,
-      "branch": null,
-      "status": "not_started"
+      "number": "0010",
+      "name": "roadmap-flexibility",
+      "branch": "0010-roadmap-flexibility",
+      "status": "in_progress"
     },
     "step": {
-      "current": null,
-      "index": 0,
-      "status": "not_started"
+      "current": "verify",
+      "index": "7",
+      "status": "in_progress"
+    },
+    "steps": {
+      "specify": {
+        "status": "in_progress",
+        "completed_at": null,
+        "artifacts": []
+      },
+      "clarify": {
+        "status": "pending",
+        "completed_at": null,
+        "artifacts": []
+      },
+      "plan": {
+        "status": "pending",
+        "completed_at": null,
+        "artifacts": []
+      },
+      "tasks": {
+        "status": "pending",
+        "completed_at": null,
+        "artifacts": []
+      },
+      "analyze": {
+        "status": "pending",
+        "completed_at": null,
+        "fix_iterations": 0,
+        "artifacts": []
+      },
+      "checklist": {
+        "status": "pending",
+        "completed_at": null,
+        "artifacts": []
+      },
+      "implement": {
+        "status": "pending",
+        "completed_at": null,
+        "tasks_completed": 24,
+        "tasks_total": 24,
+        "artifacts": []
+      },
+      "verify": {
+        "status": "pending",
+        "completed_at": null,
+        "artifacts": []
+      }
     },
     "progress": {
       "tasks_completed": 0,
@@ -45,17 +90,24 @@
     }
   },
   "health": {
-    "status": "initializing",
-    "last_check": "2026-01-11T02:54:53Z",
+    "status": "healthy",
+    "last_check": "2026-01-11T03:00:00Z",
     "issues": []
   },
   "actions": {
     "available": [],
     "pending": [],
-    "history": []
+    "history": [
+      {
+        "action": "orchestration_started",
+        "phase": "0010",
+        "timestamp": "2026-01-11T03:00:00Z"
+      }
+    ]
   },
   "ui": {
     "last_sync": null,
     "notifications": []
-  }
+  },
+  "last_updated": "2026-01-11T03:38:38Z"
 }

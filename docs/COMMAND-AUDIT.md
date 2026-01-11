@@ -61,6 +61,11 @@
 |---------|---------|--------|
 | `/speckit.taskstoissues` | Convert tasks to GitHub issues | ✅ Active (utilities/) |
 
+### Deleted (v2.1)
+| Command | Reason | Replacement |
+|---------|--------|-------------|
+| `/speckit.issue` | CLI works directly | `speckit issue` CLI |
+
 ## Archived Commands
 
 The following were consolidated into `/speckit.init` (v2.0):

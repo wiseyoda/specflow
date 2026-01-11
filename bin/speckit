@@ -217,6 +217,9 @@ EXAMPLES:
     speckit checklist status
     speckit doctor --fix
 
+TIP: In Claude Code, run /speckit.start to auto-detect project state and route
+     to the appropriate workflow.
+
 For more information, see: ~/.claude/speckit-system/README.md
 EOF
 }

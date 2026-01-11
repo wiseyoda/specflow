@@ -19,6 +19,7 @@ templates/
 ├── checklist-template.md     # Verification checklist
 ├── roadmap-template.md       # Project roadmap
 ├── review-template.md        # Code review
+├── ui-design-template.md     # UI/UX design documentation (auto-created for UI phases)
 └── memory/                   # Memory document templates
     ├── constitution.md
     ├── tech-stack.md

@@ -350,40 +350,17 @@ cmd_merge() {
   local claude_path
   claude_path="$(get_claude_md_path)"
 
-  # SpecKit sections to add/update
-  local speckit_sections=(
-    "Recent Changes"
-    "SpecKit Configuration"
-    "Development Workflow"
-  )
-
-  local speckit_marker="<!-- SpecKit Managed Section -->"
-
   if [[ ! -f "$claude_path" ]]; then
     log_error "CLAUDE.md not found at $claude_path"
     log_info "Nothing to merge - run scaffold to create one"
     exit 1
   fi
 
-  local existing_content
-  existing_content="$(cat "$claude_path")"
-
-  # Check what SpecKit sections are already present
-  local missing_sections=()
-  local present_sections=()
-
-  for section in "${speckit_sections[@]}"; do
-    if grep -qF "## $section" "$claude_path" 2>/dev/null; then
-      present_sections+=("$section")
-    else
-      missing_sections+=("$section")
-    fi
-  done
-
-  if [[ ${#missing_sections[@]} -eq 0 ]]; then
-    log_info "All SpecKit sections already present in CLAUDE.md"
+  # Check if SpecKit section already exists
+  if grep -qF "## SpecKit" "$claude_path" 2>/dev/null; then
+    log_info "SpecKit section already present in CLAUDE.md"
     if is_json_output; then
-      echo '{"status": "up_to_date", "merged": []}'
+      echo '{"status": "up_to_date", "merged": false}'
     fi
     return 0
   fi
@@ -391,25 +368,20 @@ cmd_merge() {
   log_step "Merge Analysis"
   echo ""
   echo "  Existing CLAUDE.md: $(wc -l < "$claude_path" | tr -d ' ') lines"
-  echo "  Present SpecKit sections: ${present_sections[*]:-none}"
-  echo "  Missing SpecKit sections: ${missing_sections[*]}"
+  echo "  SpecKit section: missing"
   echo ""
 
   if $dry_run; then
-    log_info "[DRY RUN] Would add the following sections:"
-    for section in "${missing_sections[@]}"; do
-      echo "  + ## $section"
-    done
+    log_info "[DRY RUN] Would add minimal SpecKit section (~7 lines)"
+    echo ""
+    echo "  ## SpecKit"
+    echo "  This project uses SpecKit for spec-driven development."
+    echo "  **Quick Start**: /speckit.start"
+    echo "  **CLI Help**: speckit --help"
+    echo "  **Full Reference**: .specify/USAGE.md"
 
     if is_json_output; then
-      printf '{"dry_run": true, "would_add": ['
-      local first=true
-      for section in "${missing_sections[@]}"; do
-        $first || printf ','
-        printf '"%s"' "$section"
-        first=false
-      done
-      printf ']}\n'
+      echo '{"dry_run": true, "would_add": ["SpecKit"]}'
     fi
     return 0
   fi
@@ -419,81 +391,44 @@ cmd_merge() {
   cp "$claude_path" "$backup_path"
   log_info "Backup created: $backup_path"
 
-  # Generate missing sections content
-  local new_sections=""
+  # Minimal SpecKit section content (≤15 lines as per UX simplification)
+  local speckit_section
+  speckit_section="
+## SpecKit
 
-  for section in "${missing_sections[@]}"; do
-    case "$section" in
-      "Recent Changes")
-        new_sections+="
-## Recent Changes
-$speckit_marker
+This project uses SpecKit for spec-driven development.
 
-- **$(current_date)**: SpecKit integration initialized
-
-"
-        ;;
-      "SpecKit Configuration")
-        new_sections+="
-## SpecKit Configuration
-$speckit_marker
-
-- **State file**: \`.specify/orchestration-state.json\`
-- **Memory docs**: \`.specify/memory/\`
-- **Specifications**: \`specs/\`
-
-Run \`speckit help\` for available commands.
+**Quick Start**: \`/speckit.start\` - auto-routes to the right command
+**CLI Help**: \`speckit --help\`
+**Full Reference**: See \`.specify/USAGE.md\`
 
 "
-        ;;
-      "Development Workflow")
-        new_sections+="
-## Development Workflow
-$speckit_marker
-
-This project uses SpecKit for spec-driven development:
-
-1. \`/speckit.orchestrate\` - Run full workflow
-2. \`/speckit.verify\` - Verify completion
-3. \`speckit roadmap status\` - Check phase progress
-
-"
-        ;;
-    esac
-  done
 
   # Find insertion point (before first ## or at end)
   local temp_file
   temp_file=$(mktemp)
 
-  # Strategy: Insert SpecKit sections after the main header/description
+  # Strategy: Insert SpecKit section after the main header/description
   # Look for the first ## heading and insert before it
-  awk -v sections="$new_sections" '
+  awk -v section="$speckit_section" '
     /^## / && !inserted {
-      printf "%s", sections
+      printf "%s", section
       inserted = 1
     }
     { print }
     END {
       if (!inserted) {
-        printf "%s", sections
+        printf "%s", section
       }
     }
   ' "$claude_path" > "$temp_file"
 
   mv "$temp_file" "$claude_path"
 
-  log_success "Merged ${#missing_sections[@]} SpecKit section(s) into CLAUDE.md"
+  log_success "Added minimal SpecKit section to CLAUDE.md"
 
   if is_json_output; then
-    printf '{"merged": ['
-    local first=true
-    for section in "${missing_sections[@]}"; do
-      $first || printf ','
-      printf '"%s"' "$section"
-      first=false
-    done
-    printf '], "backup": "%s"}\n' "$backup_path"
+    printf '{"merged": true, "backup": "%s"}\n' "$backup_path"
   fi
 }
 

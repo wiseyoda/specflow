@@ -201,17 +201,6 @@ Checks:
 /speckit.phase <pdr-file>
 ```
 
-### /speckit.issue
-
-**Local issue management** - Create, list, close, and manage local issues.
-
-```
-/speckit.issue                   # Interactive mode
-/speckit.issue list              # List all issues
-/speckit.issue create "<title>"  # Create new issue
-/speckit.issue close <id>        # Close an issue
-```
-
 ### /speckit.constitution
 
 **Create or update project constitution** from interactive or provided principle inputs.
@@ -317,9 +306,11 @@ Located in `commands/utilities/`.
 
 ## Quick Reference
 
+**Recommended Entry Point**: `/speckit.start` - Routes you to the right command automatically.
+
 | Command | Purpose |
 |---------|---------|
-| `/speckit.start` | Auto-detect state, route to next step |
+| `/speckit.start` | **Primary entry point** - Auto-detect state, route to next step |
 | `/speckit.init` | Requirements interview |
 | `/speckit.orchestrate` | Full automated workflow |
 | `/speckit.specify` | Create feature spec |
@@ -328,5 +319,7 @@ Located in `commands/utilities/`.
 | `/speckit.implement` | Execute tasks |
 | `/speckit.verify` | Verify completion |
 | `/speckit.merge` | Complete phase, merge PR |
-| `/speckit.memory` | Manage memory documents |
+| `/speckit.memory` | Manage memory documents (incl. generate) |
 | `/speckit.review` | Code review |
+
+**Note**: For issue management, use the CLI directly: `speckit issue list`, `speckit issue create`, etc.

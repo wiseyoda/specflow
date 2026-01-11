@@ -8,6 +8,9 @@ handoffs:
     agent: speckit.clarify
     prompt: Clarify specification requirements
     send: true
+  - label: Continue Later
+    agent: speckit.start
+    prompt: Resume work on this project
 ---
 
 ## User Input
@@ -260,6 +263,33 @@ Given that feature description, do this:
    d. **Update Checklist**: After each validation iteration, update the checklist file with current pass/fail status
 
 8. Report completion with branch name, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
+
+9. **UI Detection and Design Documentation**:
+
+   After creating the spec, check if this phase involves visual UI changes:
+
+   a. **Detect UI Keywords**: Scan the feature description and spec for these keywords:
+   ```
+   dashboard, form, button, screen, page, view, component,
+   interface, modal, dialog, panel, widget, layout,
+   navigation, menu, sidebar, header, footer
+   ```
+
+   b. **If UI keywords found**:
+   1. Create `ui/` folder in the spec directory: `mkdir -p specs/<phase>/ui/`
+   2. Copy UI design template: `cp templates/ui-design-template.md specs/<phase>/ui/design.md`
+   3. Fill in the template with:
+      - Phase name and number
+      - Current state description (existing UI or "New feature")
+      - Proposed design based on spec requirements
+      - Initial component inventory from spec
+   4. Add inline reference to spec.md: `(see [ui/design.md](ui/design.md))`
+
+   c. **Report UI status**:
+   ```
+   UI Phase Detected: Yes/No
+   Design Document: specs/<phase>/ui/design.md (if created)
+   ```
 
 **NOTE:** The script creates and checks out the new branch and initializes the spec file before writing.
 

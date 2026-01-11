@@ -208,7 +208,7 @@
 
 ## Related PDRs
 
-- None currently (this is foundational cleanup)
+- `pdr-ui-design-artifacts.md` - UI/UX Design Documentation (combined into Phase 0050)
 
 ---
 

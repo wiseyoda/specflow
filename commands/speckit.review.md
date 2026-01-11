@@ -10,6 +10,9 @@ handoffs:
   - label: View Roadmap
     agent: speckit.roadmap
     prompt: Show roadmap status
+  - label: Continue Later
+    agent: speckit.start
+    prompt: Resume work on this project
 ---
 
 ## User Input

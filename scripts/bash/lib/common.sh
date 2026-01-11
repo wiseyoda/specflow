@@ -172,6 +172,23 @@ print_summary() {
 }
 
 # =============================================================================
+# POSIX Compatibility
+# =============================================================================
+
+# Platform-aware sed in-place editing
+# Usage: sed_in_place "file" "sed_expression"
+# Works on both macOS (BSD sed) and Linux (GNU sed)
+sed_in_place() {
+  local file="$1"
+  shift
+  if [[ "$(uname)" == "Darwin" ]]; then
+    sed -i '' "$@" "$file"
+  else
+    sed -i "$@" "$file"
+  fi
+}
+
+# =============================================================================
 # Path Utilities
 # =============================================================================
 
@@ -188,6 +205,11 @@ get_repo_root() {
 # Get the SpecKit system directory
 get_speckit_system_dir() {
   echo "${HOME}/.claude/speckit-system"
+}
+
+# Get the SpecKit registry file path
+get_speckit_registry() {
+  echo "${HOME}/.speckit/registry.json"
 }
 
 # Get the project's .specify directory

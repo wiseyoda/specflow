@@ -649,8 +649,7 @@ cmd_migrate() {
     exit 1
   fi
 
-  log_step "Analyzing ROADMAP.md for migration"
-
+  # Three-line rule: Show counts after analysis
   # Count phases
   local total_phases=0
   local complete_phases=0

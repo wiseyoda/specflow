@@ -20,7 +20,9 @@ source "${SCRIPT_DIR}/lib/common.sh"
 # Constants
 # =============================================================================
 
-readonly SPECKIT_SYSTEM_DIR="${HOME}/.claude/speckit-system"
+# Use centralized path helper from common.sh
+SPECKIT_SYSTEM_DIR="$(get_speckit_system_dir)"
+readonly SPECKIT_SYSTEM_DIR
 readonly SYSTEM_TEMPLATES="${SPECKIT_SYSTEM_DIR}/templates"
 
 # =============================================================================
@@ -158,10 +160,8 @@ cmd_check() {
 
   if is_json_output; then
     local results="[]"
-  else
-    print_header "Template Version Check"
-    echo ""
   fi
+  # Three-line rule: Status comes from template check results below
 
   local outdated=0
   local total=0
@@ -369,10 +369,9 @@ cmd_diff() {
   proj_version=$(get_template_version "$proj_template")
 
   if ! is_json_output; then
-    print_header "Template Diff: $filename"
-    echo ""
-    echo "  System version:  ${sys_version:-unknown}"
-    echo "  Project version: ${proj_version:-unknown}"
+    # Three-line rule: Essential info first
+    echo "Diff: $filename"
+    echo "System: ${sys_version:-unknown}, Project: ${proj_version:-unknown}"
     echo ""
   fi
 
@@ -405,14 +404,17 @@ cmd_list() {
     done < <(find "$SYSTEM_TEMPLATES" -maxdepth 1 \( -name "*.md" -o -name "*.yaml" \) -type f 2>/dev/null | sort)
     echo "$templates"
   else
-    print_header "Available Templates"
-    echo ""
+    # Three-line rule: List output directly
+    local count=0
     while IFS= read -r template; do
       local filename version
       filename=$(basename "$template")
       version=$(get_template_version "$template")
-      echo "  $filename (v${version:-?})"
+      echo "$filename (v${version:-?})"
+      ((count++)) || true
     done < <(find "$SYSTEM_TEMPLATES" -maxdepth 1 \( -name "*.md" -o -name "*.yaml" \) -type f 2>/dev/null | sort)
+    echo ""
+    echo "$count templates available"
   fi
 }
 

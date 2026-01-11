@@ -9,6 +9,7 @@
 #
 
 set -euo pipefail
+shopt -s extglob  # Required for extended glob patterns
 
 # Source libraries
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -185,8 +186,7 @@ cmd_create() {
     exit 1
   fi
 
-  log_step "Creating feature: ${phase}-${name}"
-
+  # Three-line rule: Status will be shown after completion
   # Create directory structure
   ensure_dir "$feature_dir"
   ensure_dir "${feature_dir}/checklists"

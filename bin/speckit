@@ -334,7 +334,7 @@ main() {
       exit 0
       ;;
     # Slash commands - these are Claude Code prompts, not CLI commands
-    analyze|specify|clarify|plan|implement|verify|orchestrate|init|constitution|start|phase)
+    analyze|specify|clarify|plan|implement|verify|orchestrate|init|constitution|start)
       log_error "Unknown command: ${command}"
       echo ""
       log_info "'${command}' is a Claude Code slash command, not a CLI command."

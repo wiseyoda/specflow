@@ -19,14 +19,14 @@ description: 'Feature specification template'
   If no handoff files exist, DELETE this entire section.
 -->
 
-### From Phase [NNN] - [Phase Name]
+### From Phase [NNNN] - [Phase Name]
 
 | ID | Requirement | Original Context | Status |
 |----|-------------|------------------|--------|
 | IR-001 | [Inherited requirement description] | [Why it was deferred] | ⬜ Pending |
 | IR-002 | [Inherited requirement description] | [Why it was deferred] | ⬜ Pending |
 
-**Handoff Source**: `.specify/phases/[NNN]-handoff.md`
+**Handoff Source**: `.specify/phases/[NNNN]-handoff.md`
 
 **Resolution**:
 - Items marked ✅ Incorporated are included in this spec's Requirements section

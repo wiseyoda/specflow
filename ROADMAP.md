@@ -37,7 +37,8 @@ This allows inserting urgent work without renumbering existing phases.
 | 0040 | Integration Options | ✅ Complete | Existing docs imported successfully |
 | 0041 | Code Review Findings | ✅ Complete | All review findings addressed |
 | 0042 | Code Review 2026-01-11 | ✅ Complete | 18 findings addressed |
-| 0050 | UX Simplification | ✅ Not Started | Single entry point, clean codebase, unified memory |
+| 0050 | UX Simplification | ✅ Complete | Single entry point, clean codebase, unified memory |
+| 0060 | Constitution Compliance | 🔄 Not Started | 95%+ constitution compliance, three-line rule, critical bugs fixed |
 | 1010 | Web UI Dashboard | ⬜ Not Started | **USER GATE**: Dashboard shows project status |
 
 **Legend**: ⬜ Not Started | 🔄 In Progress | ✅ Complete | **USER GATE** = Requires user verification
@@ -340,6 +341,78 @@ This allows inserting urgent work without renumbering existing phases.
 
 ---
 
+### 0060 - Constitution Compliance
+
+**Goal**: Remediate 92 compliance violations identified in comprehensive audit, achieving 95%+ constitution compliance.
+
+**Source PDRs**:
+- `pdr-compliance-remediation.md` - Constitution & Standards Compliance Remediation
+
+**Scope** (from PDR audit):
+- **Critical Fixes (P1)**: Fix LIB008 (phase command blocked), resolve TPL012 (duplicate templates)
+- **Quick Wins (P2)**: Fix 6 hardcoded paths, 3 json.sh escaping issues, README errors, sed -i portability
+- **Three-Line Rule**: Refactor 26 CLI functions to show status in first 3 lines
+- **Command Alignment**: Add missing CLI commands, update slash commands to use correct CLIs
+- **Template & Test Cleanup**: Sync templates to 4-digit ABBC, add missing test coverage
+
+**User Stories** (from PDR):
+1. CLI Output Clarity: See critical info in first 3 lines of every CLI output
+2. Consistent Command Behavior: All state changes go through CLI commands
+3. Working CLI Commands: Run `speckit phase` without errors
+4. Single Template Source: One canonical location for templates
+
+**Deliverables**:
+
+*Critical Fixes*:
+- Fix `bin/speckit:334` - remove 'phase' from slash-command warning
+- Delete `.specify/templates/` (templates/ is canonical source)
+
+*Hardcoded Paths*:
+- Centralize SPECKIT_SYSTEM_DIR, SPECKIT_REGISTRY in common.sh
+- Update speckit-doctor.sh, speckit-detect.sh, speckit-state.sh, speckit-templates.sh, speckit-scaffold.sh
+
+*Three-Line Output Rule*:
+- Create `print_summary()` helper enforcing status-first pattern
+- Refactor 26 CLI functions (speckit-detect, gate, lessons, import, context, git, manifest, reconcile, templates, phase, roadmap, memory, migrate, pdr, scaffold, state)
+
+*Command Alignment*:
+- Remove deprecated script references from slash commands
+- Update verify.md, backlog.md, phase.md, init.md to use CLI
+- Add missing CLI commands if referenced
+
+*POSIX Compliance*:
+- Add platform detection for sed -i (macOS vs Linux)
+- Add shopt -s extglob where needed
+
+*Template Sync*:
+- Update all templates to 4-digit ABBC phase format
+- Remove duplicate templates
+
+**Constraints** (from PDR):
+- Must maintain backward compatibility
+- All fixes must pass existing test suite
+- Changes must follow constitution principles (meta-compliance)
+- Must NOT break any existing CLI command behavior
+
+**Non-Goals** (from PDR):
+- Adding new features beyond fixing compliance
+- Performance optimization
+- Major refactoring beyond fixing violations
+- Adding new test coverage beyond identified gaps
+
+**Verification Gate**:
+- `speckit phase` command works without errors (LIB008 fixed)
+- All CLI commands show status in first 3 lines (three-line rule)
+- Single template directory exists (templates/ only)
+- All slash commands reference valid CLI commands
+- Constitution compliance audit shows 95%+ overall score
+- No hardcoded paths outside common.sh
+- README.md documentation accurate
+
+**Estimated Complexity**: High (92 issues across 93 files, 5 remediation categories)
+
+---
+
 ## Milestone 1: Extended Features
 
 ### 1010 - Web UI Dashboard
@@ -466,3 +539,5 @@ Branch names remain unchanged (branches use short names, not phase numbers).
 | 2026-01-11 | Added modular ROADMAP: speckit phase, speckit issue, speckit roadmap renumber, /speckit.merge auto-archive |
 | 2026-01-11 | Added Phase 0050 (UX Simplification) from pdr-ux-simplification.md |
 | 2026-01-11 | Added UI Design Artifacts to Phase 0050 from pdr-ui-design-artifacts.md |
+| 2026-01-11 | Phase 0050 completed - UX Simplification merged |
+| 2026-01-11 | Added Phase 0060 (Constitution Compliance) from pdr-compliance-remediation.md |

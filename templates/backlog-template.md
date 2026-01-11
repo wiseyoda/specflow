@@ -29,19 +29,19 @@ description: 'Project-level backlog template - tracks items not assigned to spec
 
 | Item | Source | Reason Deferred | Notes |
 |------|--------|-----------------|-------|
-| [ITEM_1] | Phase [NNN] | [REASON] | [NOTES] |
+| [ITEM_1] | Phase [NNNN] | [REASON] | [NOTES] |
 
 ### P2 - Medium Priority
 
 | Item | Source | Reason Deferred | Notes |
 |------|--------|-----------------|-------|
-| [ITEM_2] | Phase [NNN] | [REASON] | [NOTES] |
+| [ITEM_2] | Phase [NNNN] | [REASON] | [NOTES] |
 
 ### P3 - Low Priority
 
 | Item | Source | Reason Deferred | Notes |
 |------|--------|-----------------|-------|
-| [ITEM_3] | Phase [NNN] | [REASON] | [NOTES] |
+| [ITEM_3] | Phase [NNNN] | [REASON] | [NOTES] |
 
 ---
 
@@ -49,8 +49,8 @@ description: 'Project-level backlog template - tracks items not assigned to spec
 
 ### [ITEM_1]
 
-**Source**: Phase [NNN] - [Phase Name]
-**Deferred File**: `specs/[NNN]-[name]/checklists/deferred.md`
+**Source**: Phase [NNNN] - [Phase Name]
+**Deferred File**: `specs/[NNNN]-[name]/checklists/deferred.md`
 
 **Description**:
 [Full description of what was requested]
@@ -83,7 +83,7 @@ When planning a new phase, review this backlog:
 ## Cross-References
 
 Items in this backlog originated from these phase deferrals:
-- `specs/[NNN]-[name]/checklists/deferred.md` - [Brief description]
+- `specs/[NNNN]-[name]/checklists/deferred.md` - [Brief description]
 - [Add more as items are added]
 
 ---
@@ -92,6 +92,6 @@ Items in this backlog originated from these phase deferrals:
 
 | Date | Action | Items Affected |
 |------|--------|----------------|
-| [DATE] | Created backlog | Initial items from Phase [NNN] |
-| [DATE] | Scheduled to Phase [NNN] | [ITEM] |
+| [DATE] | Created backlog | Initial items from Phase [NNNN] |
+| [DATE] | Scheduled to Phase [NNNN] | [ITEM] |
 | [DATE] | Completed | [ITEM] |

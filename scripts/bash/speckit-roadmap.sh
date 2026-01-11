@@ -488,7 +488,7 @@ cmd_validate() {
   local errors=0
   local warnings=0
 
-  log_step "Validating ROADMAP.md"
+  # Three-line rule: Status via print_status below
 
   # Check for phase overview table
   if ! grep -qE '^\|\s*Phase\s*\|' "$roadmap_path"; then
@@ -600,7 +600,7 @@ cmd_renumber() {
   local repo_root
   repo_root="$(get_repo_root)"
 
-  log_step "Analyzing phases for renumbering"
+  # Three-line rule: Show results first, not "analyzing" status
 
   # Collect current phases in order
   local old_phases=()
@@ -682,7 +682,7 @@ cmd_renumber() {
     exit 0
   fi
 
-  log_step "Renumbering phases..."
+  # Three-line rule: Progress via print_status below
 
   # Create temp file for ROADMAP.md
   local temp_roadmap

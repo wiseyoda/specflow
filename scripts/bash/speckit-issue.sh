@@ -362,8 +362,8 @@ cmd_list() {
 
     for status in "${statuses[@]}"; do
       case "$status" in
-        closed) ((closed++)) ;;
-        *) ((open++)) ;;
+        closed) ((closed++)) || true ;;
+        *) ((open++)) || true ;;
       esac
     done
 
@@ -704,8 +704,7 @@ cmd_migrate() {
     exit 1
   fi
 
-  log_step "Scanning ROADMAP.md for issues"
-
+  # Three-line rule: Status will be shown after scan
   # Look for Issues Backlog section or ISSUE-XXX patterns
   local issue_count=0
 

@@ -1,23 +1,22 @@
 # OpenAPI Template
 # version: 1.0
-# Extracted from: .specify/memory/api-standards.md
 # Purpose: Starter template for new API endpoint specifications
 #
 # Usage:
 #   1. Copy this file to specs/[feature]/contracts/[feature].yaml
 #   2. Replace placeholder values with actual endpoint definitions
-#   3. Ensure all paths follow URL conventions in api-standards.md
+#   3. Replace [RESOURCE] with your resource name (e.g., User, Order)
 
 openapi: 3.1.0
 info:
-  title: Story Sprout - [Feature] API
+  title: [PROJECT_NAME] - [Feature] API
   version: 1.0.0
 
 paths:
-  /api/flows:
+  /api/[resources]:
     get:
-      operationId: listFlows
-      summary: List all flows
+      operationId: list[Resources]
+      summary: List all [resources]
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/LimitParam'
@@ -25,54 +24,54 @@ paths:
           in: query
           schema:
             type: string
-            enum: [draft, published, archived]
+            enum: [active, inactive, archived]
       responses:
         '200':
-          description: Flows retrieved successfully
+          description: [Resources] retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FlowListResponse'
+                $ref: '#/components/schemas/[Resource]ListResponse'
 
     post:
-      operationId: createFlow
-      summary: Create a new flow
+      operationId: create[Resource]
+      summary: Create a new [resource]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateFlowRequest'
+              $ref: '#/components/schemas/Create[Resource]Request'
       responses:
         '201':
-          description: Flow created successfully
+          description: [Resource] created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FlowResponse'
+                $ref: '#/components/schemas/[Resource]Response'
         '400':
           $ref: '#/components/responses/ValidationError'
 
-  /api/flows/{flowId}:
+  /api/[resources]/{[resourceId]}:
     get:
-      operationId: getFlow
-      summary: Get flow by ID
+      operationId: get[Resource]
+      summary: Get [resource] by ID
       parameters:
-        - $ref: '#/components/parameters/FlowIdParam'
+        - $ref: '#/components/parameters/[Resource]IdParam'
       responses:
         '200':
-          description: Flow retrieved successfully
+          description: [Resource] retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FlowResponse'
+                $ref: '#/components/schemas/[Resource]Response'
         '404':
           $ref: '#/components/responses/NotFound'
 
 components:
   parameters:
-    FlowIdParam:
-      name: flowId
+    '[Resource]IdParam':
+      name: '[resourceId]'
       in: path
       required: true
       schema:
@@ -94,7 +93,7 @@ components:
         default: 20
 
   schemas:
-    Flow:
+    '[Resource]':
       type: object
       required: [id, name, status, createdAt]
       properties:
@@ -106,7 +105,7 @@ components:
           type: string
         status:
           type: string
-          enum: [draft, published, archived]
+          enum: [active, inactive, archived]
         createdAt:
           type: string
           format: date-time
@@ -114,9 +113,9 @@ components:
           type: string
           format: date-time
 
-    CreateFlowRequest:
+    'Create[Resource]Request':
       type: object
-      required: [name, steps]
+      required: [name]
       properties:
         name:
           type: string
@@ -125,25 +124,20 @@ components:
         description:
           type: string
           maxLength: 500
-        steps:
-          type: array
-          minItems: 1
-          items:
-            $ref: '#/components/schemas/Step'
 
-    FlowResponse:
+    '[Resource]Response':
       type: object
       properties:
         data:
-          $ref: '#/components/schemas/Flow'
+          $ref: '#/components/schemas/[Resource]'
 
-    FlowListResponse:
+    '[Resource]ListResponse':
       type: object
       properties:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/Flow'
+            $ref: '#/components/schemas/[Resource]'
         meta:
           $ref: '#/components/schemas/PaginationMeta'
 

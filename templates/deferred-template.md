@@ -15,7 +15,7 @@ description: 'Deferred items template - tracks items intentionally postponed fro
 
 | Item | Source | Reason | Target Phase |
 |------|--------|--------|--------------|
-| [ITEM_1] | [SOURCE_FILE:LINE] | [BRIEF_REASON] | Phase [NNN] |
+| [ITEM_1] | [SOURCE_FILE:LINE] | [BRIEF_REASON] | Phase [NNNN] |
 | [ITEM_2] | [SOURCE_FILE:LINE] | [BRIEF_REASON] | Backlog |
 
 ---
@@ -35,7 +35,7 @@ description: 'Deferred items template - tracks items intentionally postponed fro
 **What was done instead** (if applicable):
 [Any partial implementation or workaround]
 
-**Target Phase**: Phase [NNN] - [Phase Name]
+**Target Phase**: Phase [NNNN] - [Phase Name]
 
 **Prerequisites for implementing**:
 - [Prerequisite 1]

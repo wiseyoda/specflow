@@ -162,7 +162,7 @@ cmd_roadmap() {
       exit 1
       ;;
     "2.0")
-      log_step "Migrating ROADMAP.md from 2.0 to 2.1 format"
+      # Three-line rule: Status via log_success below
       ;;
   esac
 

@@ -22,7 +22,9 @@ source "${SCRIPT_DIR}/lib/json.sh"
 # Constants
 # =============================================================================
 
-readonly SPECKIT_SYSTEM_DIR="${HOME}/.claude/speckit-system"
+# Use centralized path helper from common.sh
+SPECKIT_SYSTEM_DIR="$(get_speckit_system_dir)"
+readonly SPECKIT_SYSTEM_DIR
 readonly CURRENT_STATE_VERSION="2.0"
 
 # =============================================================================
@@ -90,8 +92,7 @@ EOF
 detect_system() {
   local results=()
 
-  log_step "System Installation"
-
+  # Three-line rule: Status output first, skip decorative headers
   # Check if CLI is available
   if command_exists speckit; then
     local version
@@ -135,8 +136,7 @@ detect_speckit() {
   local repo_root
   repo_root="$(get_repo_root 2>/dev/null || pwd)"
 
-  log_step "SpecKit Artifacts"
-
+  # Three-line rule: Status output first, skip decorative headers
   local has_specify=false
   local has_state=false
   local state_version=""
@@ -219,8 +219,7 @@ detect_docs() {
   local repo_root
   repo_root="$(get_repo_root 2>/dev/null || pwd)"
 
-  log_step "Existing Documentation"
-
+  # Three-line rule: Status output first, skip decorative headers
   local found_patterns=()
   local adr_dir=""
   local adr_count=0
@@ -341,8 +340,7 @@ detect_files() {
   local repo_root
   repo_root="$(get_repo_root 2>/dev/null || pwd)"
 
-  log_step "Key Files"
-
+  # Three-line rule: Status output first, skip decorative headers
   local files_found=()
 
   # CLAUDE.md
@@ -408,8 +406,7 @@ detect_state() {
   local repo_root
   repo_root="$(get_repo_root 2>/dev/null || pwd)"
 
-  log_step "State File Analysis"
-
+  # Three-line rule: Status output first, skip decorative headers
   local state_file="${repo_root}/.specify/orchestration-state.json"
 
   if [[ ! -f "$state_file" ]]; then
@@ -513,11 +510,7 @@ show_summary() {
   local repo_root
   repo_root="$(get_repo_root 2>/dev/null || pwd)"
 
-  echo ""
-  print_header "Summary"
-  echo ""
-
-  # Determine project state
+  # Determine project state first (before any output)
   local project_state="unknown"
   local recommended_action=""
 
@@ -546,8 +539,10 @@ show_summary() {
     fi
   fi
 
-  echo "Project State: ${project_state}"
-  echo "Recommended: ${recommended_action}"
+  # Three-line rule: Status first, then decorative header
+  print_summary "info" "Project state: ${project_state}" \
+    "Path: ${repo_root}" \
+    "$recommended_action"
 
   # Check for warnings
   if [[ -f "${repo_root}/CLAUDE.md" ]] && ! grep -q "SpecKit" "${repo_root}/CLAUDE.md" 2>/dev/null; then
@@ -596,11 +591,7 @@ main() {
     esac
   done
 
-  if ! is_json_output; then
-    print_header "SpecKit Detection"
-    echo ""
-  fi
-
+  # Three-line rule: Skip decorative header, show status first in results
   case "$check_area" in
     system)
       detect_system

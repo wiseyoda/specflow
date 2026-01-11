@@ -175,7 +175,7 @@ Contributions are welcome! See [ROADMAP.md](ROADMAP.md) for current development 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. Run tests (`./install.sh --check`)
+4. Verify installation (`./install.sh --check`)
 5. Submit a Pull Request
 
 ---

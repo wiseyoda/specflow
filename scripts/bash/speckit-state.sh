@@ -25,8 +25,9 @@ source "${SCRIPT_DIR}/lib/json.sh"
 
 readonly STATE_VERSION="2.0"
 
-# Central registry path
-readonly SPECKIT_REGISTRY="${HOME}/.speckit/registry.json"
+# Central registry path - use centralized helper from common.sh
+SPECKIT_REGISTRY="$(get_speckit_registry)"
+readonly SPECKIT_REGISTRY
 
 # Generate a UUID v4
 generate_uuid() {
@@ -586,7 +587,7 @@ cmd_reconcile() {
   local repo_root
   repo_root="$(get_repo_root)"
 
-  log_step "Reconciling state config with file system"
+  # Three-line rule: Status via log_success/log_error below
 
   local issues=()
   local fixes=()
@@ -662,8 +663,7 @@ cmd_reconcile() {
     exit 2
   fi
 
-  # Apply fixes
-  log_step "Applying fixes"
+  # Apply fixes (three-line rule: progress via log_success below)
 
   local temp_file="${state_file}.tmp"
   cp "$state_file" "$temp_file"
@@ -1003,7 +1003,7 @@ cmd_migrate() {
   fi
 
   local source_version="${schema_version:-$legacy_version}"
-  log_step "Migrating state file from v${source_version} to v2.0"
+  # Three-line rule: Progress via log_success below
 
   # Create backup
   local backup_dir="${specify_dir}/backup"
@@ -1383,7 +1383,7 @@ cmd_infer() {
     exit 1
   fi
 
-  log_step "Inferring state from files"
+  # Three-line rule: Status via log_info/log_success below
 
   # Get current phase from state or detect from specs directory
   local current_phase
@@ -1527,7 +1527,7 @@ EOF
   # Apply to state file if requested
   if [[ "$apply" == "--apply" || "$apply" == "-a" ]]; then
     echo ""
-    log_step "Applying inferred state"
+    # Three-line rule: Progress via log_success below
 
     local temp_file
     temp_file=$(mktemp)

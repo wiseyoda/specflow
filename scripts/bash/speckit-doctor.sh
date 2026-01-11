@@ -19,7 +19,9 @@ source "${SCRIPT_DIR}/lib/json.sh"
 # Constants
 # =============================================================================
 
-readonly SPECKIT_SYSTEM_DIR="${HOME}/.claude/speckit-system"
+# Use centralized path helper from common.sh
+SPECKIT_SYSTEM_DIR="$(get_speckit_system_dir)"
+readonly SPECKIT_SYSTEM_DIR
 
 # =============================================================================
 # Help

@@ -298,9 +298,8 @@ cmd_add() {
       ;;
   esac
 
-  # Update last updated date
-  sed -i.bak "s/\*\*Last Updated\*\*: .*/\*\*Last Updated\*\*: ${date_now}/" "$file"
-  rm -f "${file}.bak"
+  # Update last updated date (POSIX-compliant)
+  sed_in_place "$file" "s/\*\*Last Updated\*\*: .*/\*\*Last Updated\*\*: ${date_now}/"
 
   if is_json_output; then
     echo "{\"type\": \"$entry_type\", \"added\": true}"
@@ -343,25 +342,25 @@ cmd_check() {
     count=$(echo "$matches_json" | jq 'length')
     echo "{\"file\": \"$rel_path\", \"keyword\": \"$keyword\", \"count\": $count, \"matches\": $matches_json}"
   else
-    print_header "Searching Lessons: $keyword"
-    echo ""
-    echo -e "${DIM}$rel_path${RESET}"
-    echo ""
-
+    # Three-line rule: Count and show status first, then details
     local count=0
+    local all_matches=""
     while IFS= read -r line; do
       if echo "$line" | grep -qi "$keyword"; then
         ((count++)) || true
-        # Highlight the keyword
-        echo "$line" | grep -i --color=always "$keyword" || echo "$line"
+        all_matches+="$line"$'\n'
       fi
     done < "$file"
 
-    echo ""
+    # Three-line output: Status, location, detail
     if [[ $count -eq 0 ]]; then
-      log_info "No matches found for: $keyword"
+      echo "No matches found for: $keyword"
+      echo "File: $rel_path"
     else
-      log_success "Found $count matches"
+      echo "Found $count matches for: $keyword"
+      echo "File: $rel_path"
+      echo ""
+      echo "$all_matches" | grep -i --color=always "$keyword" 2>/dev/null || echo "$all_matches"
     fi
   fi
 }
@@ -398,27 +397,28 @@ cmd_list() {
     done < "$file"
     echo "{\"file\": \"$rel_path\", \"entries\": $entries_json}"
   else
-    print_header "Lessons Learned Entries"
-    echo ""
-    echo -e "${DIM}$rel_path${RESET}"
-    echo ""
-
+    # Three-line rule: Count first, then details
     local count=0
+    local entries=""
     while IFS= read -r line; do
       if [[ "$line" =~ ^###[[:space:]]+\[?([0-9-]+)\]?[[:space:]]+(Error|Decision):[[:space:]]*(.*)$ ]]; then
         ((count++)) || true
         local date="${BASH_REMATCH[1]}"
         local type="${BASH_REMATCH[2]}"
         local desc="${BASH_REMATCH[3]}"
-        printf "  [%s] %s: %s\n" "$date" "$type" "$desc"
+        entries+="  [$date] $type: $desc"$'\n'
       fi
     done < "$file"
 
-    echo ""
+    # Three-line output: Status, location, entries
     if [[ $count -eq 0 ]]; then
-      log_info "No entries found"
+      echo "No lessons learned entries found"
+      echo "File: $rel_path"
     else
-      echo "Total entries: $count"
+      echo "Lessons learned: $count entries"
+      echo "File: $rel_path"
+      echo ""
+      echo -n "$entries"
     fi
   fi
 }

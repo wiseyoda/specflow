@@ -3,10 +3,10 @@
 # speckit-tasks.sh - Task tracking operations
 #
 # Usage:
-#   speckit tasks status [file]         Count completed/total tasks
-#   speckit tasks incomplete [file]     List incomplete tasks
-#   speckit tasks mark <id>             Mark task complete
-#   speckit tasks phase-status [file]   Status by phase
+#   speckit tasks status [file]              Count completed/total tasks
+#   speckit tasks incomplete [file]          List incomplete tasks
+#   speckit tasks mark <id>... [file.md]     Mark task(s) complete (supports ranges)
+#   speckit tasks phase-status [file]        Status by phase
 #
 
 set -euo pipefail
@@ -15,6 +15,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/json.sh"
+source "${SCRIPT_DIR}/lib/mark.sh"
 
 # =============================================================================
 # Help
@@ -28,22 +29,25 @@ USAGE:
     speckit tasks <command> [options]
 
 COMMANDS:
-    status [file]       Show completion status of tasks
-                        Default: finds tasks.md in current spec
+    status [file]        Show completion status of tasks
+                         Default: finds tasks.md in current spec
 
-    incomplete [file]   List all incomplete tasks
+    incomplete [file]    List all incomplete tasks
 
-    mark <id> [file]    Mark a task as complete
-                        ID format: T001, T002, etc.
+    mark <id>... [file]  Mark task(s) as complete
+                         Accepts multiple IDs and/or ranges
+                         ID format: T001, A1.1, B2.3, etc.
+                         Range format: T001..T010, A1..A5
+                         File detected by .md extension (position flexible)
 
-    phase-status [file] Show status grouped by phase
+    phase-status [file]  Show status grouped by phase
 
-    list [file]         List all tasks with status
+    list [file]          List all tasks with status
 
-    find                Find all tasks.md files in specs/
+    find                 Find all tasks.md files in specs/
 
-    sync [file]         Regenerate Progress Dashboard from checkboxes
-                        Updates the dashboard section at top of tasks.md
+    sync [file]          Regenerate Progress Dashboard from checkboxes
+                         Updates the dashboard section at top of tasks.md
 
 OPTIONS:
     --json              Output in JSON format
@@ -53,9 +57,21 @@ EXAMPLES:
     speckit tasks status
     speckit tasks status specs/001-auth/tasks.md
     speckit tasks incomplete
-    speckit tasks mark T005
     speckit tasks phase-status
     speckit tasks sync
+
+    # Mark single task
+    speckit tasks mark T005
+    speckit tasks mark A1.1 tasks.md
+
+    # Mark multiple tasks
+    speckit tasks mark T001 T002 T003 tasks.md
+
+    # Mark range of tasks
+    speckit tasks mark T001..T010 tasks.md
+
+    # Mix ranges and individual IDs
+    speckit tasks mark A1..A3 B1 B2..B4 tasks.md
 EOF
 }
 
@@ -282,38 +298,29 @@ cmd_incomplete() {
 }
 
 cmd_mark() {
-  local task_id="$1"
-  local file="${2:-}"
+  # Parse arguments using shared library
+  parse_ids_and_file "$@"
+  local file="$MARK_FILE"
+  local ids=("${MARK_IDS[@]}")
 
-  if [[ -z "$task_id" ]]; then
-    log_error "Task ID required"
-    echo "Usage: speckit tasks mark <id> [file]"
+  if [[ ${#ids[@]} -eq 0 ]]; then
+    log_error "Task ID(s) required"
+    echo "Usage: speckit tasks mark <id>... [file.md]"
+    echo "Examples:"
+    echo "  speckit tasks mark T005"
+    echo "  speckit tasks mark T001 T002 T003 tasks.md"
+    echo "  speckit tasks mark T001..T010 tasks.md"
     exit 1
   fi
 
-  # Sanitize task ID - allow alphanumeric plus dots for formats like A1.1, B2.3
-  task_id=$(echo "$task_id" | tr -cd '[:alnum:].')
-  task_id=$(echo "$task_id" | tr '[:lower:]' '[:upper:]')
+  local repo_root
+  repo_root="$(get_repo_root)"
 
-  # Validate format: alphanumeric with optional dots (T001, A1.1, B2.3, etc.)
-  # Must start with letter or digit, can contain dots for hierarchical IDs
-  if [[ ! "$task_id" =~ ^[A-Z0-9][A-Z0-9.]*$ ]]; then
-    log_error "Invalid task ID format: $task_id"
-    log_info "Expected format: T001, A1.1, B2.3, etc. (alphanumeric with optional dots)"
-    exit 1
-  fi
-
-  # Additional security: ensure task_id only contains safe characters
-  if [[ "$task_id" =~ [^A-Z0-9.] ]]; then
-    log_error "Task ID contains invalid characters"
-    exit 1
-  fi
-
-  # Escape dots for regex use (dot matches any char in regex)
-  local task_id_regex="${task_id//./\\.}"
-
+  # Resolve file path
   if [[ -z "$file" ]]; then
     file="$(find_tasks_file)"
+  elif [[ ! "$file" = /* ]]; then
+    file="$repo_root/$file"
   fi
 
   if [[ -z "$file" || ! -f "$file" ]]; then
@@ -321,59 +328,102 @@ cmd_mark() {
     exit 1
   fi
 
-  # Check if task exists (match **A1.1**: or just A1.1 at word boundary)
-  if ! grep -qE "^\s*-\s*\[[x ]\]\s*\*?\*?${task_id_regex}\*?\*?" "$file"; then
-    log_error "Task not found: $task_id"
-    exit 1
-  fi
+  # Expand ranges and collect all IDs
+  local expanded_ids=()
+  while IFS= read -r expanded; do
+    [[ -n "$expanded" ]] && expanded_ids+=("$expanded")
+  done < <(expand_all_ids "${ids[@]}")
 
-  # Check if already complete
-  if grep -qE "^\s*-\s*\[x\]\s*\*?\*?${task_id_regex}\*?\*?" "$file"; then
-    log_warn "Task already complete: $task_id"
-    exit 0
-  fi
+  local marked=0
+  local skipped=0
+  local not_found=0
+  local errors=()
+  local marked_ids=()
 
-  # Mark complete: replace [ ] with [x]
-  local temp_file
-  temp_file=$(mktemp)
+  # Process each ID
+  for task_id in "${expanded_ids[@]}"; do
+    # Sanitize task ID - allow alphanumeric plus dots for formats like A1.1, B2.3
+    task_id=$(echo "$task_id" | tr -cd '[:alnum:].')
+    task_id=$(echo "$task_id" | tr '[:lower:]' '[:upper:]')
 
-  # Use POSIX-compatible whitespace pattern (macOS sed doesn't support \s)
-  # Match task IDs that may be wrapped in ** bold markers
-  sed -E "s/^([[:space:]]*-[[:space:]]*)\[ \]([[:space:]]*\*?\*?${task_id_regex})/\1[x]\2/" "$file" > "$temp_file"
-  mv "$temp_file" "$file"
+    # Validate format: alphanumeric with optional dots (T001, A1.1, B2.3, etc.)
+    if [[ ! "$task_id" =~ ^[A-Z0-9][A-Z0-9.]*$ ]]; then
+      errors+=("$task_id: invalid format")
+      ((not_found++)) || true
+      continue
+    fi
 
-  log_success "Marked complete: $task_id"
+    # Mark using shared library (capture result without triggering set -e)
+    local result=0
+    mark_checkbox_item "$task_id" "$file" || result=$?
 
-  # Update state file if it exists
-  local state_file
-  state_file="$(get_state_file)"
-  if [[ -f "$state_file" ]]; then
-    local counts
-    counts=$(count_tasks "$file")
-    local completed total
-    read -r completed total <<< "$counts"
+    case $result in
+      0)
+        ((marked++)) || true
+        marked_ids+=("$task_id")
+        ;;
+      1)
+        errors+=("$task_id: not found")
+        ((not_found++)) || true
+        ;;
+      2) ((skipped++)) || true ;;
+    esac
+  done
 
-    # Update implement step in state
-    local state_temp
-    state_temp=$(mktemp)
-    jq --argjson completed "$completed" --argjson total "$total" --arg ts "$(iso_timestamp)" \
-      '.orchestration.steps.implement.tasks_completed = $completed |
-       .orchestration.steps.implement.tasks_total = $total |
-       .last_updated = $ts' "$state_file" > "$state_temp" 2>/dev/null && mv "$state_temp" "$state_file"
+  # Update state file if anything was marked
+  if [[ $marked -gt 0 ]]; then
+    local state_file
+    state_file="$(get_state_file)"
+    if [[ -f "$state_file" ]]; then
+      local counts
+      counts=$(count_tasks "$file")
+      local completed total
+      read -r completed total <<< "$counts"
 
-    log_debug "Updated state: $completed/$total tasks complete"
-  fi
+      # Update implement step in state
+      local state_temp
+      state_temp=$(mktemp)
+      jq --argjson completed "$completed" --argjson total "$total" --arg ts "$(iso_timestamp)" \
+        '.orchestration.steps.implement.tasks_completed = $completed |
+         .orchestration.steps.implement.tasks_total = $total |
+         .last_updated = $ts' "$state_file" > "$state_temp" 2>/dev/null && mv "$state_temp" "$state_file"
 
-  # Sync progress dashboard (suppress output unless json mode)
-  if is_json_output; then
-    # In JSON mode, include sync data
-    local sync_json
-    sync_json=$(cmd_sync "$file" 2>/dev/null) || true
-    echo "{\"marked\": \"$task_id\", \"status\": \"complete\", \"dashboard\": $sync_json}"
-  else
-    # Silently sync dashboard
+      log_debug "Updated state: $completed/$total tasks complete"
+    fi
+
+    # Sync progress dashboard
     cmd_sync "$file" >/dev/null 2>&1 || true
   fi
+
+  # Output results
+  if is_json_output; then
+    local errors_json="[]"
+    for err in "${errors[@]}"; do
+      errors_json=$(echo "$errors_json" | jq --arg e "$err" '. + [$e]')
+    done
+    local marked_json="[]"
+    for mid in "${marked_ids[@]}"; do
+      marked_json=$(echo "$marked_json" | jq --arg id "$mid" '. + [$id]')
+    done
+    echo "{\"marked\": $marked, \"marked_ids\": $marked_json, \"skipped\": $skipped, \"not_found\": $not_found, \"errors\": $errors_json}"
+  else
+    if [[ $marked -gt 0 ]]; then
+      echo -e "${GREEN}OK${RESET}: Marked $marked task(s) complete"
+    fi
+    if [[ $skipped -gt 0 ]]; then
+      echo -e "${YELLOW}WARN${RESET}: $skipped task(s) already complete"
+    fi
+    if [[ $not_found -gt 0 ]]; then
+      echo -e "${RED}ERROR${RESET}: $not_found task(s) not found"
+      for err in "${errors[@]}"; do
+        echo "  - $err"
+      done
+    fi
+  fi
+
+  # Exit with error if any items not found
+  [[ $not_found -gt 0 ]] && exit 1
+  exit 0
 }
 
 cmd_phase_status() {
@@ -784,7 +834,7 @@ main() {
       cmd_incomplete "${1:-}"
       ;;
     mark)
-      cmd_mark "${1:-}" "${2:-}"
+      cmd_mark "$@"
       ;;
     phase-status|phases|ps)
       cmd_phase_status "${1:-}"

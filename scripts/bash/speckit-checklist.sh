@@ -3,9 +3,10 @@
 # speckit-checklist.sh - Checklist operations
 #
 # Usage:
-#   speckit checklist status [dir]      Count completed/total across checklists
-#   speckit checklist list [dir]        List all checklists with status
-#   speckit checklist incomplete [dir]  List incomplete items
+#   speckit checklist status [dir]            Count completed/total across checklists
+#   speckit checklist list [dir]              List all checklists with status
+#   speckit checklist incomplete [dir]        List incomplete items
+#   speckit checklist mark <id>... [file.md]  Mark items complete (supports ranges)
 #
 
 set -euo pipefail
@@ -14,6 +15,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/json.sh"
+source "${SCRIPT_DIR}/lib/mark.sh"
 
 # =============================================================================
 # Help
@@ -36,8 +38,11 @@ COMMANDS:
 
     show <file>         Show status of a specific checklist file
 
-    mark <id> [file]    Mark a checklist item as complete
+    mark <id>... [file] Mark checklist item(s) as complete
+                        Accepts multiple IDs and/or ranges
                         ID format: V-001, CHK001, FR-001, etc.
+                        Range format: V-001..V-010
+                        File detected by .md extension (position flexible)
                         If no file specified, searches all checklists
 
 OPTIONS:
@@ -50,8 +55,19 @@ EXAMPLES:
     speckit checklist list
     speckit checklist incomplete
     speckit checklist show specs/001-auth/checklists/security.md
+
+    # Mark single item
     speckit checklist mark V-001
-    speckit checklist mark CHK005 specs/001-auth/checklists/requirements.md
+    speckit checklist mark V-001 file.md
+
+    # Mark multiple items
+    speckit checklist mark V-001 V-002 V-003 file.md
+
+    # Mark range of items
+    speckit checklist mark V-001..V-010 file.md
+
+    # Mix ranges and individual IDs
+    speckit checklist mark V-001..V-005 V-010 V-015..V-020 file.md
 EOF
 }
 
@@ -395,98 +411,118 @@ cmd_show() {
 }
 
 cmd_mark() {
-  local item_id="${1:-}"
-  local file="${2:-}"
+  # Parse arguments using shared library
+  parse_ids_and_file "$@"
+  local file="$MARK_FILE"
+  local ids=("${MARK_IDS[@]}")
 
-  if [[ -z "$item_id" ]]; then
-    log_error "Item ID required"
-    echo "Usage: speckit checklist mark <id> [file]"
-    echo "Example: speckit checklist mark V-001"
+  if [[ ${#ids[@]} -eq 0 ]]; then
+    log_error "Item ID(s) required"
+    echo "Usage: speckit checklist mark <id>... [file.md]"
+    echo "Examples:"
+    echo "  speckit checklist mark V-001"
+    echo "  speckit checklist mark V-001 V-002 V-003 file.md"
+    echo "  speckit checklist mark V-001..V-010 file.md"
     exit 1
   fi
 
   local repo_root
   repo_root="$(get_repo_root)"
 
-  # If file provided, resolve path
+  # Resolve file path if provided
   if [[ -n "$file" ]]; then
     if [[ ! "$file" = /* ]]; then
       file="$repo_root/$file"
     fi
-
     if [[ ! -f "$file" ]]; then
       log_error "File not found: $file"
       exit 1
     fi
-  else
-    # Search all checklists for the item
-    local base_dir
-    base_dir="$(get_checklists_base)"
-    local found_file=""
-    local found_count=0
+  fi
 
-    while IFS= read -r check_file; do
-      [[ -z "$check_file" ]] && continue
-      # Look for the item ID in the file (both bold and plain format)
-      if grep -qE "^\s*-\s*\[ \].*\*?\*?${item_id}\*?\*?" "$check_file" 2>/dev/null; then
-        found_file="$check_file"
-        ((found_count++))
-      fi
-    done < <(find_checklists "$base_dir")
+  # Expand ranges and collect all IDs
+  local expanded_ids=()
+  while IFS= read -r expanded; do
+    [[ -n "$expanded" ]] && expanded_ids+=("$expanded")
+  done < <(expand_all_ids "${ids[@]}")
 
-    if [[ $found_count -eq 0 ]]; then
-      log_error "Item $item_id not found in any checklist"
-      echo "Hint: Check item ID format (V-001, CHK001, FR-001)"
-      exit 1
-    elif [[ $found_count -gt 1 ]]; then
-      log_error "Item $item_id found in multiple files. Please specify file:"
+  local marked=0
+  local skipped=0
+  local not_found=0
+  local errors=()
+
+  # Process each ID
+  for item_id in "${expanded_ids[@]}"; do
+    local target_file="$file"
+
+    # If no file specified, search for the item in all checklists
+    if [[ -z "$target_file" ]]; then
+      local base_dir
+      base_dir="$(get_checklists_base)"
+      local found_file=""
+      local found_count=0
+      local escaped_id="${item_id//./\\.}"
+
       while IFS= read -r check_file; do
-        if grep -qE "^\s*-\s*\[ \].*\*?\*?${item_id}\*?\*?" "$check_file" 2>/dev/null; then
-          local rel_path="${check_file#$repo_root/}"
-          echo "  speckit checklist mark $item_id $rel_path"
+        [[ -z "$check_file" ]] && continue
+        if grep -qE "^\s*-\s*\[[x ]\].*\*?\*?${escaped_id}\*?\*?" "$check_file" 2>/dev/null; then
+          found_file="$check_file"
+          ((found_count++))
         fi
       done < <(find_checklists "$base_dir")
-      exit 1
-    fi
 
-    file="$found_file"
-  fi
-
-  # Check if item exists and is not already complete
-  if ! grep -qE "^\s*-\s*\[ \].*\*?\*?${item_id}\*?\*?" "$file" 2>/dev/null; then
-    # Check if it's already complete
-    if grep -qE "^\s*-\s*\[x\].*\*?\*?${item_id}\*?\*?" "$file" 2>/dev/null; then
-      local rel_path="${file#$repo_root/}"
-      if is_json_output; then
-        echo "{\"status\": \"already_complete\", \"id\": \"$item_id\", \"file\": \"$rel_path\"}"
-      else
-        echo -e "${YELLOW}WARN${RESET}: $item_id already marked complete"
-        echo "  File: $rel_path"
+      if [[ $found_count -eq 0 ]]; then
+        errors+=("$item_id: not found in any checklist")
+        ((not_found++)) || true
+        continue
+      elif [[ $found_count -gt 1 ]]; then
+        errors+=("$item_id: found in multiple files, specify file")
+        ((not_found++)) || true
+        continue
       fi
-      exit 0
+
+      target_file="$found_file"
     fi
 
-    log_error "Item $item_id not found in $file"
-    exit 1
-  fi
+    # Mark the item using shared library (capture result without triggering set -e)
+    local result=0
+    mark_checkbox_item "$item_id" "$target_file" || result=$?
 
-  # Mark the item complete using sed
-  # Handle both **V-001** (bold) and V-001 (plain) formats
-  # macOS sed requires -i '' for in-place editing
-  if [[ "$(uname)" == "Darwin" ]]; then
-    sed -i '' "s/^\([[:space:]]*-[[:space:]]*\)\[ \]\(.*${item_id}.*\)$/\1[x]\2/" "$file"
-  else
-    sed -i "s/^\([[:space:]]*-[[:space:]]*\)\[ \]\(.*${item_id}.*\)$/\1[x]\2/" "$file"
-  fi
+    case $result in
+      0) ((marked++)) || true ;;
+      1)
+        errors+=("$item_id: not found in ${target_file#$repo_root/}")
+        ((not_found++)) || true
+        ;;
+      2) ((skipped++)) || true ;;
+    esac
+  done
 
-  local rel_path="${file#$repo_root/}"
-
+  # Output results
   if is_json_output; then
-    echo "{\"status\": \"marked\", \"id\": \"$item_id\", \"file\": \"$rel_path\"}"
+    local errors_json="[]"
+    for err in "${errors[@]}"; do
+      errors_json=$(echo "$errors_json" | jq --arg e "$err" '. + [$e]')
+    done
+    echo "{\"marked\": $marked, \"skipped\": $skipped, \"not_found\": $not_found, \"errors\": $errors_json}"
   else
-    echo -e "${GREEN}OK${RESET}: Marked $item_id complete"
-    echo "  File: $rel_path"
+    if [[ $marked -gt 0 ]]; then
+      echo -e "${GREEN}OK${RESET}: Marked $marked item(s) complete"
+    fi
+    if [[ $skipped -gt 0 ]]; then
+      echo -e "${YELLOW}WARN${RESET}: $skipped item(s) already complete"
+    fi
+    if [[ $not_found -gt 0 ]]; then
+      echo -e "${RED}ERROR${RESET}: $not_found item(s) not found"
+      for err in "${errors[@]}"; do
+        echo "  - $err"
+      done
+    fi
   fi
+
+  # Exit with error if any items not found
+  [[ $not_found -gt 0 ]] && exit 1
+  exit 0
 }
 
 # =============================================================================
@@ -519,7 +555,7 @@ main() {
       cmd_show "${1:-}"
       ;;
     mark)
-      cmd_mark "${1:-}" "${2:-}"
+      cmd_mark "$@"
       ;;
     help|--help|-h)
       show_help

@@ -38,8 +38,14 @@ This allows inserting urgent work without renumbering existing phases.
 | 0041 | Code Review Findings | ✅ Complete | All review findings addressed |
 | 0042 | Code Review 2026-01-11 | ✅ Complete | 18 findings addressed |
 | 0050 | UX Simplification | ✅ Complete | Single entry point, clean codebase, unified memory |
-| 0060 | Constitution Compliance | ✅ Not Started | 95%+ constitution compliance, three-line rule, critical bugs fixed |
-| 1010 | Web UI Dashboard | ⬜ Not Started | **USER GATE**: Dashboard shows project status |
+| 0060 | Constitution Compliance | ✅ Complete | 95%+ constitution compliance, three-line rule, critical bugs fixed |
+| 1010 | Core UI Scaffold | ⬜ Not Started | **USER GATE**: Dashboard starts, shows projects, dark mode works |
+| 1020 | Real-Time File Watching | ⬜ Not Started | **USER GATE**: CLI changes reflect in UI within 2s |
+| 1030 | Project Detail Views | ⬜ Not Started | **USER GATE**: Kanban and Timeline views work |
+| 1040 | CLI Actions from UI | ⬜ Not Started | **USER GATE**: Mark tasks, add backlog from UI |
+| 1050 | Agent SDK Integration | ⬜ Not Started | **USER GATE**: Spawn agent, see logs, answer questions |
+| 1060 | Operations Dashboard | ⬜ Not Started | **USER GATE**: Queue view, notifications, resource monitor |
+| 1070 | Cost Analytics | ⬜ Not Started | **USER GATE**: Token costs per session and trends |
 
 **Legend**: ⬜ Not Started | 🔄 In Progress | ✅ Complete | **USER GATE** = Requires user verification
 
@@ -413,29 +419,273 @@ This allows inserting urgent work without renumbering existing phases.
 
 ---
 
-## Milestone 1: Extended Features
+## Milestone 1: Web Dashboard
 
-### 1010 - Web UI Dashboard
+> **Vision**: Visual dashboard for multi-project monitoring and agentic task execution.
+> Local-first, CLI-integrated, with Claude Agent SDK for headless automation.
 
-**Goal**: Visual dashboard for multi-project monitoring.
+**Non-Goals** (explicit exclusions):
+- No code editing (not an IDE)
+- No team features (single-user only)
+- No cloud sync (all data stays local)
+
+**Technology Stack**:
+- Next.js 14+ with App Router and API Routes
+- Tailwind + shadcn/ui components
+- SQLite for persistence (analytics, history, queue)
+- Claude Agent SDK for agentic workflows
+- pnpm monorepo structure
+
+**Design Reference**: Linear (clean, fast, keyboard-driven)
+
+---
+
+### 1010 - Core UI Scaffold
+
+**Goal**: Establish the dashboard foundation with routing, layout, and project list view.
 
 **Scope**:
-- React/Next.js dashboard UI
-- REST API for project management
-- WebSocket for real-time updates
-- File watcher for state changes
+- Next.js project setup with TypeScript, Tailwind, shadcn/ui
+- Monorepo structure: `packages/dashboard/`, `packages/shared/`
+- `speckit dashboard` CLI command to start server
+- Basic layout: sidebar navigation, header, main content area
+- Project list view reading from `~/.speckit/registry.json`
+- Dark mode with system-aware theme switching
+- Keyboard shortcut foundation (command palette shell)
+
+**User Stories**:
+1. As a developer, I run `speckit dashboard` and see my projects listed
+2. As a developer, I can toggle dark/light mode
+3. As a developer, I can open command palette with Cmd+K
 
 **Deliverables**:
-- `packages/dashboard/` - Dashboard UI
-- `packages/api/` - REST + WebSocket server
-- Integration with central registry
+- `packages/dashboard/` - Next.js app with basic routing
+- `packages/shared/` - Shared TypeScript types
+- `scripts/bash/speckit-dashboard.sh` - CLI launcher
+- `bin/speckit` dispatcher integration
 
 **Verification Gate**: **USER VERIFICATION REQUIRED**
-- Dashboard shows all registered projects
-- Real-time status updates work
-- Action buttons trigger workflows
+- `speckit dashboard` starts server on localhost
+- Project list shows all registered projects
+- Dark mode toggle works
+- Command palette opens with Cmd+K
 
-**Estimated Complexity**: Very High (new codebase)
+**Estimated Complexity**: Medium (new codebase, foundational)
+
+---
+
+### 1020 - Real-Time File Watching
+
+**Goal**: Live updates when SpecKit state files change on disk.
+
+**Scope**:
+- File watcher using chokidar (native fs events with polling fallback)
+- WebSocket server for pushing updates to UI
+- Watch `~/.speckit/registry.json` for project changes
+- Watch `<project>/.specify/orchestration-state.json` for state changes
+- Debounced updates to prevent flicker
+- Connection status indicator in UI
+
+**User Stories**:
+1. As a developer, when I run `speckit state set` in terminal, the dashboard updates immediately
+2. As a developer, I see connection status (connected/reconnecting)
+3. As a developer, new projects appear automatically when registered
+
+**Deliverables**:
+- `packages/dashboard/src/lib/watcher.ts` - File watcher service
+- WebSocket endpoint in API routes
+- React hooks for real-time subscriptions
+- Connection status component
+
+**Verification Gate**: **USER VERIFICATION REQUIRED**
+- Run `speckit state set orchestration.phase.status=complete` and see UI update within 2 seconds
+- Disconnect/reconnect shows status indicator
+- No duplicate updates or flickering
+
+**Estimated Complexity**: Medium
+
+---
+
+### 1030 - Project Detail Views
+
+**Goal**: Rich project views with multiple visualization modes.
+
+**Scope**:
+- Project detail page with tabbed navigation
+- **Status Card View**: Current phase, health score, quick actions
+- **Kanban Board View**: Tasks as cards in columns (todo/in-progress/done)
+- **Timeline View**: Phases on timeline with progress indicators
+- View mode switcher (persisted in localStorage)
+- Drill-down from project list to detail
+
+**User Stories**:
+1. As a developer, I click a project and see its current status at a glance
+2. As a developer, I can switch between Kanban and Timeline views
+3. As a developer, I see tasks organized by status in Kanban view
+
+**Deliverables**:
+- `/app/projects/[id]/page.tsx` - Project detail route
+- Status card component with health indicators
+- Kanban board component with drag-drop (optional)
+- Timeline/Gantt component for phases
+- View mode toggle with persistence
+
+**Verification Gate**: **USER VERIFICATION REQUIRED**
+- Project detail shows current phase and task summary
+- Kanban view displays tasks in correct columns
+- Timeline view shows phase progression
+- View preference persists across sessions
+
+**Estimated Complexity**: Medium-High
+
+---
+
+### 1040 - CLI Actions from UI
+
+**Goal**: Trigger SpecKit CLI commands from the dashboard.
+
+**Scope**:
+- API routes that shell out to `speckit` CLI commands
+- Mark task complete/incomplete
+- Update phase status
+- Add backlog items
+- Run `speckit` commands with output streaming
+- Error handling and user feedback
+- Keyboard shortcuts for common actions
+
+**User Stories**:
+1. As a developer, I can mark a task complete from the dashboard
+2. As a developer, I can add an item to backlog without switching to terminal
+3. As a developer, I see command output in a modal/drawer
+4. As a developer, I can use keyboard shortcuts (e.g., `t` to toggle task)
+
+**Deliverables**:
+- API routes for task/phase/backlog operations
+- Action buttons in project detail views
+- Command output modal with streaming
+- Keyboard shortcut bindings
+- Toast notifications for action results
+
+**Verification Gate**: **USER VERIFICATION REQUIRED**
+- Click task checkbox, task status updates in UI and on disk
+- Add backlog item, appears in ROADMAP.md
+- Keyboard shortcut `t` toggles selected task
+- Errors show helpful messages
+
+**Estimated Complexity**: Medium
+
+---
+
+### 1050 - Agent SDK Integration
+
+**Goal**: Spawn Claude Agent SDK sessions from the dashboard for headless task execution.
+
+**Scope**:
+- Claude Agent SDK integration for agentic workflows
+- Hybrid control: user chooses supervision level per task
+  - **Supervised**: Agent proposes, user approves
+  - **Autonomous**: Agent executes, user monitors
+- Agent spawn with task context injection
+- Real-time log streaming via WebSocket
+- Agent queue with unlimited concurrent sessions (queue-based)
+- Interactive mode: agent can ask questions, user responds via dashboard
+- Session management: cancel, pause, resume (if supported)
+
+**User Stories**:
+1. As a developer, I click "Implement" on a task and choose supervision level
+2. As a developer, I see agent progress in real-time (tool calls, outputs)
+3. As a developer, I can answer agent questions from the dashboard
+4. As a developer, I can queue multiple tasks for sequential execution
+5. As a developer, I can cancel a running agent session
+
+**Deliverables**:
+- Agent SDK wrapper service in `packages/dashboard/src/lib/agent.ts`
+- Agent spawn API route with context injection
+- Real-time log streaming component
+- Agent queue manager with SQLite persistence
+- Interactive prompt/response UI
+- Session controls (cancel, view history)
+
+**Verification Gate**: **USER VERIFICATION REQUIRED**
+- Click "Implement" on task, agent starts working
+- See real-time tool calls in log viewer
+- Answer agent question via dashboard, agent continues
+- Queue 3 tasks, they execute in order
+- Cancel button stops running agent
+
+**Estimated Complexity**: High
+
+---
+
+### 1060 - Operations Dashboard
+
+**Goal**: Full visibility into agent queue, resource usage, and system health.
+
+**Scope**:
+- **Queue View**: All pending/running/completed agent sessions
+- **Activity Feed**: Real-time stream of agent actions across all sessions
+- **Resource Monitor**: CPU/memory for running agents, API rate limits
+- Desktop notifications for agent completion/errors
+- Filter and search across agent history
+
+**User Stories**:
+1. As a developer, I see all queued and running agent sessions at a glance
+2. As a developer, I get notified when an agent completes or errors
+3. As a developer, I can filter activity feed by project or status
+4. As a developer, I see resource usage for running agents
+
+**Deliverables**:
+- Operations page `/app/operations/page.tsx`
+- Agent queue list component
+- Activity feed with real-time updates
+- Resource usage indicators
+- Desktop notification integration (Notification API)
+- Filter/search controls
+
+**Verification Gate**: **USER VERIFICATION REQUIRED**
+- Operations view shows all agent sessions with status
+- Desktop notification appears when agent completes
+- Activity feed updates in real-time
+- Resource indicators show CPU/memory usage
+
+**Estimated Complexity**: Medium
+
+---
+
+### 1070 - Cost Analytics
+
+**Goal**: Track and visualize Claude API costs across sessions and projects.
+
+**Scope**:
+- Token usage tracking per agent session
+- Cost calculation based on model pricing
+- **Per-session costs**: Input/output tokens, total cost
+- **Project totals**: Aggregate costs over time
+- **Trends/projections**: Cost charts, burn rate
+- SQLite storage for historical data
+- Export functionality (CSV/JSON)
+
+**User Stories**:
+1. As a developer, I see how much each agent session cost
+2. As a developer, I see total spending per project this month
+3. As a developer, I see cost trends over time
+4. As a developer, I can export cost data for expense reports
+
+**Deliverables**:
+- Analytics page `/app/analytics/page.tsx`
+- Token tracking in agent service
+- Cost calculation utilities
+- Chart components (line, bar, pie)
+- SQLite schema for cost history
+- Export API routes
+
+**Verification Gate**: **USER VERIFICATION REQUIRED**
+- Session details show token counts and cost
+- Project page shows total costs
+- Analytics page shows cost trends over time
+- Export produces valid CSV/JSON
+
+**Estimated Complexity**: Medium
 
 ---
 
@@ -460,7 +710,13 @@ This allows inserting urgent work without renumbering existing phases.
 
 | Gate | Phase | What User Verifies |
 |------|-------|-------------------|
-| **Gate 1** | 1010 | Dashboard shows projects, real-time updates work |
+| **Gate 1** | 1010 | `speckit dashboard` starts, projects listed, dark mode, Cmd+K works |
+| **Gate 2** | 1020 | CLI state changes appear in UI within 2 seconds |
+| **Gate 3** | 1030 | Project detail with Kanban/Timeline views, view preference persists |
+| **Gate 4** | 1040 | Mark task complete, add backlog item, keyboard shortcuts work |
+| **Gate 5** | 1050 | Spawn agent, see real-time logs, answer questions, queue tasks, cancel |
+| **Gate 6** | 1060 | Operations view, desktop notifications, resource usage visible |
+| **Gate 7** | 1070 | Session costs, project totals, trend charts, CSV export |
 
 ---
 
@@ -541,3 +797,4 @@ Branch names remain unchanged (branches use short names, not phase numbers).
 | 2026-01-11 | Added UI Design Artifacts to Phase 0050 from pdr-ui-design-artifacts.md |
 | 2026-01-11 | Phase 0050 completed - UX Simplification merged |
 | 2026-01-11 | Added Phase 0060 (Constitution Compliance) from pdr-compliance-remediation.md |
+| 2026-01-12 | Expanded Milestone 1 via interview: 1010-1070 (Core UI → Cost Analytics), Agent SDK integration, Linear aesthetic |

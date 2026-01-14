@@ -33,8 +33,9 @@ speckit state validate            # Check state file health
 
 ```bash
 speckit scaffold [--force]        # Create .specify/ structure
-speckit doctor [--fix]            # Diagnostics and auto-repair
+speckit doctor [--fix]            # Diagnostics and auto-repair (shows suggested fixes)
 speckit detect                    # Detect existing content
+speckit templates sync            # Update outdated + copy new templates
 ```
 
 ### Git Operations
@@ -100,7 +101,8 @@ speckit memory check              # Verify document health
 
 ```
 /speckit.init                     # Requirements interview
-/speckit.orchestrate              # Full automated workflow
+/speckit.orchestrate              # Full automated workflow (9 steps)
+/speckit.orchestrate --no-discovery  # Skip codebase examination
 /speckit.specify                  # Create feature spec
 /speckit.clarify                  # Resolve ambiguities
 /speckit.plan                     # Create implementation plan
@@ -111,6 +113,8 @@ speckit memory check              # Verify document health
 /speckit.verify                   # Verify completion
 /speckit.merge                    # Complete phase, merge PR
 ```
+
+**Orchestrate steps**: discover → specify → clarify → plan → tasks → analyze → checklist → implement → verify
 
 ### Memory Commands
 
@@ -195,6 +199,7 @@ speckit status
 | State file corrupt | Run `speckit doctor --fix` |
 | Branch mismatch | Run `speckit reconcile` |
 | Missing artifacts | Re-run the producing step |
+| Missing templates | Run `speckit templates sync` |
 
 ### Diagnostics
 

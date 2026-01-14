@@ -12,9 +12,9 @@
 |------|------------|
 | **SDD** | Spec-Driven Development - methodology prioritizing specification before implementation |
 | **Phase** | A discrete feature/deliverable in the roadmap, numbered using ABBC format (0010, 0020, 0021) |
-| **Orchestration** | Automated execution of the full SpecKit workflow (specify → verify) |
+| **Orchestration** | Automated execution of the full SpecKit workflow (discover → verify, 9 steps) |
 | **Memory Documents** | Project-level docs capturing decisions and principles in `.specify/memory/` |
-| **Discovery** | Requirements gathering phase using structured interviews |
+| **Discovery** | Codebase examination and clarifying questions BEFORE writing specs |
 
 ---
 
@@ -35,8 +35,9 @@
 
 | Step | Purpose | Output |
 |------|---------|--------|
+| DISCOVER | Examine codebase, ask clarifying questions | `discovery.md` |
 | SPECIFY | Create feature specification | `spec.md` |
-| CLARIFY | Resolve ambiguities (max 5 questions) | Updated `spec.md` |
+| CLARIFY | Resolve remaining ambiguities (max 5 questions) | Updated `spec.md` |
 | PLAN | Technical implementation plan | `plan.md` |
 | TASKS | Break down into actionable items | `tasks.md` |
 | ANALYZE | Cross-artifact consistency check | Auto-fixes |
@@ -79,7 +80,7 @@
 |---------|---------|
 | `/speckit.start` | Smart entry point |
 | `/speckit.init` | Requirements interview |
-| `/speckit.orchestrate` | Full automated workflow |
+| `/speckit.orchestrate` | Full automated workflow (9 steps, `--no-discovery` to skip) |
 | `/speckit.specify` | Create specification |
 | `/speckit.clarify` | Resolve spec ambiguities |
 | `/speckit.plan` | Create technical plan |
@@ -101,7 +102,7 @@
 | `speckit roadmap` | ROADMAP operations (status, insert, defer, restore) |
 | `speckit tasks` | Task operations (mark, status) |
 | `speckit context` | Show project context |
-| `speckit doctor` | Run diagnostics |
+| `speckit doctor` | Run diagnostics (shows suggested fix commands) |
 | `speckit gate` | Validation gates (specify, plan, tasks, implement) |
 | `speckit lessons` | Lessons learned tracking |
 | `speckit memory` | Memory document operations |
@@ -115,7 +116,7 @@
 ├── memory/                 # Memory documents
 │   ├── constitution.md     # (REQUIRED)
 │   └── *.md                # Other memory docs
-├── discovery/              # Interview artifacts
+├── discovery/              # Discovery phase artifacts (discovery.md)
 ├── archive/                # Archived phases
 └── orchestration-state.json
 

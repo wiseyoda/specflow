@@ -115,3 +115,11 @@ speckit state get orchestration --json
 - **Phase completion**: `/speckit.merge` and `/speckit.backlog` for end-of-phase workflows
 - **Modular ROADMAP**: `speckit phase` (detail management), `speckit issue` (local tracking), `speckit roadmap renumber`
 - **Auto-archiving**: `/speckit.merge` archives phase details to HISTORY.md automatically
+
+## v2.1 Key Changes
+
+- **DISCOVER step**: New first step in orchestrate workflow that examines codebase and asks progressive clarifying questions BEFORE writing specs. Findings saved to `discovery.md`. Skip with `--no-discovery` flag.
+- **Doctor suggestions**: Doctor now displays actionable fix commands (e.g., `speckit templates sync`, `speckit doctor --fix`) at end of output
+- **Template sync**: New `speckit templates sync` command updates outdated templates AND copies new templates missing from project
+- **Template errors**: Missing templates now flagged as errors (not warnings) since they cause workflow failures
+- **Orchestrate workflow**: Now 9 steps: discover → specify → clarify → plan → tasks → analyze → checklist → implement → verify

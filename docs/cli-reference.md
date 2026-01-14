@@ -76,6 +76,8 @@ speckit doctor --check <area>        # Check specific area only
 
 **Valid check areas:** `system`, `project`, `state`, `manifest`, `paths`, `git`, `templates`, `version`, `roadmap`, `reality`, `all`
 
+**Suggested fixes:** Doctor displays actionable fix commands for detected issues (e.g., `speckit templates sync`, `speckit doctor --fix`).
+
 ### status - Comprehensive Status
 
 Get full project status (used by orchestrate).
@@ -251,8 +253,11 @@ speckit templates check              # Check for upstream updates
 speckit templates copy <file>        # Copy template to project
 speckit templates update <file>      # Update specific template
 speckit templates update-all         # Update all templates
+speckit templates sync               # Update outdated + copy missing templates
 speckit templates diff <file>        # Show differences from upstream
 ```
+
+**Note:** `speckit doctor` suggests `speckit templates sync` when templates need attention. Missing templates are flagged as errors since they can cause workflow failures.
 
 ---
 

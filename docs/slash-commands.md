@@ -52,17 +52,19 @@ This is the recommended way to begin any SpecKit session. It analyzes your proje
 /speckit.orchestrate --resume    # Resume from last step
 /speckit.orchestrate --phase <N> # Start at specific phase
 /speckit.orchestrate --skip-gates  # Skip validation gates
+/speckit.orchestrate --no-discovery  # Skip codebase examination and questions
 ```
 
-The orchestrator manages:
-1. Specification creation
-2. Clarification questions
-3. Implementation planning
-4. Task generation
-5. Cross-artifact analysis
-6. Checklist creation
-7. Implementation
-8. Verification
+The orchestrator manages 9 steps:
+1. **Discovery** - Examine codebase and ask clarifying questions
+2. **Specification** - Create feature spec from discovery findings
+3. **Clarification** - Resolve remaining ambiguities
+4. **Planning** - Create implementation plan
+5. **Tasks** - Generate task breakdown
+6. **Analysis** - Cross-artifact consistency check
+7. **Checklist** - Create verification checklist
+8. **Implementation** - Execute tasks
+9. **Verification** - Verify completion
 
 ---
 
@@ -282,8 +284,9 @@ Located in `commands/utilities/`.
 /speckit.roadmap            # Create development phases
     │
     ▼
-/speckit.orchestrate        # Automated workflow
+/speckit.orchestrate        # Automated workflow (9 steps)
     │
+    ├── DISCOVER            # Examine codebase, ask questions
     ├── /speckit.specify    # Feature specification
     ├── /speckit.clarify    # Resolve ambiguities
     ├── /speckit.plan       # Implementation plan

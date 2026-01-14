@@ -89,7 +89,7 @@ flowchart TD
     A["/speckit.start"] --> B["/speckit.init"]
     B --> C["/speckit.roadmap"]
     C --> D["/speckit.orchestrate"]
-    D --> E["specify → plan → tasks → implement → verify"]
+    D --> E["discover → specify → clarify → plan → tasks → analyze → checklist → implement → verify"]
     E --> F["/speckit.merge"]
     F --> G["Next Phase"]
     G --> D
@@ -101,7 +101,7 @@ SpecKit manages the full development lifecycle:
 |-------|--------------|
 | **Init** | Interactive interview captures requirements and decisions |
 | **Roadmap** | Break work into phased milestones |
-| **Orchestrate** | Automated workflow: spec → plan → tasks → implement → verify |
+| **Orchestrate** | Automated workflow: discover → specify → clarify → plan → tasks → analyze → checklist → implement → verify |
 | **Merge** | Push, create PR, merge, cleanup branches |
 
 ---

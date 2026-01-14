@@ -217,11 +217,14 @@ git checkout -f main
 
 ### Templates Not Found
 
+**Note:** Missing templates are flagged as **errors** by `speckit doctor` since they can cause workflow failures.
+
 **Solution:**
 
 ```bash
-speckit templates check
-speckit doctor --check templates
+speckit templates check           # See what's missing
+speckit templates sync            # Update outdated + copy missing (recommended)
+speckit doctor --check templates  # Full template check
 ```
 
 ### Template Out of Date
@@ -231,8 +234,11 @@ speckit doctor --check templates
 ```bash
 speckit templates diff <file>     # See changes
 speckit templates update <file>   # Update specific
-speckit templates update-all      # Update all
+speckit templates update-all      # Update all outdated
+speckit templates sync            # Update all + copy new templates
 ```
+
+**Tip:** `speckit doctor` suggests `speckit templates sync` when templates need attention.
 
 ---
 

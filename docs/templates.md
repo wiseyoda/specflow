@@ -64,8 +64,23 @@ speckit templates diff spec-template.md
 
 ```bash
 speckit templates update spec-template.md    # Update specific
-speckit templates update-all                  # Update all
+speckit templates update-all                  # Update all outdated
+speckit templates sync                        # Update outdated + copy new templates
 ```
+
+### Sync Templates (Recommended)
+
+The `sync` command is the recommended way to keep templates current:
+
+```bash
+speckit templates sync
+```
+
+This command:
+1. Updates any outdated project templates to match system versions
+2. Copies any new system templates missing from your project
+
+**Note:** `speckit doctor` flags missing templates as **errors** (not warnings) since they can cause workflow failures. Doctor will suggest running `speckit templates sync` when templates need attention.
 
 ## Template Variables
 

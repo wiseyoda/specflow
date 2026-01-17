@@ -5,6 +5,18 @@ import { TasksDataSchema } from './tasks';
 /**
  * Schema for orchestration state (simplified for SSE events)
  */
+/**
+ * Valid step status values
+ */
+export const StepStatusSchema = z.enum([
+  'pending',
+  'in_progress',
+  'complete',
+  'failed',
+  'blocked',
+  'skipped',
+]);
+
 export const OrchestrationStateSchema = z.object({
   schema_version: z.string(),
   project: z.object({
@@ -27,6 +39,13 @@ export const OrchestrationStateSchema = z.object({
     step: z.object({
       current: z.string().nullish(),
       index: z.union([z.number(), z.string()]).nullish(),
+      status: z.string().nullish(), // Values: pending, in_progress, complete, failed, blocked, skipped
+    }).nullish(),
+    // Track currently in-progress tasks (batch tracking)
+    implement: z.object({
+      current_tasks: z.array(z.string()).nullish(),
+      current_section: z.string().nullish(),
+      started_at: z.string().nullish(),
     }).nullish(),
   }).passthrough().nullish(),
   health: z.object({
@@ -35,6 +54,8 @@ export const OrchestrationStateSchema = z.object({
     issues: z.array(z.unknown()).nullish(),
   }).nullish(),
 }).passthrough(); // Allow additional fields
+
+export type StepStatus = z.infer<typeof StepStatusSchema>;
 
 /**
  * SSE Event Types

@@ -119,6 +119,7 @@ Check `ready`:
 | `start_next_phase` | Run `/speckit.merge --next-phase` to archive and start next |
 | `start_phase` | Continue to Section 1 |
 | `continue_*` | Resume from that step |
+| `recover_failed` | Handle failed step (see 0f) |
 
 **0e. Post-Merge State Handling**
 
@@ -141,7 +142,42 @@ Actions:
 
 If mismatch: Run `speckit doctor --fix`, reset affected step.
 
-**0f. Check Open Issues for Phase**
+**0f. Failed Step Recovery**
+
+If `step.status` is `failed`:
+```
+╔══════════════════════════════════════════════════════════════╗
+║                  ⚠️  STEP FAILED: {step.current}               ║
+╠══════════════════════════════════════════════════════════════╣
+║ The previous attempt at this step failed.                     ║
+║ This can happen due to validation errors, missing files,      ║
+║ or other issues during execution.                             ║
+╚══════════════════════════════════════════════════════════════╝
+```
+
+Recovery options (present to user):
+| Option | Description |
+|--------|-------------|
+| `retry` | Reset step to `in_progress` and retry |
+| `skip` | Mark step as `skipped` and continue to next (use with caution) |
+| `diagnose` | Run `speckit doctor` to identify issues |
+| `abort` | Keep failed state and exit (for manual intervention) |
+
+Recovery commands:
+```bash
+# For retry:
+speckit state set "orchestration.step.status=in_progress"
+
+# For skip:
+speckit state set "orchestration.step.status=skipped"
+speckit state set "orchestration.step.current={next_step}"
+speckit state set "orchestration.step.index={next_index}"
+
+# For diagnose:
+speckit doctor
+```
+
+**0g. Check Open Issues for Phase**
 ```bash
 speckit issue list --open --phase {phase_number} --json
 ```

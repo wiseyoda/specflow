@@ -49,6 +49,13 @@ COMMANDS:
     sync [file]          Regenerate Progress Dashboard from checkboxes
                          Updates the dashboard section at top of tasks.md
 
+    start <id>... [--section <name>]
+                         Mark task(s) as in-progress (batch tracking)
+                         Updates state.orchestration.implement.current_tasks
+                         Does NOT modify tasks.md (progress tracking only)
+
+    working              Show currently in-progress tasks from state
+
 OPTIONS:
     --json              Output in JSON format
     -h, --help          Show this help
@@ -72,6 +79,14 @@ EXAMPLES:
 
     # Mix ranges and individual IDs
     speckit tasks mark A1..A3 B1 B2..B4 tasks.md
+
+    # Start working on tasks (batch tracking)
+    speckit tasks start T001 T002 --section "Setup"
+    speckit tasks start A1..A5
+
+    # Show current in-progress tasks
+    speckit tasks working
+    speckit tasks working --json
 EOF
 }
 
@@ -385,15 +400,23 @@ cmd_mark() {
       percentage=$((completed * 100 / total))
     fi
 
-    # Update both implement step and progress in state
+    # Build list of marked task IDs for removal from current_tasks
+    local marked_ids_json="[]"
+    for mid in "${marked_ids[@]}"; do
+      marked_ids_json=$(echo "$marked_ids_json" | jq --arg id "$mid" '. + [$id]')
+    done
+
+    # Update both implement step and progress in state, removing completed tasks from current_tasks
     local state_temp
     state_temp=$(mktemp)
-    jq --argjson completed "$completed" --argjson total "$total" --argjson pct "$percentage" --arg ts "$(iso_timestamp)" \
+    jq --argjson completed "$completed" --argjson total "$total" --argjson pct "$percentage" \
+       --argjson marked "$marked_ids_json" --arg ts "$(iso_timestamp)" \
       '.orchestration.steps.implement.tasks_completed = $completed |
        .orchestration.steps.implement.tasks_total = $total |
        .orchestration.progress.tasks_completed = $completed |
        .orchestration.progress.tasks_total = $total |
        .orchestration.progress.percentage = $pct |
+       .orchestration.implement.current_tasks = ((.orchestration.implement.current_tasks // []) - $marked) |
        .last_updated = $ts' "$state_file" > "$state_temp" 2>/dev/null && mv "$state_temp" "$state_file"
 
     log_debug "Updated state: $completed/$total tasks complete ($percentage%)"
@@ -632,6 +655,145 @@ cmd_find() {
   fi
 }
 
+cmd_start() {
+  # Parse arguments - look for --section flag
+  local section=""
+  local ids=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --section)
+        shift
+        section="${1:-}"
+        shift
+        ;;
+      *)
+        ids+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if [[ ${#ids[@]} -eq 0 ]]; then
+    log_error "Task ID(s) required"
+    echo "Usage: speckit tasks start <id>... [--section <name>]"
+    echo "Examples:"
+    echo "  speckit tasks start T001 T002 --section \"Setup\""
+    echo "  speckit tasks start A1..A5"
+    exit 1
+  fi
+
+  # Expand ranges
+  local expanded_ids=()
+  while IFS= read -r expanded; do
+    [[ -n "$expanded" ]] && expanded_ids+=("$expanded")
+  done < <(expand_all_ids "${ids[@]}")
+
+  # Validate and normalize IDs
+  local valid_ids=()
+  for task_id in "${expanded_ids[@]}"; do
+    task_id=$(echo "$task_id" | tr -cd '[:alnum:].' | tr '[:lower:]' '[:upper:]')
+    if [[ "$task_id" =~ ^[A-Z0-9][A-Z0-9.]*$ ]]; then
+      valid_ids+=("$task_id")
+    else
+      log_warn "Invalid task ID format: $task_id"
+    fi
+  done
+
+  if [[ ${#valid_ids[@]} -eq 0 ]]; then
+    log_error "No valid task IDs provided"
+    exit 1
+  fi
+
+  # Update state file
+  local state_file
+  state_file="$(get_state_file)"
+
+  if [[ ! -f "$state_file" ]]; then
+    log_error "No state file found. Run 'speckit state init' first."
+    exit 1
+  fi
+
+  # Build JSON array of task IDs
+  local ids_json="[]"
+  for id in "${valid_ids[@]}"; do
+    ids_json=$(echo "$ids_json" | jq --arg id "$id" '. + [$id]')
+  done
+
+  # Update state with current tasks
+  local temp_file
+  temp_file=$(mktemp)
+  local timestamp
+  timestamp=$(iso_timestamp)
+
+  if [[ -n "$section" ]]; then
+    jq --argjson tasks "$ids_json" --arg section "$section" --arg ts "$timestamp" \
+      '.orchestration.implement.current_tasks = $tasks |
+       .orchestration.implement.current_section = $section |
+       .orchestration.implement.started_at = $ts |
+       .last_updated = $ts' "$state_file" > "$temp_file" 2>/dev/null && mv "$temp_file" "$state_file"
+  else
+    jq --argjson tasks "$ids_json" --arg ts "$timestamp" \
+      '.orchestration.implement.current_tasks = $tasks |
+       .orchestration.implement.current_section = null |
+       .orchestration.implement.started_at = $ts |
+       .last_updated = $ts' "$state_file" > "$temp_file" 2>/dev/null && mv "$temp_file" "$state_file"
+  fi
+
+  # Output
+  if is_json_output; then
+    local section_json="null"
+    [[ -n "$section" ]] && section_json="\"$section\""
+    echo "{\"tasks\": $ids_json, \"section\": $section_json, \"started_at\": \"$timestamp\"}"
+  else
+    log_success "Started ${#valid_ids[@]} task(s)"
+    if [[ -n "$section" ]]; then
+      echo "  Section: $section"
+    fi
+    echo "  Tasks: ${valid_ids[*]}"
+  fi
+}
+
+cmd_working() {
+  local state_file
+  state_file="$(get_state_file)"
+
+  if [[ ! -f "$state_file" ]]; then
+    log_error "No state file found"
+    exit 1
+  fi
+
+  # Read current tasks from state
+  local current_tasks section started_at
+  current_tasks=$(jq -r '.orchestration.implement.current_tasks // []' "$state_file" 2>/dev/null)
+  section=$(jq -r '.orchestration.implement.current_section // null' "$state_file" 2>/dev/null)
+  started_at=$(jq -r '.orchestration.implement.started_at // null' "$state_file" 2>/dev/null)
+
+  local count
+  count=$(echo "$current_tasks" | jq 'length')
+
+  if is_json_output; then
+    echo "{\"tasks\": $current_tasks, \"section\": $section, \"started_at\": $started_at, \"count\": $count}"
+  else
+    if [[ "$count" -eq 0 || "$current_tasks" == "[]" ]]; then
+      echo -e "${BLUE}INFO${RESET}: No tasks currently in progress"
+      echo "  Use 'speckit tasks start <id>...' to begin working on tasks"
+    else
+      echo -e "${GREEN}OK${RESET}: $count task(s) in progress"
+      if [[ "$section" != "null" && -n "$section" ]]; then
+        echo "  Section: $section"
+      fi
+      if [[ "$started_at" != "null" && -n "$started_at" ]]; then
+        echo "  Started: $started_at"
+      fi
+      echo "  Tasks:"
+      echo "$current_tasks" | jq -r '.[]' | while read -r task; do
+        echo "    - $task"
+      done
+    fi
+  fi
+}
+
 cmd_sync() {
   local file="${1:-}"
 
@@ -856,6 +1018,12 @@ main() {
       ;;
     sync)
       cmd_sync "${1:-}"
+      ;;
+    start)
+      cmd_start "$@"
+      ;;
+    working|wip)
+      cmd_working
       ;;
     help|--help|-h)
       show_help

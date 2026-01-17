@@ -25,9 +25,14 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 1. **Setup**: Run `speckit context --json` to get FEATURE_DIR, BRANCH, PHASE, and available docs. Set FEATURE_SPEC="${FEATURE_DIR}/spec.md" and IMPL_PLAN="${FEATURE_DIR}/plan.md".
 
-2. **Load context**: Read FEATURE_SPEC and `.specify/memory/constitution.md`. Load IMPL_PLAN template (already copied).
+2. **Update State**: Mark step as in-progress:
+   ```bash
+   speckit state set "orchestration.step.current=plan" "orchestration.step.status=in_progress"
+   ```
 
-2a. **UI Design Verification** (if UI phase):
+3. **Load context**: Read FEATURE_SPEC and `.specify/memory/constitution.md`. Load IMPL_PLAN template (already copied).
+
+4. **UI Design Verification** (if UI phase):
 
    Check if this is a UI-related phase by scanning spec for keywords:
    `dashboard, form, button, screen, page, view, component, interface, modal, dialog, panel, widget, layout, navigation, menu, sidebar, header, footer`
@@ -38,7 +43,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Reference design.md in the plan's implementation approach
    - Add UI verification to acceptance criteria
 
-3. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
+5. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
    - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION")
    - Fill Constitution Check section from constitution
    - Evaluate gates (ERROR if violations unjustified)
@@ -47,7 +52,18 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Phase 1: Update agent context by running the agent script
    - Re-evaluate Constitution Check post-design
 
-4. **Stop and report**: Command ends after Phase 2 planning. Report branch, IMPL_PLAN path, and generated artifacts.
+6. **Update State**: Mark step as complete (or failed on error):
+   ```bash
+   # On success:
+   speckit state set "orchestration.step.status=complete"
+
+   # On error (e.g., gate violations, unresolved clarifications):
+   speckit state set "orchestration.step.status=failed"
+   ```
+
+   **Error Handling**: If gate evaluation fails or required clarifications cannot be resolved, mark step as `failed` before reporting the error.
+
+7. **Stop and report**: Command ends after Phase 2 planning. Report branch, IMPL_PLAN path, and generated artifacts.
 
 ## Phases
 

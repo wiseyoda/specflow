@@ -1,13 +1,31 @@
 import type { Task, TaskStatus, TasksData } from '@speckit/shared';
 
 /**
- * Parse tasks from a tasks.md file content
+ * Options for parsing tasks
  */
-export function parseTasks(content: string, projectId: string): TasksData {
+export interface ParseTasksOptions {
+  /** Task IDs currently being worked on (from state.orchestration.implement.current_tasks) */
+  currentTasks?: string[];
+}
+
+/**
+ * Parse tasks from a tasks.md file content
+ * @param content The markdown content of tasks.md
+ * @param projectId The project UUID
+ * @param options Optional parsing options including current in-progress tasks from state
+ */
+export function parseTasks(
+  content: string,
+  projectId: string,
+  options?: ParseTasksOptions
+): TasksData {
   const lines = content.split('\n');
   const tasks: Task[] = [];
   const seenIds = new Set<string>();
   let currentPhase: string | undefined;
+
+  // Build a Set for O(1) lookup of in-progress tasks
+  const inProgressTasks = new Set(options?.currentTasks ?? []);
 
   for (const line of lines) {
     // Check for phase header: ## Phase N: Name or ## Phase: Name
@@ -28,7 +46,7 @@ export function parseTasks(content: string, projectId: string): TasksData {
       }
       seenIds.add(id);
 
-      const status = parseTaskStatus(checkbox);
+      const status = parseTaskStatus(checkbox, id, inProgressTasks);
       const { description, userStory, isParallel, filePath } = parseTaskDescription(rest);
 
       tasks.push({
@@ -56,9 +74,25 @@ export function parseTasks(content: string, projectId: string): TasksData {
 
 /**
  * Parse checkbox state to TaskStatus
+ * @param checkbox The checkbox character (space or x)
+ * @param taskId The task ID
+ * @param inProgressTasks Set of task IDs currently being worked on
  */
-function parseTaskStatus(checkbox: string): TaskStatus {
-  return checkbox.toLowerCase() === 'x' ? 'done' : 'todo';
+function parseTaskStatus(
+  checkbox: string,
+  taskId: string,
+  inProgressTasks: Set<string>
+): TaskStatus {
+  // If checkbox is checked, it's done
+  if (checkbox.toLowerCase() === 'x') {
+    return 'done';
+  }
+  // If task is in the current_tasks array from state, it's in_progress
+  if (inProgressTasks.has(taskId)) {
+    return 'in_progress';
+  }
+  // Otherwise it's todo
+  return 'todo';
 }
 
 /**

@@ -46,7 +46,12 @@ Given that feature description, do this:
      - "Create a dashboard for analytics" → "analytics-dashboard"
      - "Fix payment processing timeout bug" → "fix-payment-timeout"
 
-2. **Check for existing branches before creating new one**:
+2. **Update State**: Mark step as in-progress:
+   ```bash
+   speckit state set "orchestration.step.current=specify" "orchestration.step.status=in_progress"
+   ```
+
+3. **Check for existing branches before creating new one**:
 
    a. First, fetch all remote branches to ensure we have the latest information:
 
@@ -269,9 +274,20 @@ Given that feature description, do this:
 
    d. **Update Checklist**: After each validation iteration, update the checklist file with current pass/fail status
 
-8. Report completion with branch name, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
+8. **Update State**: Mark step as complete (or failed on error):
+   ```bash
+   # On success:
+   speckit state set "orchestration.step.status=complete"
 
-9. **UI Detection and Design Documentation**:
+   # On error (before exiting with error):
+   speckit state set "orchestration.step.status=failed"
+   ```
+
+   **Error Handling**: If any step fails (e.g., branch creation fails, spec validation errors), mark the step as `failed` before reporting the error. This allows the dashboard to show the failed state and orchestrate to attempt recovery.
+
+9. Report completion with branch name, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
+
+10. **UI Detection and Design Documentation**:
 
    After creating the spec, check if this phase involves visual UI changes:
 

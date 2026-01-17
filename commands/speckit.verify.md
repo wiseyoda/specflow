@@ -55,6 +55,11 @@ Derive absolute paths:
 - TASKS = FEATURE_DIR/tasks.md
 - CHECKLISTS_DIR = FEATURE_DIR/checklists/
 
+**Update State**: Mark step as in-progress:
+```bash
+speckit state set "orchestration.step.current=verify" "orchestration.step.status=in_progress"
+```
+
 ### 2. Task Completion Verification
 
 Use the SpecKit CLI for task verification:
@@ -390,7 +395,18 @@ User must explicitly confirm before marking complete
 speckit roadmap status
 ```
 
-**7e. If deferred items exist, create handoff file for NEXT phase:**
+**7e. Update State**: Mark step as complete (or failed):
+```bash
+# On success (all checks pass):
+speckit state set "orchestration.step.status=complete"
+
+# On verification failure (tasks incomplete, checklists failing):
+speckit state set "orchestration.step.status=failed"
+```
+
+**Error Handling**: If verification fails (incomplete tasks, failing checklists, missing compliance), mark step as `failed`. See section 9 "Handle Failures" for recovery procedures.
+
+**7f. If deferred items exist, create handoff file for NEXT phase:**
 
 If the phase has deferred items (deferred.md was created), create a handoff file for the NEXT phase:
 

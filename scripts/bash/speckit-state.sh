@@ -93,6 +93,11 @@ read -r -d '' DEFAULT_STATE << 'EOF' || true
       "tasks_completed": 0,
       "tasks_total": 0,
       "percentage": 0
+    },
+    "implement": {
+      "current_tasks": [],
+      "current_section": null,
+      "started_at": null
     }
   },
   "health": {
@@ -192,6 +197,13 @@ EXAMPLES:
     speckit state migrate                 # Upgrade to v2.0 schema
     speckit state archive                 # Archive phase, reset for next
     speckit state registry list           # List all projects
+
+STATUS VALUES:
+    phase.status:   not_started, in_progress, complete, blocked
+    step.status:    pending, in_progress, complete, failed, blocked, skipped
+
+    Setting failed status:
+    speckit state set "orchestration.step.status=failed"
 EOF
 }
 
@@ -839,6 +851,20 @@ cmd_archive() {
     exit 0
   fi
 
+  # Idempotency check: See if this phase is already in history
+  local already_archived
+  already_archived=$(jq -r --arg pn "$phase_number" '
+    .actions.history // [] | any(.phase_number == $pn and .type == "phase_completed")
+  ' "$state_file" 2>/dev/null || echo "false")
+
+  if [[ "$already_archived" == "true" ]]; then
+    log_info "Phase $phase_number already archived (idempotent - no action needed)"
+    if is_json_output; then
+      echo '{"archived": true, "reason": "already_archived", "phase": "'"$phase_number"'"}'
+    fi
+    exit 0
+  fi
+
   local temp_file
   temp_file=$(mktemp)
   local timestamp
@@ -874,6 +900,11 @@ cmd_archive() {
         "tasks_completed": 0,
         "tasks_total": 0,
         "percentage": 0
+      },
+      "implement": {
+        "current_tasks": [],
+        "current_section": null,
+        "started_at": null
       }
     } |
 
@@ -1139,6 +1170,11 @@ cmd_migrate() {
             "tasks_total": (.steps.implement.tasks_total // 0),
             "current_task": (.steps.implement.current_task // null),
             "percentage": (if (.steps.implement.tasks_total // 0) > 0 then (((.steps.implement.tasks_completed // 0) * 100) / (.steps.implement.tasks_total // 1)) else 0 end)
+          },
+          "implement": {
+            "current_tasks": [],
+            "current_section": null,
+            "started_at": null
           }
         },
         "health": {
@@ -1316,7 +1352,8 @@ cmd_migrate() {
         "orchestration": {
           "phase": { "number": null, "name": null, "branch": null, "status": "not_started" },
           "step": { "current": null, "index": 0, "status": "not_started" },
-          "progress": { "tasks_completed": 0, "tasks_total": 0, "percentage": 0 }
+          "progress": { "tasks_completed": 0, "tasks_total": 0, "percentage": 0 },
+          "implement": { "current_tasks": [], "current_section": null, "started_at": null }
         },
         "health": { "status": "migrated", "last_check": $ts, "issues": [] },
         "actions": { "available": [], "pending": [], "history": [] },

@@ -37,7 +37,12 @@ You **MUST** consider the user input before proceeding (if not empty).
    - All file paths must be absolute.
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
-2. **Clarify intent (dynamic)**: Derive up to THREE initial contextual clarifying questions (no pre-baked catalog). They MUST:
+2. **Update State**: Mark step as in-progress:
+   ```bash
+   speckit state set "orchestration.step.current=checklist" "orchestration.step.status=in_progress"
+   ```
+
+3. **Clarify intent (dynamic)**: Derive up to THREE initial contextual clarifying questions (no pre-baked catalog). They MUST:
    - Be generated from the user's phrasing + extracted signals from spec/plan/tasks
    - Only ask about information that materially changes checklist content
    - Be skipped individually if already unambiguous in `$ARGUMENTS`
@@ -205,7 +210,18 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 6. **Structure Reference**: Generate the checklist following the canonical template in `.specify/templates/checklist-template.md` for title, meta section, category headings, and ID formatting. If template is unavailable, use: H1 title, purpose/created meta lines, `##` category sections containing `- [ ] CHK### <requirement item>` lines with globally incrementing IDs starting at CHK001.
 
-7. **Report**: Output full path to created checklist, item count, and remind user that each run creates a new file. Summarize:
+7. **Update State**: Mark step as complete (or failed on error):
+   ```bash
+   # On success:
+   speckit state set "orchestration.step.status=complete"
+
+   # On error (e.g., cannot create checklist directory):
+   speckit state set "orchestration.step.status=failed"
+   ```
+
+   **Error Handling**: If checklist generation fails, mark step as `failed` before reporting the error.
+
+8. **Report**: Output full path to created checklist, item count, and remind user that each run creates a new file. Summarize:
    - Focus areas selected
    - Depth level
    - Actor/timing

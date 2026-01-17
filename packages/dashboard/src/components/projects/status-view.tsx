@@ -1,8 +1,11 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Activity, CheckCircle2, AlertTriangle, XCircle, Clock, FileText, FolderOpen } from "lucide-react"
+import { Activity, CheckCircle2, AlertTriangle, XCircle, Clock, FileText, FolderOpen, AlertCircle, Loader2 } from "lucide-react"
 import type { OrchestrationState, TasksData } from "@speckit/shared"
+
+// Staleness threshold in minutes
+const STALE_THRESHOLD_MINUTES = 5
 
 interface Project {
   id: string
@@ -34,7 +37,28 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
   }
 
   const phase = state.orchestration?.phase
+  const step = state.orchestration?.step
+  const implement = state.orchestration?.implement
   const health = state.health
+
+  // Calculate working tasks count
+  const workingTasksCount = tasksData?.tasks?.filter((t) => t.status === 'in_progress').length ?? 0
+  const currentTasksFromState = (implement?.current_tasks as string[] | undefined)?.length ?? 0
+
+  // Check for failed state
+  const isStepFailed = step?.status === 'failed'
+
+  // Check for stale state (in_progress for more than threshold)
+  const isStaleState = (() => {
+    if (step?.status !== 'in_progress') return false
+    // Use _fileMtime (added by watcher) or last_updated
+    const lastUpdate = (state as Record<string, unknown>)._fileMtime || state.last_updated
+    if (!lastUpdate || typeof lastUpdate !== 'string') return false
+    const lastUpdateTime = new Date(lastUpdate).getTime()
+    const now = Date.now()
+    const diffMinutes = (now - lastUpdateTime) / 1000 / 60
+    return diffMinutes > STALE_THRESHOLD_MINUTES
+  })()
 
   // Use tasks data for progress if available, fall back to state file
   let progressData: { tasks_completed: number; tasks_total: number; percentage: number } | undefined
@@ -57,7 +81,37 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="space-y-4">
+      {/* Status Alerts */}
+      {isStepFailed && (
+        <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+          <div>
+            <p className="font-medium text-red-800 dark:text-red-200">
+              Step Failed: {step?.current || 'Unknown'}
+            </p>
+            <p className="text-sm text-red-600 dark:text-red-300">
+              Run <code className="px-1 py-0.5 bg-red-100 dark:bg-red-900/30 rounded">speckit doctor</code> for recovery options
+            </p>
+          </div>
+        </div>
+      )}
+
+      {isStaleState && !isStepFailed && (
+        <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0" />
+          <div>
+            <p className="font-medium text-amber-800 dark:text-amber-200">
+              Possibly Stale: {step?.current || 'Unknown'}
+            </p>
+            <p className="text-sm text-amber-600 dark:text-amber-300">
+              Step shows in_progress but hasn&apos;t updated recently. Run <code className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded">speckit doctor --fix</code> to reset.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Phase Card */}
       <Card>
         <CardHeader className="pb-2">
@@ -80,9 +134,27 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
                   </span>
                 )}
               </div>
-              {state.orchestration?.step?.current && (
-                <div className="text-sm text-neutral-500 dark:text-neutral-400 mt-2">
-                  Step: {state.orchestration.step.current}
+              {step?.current && (
+                <div className="text-sm text-neutral-500 dark:text-neutral-400 mt-2 flex items-center gap-2">
+                  Step: {step.current}
+                  {step.status === 'in_progress' && !isStaleState && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Running
+                    </span>
+                  )}
+                  {step.status === 'failed' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                      <XCircle className="h-3 w-3" />
+                      Failed
+                    </span>
+                  )}
+                  {step.status === 'complete' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Complete
+                    </span>
+                  )}
                 </div>
               )}
             </>
@@ -137,6 +209,15 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
                   {progressData.percentage}% complete
                 </div>
               </div>
+              {/* Working tasks indicator */}
+              {(workingTasksCount > 0 || currentTasksFromState > 0) && (
+                <div className="mt-3 flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                  <span className="text-sm text-blue-600 dark:text-blue-400">
+                    {workingTasksCount || currentTasksFromState} task{(workingTasksCount || currentTasksFromState) !== 1 ? 's' : ''} in progress
+                  </span>
+                </div>
+              )}
             </>
           ) : (
             <div className="text-neutral-500 dark:text-neutral-400">No tasks tracked</div>
@@ -175,6 +256,7 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
           </dl>
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }

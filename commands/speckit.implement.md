@@ -99,7 +99,12 @@ Match implementation tasks to test tasks:
 
 1. Run `speckit context --json --require-tasks --include-tasks` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
-2. **Check checklists status** (if FEATURE_DIR/checklists/ exists):
+2. **Update State**: Mark step as in-progress:
+   ```bash
+   speckit state set "orchestration.step.current=implement" "orchestration.step.status=in_progress"
+   ```
+
+3. **Check checklists status** (if FEATURE_DIR/checklists/ exists):
 
    Use the SpecKit CLI for checklist verification:
 
@@ -193,6 +198,14 @@ Match implementation tasks to test tasks:
 
 6. Execute implementation following the task plan:
    - **Phase-by-phase execution**: Complete each phase before moving to the next
+   - **Track in-progress tasks**: Before starting work on a batch/section of tasks, mark them as in-progress:
+     ```bash
+     # Mark tasks as in-progress (for dashboard visibility)
+     speckit tasks start T001 T002 T003 --section "Phase 1: Setup"
+
+     # Check what's currently being worked on
+     speckit tasks working
+     ```
    - **Respect dependencies**: Run sequential tasks in order, parallel tasks [P] can run together
    - **TDD Mode** (if `--tdd` flag provided): Follow the TDD Workflow section above
      - Write/verify tests BEFORE each implementation task
@@ -237,7 +250,18 @@ Match implementation tasks to test tasks:
      - Updates the orchestration state file with task counts
      - Regenerates the Progress Dashboard at top of tasks.md
 
-9. Completion validation:
+9. **Update State**: Mark step as complete (or failed on error):
+   ```bash
+   # On success (all tasks completed):
+   speckit state set "orchestration.step.status=complete"
+
+   # On error (implementation failed, tests failing, blocked):
+   speckit state set "orchestration.step.status=failed"
+   ```
+
+   **Error Handling**: If implementation fails (tests consistently failing, blocking errors), mark step as `failed`. The dashboard will show this state, and `/speckit.orchestrate` can attempt recovery.
+
+10. Completion validation:
 
    Use the SpecKit CLI to verify completion:
 

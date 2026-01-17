@@ -23,7 +23,12 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 1. **Setup**: Run `speckit context --json` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
-2. **Load design documents**: Read from FEATURE_DIR:
+2. **Update State**: Mark step as in-progress:
+   ```bash
+   speckit state set "orchestration.step.current=tasks" "orchestration.step.status=in_progress"
+   ```
+
+3. **Load design documents**: Read from FEATURE_DIR:
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities)
    - **Optional**: data-model.md (entities), contracts/ (API endpoints), research.md (decisions), quickstart.md (test scenarios)
    - Note: Not all projects have all documents. Generate tasks based on what's available.
@@ -52,7 +57,18 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Parallel execution examples per story
    - Implementation strategy section (MVP first, incremental delivery)
 
-5. **Report**: Output path to generated tasks.md and summary:
+5. **Update State**: Mark step as complete (or failed on error):
+   ```bash
+   # On success:
+   speckit state set "orchestration.step.status=complete"
+
+   # On error (e.g., missing plan.md, invalid structure):
+   speckit state set "orchestration.step.status=failed"
+   ```
+
+   **Error Handling**: If required documents are missing or task generation fails, mark step as `failed` before reporting the error.
+
+6. **Report**: Output path to generated tasks.md and summary:
    - Total task count
    - Task count per user story
    - Parallel opportunities identified

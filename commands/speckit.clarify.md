@@ -29,6 +29,11 @@ Execution steps:
    - If JSON parsing fails, abort and instruct user to re-run `/speckit.specify` or verify feature branch environment.
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
+   **Update State**: Mark step as in-progress:
+   ```bash
+   speckit state set "orchestration.step.current=clarify" "orchestration.step.status=in_progress"
+   ```
+
    **Load discovery context (if exists)**: Check for `FEATURE_DIR/discovery.md`. If present:
    - Load the discovery findings (codebase examination, confirmed understanding)
    - Use this context to inform ambiguity detection and skip questions already answered during DISCOVER phase
@@ -165,7 +170,18 @@ Execution steps:
 
 7. Write the updated spec back to `FEATURE_SPEC`.
 
-8. Report completion (after questioning loop ends or early termination):
+8. **Update State**: Mark step as complete (or failed on error):
+   ```bash
+   # On success:
+   speckit state set "orchestration.step.status=complete"
+
+   # On error (before exiting with error):
+   speckit state set "orchestration.step.status=failed"
+   ```
+
+   **Error Handling**: If spec file is missing or cannot be parsed, mark step as `failed` before reporting the error.
+
+9. Report completion (after questioning loop ends or early termination):
    - Number of questions asked & answered.
    - Path to updated spec.
    - Sections touched (list names).

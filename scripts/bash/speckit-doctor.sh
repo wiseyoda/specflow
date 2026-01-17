@@ -380,6 +380,62 @@ check_state() {
       print_status error "Failed to re-initialize state"
     fi
   fi
+
+  # Staleness detection: Check if state claims in_progress but is stale
+  local step_status
+  step_status=$(jq -r '.orchestration.step.status // empty' "$state_file" 2>/dev/null || echo "")
+
+  if [[ "$step_status" == "in_progress" ]]; then
+    local last_updated
+    last_updated=$(jq -r '.last_updated // empty' "$state_file" 2>/dev/null || echo "")
+
+    if [[ -n "$last_updated" ]]; then
+      # Get timestamps in seconds
+      local now_ts last_ts diff_minutes
+      now_ts=$(date +%s)
+
+      # Try to parse ISO timestamp (cross-platform approach)
+      if command -v gdate >/dev/null 2>&1; then
+        # macOS with coreutils
+        last_ts=$(gdate -d "$last_updated" +%s 2>/dev/null || echo "0")
+      else
+        # Linux
+        last_ts=$(date -d "$last_updated" +%s 2>/dev/null || echo "0")
+      fi
+
+      if [[ "$last_ts" -gt 0 ]]; then
+        diff_minutes=$(( (now_ts - last_ts) / 60 ))
+
+        # Stale if > 5 minutes without update
+        if [[ "$diff_minutes" -gt 5 ]]; then
+          local step_current
+          step_current=$(jq -r '.orchestration.step.current // "unknown"' "$state_file" 2>/dev/null || echo "unknown")
+          print_status warn "Step '$step_current' shows in_progress but last update was ${diff_minutes}m ago"
+          add_warning "Potentially stale state: in_progress for ${diff_minutes} minutes"
+
+          if [[ "$fix" == "true" ]]; then
+            log_info "Marking stale step as 'pending' for retry..."
+            if jq '.orchestration.step.status = "pending"' "$state_file" > "${state_file}.tmp" && \
+               mv "${state_file}.tmp" "$state_file"; then
+              add_fixed "Reset stale in_progress step to pending"
+              print_status ok "Reset step status to pending"
+            fi
+          fi
+        else
+          print_status ok "Step in_progress (active: ${diff_minutes}m ago)"
+        fi
+      fi
+    fi
+  fi
+
+  # Check for failed status (requires user intervention)
+  if [[ "$step_status" == "failed" ]]; then
+    local step_current
+    step_current=$(jq -r '.orchestration.step.current // "unknown"' "$state_file" 2>/dev/null || echo "unknown")
+    print_status warn "Step '$step_current' is in failed state"
+    add_warning "Failed step detected: $step_current"
+    add_suggestion "speckit state set \"orchestration.step.status=pending\" # to retry"
+  fi
 }
 
 # Check version manifest

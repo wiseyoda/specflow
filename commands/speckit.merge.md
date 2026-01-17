@@ -173,9 +173,39 @@ fi
 echo "PR created: $PR_URL"
 ```
 
-### 4. Merge Pull Request (if not --pr-only)
+### 4. Pre-Merge State Recording
 
-**4a. If `--pr-only` flag, stop here:**
+**CRITICAL**: Record completion state BEFORE branch operations. This ensures the dashboard shows correct state even if merge is interrupted.
+
+**4a. Update orchestration state:**
+
+```bash
+echo "Recording completion state..."
+
+# Mark step as complete
+speckit state set "orchestration.step.current=merge" "orchestration.step.status=complete"
+
+# Mark phase status based on USER GATE status
+# Check if phase has USER GATE in ROADMAP
+HAS_USER_GATE=$(speckit phase show "$PHASE_NUMBER" --json 2>/dev/null | jq -r '.verification_gate // "" | test("USER") // false')
+
+if [[ "$HAS_USER_GATE" == "true" ]]; then
+  # Don't mark complete yet - needs user verification
+  speckit state set "orchestration.phase.status=awaiting_user_gate"
+  echo "Phase has USER GATE - awaiting user verification after merge"
+else
+  speckit state set "orchestration.phase.status=complete"
+fi
+```
+
+This ensures:
+- Dashboard shows current state during merge
+- State is preserved if merge fails
+- USER GATE phases show "awaiting" instead of "complete"
+
+### 5. Merge Pull Request (if not --pr-only)
+
+**5a. If `--pr-only` flag, stop here:**
 
 ```bash
 if [[ "$PR_ONLY" == "true" ]]; then
@@ -188,7 +218,7 @@ if [[ "$PR_ONLY" == "true" ]]; then
 fi
 ```
 
-**4b. Merge PR:**
+**5b. Merge PR:**
 
 ```bash
 echo "Merging PR..."
@@ -204,9 +234,9 @@ if [[ $? -ne 0 ]]; then
 fi
 ```
 
-### 5. Branch Cleanup
+### 6. Branch Cleanup
 
-**5a. Checkout main and pull:**
+**6a. Checkout main and pull:**
 
 ```bash
 echo "Switching to main branch..."
@@ -214,16 +244,16 @@ git checkout main
 git pull origin main
 ```
 
-**5b. Delete local feature branch (if it still exists):**
+**6b. Delete local feature branch (if it still exists):**
 
 ```bash
 # gh pr merge --delete-branch handles remote, but local may remain
 git branch -d "$CURRENT_BRANCH" 2>/dev/null || true
 ```
 
-### 6. Archive State
+### 7. Archive State
 
-**6a. Run state archive:**
+**7a. Run state archive:**
 
 ```bash
 echo "Archiving phase state..."
@@ -232,7 +262,7 @@ speckit state archive
 
 This moves the current phase to history and resets orchestration for the next phase.
 
-**6b. Archive phase details to HISTORY.md:**
+**7b. Archive phase details to HISTORY.md:**
 
 ```bash
 echo "Archiving phase details..."
@@ -241,9 +271,9 @@ speckit phase archive "$PHASE_NUMBER"
 
 This moves the phase's detailed content (goal, scope, deliverables, verification gate) from ROADMAP.md to `.specify/history/HISTORY.md`, keeping ROADMAP.md lightweight.
 
-### 6.5. Extract Handoff Items
+### 7.5. Extract Handoff Items
 
-**6.5a. Scan tasks.md for deferred items:**
+**7.5a. Scan tasks.md for deferred items:**
 
 ```bash
 echo "Checking for handoff items..."
@@ -263,7 +293,7 @@ if ls $TASKS_FILE 1>/dev/null 2>&1; then
 fi
 ```
 
-**6.5b. Generate handoff file if deferred items exist:**
+**7.5b. Generate handoff file if deferred items exist:**
 
 If deferred items are found, extract them and create a structured handoff file:
 
@@ -343,17 +373,17 @@ if [[ -f "$HANDOFF_FILE" ]]; then
 fi
 ```
 
-### 7. Update ROADMAP
+### 8. Update ROADMAP
 
-**7a. Mark phase complete:**
+**8a. Mark phase complete:**
 
 ```bash
 speckit roadmap update "$PHASE_NUMBER" complete
 ```
 
-### 8. Display Backlog Summary
+### 9. Display Backlog Summary
 
-**8a. Show backlog items:**
+**9a. Show backlog items:**
 
 ```bash
 echo ""
@@ -368,9 +398,9 @@ echo ""
 echo "Run /speckit.backlog to triage items into future phases"
 ```
 
-### 9. Start Next Phase (if --next-phase)
+### 10. Start Next Phase (if --next-phase)
 
-**9a. If `--next-phase` flag is NOT set, show next steps and exit:**
+**10a. If `--next-phase` flag is NOT set, show next steps and exit:**
 
 ```bash
 if [[ "$NEXT_PHASE" != "true" ]]; then
@@ -380,7 +410,7 @@ if [[ "$NEXT_PHASE" != "true" ]]; then
 fi
 ```
 
-**9b. Get next pending phase:**
+**10b. Get next pending phase:**
 
 ```bash
 echo ""
@@ -400,7 +430,7 @@ NEXT_NAME=$(echo "$NEXT" | jq -r '.name')
 NEXT_BRANCH="${NEXT_NUMBER}-${NEXT_NAME}"
 ```
 
-**9c. Create branch and initialize state:**
+**10c. Create branch and initialize state:**
 
 ```bash
 echo "Creating branch: $NEXT_BRANCH"

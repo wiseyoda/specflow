@@ -10,7 +10,7 @@ import {
   type SSEEvent,
   type TasksData,
 } from '@speckit/shared';
-import { parseTasks } from './task-parser';
+import { parseTasks, type ParseTasksOptions } from './task-parser';
 
 // Debounce delay in milliseconds
 const DEBOUNCE_MS = 200;
@@ -143,11 +143,18 @@ async function handleStateChange(projectId: string, statePath: string): Promise<
 
 /**
  * Read and parse tasks file for a project
+ * @param projectId The project UUID
+ * @param tasksPath Path to tasks.md file
+ * @param options Optional parsing options (e.g., current_tasks from state)
  */
-async function readTasks(projectId: string, tasksPath: string): Promise<TasksData | null> {
+async function readTasks(
+  projectId: string,
+  tasksPath: string,
+  options?: ParseTasksOptions
+): Promise<TasksData | null> {
   try {
     const content = await fs.readFile(tasksPath, 'utf-8');
-    const parsed = parseTasks(content, projectId);
+    const parsed = parseTasks(content, projectId, options);
     return parsed;
   } catch (error) {
     // File doesn't exist or is invalid
@@ -158,9 +165,21 @@ async function readTasks(projectId: string, tasksPath: string): Promise<TasksDat
 
 /**
  * Handle tasks file change
+ * Also reads state to get current in-progress tasks for status derivation
  */
 async function handleTasksChange(projectId: string, tasksPath: string): Promise<void> {
-  const tasks = await readTasks(projectId, tasksPath);
+  // Get state to check for current_tasks (for in_progress status)
+  let currentTasks: string[] | undefined;
+  if (currentRegistry) {
+    const project = currentRegistry.projects[projectId];
+    if (project) {
+      const statePath = path.join(project.path, '.specify', 'orchestration-state.json');
+      const state = await readState(projectId, statePath);
+      currentTasks = state?.orchestration?.implement?.current_tasks as string[] | undefined;
+    }
+  }
+
+  const tasks = await readTasks(projectId, tasksPath, { currentTasks });
   if (!tasks) return;
 
   broadcast({
@@ -236,8 +255,12 @@ async function updateWatchedPaths(registry: Registry): Promise<void> {
         watcher.add(tasksPath);
         console.log(`[Watcher] Added tasks file: ${tasksPath}`);
 
+        // Read state to get current_tasks for in_progress status
+        const state = await readState(projectId, statePath);
+        const currentTasks = state?.orchestration?.implement?.current_tasks as string[] | undefined;
+
         // Broadcast tasks data for newly watched path (or empty if file doesn't exist)
-        const tasks = await readTasks(projectId, tasksPath);
+        const tasks = await readTasks(projectId, tasksPath, { currentTasks });
         broadcast({
           type: 'tasks',
           timestamp: new Date().toISOString(),
@@ -409,6 +432,7 @@ export async function getAllStates(): Promise<Map<string, OrchestrationState>> {
 
 /**
  * Get all current tasks data for registered projects
+ * Also reads state to get current in-progress tasks for status derivation
  */
 export async function getAllTasks(): Promise<Map<string, TasksData>> {
   const tasks = new Map<string, TasksData>();
@@ -419,7 +443,11 @@ export async function getAllTasks(): Promise<Map<string, TasksData>> {
     const statePath = path.join(project.path, '.specify', 'orchestration-state.json');
     const tasksPath = await getTasksPathForProject(project.path, statePath);
     if (tasksPath) {
-      const projectTasks = await readTasks(projectId, tasksPath);
+      // Read state to get current_tasks for in_progress status
+      const state = await readState(projectId, statePath);
+      const currentTasks = state?.orchestration?.implement?.current_tasks as string[] | undefined;
+
+      const projectTasks = await readTasks(projectId, tasksPath, { currentTasks });
       if (projectTasks) {
         tasks.set(projectId, projectTasks);
       }

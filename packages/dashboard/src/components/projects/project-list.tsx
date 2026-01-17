@@ -1,34 +1,15 @@
 "use client"
 
-import { usePolling } from "@/hooks/use-polling"
+import { useProjects } from "@/hooks/use-projects"
 import { ProjectCard } from "./project-card"
 import { EmptyState } from "./empty-state"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-interface Project {
-  id: string
-  name: string
-  path: string
-  registered_at: string
-  last_seen?: string
-  isUnavailable?: boolean
-}
-
-interface ProjectsResponse {
-  projects: Project[]
-  empty?: boolean
-  error?: string
-  code?: string
-}
-
 export function ProjectList() {
-  const { data, loading, error, refetch } = usePolling<ProjectsResponse>(
-    '/api/projects',
-    5000
-  )
+  const { projects, loading, error, refetch } = useProjects()
 
-  if (loading && !data) {
+  if (loading) {
     return (
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
@@ -41,10 +22,7 @@ export function ProjectList() {
     )
   }
 
-  if (error || data?.error) {
-    const errorMessage = data?.error || error?.message || 'Unknown error'
-    const isRegistryError = data?.code === 'INVALID_REGISTRY'
-
+  if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
@@ -52,13 +30,11 @@ export function ProjectList() {
           Unable to load projects
         </h3>
         <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400 max-w-sm">
-          {errorMessage}
+          {error.message}
         </p>
-        {isRegistryError && (
-          <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-            Try running <code className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded text-xs font-mono">speckit doctor</code> to fix issues.
-          </p>
-        )}
+        <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
+          Try running <code className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded text-xs font-mono">speckit doctor</code> to fix issues.
+        </p>
         <Button
           variant="outline"
           size="sm"
@@ -72,13 +48,13 @@ export function ProjectList() {
     )
   }
 
-  if (data?.empty || data?.projects.length === 0) {
+  if (projects.length === 0) {
     return <EmptyState />
   }
 
   return (
     <div className="space-y-3">
-      {data?.projects.map((project) => (
+      {projects.map((project) => (
         <ProjectCard key={project.id} project={project} isUnavailable={project.isUnavailable} />
       ))}
     </div>

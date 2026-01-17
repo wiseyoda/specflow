@@ -2,7 +2,9 @@
 
 import { cn } from "@/lib/utils"
 import { ModeToggle } from "@/components/mode-toggle"
+import { ConnectionStatus } from "@/components/connection-status"
 import { Button } from "@/components/ui/button"
+import { useConnection } from "@/contexts/connection-context"
 
 interface HeaderProps {
   className?: string
@@ -10,6 +12,8 @@ interface HeaderProps {
 }
 
 export function Header({ className, children }: HeaderProps) {
+  const { connectionStatus } = useConnection()
+
   return (
     <header
       className={cn(
@@ -22,8 +26,9 @@ export function Header({ className, children }: HeaderProps) {
           Projects
         </h2>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         {children}
+        <ConnectionStatus status={connectionStatus} />
         <Button
           variant="outline"
           size="sm"

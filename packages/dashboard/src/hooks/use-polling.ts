@@ -1,5 +1,10 @@
 "use client"
 
+/**
+ * @deprecated Use useProjects hook instead for real-time updates via SSE.
+ * This hook is kept for backward compatibility but may be removed in a future version.
+ */
+
 import { useEffect, useState, useCallback } from 'react';
 
 interface PollingResult<T> {

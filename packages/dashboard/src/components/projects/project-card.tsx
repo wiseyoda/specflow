@@ -10,7 +10,8 @@ import {
   CheckCircle2,
   CircleDashed,
   Settings2,
-  XCircle
+  XCircle,
+  GitMerge
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -236,6 +237,7 @@ export function ProjectCard({ project, state, tasks, isUnavailable = false }: Pr
   const completedTasks = tasks?.completedCount ?? 0
   const progressPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
   const hasTasks = totalTasks > 0
+  const allTasksComplete = hasTasks && completedTasks === totalTasks
 
   return (
     <Link href={`/projects/${project.id}`}>
@@ -309,6 +311,14 @@ export function ProjectCard({ project, state, tasks, isUnavailable = false }: Pr
                       <span className="text-xs text-green-600 dark:text-green-400 uppercase tracking-wide flex items-center gap-1">
                         <CheckCircle2 className="h-3 w-3" />
                         COMPLETE
+                      </span>
+                    </>
+                  ) : allTasksComplete ? (
+                    <>
+                      <span className="text-neutral-400">·</span>
+                      <span className="text-xs text-purple-600 dark:text-purple-400 uppercase tracking-wide flex items-center gap-1">
+                        <GitMerge className="h-3 w-3" />
+                        READY TO MERGE
                       </span>
                     </>
                   ) : step?.current && (

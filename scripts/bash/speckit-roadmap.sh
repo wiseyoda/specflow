@@ -1578,7 +1578,8 @@ cmd_backlog_clear() {
 
   # Count items before clearing
   local count
-  count=$(grep -cE '^\|[[:space:]]*[0-9]{4}-[0-9]{2}-[0-9]{2}' "$roadmap_path" 2>/dev/null || echo "0")
+  # Use grep | wc -l instead of grep -c to avoid exit code 1 when count is 0
+  count=$(grep -E '^\|[[:space:]]*[0-9]{4}-[0-9]{2}-[0-9]{2}' "$roadmap_path" 2>/dev/null | wc -l | tr -d ' ')
 
   # Create temp file
   local temp_file

@@ -100,8 +100,9 @@ detect_step_from_artifacts() {
   # Check task completion (step 7: verify)
   if [[ -f "${feature_dir}/tasks.md" ]]; then
     local total_tasks completed_tasks
-    total_tasks=$(grep -cE '^\s*- \[.\] T[0-9]{3}' "${feature_dir}/tasks.md" 2>/dev/null || echo 0)
-    completed_tasks=$(grep -cE '^\s*- \[x\] T[0-9]{3}' "${feature_dir}/tasks.md" 2>/dev/null || echo 0)
+    # Use grep | wc -l instead of grep -c to avoid exit code 1 when count is 0
+    total_tasks=$(grep -E '^\s*- \[.\] T[0-9]{3}' "${feature_dir}/tasks.md" 2>/dev/null | wc -l | tr -d ' ')
+    completed_tasks=$(grep -E '^\s*- \[x\] T[0-9]{3}' "${feature_dir}/tasks.md" 2>/dev/null | wc -l | tr -d ' ')
 
     if [[ "$total_tasks" -gt 0 && "$completed_tasks" -eq "$total_tasks" ]]; then
       detected_step="verify"
@@ -122,8 +123,9 @@ get_task_counts_from_file() {
   fi
 
   local total completed
-  total=$(grep -cE '^\s*- \[.\] T[0-9]{3}' "$tasks_file" 2>/dev/null || echo 0)
-  completed=$(grep -cE '^\s*- \[x\] T[0-9]{3}' "$tasks_file" 2>/dev/null || echo 0)
+  # Use grep | wc -l instead of grep -c to avoid exit code 1 when count is 0
+  total=$(grep -E '^\s*- \[.\] T[0-9]{3}' "$tasks_file" 2>/dev/null | wc -l | tr -d ' ')
+  completed=$(grep -E '^\s*- \[x\] T[0-9]{3}' "$tasks_file" 2>/dev/null | wc -l | tr -d ' ')
 
   echo "${completed}:${total}"
 }

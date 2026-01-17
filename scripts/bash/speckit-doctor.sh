@@ -986,8 +986,9 @@ check_reality() {
 
   if [[ -n "${phase_dir:-}" && -f "${phase_dir}/tasks.md" ]]; then
     local file_completed file_total
-    file_completed=$(grep -c '^\s*- \[x\]' "${phase_dir}/tasks.md" 2>/dev/null || echo "0")
-    file_total=$(grep -c '^\s*- \[' "${phase_dir}/tasks.md" 2>/dev/null || echo "0")
+    # Use grep | wc -l instead of grep -c to avoid exit code 1 when count is 0
+    file_completed=$(grep '^\s*- \[x\]' "${phase_dir}/tasks.md" 2>/dev/null | wc -l | tr -d ' ')
+    file_total=$(grep '^\s*- \[' "${phase_dir}/tasks.md" 2>/dev/null | wc -l | tr -d ' ')
 
     if [[ "$state_tasks_completed" -eq "$file_completed" && "$state_tasks_total" -eq "$file_total" ]]; then
       print_status ok "Task counts: ${file_completed}/${file_total} (in sync)"

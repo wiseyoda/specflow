@@ -709,7 +709,8 @@ cmd_migrate() {
   local issue_count=0
 
   # Pattern 1: ISSUE-XXX in tables
-  issue_count=$(grep -cE 'ISSUE-[0-9]+' "$roadmap_path" 2>/dev/null || echo "0")
+  # Use grep | wc -l instead of grep -c to avoid exit code 1 when count is 0
+  issue_count=$(grep -E 'ISSUE-[0-9]+' "$roadmap_path" 2>/dev/null | wc -l | tr -d ' ')
 
   # Pattern 2: Issues Backlog section with table rows
   if grep -q "## Issues Backlog" "$roadmap_path" 2>/dev/null; then

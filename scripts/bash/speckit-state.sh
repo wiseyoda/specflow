@@ -951,10 +951,11 @@ detect_v1_discovery() {
   if [[ -f "${discovery_dir}/decisions.md" ]]; then
     has_decisions=true
     # Count decisions (look for decision markers)
-    decisions_count=$(grep -cE '^\s*[-*]\s*\*\*|^###.*Decision|^##.*Decision' "${discovery_dir}/decisions.md" 2>/dev/null || echo "0")
+    # Use grep | wc -l instead of grep -c to avoid exit code 1 when count is 0
+    decisions_count=$(grep -E '^\s*[-*]\s*\*\*|^###.*Decision|^##.*Decision' "${discovery_dir}/decisions.md" 2>/dev/null | wc -l | tr -d ' ')
     if [[ $decisions_count -eq 0 ]]; then
       # Try counting list items as fallback
-      decisions_count=$(grep -cE '^\s*[-*]\s+[A-Z]' "${discovery_dir}/decisions.md" 2>/dev/null || echo "0")
+      decisions_count=$(grep -E '^\s*[-*]\s+[A-Z]' "${discovery_dir}/decisions.md" 2>/dev/null | wc -l | tr -d ' ')
     fi
   fi
 
@@ -1470,8 +1471,9 @@ cmd_infer() {
 
   # Count tasks if tasks.md exists
   if [[ "$tasks_exists" == "true" ]]; then
-    tasks_completed=$(grep -c '^\s*- \[x\]' "${phase_dir}/tasks.md" 2>/dev/null || echo "0")
-    tasks_total=$(grep -c '^\s*- \[' "${phase_dir}/tasks.md" 2>/dev/null || echo "0")
+    # Use grep | wc -l instead of grep -c to avoid exit code 1 when count is 0
+    tasks_completed=$(grep '^\s*- \[x\]' "${phase_dir}/tasks.md" 2>/dev/null | wc -l | tr -d ' ')
+    tasks_total=$(grep '^\s*- \[' "${phase_dir}/tasks.md" 2>/dev/null | wc -l | tr -d ' ')
   fi
 
   # Determine inferred step

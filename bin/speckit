@@ -202,6 +202,10 @@ COMMANDS:
                   migrate             Migrate issues from ROADMAP.md
                   path [id]           Show issue file path
 
+    dashboard   Web dashboard for project management
+                  [--dev]             Run in development mode
+                  [--port N]          Use specific port (default: 3000)
+
     help        Show this help message
     version     Show version
 
@@ -324,6 +328,9 @@ main() {
       ;;
     issue)
       run_script "issue" "$@"
+      ;;
+    dashboard)
+      run_script "dashboard" "$@"
       ;;
     help|--help|-h)
       show_help

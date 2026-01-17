@@ -110,7 +110,7 @@ install_speckit() {
   fi
 
   # Create directories
-  mkdir -p "$SPECKIT_HOME"/{bin,scripts/bash/lib,templates}
+  mkdir -p "$SPECKIT_HOME"/{bin,scripts/bash/lib,templates,packages}
   mkdir -p "$SPECKIT_COMMANDS"
 
   # Copy CLI
@@ -127,6 +127,26 @@ install_speckit() {
   # Copy templates
   log_info "Installing templates..."
   cp "${REPO_DIR}/templates/"* "${SPECKIT_HOME}/templates/" 2>/dev/null || true
+
+  # Copy packages (dashboard and shared) - exclude node_modules
+  if [[ -d "${REPO_DIR}/packages" ]]; then
+    log_info "Installing packages (dashboard, shared)..."
+    rm -rf "${SPECKIT_HOME}/packages"
+    mkdir -p "${SPECKIT_HOME}/packages"
+    # Use rsync to exclude node_modules and .next
+    if command -v rsync &>/dev/null; then
+      rsync -a --exclude='node_modules' --exclude='.next' "${REPO_DIR}/packages/" "${SPECKIT_HOME}/packages/"
+    else
+      # Fallback: copy then remove node_modules
+      cp -R "${REPO_DIR}/packages" "${SPECKIT_HOME}/"
+      find "${SPECKIT_HOME}/packages" -name "node_modules" -type d -exec rm -rf {} + 2>/dev/null || true
+      find "${SPECKIT_HOME}/packages" -name ".next" -type d -exec rm -rf {} + 2>/dev/null || true
+    fi
+    # Copy pnpm-workspace.yaml for workspace dependencies
+    if [[ -f "${REPO_DIR}/pnpm-workspace.yaml" ]]; then
+      cp "${REPO_DIR}/pnpm-workspace.yaml" "${SPECKIT_HOME}/"
+    fi
+  fi
 
   # Copy commands (with backup if upgrading)
   log_info "Installing commands..."
@@ -276,6 +296,7 @@ check_status() {
     [[ -x "${SPECKIT_BIN}/speckit" ]] && log_success "  CLI: installed" || log_warn "  CLI: missing"
     [[ -d "${SPECKIT_HOME}/scripts" ]] && log_success "  Scripts: installed" || log_warn "  Scripts: missing"
     [[ -d "${SPECKIT_HOME}/templates" ]] && log_success "  Templates: installed" || log_warn "  Templates: missing"
+    [[ -d "${SPECKIT_HOME}/packages/dashboard" ]] && log_success "  Dashboard: installed" || log_warn "  Dashboard: missing"
 
     # Count commands
     local cmd_count=$(ls "${SPECKIT_COMMANDS}/speckit."*.md 2>/dev/null | wc -l | tr -d ' ')

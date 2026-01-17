@@ -121,6 +121,7 @@ SpecKit has two interfaces:
 |---------|-------------|
 | `speckit scaffold` | Create `.specify/` project structure |
 | `speckit doctor` | Verify installation and project health |
+| `speckit dashboard` | Start web dashboard for project management |
 | `/speckit.start` | Smart entry point—detects state, suggests next step |
 | `/speckit.orchestrate` | Full automated workflow with state persistence |
 | `/speckit.merge` | Complete phase: push, PR, merge, cleanup |
@@ -130,6 +131,18 @@ SpecKit has two interfaces:
 See the full reference guides:
 - **[CLI Reference](docs/cli-reference.md)** - 30+ CLI commands
 - **[Slash Commands](docs/slash-commands.md)** - 20 slash commands
+
+### Web Dashboard
+
+SpecKit includes a web dashboard for visual project management:
+
+```bash
+speckit dashboard          # Start on port 3000
+speckit dashboard --dev    # Development mode with hot reload
+speckit dashboard --port 8080  # Custom port
+```
+
+The dashboard shows all registered SpecKit projects, with dark mode support and keyboard navigation (⌘K for command palette).
 
 ---
 

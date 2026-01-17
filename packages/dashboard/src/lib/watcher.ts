@@ -86,12 +86,20 @@ async function readRegistry(): Promise<Registry | null> {
 
 /**
  * Read and parse state file for a project
+ * Also includes file modification time for activity tracking
  */
 async function readState(projectId: string, statePath: string): Promise<OrchestrationState | null> {
   try {
-    const content = await fs.readFile(statePath, 'utf-8');
+    const [content, stats] = await Promise.all([
+      fs.readFile(statePath, 'utf-8'),
+      fs.stat(statePath),
+    ]);
     const parsed = OrchestrationStateSchema.parse(JSON.parse(content));
-    return parsed;
+    // Add file mtime for activity tracking (more reliable than last_updated field)
+    return {
+      ...parsed,
+      _fileMtime: stats.mtime.toISOString(),
+    };
   } catch (error) {
     // File doesn't exist or is invalid
     console.error(`[Watcher] Error reading state for ${projectId}:`, error);
@@ -190,6 +198,9 @@ async function getTasksPathForProject(projectPath: string, statePath: string): P
   }
 }
 
+// Track which tasks path each project is using (to detect phase changes)
+const projectTasksPaths: Map<string, string> = new Map();
+
 /**
  * Update watched paths based on registry contents
  */
@@ -200,7 +211,7 @@ async function updateWatchedPaths(registry: Registry): Promise<void> {
   const newTasksPaths = new Set<string>();
 
   // Get state and tasks file paths for all projects
-  for (const [, project] of Object.entries(registry.projects)) {
+  for (const [projectId, project] of Object.entries(registry.projects)) {
     const statePath = path.join(project.path, '.specify', 'orchestration-state.json');
     newStatePaths.add(statePath);
 
@@ -212,13 +223,41 @@ async function updateWatchedPaths(registry: Registry): Promise<void> {
 
     // Get tasks path based on current phase from state
     const tasksPath = await getTasksPathForProject(project.path, statePath);
+    const previousTasksPath = projectTasksPaths.get(projectId);
+
     if (tasksPath) {
       newTasksPaths.add(tasksPath);
 
-      // Add new tasks paths to watcher
-      if (!watchedTasksPaths.has(tasksPath)) {
+      // Check if the tasks path changed (phase changed)
+      const pathChanged = previousTasksPath && previousTasksPath !== tasksPath;
+
+      // Add new tasks paths to watcher and broadcast initial data
+      if (!watchedTasksPaths.has(tasksPath) || pathChanged) {
         watcher.add(tasksPath);
         console.log(`[Watcher] Added tasks file: ${tasksPath}`);
+
+        // Broadcast tasks data for newly watched path (or empty if file doesn't exist)
+        const tasks = await readTasks(projectId, tasksPath);
+        broadcast({
+          type: 'tasks',
+          timestamp: new Date().toISOString(),
+          projectId,
+          data: tasks || { projectId, tasks: [], totalCount: 0, completedCount: 0, lastUpdated: new Date().toISOString() },
+        });
+      }
+
+      // Track the current tasks path for this project
+      projectTasksPaths.set(projectId, tasksPath);
+    } else {
+      // No tasks path (no phase set) - clear any existing tasks
+      if (previousTasksPath) {
+        broadcast({
+          type: 'tasks',
+          timestamp: new Date().toISOString(),
+          projectId,
+          data: { projectId, tasks: [], totalCount: 0, completedCount: 0, lastUpdated: new Date().toISOString() },
+        });
+        projectTasksPaths.delete(projectId);
       }
     }
   }
@@ -287,8 +326,8 @@ export async function initWatcher(): Promise<void> {
     },
   });
 
-  // Handle registry changes
-  watcher.on('change', (filePath) => {
+  // Handle file change/add events
+  const handleFileEvent = (filePath: string) => {
     if (filePath === registryPath) {
       debouncedChange(filePath, handleRegistryChange);
     } else {
@@ -296,13 +335,23 @@ export async function initWatcher(): Promise<void> {
       const info = getProjectInfoForPath(filePath);
       if (info) {
         if (info.fileType === 'state') {
-          debouncedChange(filePath, () => handleStateChange(info.projectId, filePath));
+          debouncedChange(filePath, async () => {
+            await handleStateChange(info.projectId, filePath);
+            // When state changes, phase might have changed - update watched tasks paths
+            if (currentRegistry) {
+              await updateWatchedPaths(currentRegistry);
+            }
+          });
         } else if (info.fileType === 'tasks') {
           debouncedChange(filePath, () => handleTasksChange(info.projectId, filePath));
         }
       }
     }
-  });
+  };
+
+  // Listen for both change and add events
+  watcher.on('change', handleFileEvent);
+  watcher.on('add', handleFileEvent);
 
   // Handle watcher errors
   watcher.on('error', (error) => {
@@ -402,6 +451,7 @@ export async function closeWatcher(): Promise<void> {
     listeners.clear();
     watchedStatePaths.clear();
     watchedTasksPaths.clear();
+    projectTasksPaths.clear();
     currentRegistry = null;
     debounceTimers.forEach((timer) => clearTimeout(timer));
     debounceTimers.clear();

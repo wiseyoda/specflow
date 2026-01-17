@@ -80,9 +80,9 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
                   </span>
                 )}
               </div>
-              {phase.step && (
+              {state.orchestration?.step?.current && (
                 <div className="text-sm text-neutral-500 dark:text-neutral-400 mt-2">
-                  Step: {phase.step}
+                  Step: {state.orchestration.step.current}
                 </div>
               )}
             </>

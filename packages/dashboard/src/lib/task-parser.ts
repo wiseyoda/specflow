@@ -6,6 +6,7 @@ import type { Task, TaskStatus, TasksData } from '@speckit/shared';
 export function parseTasks(content: string, projectId: string): TasksData {
   const lines = content.split('\n');
   const tasks: Task[] = [];
+  const seenIds = new Set<string>();
   let currentPhase: string | undefined;
 
   for (const line of lines) {
@@ -16,10 +17,17 @@ export function parseTasks(content: string, projectId: string): TasksData {
       continue;
     }
 
-    // Check for task line: - [ ] T### or - [x] T###
-    const taskMatch = line.match(/^-\s+\[([ xX])\]\s+(T\d+)\s*(.*)$/);
+    // Check for task line: - [ ] T### or - [x] T### (with optional bold **T###**)
+    const taskMatch = line.match(/^-\s+\[([ xX])\]\s+\*{0,2}(T\d+)\*{0,2}\s*(.*)$/);
     if (taskMatch) {
       const [, checkbox, id, rest] = taskMatch;
+
+      // Skip duplicate task IDs (e.g., from Quick Status summary section)
+      if (seenIds.has(id)) {
+        continue;
+      }
+      seenIds.add(id);
+
       const status = parseTaskStatus(checkbox);
       const { description, userStory, isParallel, filePath } = parseTaskDescription(rest);
 

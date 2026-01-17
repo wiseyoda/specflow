@@ -8,7 +8,7 @@
     "type": null,
     "criticality": null,
     "created_at": "2026-01-11T06:27:38Z",
-    "updated_at": "2026-01-17T15:11:16Z"
+    "updated_at": "2026-01-17T18:07:56Z"
   },
   "config": {
     "roadmap_path": "ROADMAP.md",
@@ -28,10 +28,10 @@
   },
   "orchestration": {
     "phase": {
-      "number": "1030",
-      "name": "project-detail-views",
-      "branch": "1030-project-detail-views",
-      "status": "awaiting_user_gate"
+      "number": "1040",
+      "name": "cli-actions-from-ui",
+      "branch": "1040-cli-actions-from-ui",
+      "status": "in_progress"
     },
     "step": {
       "current": "verify",
@@ -39,20 +39,20 @@
       "status": "in_progress"
     },
     "progress": {
-      "tasks_completed": 29,
-      "tasks_total": 29,
-      "percentage": 100
+      "tasks_completed": 0,
+      "tasks_total": 0,
+      "percentage": 0
     },
     "steps": {
       "implement": {
-        "tasks_completed": 29,
-        "tasks_total": 29
+        "tasks_completed": 45,
+        "tasks_total": 45
       }
     }
   },
   "health": {
     "status": "ready",
-    "last_check": "2026-01-17T15:11:16Z",
+    "last_check": "2026-01-17T18:07:56Z",
     "issues": []
   },
   "actions": {
@@ -130,6 +130,15 @@
         "completed_at": "2026-01-17T15:11:16Z",
         "tasks_completed": 0,
         "tasks_total": 0
+      },
+      {
+        "type": "phase_completed",
+        "phase_number": "1030",
+        "phase_name": "project-detail-views",
+        "branch": "1030-project-detail-views",
+        "completed_at": "2026-01-17T18:07:56Z",
+        "tasks_completed": 29,
+        "tasks_total": 29
       }
     ]
   },
@@ -137,5 +146,5 @@
     "last_sync": null,
     "notifications": []
   },
-  "last_updated": "2026-01-17T18:04:56Z"
+  "last_updated": "2026-01-17T18:37:54Z"
 }

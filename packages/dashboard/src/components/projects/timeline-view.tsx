@@ -49,20 +49,18 @@ export function TimelineView({ state }: TimelineViewProps) {
       return acc
     }, new Map<string, PhaseHistoryItem>())
 
-  // Sort by phase number
+  // Sort by phase number descending (latest first)
   const sortedPhases = Array.from(completedPhases.values())
     .sort((a, b) => {
       const numA = parseInt(a.phase_number || "0", 10)
       const numB = parseInt(b.phase_number || "0", 10)
-      return numA - numB
+      return numB - numA
     })
 
-  // Build timeline: completed phases + current phase
-  const timelineItems: Array<{ phase: PhaseHistoryItem; isCurrent: boolean }> = [
-    ...sortedPhases.map((phase) => ({ phase, isCurrent: false })),
-  ]
+  // Build timeline: current phase first, then completed phases (latest first)
+  const timelineItems: Array<{ phase: PhaseHistoryItem; isCurrent: boolean }> = []
 
-  // Add current phase if it exists and isn't in the completed list
+  // Add current phase at the top if it exists and isn't in the completed list
   if (currentPhase?.number && !completedPhases.has(currentPhase.number)) {
     timelineItems.push({
       phase: {
@@ -74,6 +72,9 @@ export function TimelineView({ state }: TimelineViewProps) {
       isCurrent: true,
     })
   }
+
+  // Add completed phases (already sorted descending)
+  timelineItems.push(...sortedPhases.map((phase) => ({ phase, isCurrent: false })))
 
   if (timelineItems.length === 0 && !currentPhase) {
     return (

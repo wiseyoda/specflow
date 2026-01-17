@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { MainLayout } from "@/components/layout/main-layout"
 import { ProjectDetailHeader } from "@/components/projects/project-detail-header"
@@ -17,12 +18,20 @@ export default function ProjectDetailPage() {
   const router = useRouter()
   const projectId = params.id as string
 
-  const { states, tasks } = useConnection()
+  const { states, tasks, setSelectedProject } = useConnection()
   const { projects, loading: projectsLoading } = useProjects()
   const [activeView, setActiveView] = useViewPreference(projectId)
 
   // Find project in list
   const project = projects.find((p) => p.id === projectId)
+
+  // Set selected project for command palette context
+  useEffect(() => {
+    if (project) {
+      setSelectedProject(project)
+    }
+    return () => setSelectedProject(null)
+  }, [project, setSelectedProject])
 
   // Get orchestration state for this project
   const state = states.get(projectId)

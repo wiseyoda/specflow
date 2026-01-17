@@ -34,3 +34,24 @@ export {
   type Task,
   type TasksData,
 } from './tasks';
+
+export {
+  SpeckitSubcommandSchema,
+  SpeckitCommandSchema,
+  CommandListSchema,
+  ExecutionStatusSchema,
+  CommandExecuteRequestSchema,
+  CommandExecuteResponseSchema,
+  CommandOutputEventSchema,
+  CommandExecutionSchema,
+  CommandHistoryEntrySchema,
+  type SpeckitSubcommand,
+  type SpeckitCommand,
+  type CommandList,
+  type ExecutionStatus,
+  type CommandExecuteRequest,
+  type CommandExecuteResponse,
+  type CommandOutputEvent,
+  type CommandExecution,
+  type CommandHistoryEntry,
+} from './commands';

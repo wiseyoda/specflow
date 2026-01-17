@@ -12,6 +12,10 @@ export const OrchestrationStateSchema = z.object({
     name: z.string(),
     path: z.string(),
   }),
+  last_updated: z.string().nullish(),
+  // File modification time - added by watcher for activity tracking
+  // More reliable than last_updated as it reflects any file write
+  _fileMtime: z.string().nullish(),
   orchestration: z.object({
     phase: z.object({
       id: z.string().nullish(),
@@ -19,7 +23,10 @@ export const OrchestrationStateSchema = z.object({
       name: z.string().nullish(),
       branch: z.string().nullish(),
       status: z.string().nullish(),
-      step: z.string().nullish(),
+    }).nullish(),
+    step: z.object({
+      current: z.string().nullish(),
+      index: z.union([z.number(), z.string()]).nullish(),
     }).nullish(),
   }).passthrough().nullish(),
   health: z.object({

@@ -61,7 +61,7 @@ describe('updatePhaseStatus', () => {
 
     // Verify the written content has the updated status
     const writtenContent = vi.mocked(writeFile).mock.calls[0][1] as string;
-    expect(writtenContent).toContain('| 0080 | CLI Migration | Complete | Tests pass |');
+    expect(writtenContent).toContain('| 0080 | CLI Migration | ✅ Complete | Tests pass |');
   });
 
   it('should return updated=false when phase not found', async () => {
@@ -102,7 +102,7 @@ describe('updatePhaseStatus', () => {
     expect(result.updated).toBe(true);
 
     const writtenContent = vi.mocked(writeFile).mock.calls[0][1] as string;
-    expect(writtenContent).toContain('| 0081 | Next Phase | In Progress | Feature works |');
+    expect(writtenContent).toContain('| 0081 | Next Phase | 🔄 In Progress | Feature works |');
   });
 
   it('should update to blocked status', async () => {
@@ -117,7 +117,7 @@ describe('updatePhaseStatus', () => {
     expect(result.updated).toBe(true);
 
     const writtenContent = vi.mocked(writeFile).mock.calls[0][1] as string;
-    expect(writtenContent).toContain('| 0080 | CLI Migration | Blocked | Tests pass |');
+    expect(writtenContent).toContain('| 0080 | CLI Migration | 🚫 Blocked | Tests pass |');
   });
 
   it('should update to awaiting_user status', async () => {
@@ -132,7 +132,7 @@ describe('updatePhaseStatus', () => {
     expect(result.updated).toBe(true);
 
     const writtenContent = vi.mocked(writeFile).mock.calls[0][1] as string;
-    expect(writtenContent).toContain('| 0080 | CLI Migration | Awaiting User | Tests pass |');
+    expect(writtenContent).toContain('| 0080 | CLI Migration | ⏳ Awaiting User | Tests pass |');
   });
 
   it('should preserve other phases when updating one', async () => {
@@ -146,7 +146,7 @@ describe('updatePhaseStatus', () => {
 
     const writtenContent = vi.mocked(writeFile).mock.calls[0][1] as string;
     // Phase 0080 should be updated
-    expect(writtenContent).toContain('| 0080 | CLI Migration | Complete | Tests pass |');
+    expect(writtenContent).toContain('| 0080 | CLI Migration | ✅ Complete | Tests pass |');
     // Other phases should remain unchanged
     expect(writtenContent).toContain('| 0081 | Next Phase | Not Started | Feature works |');
     expect(writtenContent).toContain('| 0082 | Future Phase | Not Started | All done |');

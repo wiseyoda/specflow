@@ -1,6 +1,6 @@
-# SpecKit Dashboard
+# SpecFlow Dashboard
 
-Web dashboard for managing SpecKit projects.
+Web dashboard for managing SpecFlow projects.
 
 ## Getting Started
 
@@ -13,7 +13,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser.
 ## Features
 
 ### Project Overview
-- View all registered SpecKit projects
+- View all registered SpecFlow projects
 - Real-time status updates via SSE file watching
 - Project health and task progress indicators
 
@@ -27,7 +27,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser.
 Press **Cmd+K** (Mac) or **Ctrl+K** (Windows/Linux) to open the command palette.
 
 **Features:**
-- Execute any SpecKit CLI command from the dashboard
+- Execute any SpecFlow CLI command from the dashboard
 - Command arguments via inline prompt
 - Real-time output streaming in side drawer
 - Toast notifications for success/failure
@@ -39,7 +39,7 @@ Press **Cmd+K** (Mac) or **Ctrl+K** (Windows/Linux) to open the command palette.
 - `tasks status` - Show task completion status
 - `phase show` - Display phase details
 - `status` - Show project status
-- And more (discovered dynamically from `speckit help`)
+- And more (discovered dynamically from `specflow help`)
 
 ## API Routes
 
@@ -47,7 +47,7 @@ Press **Cmd+K** (Mac) or **Ctrl+K** (Windows/Linux) to open the command palette.
 |-------|--------|---------|
 | `/api/projects` | GET | List registered projects |
 | `/api/events` | GET | SSE endpoint for real-time updates |
-| `/api/commands/list` | GET | Available speckit commands |
+| `/api/commands/list` | GET | Available specflow commands |
 | `/api/commands/execute` | POST | Execute a command |
 | `/api/commands/stream` | GET | SSE stream for command output |
 

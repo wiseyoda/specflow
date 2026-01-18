@@ -12,13 +12,13 @@
 
 | Category | Files | Changes |
 |----------|-------|---------|
-| Create/Major Edit | `commands/speckit.init.md` | Expand with constitution, memory, roadmap generation |
-| Create/Major Edit | `commands/speckit.roadmap.md` | Add `add-pdr` subcommand routing |
-| Reduce | `commands/speckit.memory.md` | Remove `generate` subcommand section |
-| Replace with Stub | `commands/speckit.start.md` | Deprecation stub → `/speckit.orchestrate` |
-| Replace with Stub | `commands/speckit.constitution.md` | Deprecation stub → `/speckit.init` |
-| Replace with Stub | `commands/speckit.phase.md` | Deprecation stub → `/speckit.roadmap add-pdr` |
-| Delete | `commands/speckit.memory-init.md` | Remove entirely |
+| Create/Major Edit | `commands/specflow.init.md` | Expand with constitution, memory, roadmap generation |
+| Create/Major Edit | `commands/specflow.roadmap.md` | Add `add-pdr` subcommand routing |
+| Reduce | `commands/specflow.memory.md` | Remove `generate` subcommand section |
+| Replace with Stub | `commands/specflow.start.md` | Deprecation stub → `/specflow.orchestrate` |
+| Replace with Stub | `commands/specflow.constitution.md` | Deprecation stub → `/specflow.init` |
+| Replace with Stub | `commands/specflow.phase.md` | Deprecation stub → `/specflow.roadmap add-pdr` |
+| Delete | `commands/specflow.memory-init.md` | Remove entirely |
 | Update | `CLAUDE.md` | Update command documentation |
 | Update | `docs/commands-analysis.md` | Update command inventory |
 
@@ -46,18 +46,18 @@ Replace existing complex commands with minimal stubs that show deprecation notic
 - Can be done incrementally
 
 **Order**:
-1. `/speckit.memory-init` - Delete (already deprecated)
-2. `/speckit.start` - Replace with stub
-3. `/speckit.constitution` - Replace with stub
-4. `/speckit.phase` - Replace with stub (save logic for later)
+1. `/specflow.memory-init` - Delete (already deprecated)
+2. `/specflow.start` - Replace with stub
+3. `/specflow.constitution` - Replace with stub
+4. `/specflow.phase` - Replace with stub (save logic for later)
 
-### Phase 2: Expand `/speckit.init` (Medium Risk)
+### Phase 2: Expand `/specflow.init` (Medium Risk)
 
 Add the consolidated setup flow. This requires careful integration of:
 - Existing interview flow (preserve)
-- Constitution generation (from `/speckit.constitution`)
+- Constitution generation (from `/specflow.constitution`)
 - Memory document generation (from memory generate)
-- Roadmap creation (from `/speckit.roadmap`)
+- Roadmap creation (from `/specflow.roadmap`)
 
 **Key Design Decisions**:
 
@@ -68,7 +68,7 @@ Add the consolidated setup flow. This requires careful integration of:
 
 2. **Step-by-Step Flow**:
    ```
-   /speckit.init
+   /specflow.init
    ├── 0. Pre-flight checks (create .specify/ if needed)
    ├── 1. Discovery Interview (if not complete)
    ├── 2. Constitution Generation (if not complete)
@@ -78,17 +78,17 @@ Add the consolidated setup flow. This requires careful integration of:
 
 3. **Abort on Active Phase**: If orchestration is in progress, warn and abort
 
-### Phase 3: Reduce `/speckit.memory` (Low Risk)
+### Phase 3: Reduce `/specflow.memory` (Low Risk)
 
 Remove the `generate` subcommand section and update documentation.
 - Keep: verify, reconcile, promote
 - Remove: generate subcommand section (~50 lines)
 - Add: Helpful message if user tries `generate`
 
-### Phase 4: Expand `/speckit.roadmap` (Medium Risk)
+### Phase 4: Expand `/specflow.roadmap` (Medium Risk)
 
 Add `add-pdr` as a subcommand:
-- Move logic from `/speckit.phase` into `/speckit.roadmap`
+- Move logic from `/specflow.phase` into `/specflow.roadmap`
 - Update argument routing table
 - Preserve existing roadmap create/update behavior
 
@@ -118,13 +118,13 @@ This command has been consolidated into `[NEW_COMMAND]`.
 **Migration**:
 \`\`\`
 # OLD (deprecated)
-/speckit.[OLD_COMMAND]
+/specflow.[OLD_COMMAND]
 
 # NEW (use this)
 [NEW_COMMAND_USAGE]
 \`\`\`
 
-For more information, run `/speckit.help` or see the documentation.
+For more information, run `/specflow.help` or see the documentation.
 ```
 
 ### Init Flow Implementation
@@ -132,7 +132,7 @@ For more information, run `/speckit.help` or see the documentation.
 The expanded init needs to:
 
 1. **Check Prerequisites**
-   - Run `speckit scaffold --status` to check/create project structure
+   - Run `specflow scaffold --status` to check/create project structure
    - Check if orchestration is in progress → abort if so
 
 2. **Discovery Interview Step**
@@ -159,7 +159,7 @@ The expanded init needs to:
 
 ### Roadmap add-pdr Implementation
 
-Move the `/speckit.phase` logic into `/speckit.roadmap` as a subcommand:
+Move the `/specflow.phase` logic into `/specflow.roadmap` as a subcommand:
 
 ```markdown
 ## Argument Routing
@@ -190,11 +190,11 @@ Move the `/speckit.phase` logic into `/speckit.roadmap` as a subcommand:
 
 ### Manual Testing Steps
 
-1. **Fresh project test**: Run `/speckit.init` on empty directory
+1. **Fresh project test**: Run `/specflow.init` on empty directory
    - Verify all artifacts created
-   - Verify ready for `/speckit.orchestrate`
+   - Verify ready for `/specflow.orchestrate`
 
-2. **Partial project test**: Run `/speckit.init` on project with only constitution
+2. **Partial project test**: Run `/specflow.init` on project with only constitution
    - Verify constitution preserved
    - Verify memory/roadmap created
 
@@ -202,7 +202,7 @@ Move the `/speckit.phase` logic into `/speckit.roadmap` as a subcommand:
    - Verify deprecation notice shown
    - Verify correct replacement command suggested
 
-4. **add-pdr test**: Create PDR, run `/speckit.roadmap add-pdr`
+4. **add-pdr test**: Create PDR, run `/specflow.roadmap add-pdr`
    - Verify PDR listed
    - Verify phase added to ROADMAP.md
 
@@ -213,15 +213,15 @@ Move the `/speckit.phase` logic into `/speckit.roadmap` as a subcommand:
 ### Existing CLI Commands Used
 
 ```bash
-speckit scaffold          # Create project structure
-speckit scaffold --status # Check project structure
-speckit state get/set     # State management
-speckit doctor            # Project health checks
-speckit roadmap validate  # Validate ROADMAP.md
-speckit roadmap status    # Get phase statuses
-speckit pdr list          # List PDRs
-speckit pdr show          # Show PDR details
-speckit pdr mark          # Mark PDR as processed
+specflow scaffold          # Create project structure
+specflow scaffold --status # Check project structure
+specflow state get/set     # State management
+specflow doctor            # Project health checks
+specflow roadmap validate  # Validate ROADMAP.md
+specflow roadmap status    # Get phase statuses
+specflow pdr list          # List PDRs
+specflow pdr show          # Show PDR details
+specflow pdr mark          # Mark PDR as processed
 ```
 
 ---
@@ -230,12 +230,12 @@ speckit pdr mark          # Mark PDR as processed
 
 | Deliverable | File | Description |
 |-------------|------|-------------|
-| Deprecation stub | `commands/speckit.start.md` | Points to `/speckit.orchestrate` |
-| Deprecation stub | `commands/speckit.constitution.md` | Points to `/speckit.init` |
-| Deprecation stub | `commands/speckit.phase.md` | Points to `/speckit.roadmap add-pdr` |
-| Deleted file | `commands/speckit.memory-init.md` | Removed |
-| Expanded init | `commands/speckit.init.md` | Full setup flow |
-| Reduced memory | `commands/speckit.memory.md` | Without generate |
-| Expanded roadmap | `commands/speckit.roadmap.md` | With add-pdr |
+| Deprecation stub | `commands/specflow.start.md` | Points to `/specflow.orchestrate` |
+| Deprecation stub | `commands/specflow.constitution.md` | Points to `/specflow.init` |
+| Deprecation stub | `commands/specflow.phase.md` | Points to `/specflow.roadmap add-pdr` |
+| Deleted file | `commands/specflow.memory-init.md` | Removed |
+| Expanded init | `commands/specflow.init.md` | Full setup flow |
+| Reduced memory | `commands/specflow.memory.md` | Without generate |
+| Expanded roadmap | `commands/specflow.roadmap.md` | With add-pdr |
 | Updated docs | `CLAUDE.md` | New command structure |
 | Updated docs | `docs/commands-analysis.md` | New command inventory |

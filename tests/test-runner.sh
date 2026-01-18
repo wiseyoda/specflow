@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# SpecKit E2E Test Runner
+# SpecFlow E2E Test Runner
 #
 # Usage:
 #   ./tests/test-runner.sh              Run all tests
@@ -66,8 +66,8 @@ cleanup_test_env() {
   fi
 
   # Clean up stale registry entries (projects in /tmp that no longer exist)
-  if command -v speckit &>/dev/null; then
-    speckit state registry clean >/dev/null 2>&1 || true
+  if command -v specflow &>/dev/null; then
+    specflow state registry clean >/dev/null 2>&1 || true
   fi
 }
 
@@ -111,10 +111,10 @@ run_test() {
   mkdir -p "$test_dir"
 
   # Run test in subshell, capture output
-  # Set SPECKIT_PROJECT_ROOT so scripts use test_dir as repo root
+  # Set SPECFLOW_PROJECT_ROOT so scripts use test_dir as repo root
   local test_output
   local test_result=0
-  test_output=$( (cd "$test_dir" && SPECKIT_PROJECT_ROOT="$test_dir" $test_fn) 2>&1 ) || test_result=$?
+  test_output=$( (cd "$test_dir" && SPECFLOW_PROJECT_ROOT="$test_dir" $test_fn) 2>&1 ) || test_result=$?
 
   # Show output if verbose or failed
   if [[ "$VERBOSE" == "true" ]] || [[ $test_result -ne 0 ]]; then
@@ -344,7 +344,7 @@ print_summary() {
 
 show_help() {
   cat << 'EOF'
-SpecKit E2E Test Runner
+SpecFlow E2E Test Runner
 
 USAGE:
     ./tests/test-runner.sh [options] [suite...]
@@ -404,7 +404,7 @@ main() {
   # Banner
   echo ""
   echo -e "${BOLD}╔═══════════════════════════════════════════════════════════════╗${RESET}"
-  echo -e "${BOLD}║              SpecKit E2E Test Suite                           ║${RESET}"
+  echo -e "${BOLD}║              SpecFlow E2E Test Suite                           ║${RESET}"
   echo -e "${BOLD}╚═══════════════════════════════════════════════════════════════╝${RESET}"
   echo ""
 

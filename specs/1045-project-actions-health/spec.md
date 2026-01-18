@@ -10,10 +10,10 @@ Enable users to manage project lifecycle actions directly from the dashboard UI,
 
 ## Goals
 
-1. Run `speckit init` on uninitialized projects from UI
-2. Run `speckit doctor` to diagnose and fix issues
-3. Run `speckit scaffold` to set up project structure
-4. Handle v1 → v2 schema migration via `speckit state migrate`
+1. Run `specflow init` on uninitialized projects from UI
+2. Run `specflow doctor` to diagnose and fix issues
+3. Run `specflow scaffold` to set up project structure
+4. Handle v1 → v2 schema migration via `specflow state migrate`
 5. Show command output in real-time (streaming)
 6. Provide confirmation dialogs for destructive operations
 
@@ -28,13 +28,13 @@ Enable users to manage project lifecycle actions directly from the dashboard UI,
 ### US-1: Initialize Uninitialized Project
 **As a** user with an uninitialized project
 **I want to** click a button to initialize it
-**So that** I can start using SpecKit without leaving the dashboard
+**So that** I can start using SpecFlow without leaving the dashboard
 
 **Acceptance Criteria:**
 - "Initialize" button appears on projects with status `not_initialized`
 - Clicking button opens confirmation dialog
 - Dialog shows what will be created (`.specify/` directory, state file)
-- Runs `speckit init --non-interactive` (skips interview for auto-setup)
+- Runs `specflow init --non-interactive` (skips interview for auto-setup)
 - Shows streaming output during execution
 - Project card updates to show new status after completion
 
@@ -46,7 +46,7 @@ Enable users to manage project lifecycle actions directly from the dashboard UI,
 **Acceptance Criteria:**
 - "Run Doctor" button appears on projects with status `error` or `warning`
 - Button also available in dropdown menu on all projects
-- Shows two options: "Diagnose" (`speckit doctor`) and "Auto-Fix" (`speckit doctor --fix`)
+- Shows two options: "Diagnose" (`specflow doctor`) and "Auto-Fix" (`specflow doctor --fix`)
 - Shows streaming output during execution
 - Health status updates after completion
 
@@ -58,7 +58,7 @@ Enable users to manage project lifecycle actions directly from the dashboard UI,
 **Acceptance Criteria:**
 - "Scaffold" option in actions dropdown menu
 - Shows what will be created before execution
-- Runs `speckit scaffold`
+- Runs `specflow scaffold`
 - Shows streaming output
 - Updates project status after completion
 
@@ -70,7 +70,7 @@ Enable users to manage project lifecycle actions directly from the dashboard UI,
 **Acceptance Criteria:**
 - "Migrate to v2" button appears when schema_version is 1.x
 - Confirmation dialog explains what migration does
-- Runs `speckit state migrate`
+- Runs `specflow state migrate`
 - Shows streaming output
 - State updates to v2 schema after completion
 
@@ -135,11 +135,11 @@ Uses existing command execution infrastructure:
 - Use existing `/api/commands/execute` and `/api/commands/stream` infrastructure
 - Add `init` to allowed commands list
 - Actions map to CLI commands:
-  - `init` → `speckit init --non-interactive`
-  - `doctor` → `speckit doctor`
-  - `doctor-fix` → `speckit doctor --fix`
-  - `scaffold` → `speckit scaffold`
-  - `migrate` → `speckit state migrate`
+  - `init` → `specflow init --non-interactive`
+  - `doctor` → `specflow doctor`
+  - `doctor-fix` → `specflow doctor --fix`
+  - `scaffold` → `specflow scaffold`
+  - `migrate` → `specflow state migrate`
 
 ### TR-3: State Updates
 - After action completes, file watcher detects state changes
@@ -171,10 +171,10 @@ Uses existing command execution infrastructure:
 ### Command Output Modal
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ Running: speckit doctor                            [X] │
+│ Running: specflow doctor                            [X] │
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
-│ $ speckit doctor                                        │
+│ $ specflow doctor                                        │
 │                                                         │
 │ Checking project health...                              │
 │ ✓ State file valid                                      │
@@ -199,7 +199,7 @@ Uses existing command execution infrastructure:
 │   • orchestration-state.json                            │
 │   • memory/ subdirectory                                │
 │                                                         │
-│ The project will be registered with SpecKit.            │
+│ The project will be registered with SpecFlow.            │
 │                                                         │
 ├─────────────────────────────────────────────────────────┤
 │                           [Cancel]  [Initialize]        │
@@ -250,7 +250,7 @@ Uses existing command execution infrastructure:
 
 - Existing SSE infrastructure (Phase 1020)
 - Existing command execution (Phase 1020)
-- CLI commands: `speckit init`, `speckit doctor`, `speckit scaffold`, `speckit state migrate`
+- CLI commands: `specflow init`, `specflow doctor`, `specflow scaffold`, `specflow state migrate`
 
 ## Constitution Alignment
 

@@ -5,7 +5,7 @@
 
 ---
 
-## Design Command (`/speckit.design`)
+## Design Command (`/specflow.design`)
 
 ### Structure & Headers
 - [ ] Command file starts with YAML frontmatter (description field)
@@ -94,7 +94,7 @@
 - [ ] List backlog items grouped by source phase
 - [ ] Support `--auto` for auto-assignment
 - [ ] Support `--dry-run` for preview
-- [ ] Maintain same behavior as old `/speckit.backlog`
+- [ ] Maintain same behavior as old `/specflow.backlog`
 
 ---
 
@@ -108,12 +108,12 @@
 - [ ] Reference to replacement command
 
 ### Content (~30 lines each)
-- [ ] speckit.specify.md → design
-- [ ] speckit.clarify.md → design
-- [ ] speckit.plan.md → design --plan
-- [ ] speckit.tasks.md → design --tasks
-- [ ] speckit.checklist.md → design --checklist
-- [ ] speckit.backlog.md → roadmap backlog
+- [ ] specflow.specify.md → design
+- [ ] specflow.clarify.md → design
+- [ ] specflow.plan.md → design --plan
+- [ ] specflow.tasks.md → design --tasks
+- [ ] specflow.checklist.md → design --checklist
+- [ ] specflow.backlog.md → roadmap backlog
 
 ---
 

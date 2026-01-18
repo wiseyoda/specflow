@@ -2,9 +2,9 @@
 #
 # Test Suite: Detection
 #
-# Tests for speckit detect command:
+# Tests for specflow detect command:
 #   - System detection
-#   - SpecKit artifacts detection
+#   - SpecFlow artifacts detection
 #   - Existing documentation detection
 #   - Key files detection
 #   - State format detection
@@ -19,7 +19,7 @@ test_detect_system() {
 
   # Run system detection
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --check system 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --check system 2>&1)
 
   # Should show jq status
   assert_contains "$output" "jq" "Detects jq"
@@ -33,19 +33,19 @@ test_detect_empty_project() {
 
   # Run detection on empty project
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --check speckit 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --check specflow 2>&1)
 
   # Should show .specify is missing
   assert_contains "$output" ".specify" "Reports on .specify status"
 }
 
-test_detect_speckit_artifacts() {
+test_detect_specflow_artifacts() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
-  # Run SpecKit detection
+  # Run SpecFlow detection
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --check speckit 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --check specflow 2>&1)
 
   # Should find .specify
   assert_contains "$output" ".specify/ directory exists" "Finds .specify directory"
@@ -64,7 +64,7 @@ test_detect_existing_docs() {
 
   # Run docs detection
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --check docs 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --check docs 2>&1)
 
   # Should find docs/
   assert_contains "$output" "docs/" "Finds docs directory"
@@ -83,7 +83,7 @@ test_detect_github_patterns() {
 
   # Run docs detection
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --check docs 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --check docs 2>&1)
 
   # Should find .github patterns
   assert_contains "$output" ".github" "Finds .github directory"
@@ -99,7 +99,7 @@ test_detect_key_files() {
 
   # Run files detection
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --check files 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --check files 2>&1)
 
   # Should find each file
   assert_contains "$output" "CLAUDE.md" "Finds CLAUDE.md"
@@ -110,24 +110,24 @@ test_detect_key_files() {
 test_detect_claude_md_content() {
   git init -q .
 
-  # Create non-SpecKit CLAUDE.md
+  # Create non-SpecFlow CLAUDE.md
   echo "# My Custom Instructions" > CLAUDE.md
 
   # Run files detection
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --check files 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --check files 2>&1)
 
   # Should warn about custom content
-  assert_contains "$output" "Custom content" "Detects non-SpecKit CLAUDE.md"
+  assert_contains "$output" "Custom content" "Detects non-SpecFlow CLAUDE.md"
 }
 
 test_detect_state_version() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Run state detection
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --check state 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --check state 2>&1)
 
   # Should show version
   assert_contains "$output" "Version" "Shows state version"
@@ -151,7 +151,7 @@ EOF
 
   # Run state detection
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --check state 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --check state 2>&1)
 
   # Should detect old version and suggest migration
   assert_contains "$output" "1.0" "Detects v1.0 format"
@@ -166,7 +166,7 @@ test_detect_openapi() {
 
   # Run docs detection
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --check docs 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --check docs 2>&1)
 
   # Should find API spec
   assert_contains "$output" "API specification" "Finds OpenAPI file"
@@ -174,11 +174,11 @@ test_detect_openapi() {
 
 test_detect_json_output() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" >/dev/null 2>&1
 
   # Run with JSON output
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --check speckit --json 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --check specflow --json 2>&1)
 
   # Extract JSON block (from { to })
   local json_block
@@ -196,18 +196,18 @@ test_detect_json_output() {
 
 test_detect_all() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
   mkdir -p docs
   echo "# Docs" > docs/index.md
   echo "# Claude" > CLAUDE.md
 
   # Run full detection
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" 2>&1)
 
   # Should include key indicators from each section
-  assert_contains "$output" "SpecKit CLI installed" "Shows CLI status"
-  assert_contains "$output" ".specify/ directory" "Shows SpecKit artifacts"
+  assert_contains "$output" "SpecFlow CLI installed" "Shows CLI status"
+  assert_contains "$output" ".specify/ directory" "Shows SpecFlow artifacts"
   assert_contains "$output" "docs/ directory" "Shows existing documentation"
   assert_contains "$output" "CLAUDE.md" "Shows key files"
   assert_contains "$output" "Project state:" "Shows summary"
@@ -224,7 +224,7 @@ test_detect_adr_directories() {
   echo "# ADR 002" > docs/adr/002-use-postgres.md
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --docs 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --docs 2>&1)
 
   assert_contains "$output" "ADR" "Detects ADR directory"
   assert_contains "$output" "2 ADRs" "Counts ADR files"
@@ -238,7 +238,7 @@ test_detect_adr_files_patterns() {
   echo "# ADR" > adr/0003-four-digit.md
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --docs 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --docs 2>&1)
 
   assert_contains "$output" "ADR" "Detects root-level ADR directory"
   assert_contains "$output" "3 ADRs" "Counts all ADR file patterns"
@@ -251,7 +251,7 @@ test_detect_docs_alias() {
 
   # Test --docs alias
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --docs 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --docs 2>&1)
 
   assert_contains "$output" "docs/" "Detects docs with --docs flag"
 }
@@ -262,7 +262,7 @@ test_detect_key_architecture_docs() {
   echo "# Contributing" > CONTRIBUTING.md
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-detect.sh" --docs 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-detect.sh" --docs 2>&1)
 
   assert_contains "$output" "ARCHITECTURE.md" "Detects ARCHITECTURE.md"
   assert_contains "$output" "CONTRIBUTING.md" "Detects CONTRIBUTING.md"
@@ -271,7 +271,7 @@ test_detect_key_architecture_docs() {
 run_tests() {
   run_test "detect system shows dependencies" test_detect_system
   run_test "detect handles empty project" test_detect_empty_project
-  run_test "detect finds SpecKit artifacts" test_detect_speckit_artifacts
+  run_test "detect finds SpecFlow artifacts" test_detect_specflow_artifacts
   run_test "detect finds existing docs" test_detect_existing_docs
   run_test "detect finds GitHub patterns" test_detect_github_patterns
   run_test "detect finds key files" test_detect_key_files

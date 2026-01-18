@@ -2,7 +2,7 @@
 #
 # Test Suite: Feature Operations
 #
-# Tests for speckit feature commands:
+# Tests for specflow feature commands:
 #   - create, list, status
 #
 
@@ -16,7 +16,7 @@ test_feature_create() {
   mkdir -p .specify
 
   # Create a feature (now creates 4-digit phases)
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-feature.sh" create 0010 test-feature --no-branch
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-feature.sh" create 0010 test-feature --no-branch
 
   assert_dir_exists "specs/0010-test-feature" "Feature directory created"
   assert_file_exists "specs/0010-test-feature/spec.md" "spec.md created"
@@ -30,7 +30,7 @@ test_feature_create_normalizes_phase() {
   mkdir -p .specify
 
   # Create with single digit phase (should normalize to 4 digits)
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-feature.sh" create 2 my-feature --no-branch
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-feature.sh" create 2 my-feature --no-branch
 
   assert_dir_exists "specs/0002-my-feature" "Phase normalized to 0002"
 }
@@ -40,7 +40,7 @@ test_feature_create_creates_branch() {
   git commit --allow-empty -m "Initial" -q
   mkdir -p .specify
 
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-feature.sh" create 0030 branched-feature
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-feature.sh" create 0030 branched-feature
 
   local branch
   branch=$(git branch --show-current)
@@ -52,10 +52,10 @@ test_feature_create_rejects_invalid_name() {
   mkdir -p .specify
 
   # Invalid name (uppercase)
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-feature.sh create 0010 InvalidName --no-branch" "Rejects uppercase"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-feature.sh create 0010 InvalidName --no-branch" "Rejects uppercase"
 
   # Invalid name (starts with number)
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-feature.sh create 0010 123-feature --no-branch" "Rejects leading number"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-feature.sh create 0010 123-feature --no-branch" "Rejects leading number"
 }
 
 test_feature_create_rejects_duplicate_phase() {
@@ -64,7 +64,7 @@ test_feature_create_rejects_duplicate_phase() {
   mkdir -p .specify specs/0010-existing
 
   # Try to create feature with same phase
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-feature.sh create 0010 new-feature --no-branch" "Rejects duplicate phase"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-feature.sh create 0010 new-feature --no-branch" "Rejects duplicate phase"
 }
 
 test_feature_create_rejects_existing_dir() {
@@ -72,7 +72,7 @@ test_feature_create_rejects_existing_dir() {
   mkdir -p .specify specs/0020-existing-feature
 
   # Try to create feature with same name
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-feature.sh create 0020 existing-feature --no-branch" "Rejects existing directory"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-feature.sh create 0020 existing-feature --no-branch" "Rejects existing directory"
 }
 
 test_feature_list() {
@@ -80,7 +80,7 @@ test_feature_list() {
   mkdir -p specs/001-feature-one specs/002-feature-two specs/003-feature-three
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-feature.sh" list 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-feature.sh" list 2>&1)
 
   assert_contains "$output" "001-feature-one" "Lists first feature"
   assert_contains "$output" "002-feature-two" "Lists second feature"
@@ -92,7 +92,7 @@ test_feature_list_json() {
   mkdir -p specs/001-feature-one specs/002-feature-two
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-feature.sh" list --json)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-feature.sh" list --json)
 
   echo "$output" | jq '.' >/dev/null 2>&1
   assert_equals "0" "$?" "JSON output is valid"
@@ -106,7 +106,7 @@ test_feature_list_empty() {
   mkdir -p specs
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-feature.sh" list 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-feature.sh" list 2>&1)
 
   assert_contains "$output" "No features found" "Shows empty message"
 }
@@ -124,7 +124,7 @@ test_feature_status() {
   touch specs/002-partial/spec.md
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-feature.sh" status 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-feature.sh" status 2>&1)
 
   assert_contains "$output" "001-complete" "Shows complete feature"
   assert_contains "$output" "002-partial" "Shows partial feature"
@@ -139,7 +139,7 @@ test_feature_status_json() {
   touch specs/001-feature/spec.md
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-feature.sh" status --json)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-feature.sh" status --json)
 
   echo "$output" | jq '.' >/dev/null 2>&1
   assert_equals "0" "$?" "JSON output is valid"
@@ -150,7 +150,7 @@ test_feature_status_json() {
 
 test_feature_help() {
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-feature.sh" --help)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-feature.sh" --help)
 
   assert_contains "$output" "feature" "Help shows command name"
   assert_contains "$output" "create" "Help shows create command"

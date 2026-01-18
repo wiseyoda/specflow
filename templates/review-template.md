@@ -93,7 +93,7 @@ description: 'Code review findings template - tracks systematic review findings 
 ## How to Use This Document
 
 ### For Implementation
-1. Run `/speckit.orchestrate` to build spec/plan/tasks from approved findings
+1. Run `/specflow.orchestrate` to build spec/plan/tasks from approved findings
 2. Each approved finding becomes a requirement in the spec
 3. Related findings are grouped into implementation tasks
 
@@ -104,5 +104,5 @@ description: 'Code review findings template - tracks systematic review findings 
 
 ### For Backlog Management
 1. Deferred items are added to ROADMAP.md backlog
-2. Run `/speckit.backlog` to triage deferred items into phases
+2. Run `/specflow.backlog` to triage deferred items into phases
 3. Items include the review date for tracking

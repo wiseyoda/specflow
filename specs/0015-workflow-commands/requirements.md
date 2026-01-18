@@ -6,24 +6,24 @@
 
 ## Functional Requirements
 
-- [ ] **FR-001**: `/speckit.merge` pushes current branch to remote before merge operations
-- [ ] **FR-002**: `/speckit.merge` verifies all tasks complete before proceeding (with override)
-- [ ] **FR-003**: `/speckit.merge` updates state via `speckit state archive`
-- [ ] **FR-004**: `/speckit.merge` updates ROADMAP.md phase status to "Complete"
-- [ ] **FR-005**: `/speckit.merge` displays backlog summary at completion
-- [ ] **FR-006**: `/speckit.backlog` analyzes backlog items against phase scopes
-- [ ] **FR-007**: `/speckit.backlog` proposes new phases for unassignable items
-- [ ] **FR-008**: `/speckit.backlog` updates ROADMAP.md with assignments
-- [ ] **FR-009**: `speckit roadmap backlog add` appends item to Backlog section
-- [ ] **FR-010**: `speckit roadmap backlog add` creates Backlog section if missing
+- [ ] **FR-001**: `/specflow.merge` pushes current branch to remote before merge operations
+- [ ] **FR-002**: `/specflow.merge` verifies all tasks complete before proceeding (with override)
+- [ ] **FR-003**: `/specflow.merge` updates state via `specflow state archive`
+- [ ] **FR-004**: `/specflow.merge` updates ROADMAP.md phase status to "Complete"
+- [ ] **FR-005**: `/specflow.merge` displays backlog summary at completion
+- [ ] **FR-006**: `/specflow.backlog` analyzes backlog items against phase scopes
+- [ ] **FR-007**: `/specflow.backlog` proposes new phases for unassignable items
+- [ ] **FR-008**: `/specflow.backlog` updates ROADMAP.md with assignments
+- [ ] **FR-009**: `specflow roadmap backlog add` appends item to Backlog section
+- [ ] **FR-010**: `specflow roadmap backlog add` creates Backlog section if missing
 - [ ] **FR-011**: All commands follow constitution principles
 
 ## Success Criteria
 
-- [ ] **SC-001**: Single `/speckit.merge` completes phase (no manual steps)
+- [ ] **SC-001**: Single `/specflow.merge` completes phase (no manual steps)
 - [ ] **SC-002**: Backlog triage assigns 80%+ items to existing phases
 - [ ] **SC-003**: New phase proposals include Goal, Scope, User Stories
-- [ ] **SC-004**: `speckit roadmap backlog add` executes in under 2 seconds
+- [ ] **SC-004**: `specflow roadmap backlog add` executes in under 2 seconds
 
 ## User Story Acceptance
 

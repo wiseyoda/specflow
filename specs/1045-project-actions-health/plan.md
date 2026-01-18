@@ -10,7 +10,7 @@
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| CLI Executor | `src/lib/cli-executor.ts` | Spawns speckit commands, handles timeout, streams output |
+| CLI Executor | `src/lib/cli-executor.ts` | Spawns specflow commands, handles timeout, streams output |
 | Allowed Commands | `src/lib/allowed-commands.ts` | Security allowlist for commands |
 | SSE Events | `src/app/api/events/route.ts` | Real-time updates via Server-Sent Events |
 | File Watcher | `src/lib/watcher.ts` | Detects state/task file changes with chokidar |
@@ -22,13 +22,13 @@
 ### Command Execution Flow
 
 1. UI calls `POST /api/commands/execute` with command, args, projectPath
-2. CLI Executor spawns `speckit <command> <args>` in project directory
+2. CLI Executor spawns `specflow <command> <args>` in project directory
 3. stdout/stderr streamed via SSE to `/api/commands/stream?id=<executionId>`
 4. On exit, file watcher detects state changes
 5. SSE broadcasts `state` event to all connected clients
 6. React components re-render with new state
 
-### Key Types (from @speckit/shared)
+### Key Types (from @specflow/shared)
 
 ```typescript
 interface CommandExecution {
@@ -141,9 +141,9 @@ type CommandOutputEvent =
              ┌────────────────────────────────┐
              │     CommandOutputModal         │
              │ ┌────────────────────────────┐ │
-             │ │ Running: speckit init      │ │
+             │ │ Running: specflow init      │ │
              │ ├────────────────────────────┤ │
-             │ │ $ speckit init             │ │
+             │ │ $ specflow init             │ │
              │ │ Creating .specify/...      │ │
              │ │ Done!                      │ │
              │ ├────────────────────────────┤ │
@@ -197,7 +197,7 @@ interface ConfirmationDialogProps {
 interface CommandOutputModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  command: string;               // Display: "speckit init"
+  command: string;               // Display: "specflow init"
   executionId?: string;          // For streaming
   onComplete?: (success: boolean) => void;
 }
@@ -337,7 +337,7 @@ function streamOutput(
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Init command not in path | Low | High | Check speckit available before execute |
+| Init command not in path | Low | High | Check specflow available before execute |
 | SSE stream drops | Medium | Medium | EventSource auto-reconnects, show indicator |
 | Race condition: multiple clicks | Medium | Low | Disable button while executing |
 | Large output overwhelms UI | Low | Medium | Virtual scrolling if needed later |

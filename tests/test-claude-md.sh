@@ -2,7 +2,7 @@
 #
 # Test Suite: CLAUDE.md Operations
 #
-# Tests for speckit claude-md commands:
+# Tests for specflow claude-md commands:
 #   - update, sync, init, merge, show, path
 #
 
@@ -14,7 +14,7 @@ test_claude_md_path() {
   git init -q .
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-claude-md.sh" path)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-claude-md.sh" path)
 
   assert_contains "$output" "CLAUDE.md" "Returns CLAUDE.md path"
 }
@@ -31,7 +31,7 @@ This is a test project.
 EOF
 
   # Initialize Recent Changes section
-  echo "y" | bash "${PROJECT_ROOT}/scripts/bash/speckit-claude-md.sh" init
+  echo "y" | bash "${PROJECT_ROOT}/scripts/bash/specflow-claude-md.sh" init
 
   local content
   content=$(cat CLAUDE.md)
@@ -53,7 +53,7 @@ test_claude_md_update() {
 EOF
 
   # Add a new entry
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-claude-md.sh" update "Added new feature"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-claude-md.sh" update "Added new feature"
 
   local content
   content=$(cat CLAUDE.md)
@@ -72,7 +72,7 @@ Project description.
 EOF
 
   # Update should create section
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-claude-md.sh" update "First entry"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-claude-md.sh" update "First entry"
 
   local content
   content=$(cat CLAUDE.md)
@@ -95,7 +95,7 @@ test_claude_md_show() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-claude-md.sh" show 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-claude-md.sh" show 2>&1)
 
   assert_contains "$output" "Entry one" "Shows first entry"
   assert_contains "$output" "Entry two" "Shows second entry"
@@ -115,7 +115,7 @@ test_claude_md_show_json() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-claude-md.sh" show --json)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-claude-md.sh" show --json)
 
   echo "$output" | jq '.' >/dev/null 2>&1
   assert_equals "0" "$?" "JSON output is valid"
@@ -145,7 +145,7 @@ EOF
 | 002 | Core Engine | In Progress |
 EOF
 
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-claude-md.sh" sync
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-claude-md.sh" sync
 
   local content
   content=$(cat CLAUDE.md)
@@ -155,7 +155,7 @@ EOF
 test_claude_md_merge_dry_run() {
   git init -q .
 
-  # Create existing CLAUDE.md without SpecKit sections
+  # Create existing CLAUDE.md without SpecFlow sections
   cat > CLAUDE.md << 'EOF'
 # Project Name
 
@@ -167,7 +167,7 @@ How to contribute.
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-claude-md.sh" merge --dry-run 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-claude-md.sh" merge --dry-run 2>&1)
 
   assert_contains "$output" "DRY RUN" "Shows dry run message"
   assert_contains "$output" "Would add" "Shows what would be added"
@@ -184,8 +184,8 @@ test_claude_md_merge() {
 Existing content.
 EOF
 
-  # Merge SpecKit sections
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-claude-md.sh" merge
+  # Merge SpecFlow sections
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-claude-md.sh" merge
 
   local content
   content=$(cat CLAUDE.md)
@@ -203,14 +203,14 @@ EOF
 test_claude_md_merge_already_present() {
   git init -q .
 
-  # Create CLAUDE.md with SpecKit sections already
+  # Create CLAUDE.md with SpecFlow sections already
   cat > CLAUDE.md << 'EOF'
 # Project
 
 ## Recent Changes
 - Entry
 
-## SpecKit Configuration
+## SpecFlow Configuration
 Config here
 
 ## Development Workflow
@@ -218,7 +218,7 @@ Workflow here
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-claude-md.sh" merge 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-claude-md.sh" merge 2>&1)
 
   assert_contains "$output" "already present" "Shows already present message"
 }
@@ -227,12 +227,12 @@ test_claude_md_requires_file() {
   git init -q .
   # Don't create CLAUDE.md
 
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-claude-md.sh show" "Fails without CLAUDE.md"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-claude-md.sh show" "Fails without CLAUDE.md"
 }
 
 test_claude_md_help() {
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-claude-md.sh" --help)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-claude-md.sh" --help)
 
   assert_contains "$output" "claude-md" "Help shows command name"
   assert_contains "$output" "update" "Help shows update command"
@@ -253,7 +253,7 @@ run_tests() {
   run_test "claude-md show --json outputs valid JSON" test_claude_md_show_json
   run_test "claude-md sync imports from ROADMAP" test_claude_md_sync
   run_test "claude-md merge --dry-run previews changes" test_claude_md_merge_dry_run
-  run_test "claude-md merge adds SpecKit sections" test_claude_md_merge
+  run_test "claude-md merge adds SpecFlow sections" test_claude_md_merge
   run_test "claude-md merge handles already present sections" test_claude_md_merge_already_present
   run_test "claude-md requires CLAUDE.md file" test_claude_md_requires_file
   run_test "claude-md --help shows usage" test_claude_md_help

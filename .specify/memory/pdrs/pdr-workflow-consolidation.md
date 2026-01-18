@@ -16,11 +16,11 @@
 
 ## Problem Statement
 
-**The Problem**: SpecKit has 11 main workflow commands that are fragmented and confusing. The orchestrate command runs 8 separate sub-commands, many of which produce single artifacts and could be combined. Users see a long list of commands without understanding how they relate, and the separation between "document creation" and "execution" phases is unclear.
+**The Problem**: SpecFlow has 11 main workflow commands that are fragmented and confusing. The orchestrate command runs 8 separate sub-commands, many of which produce single artifacts and could be combined. Users see a long list of commands without understanding how they relate, and the separation between "document creation" and "execution" phases is unclear.
 
-**Who is affected**: All SpecKit users running the development workflow.
+**Who is affected**: All SpecFlow users running the development workflow.
 
-**Current workaround**: Users rely on `/speckit.orchestrate` to run everything, but when debugging or re-running steps, they face 11 separate commands with unclear relationships.
+**Current workaround**: Users rely on `/specflow.orchestrate` to run everything, but when debugging or re-running steps, they face 11 separate commands with unclear relationships.
 
 **Why now**: After consolidating pre-workflow commands (7 → 3), the workflow commands are the next logical target. A clean, intuitive command structure is essential before building dashboard integration.
 
@@ -83,7 +83,7 @@
 | Command reduction | 11 → 6 commands | Count of workflow commands |
 | Design artifacts | Single command produces spec, plan, tasks, checklists | End-to-end test |
 | Clarify removal | No separate clarify command | Command inventory |
-| Backlog integration | Available via `/speckit.roadmap backlog` | Command help output |
+| Backlog integration | Available via `/specflow.roadmap backlog` | Command help output |
 | Workflow clarity | 5 clear phases in orchestrate | Documentation review |
 
 ---
@@ -120,27 +120,27 @@
 ## Open Questions
 
 - [x] Should `design` create artifacts sequentially or in parallel where possible? → **Answer**: Sequentially. Each artifact builds on the previous.
-- [x] What happens if user wants to regenerate just one artifact (e.g., just tasks.md)? → **Answer**: Natural language with intent (e.g., `/speckit.design rework tasks to change the order`) or flags like `--plan` to focus on specific artifacts.
-- [x] Should `analyze` be renamed to `review` for clarity? → **Answer**: No. `/speckit.review` already exists as code review command. Would need to rename that to `/speckit.codereview` first.
+- [x] What happens if user wants to regenerate just one artifact (e.g., just tasks.md)? → **Answer**: Natural language with intent (e.g., `/specflow.design rework tasks to change the order`) or flags like `--plan` to focus on specific artifacts.
+- [x] Should `analyze` be renamed to `review` for clarity? → **Answer**: No. `/specflow.review` already exists as code review command. Would need to rename that to `/specflow.codereview` first.
 - [x] How does inline clarify interact with `--no-discovery` flag? → **Answer**: Simplify all commands and audit flags. Remove unused flags as part of this consolidation.
 
 ---
 
 ## Acceptance Criteria
 
-1. [ ] `/speckit.design` creates: spec.md, plan.md, tasks.md, and checklists in sequence
-2. [ ] `/speckit.orchestrate` asks clarifying questions inline (no separate clarify step)
-3. [ ] `/speckit.clarify` shows deprecation notice, explains it's now inline in orchestrate
-4. [ ] `/speckit.specify` shows deprecation notice, suggests using `/speckit.design`
-5. [ ] `/speckit.plan` shows deprecation notice, suggests using `/speckit.design`
-6. [ ] `/speckit.tasks` shows deprecation notice, suggests using `/speckit.design`
-7. [ ] `/speckit.checklist` shows deprecation notice, suggests using `/speckit.design`
-8. [ ] `/speckit.backlog` shows deprecation notice, suggests using `/speckit.roadmap backlog`
-9. [ ] `/speckit.roadmap` gains `backlog` subcommand (absorbs backlog functionality)
-10. [ ] `/speckit.analyze` remains as pre-implement alignment check
-11. [ ] `/speckit.implement` remains as task execution
-12. [ ] `/speckit.verify` remains as post-implement completion check
-13. [ ] `/speckit.merge` remains as git operations
+1. [ ] `/specflow.design` creates: spec.md, plan.md, tasks.md, and checklists in sequence
+2. [ ] `/specflow.orchestrate` asks clarifying questions inline (no separate clarify step)
+3. [ ] `/specflow.clarify` shows deprecation notice, explains it's now inline in orchestrate
+4. [ ] `/specflow.specify` shows deprecation notice, suggests using `/specflow.design`
+5. [ ] `/specflow.plan` shows deprecation notice, suggests using `/specflow.design`
+6. [ ] `/specflow.tasks` shows deprecation notice, suggests using `/specflow.design`
+7. [ ] `/specflow.checklist` shows deprecation notice, suggests using `/specflow.design`
+8. [ ] `/specflow.backlog` shows deprecation notice, suggests using `/specflow.roadmap backlog`
+9. [ ] `/specflow.roadmap` gains `backlog` subcommand (absorbs backlog functionality)
+10. [ ] `/specflow.analyze` remains as pre-implement alignment check
+11. [ ] `/specflow.implement` remains as task execution
+12. [ ] `/specflow.verify` remains as post-implement completion check
+13. [ ] `/specflow.merge` remains as git operations
 14. [ ] All documentation updated to reflect new command structure
 15. [ ] Existing projects continue to work without changes
 
@@ -159,50 +159,50 @@
 
 | Command | Role | Produces |
 |---------|------|----------|
-| `/speckit.orchestrate` | Master controller | Runs all steps |
-| `/speckit.specify` | Create spec | spec.md |
-| `/speckit.clarify` | Ask questions | Updates spec.md |
-| `/speckit.plan` | Create plan | plan.md, research.md, data-model.md, contracts/ |
-| `/speckit.tasks` | Create tasks | tasks.md |
-| `/speckit.analyze` | Check alignment | Analysis report |
-| `/speckit.checklist` | Create checklists | checklists/*.md |
-| `/speckit.implement` | Execute tasks | Code changes |
-| `/speckit.verify` | Check completion | Verification report |
-| `/speckit.merge` | Git operations | PR, merge, archive |
-| `/speckit.backlog` | Manage backlog | Roadmap updates |
+| `/specflow.orchestrate` | Master controller | Runs all steps |
+| `/specflow.specify` | Create spec | spec.md |
+| `/specflow.clarify` | Ask questions | Updates spec.md |
+| `/specflow.plan` | Create plan | plan.md, research.md, data-model.md, contracts/ |
+| `/specflow.tasks` | Create tasks | tasks.md |
+| `/specflow.analyze` | Check alignment | Analysis report |
+| `/specflow.checklist` | Create checklists | checklists/*.md |
+| `/specflow.implement` | Execute tasks | Code changes |
+| `/specflow.verify` | Check completion | Verification report |
+| `/specflow.merge` | Git operations | PR, merge, archive |
+| `/specflow.backlog` | Manage backlog | Roadmap updates |
 
 ### After (6 workflow commands)
 
 | Command | Role | Produces |
 |---------|------|----------|
-| `/speckit.orchestrate` | Master controller (with inline clarify) | Runs all phases |
-| `/speckit.design` | Create all design artifacts | spec.md, plan.md, tasks.md, checklists/ |
-| `/speckit.analyze` | Pre-implement alignment check | Analysis report |
-| `/speckit.implement` | Execute tasks | Code changes |
-| `/speckit.verify` | Post-implement completion check | Verification report |
-| `/speckit.merge` | Git operations | PR, merge, archive |
+| `/specflow.orchestrate` | Master controller (with inline clarify) | Runs all phases |
+| `/specflow.design` | Create all design artifacts | spec.md, plan.md, tasks.md, checklists/ |
+| `/specflow.analyze` | Pre-implement alignment check | Analysis report |
+| `/specflow.implement` | Execute tasks | Code changes |
+| `/specflow.verify` | Post-implement completion check | Verification report |
+| `/specflow.merge` | Git operations | PR, merge, archive |
 
 ### Deprecated (5 commands)
 
 | Command | Replacement | Action |
 |---------|-------------|--------|
-| `/speckit.specify` | `/speckit.design` | Stub with deprecation notice |
-| `/speckit.clarify` | Inline in orchestrate | Stub with deprecation notice |
-| `/speckit.plan` | `/speckit.design` | Stub with deprecation notice |
-| `/speckit.tasks` | `/speckit.design` | Stub with deprecation notice |
-| `/speckit.checklist` | `/speckit.design` | Stub with deprecation notice |
+| `/specflow.specify` | `/specflow.design` | Stub with deprecation notice |
+| `/specflow.clarify` | Inline in orchestrate | Stub with deprecation notice |
+| `/specflow.plan` | `/specflow.design` | Stub with deprecation notice |
+| `/specflow.tasks` | `/specflow.design` | Stub with deprecation notice |
+| `/specflow.checklist` | `/specflow.design` | Stub with deprecation notice |
 
 ### Moved (1 command)
 
 | Command | New Location | Action |
 |---------|--------------|--------|
-| `/speckit.backlog` | `/speckit.roadmap backlog` | Stub with deprecation notice |
+| `/specflow.backlog` | `/specflow.roadmap backlog` | Stub with deprecation notice |
 
 ### Removed (1 command)
 
 | Command | Reason | Action |
 |---------|--------|--------|
-| `/speckit.taskstoissues` | Rarely used, GitHub-specific utility | Delete completely |
+| `/specflow.taskstoissues` | Rarely used, GitHub-specific utility | Delete completely |
 
 ---
 
@@ -214,7 +214,7 @@ After consolidation, the orchestrate workflow becomes 5 clear phases:
 ┌─────────────────────────────────────────────────────────────────┐
 │  PHASE 1: DESIGN                                                 │
 ├─────────────────────────────────────────────────────────────────┤
-│  /speckit.design                                                 │
+│  /specflow.design                                                 │
 │  Creates: spec.md → plan.md → tasks.md → checklists/            │
 │  Inline: Asks clarifying questions as needed                    │
 └─────────────────────────────────────────────────────────────────┘
@@ -222,7 +222,7 @@ After consolidation, the orchestrate workflow becomes 5 clear phases:
 ┌─────────────────────────────────────────────────────────────────┐
 │  PHASE 2: ANALYZE (Pre-Implement Gate)                          │
 ├─────────────────────────────────────────────────────────────────┤
-│  /speckit.analyze                                                │
+│  /specflow.analyze                                                │
 │  Checks: spec ↔ plan ↔ tasks alignment                          │
 │  Output: Analysis report, blocks if issues found                │
 └─────────────────────────────────────────────────────────────────┘
@@ -230,7 +230,7 @@ After consolidation, the orchestrate workflow becomes 5 clear phases:
 ┌─────────────────────────────────────────────────────────────────┐
 │  PHASE 3: IMPLEMENT                                              │
 ├─────────────────────────────────────────────────────────────────┤
-│  /speckit.implement                                              │
+│  /specflow.implement                                              │
 │  Executes: All tasks from tasks.md in dependency order          │
 │  Output: Code changes, task completion marks                    │
 └─────────────────────────────────────────────────────────────────┘
@@ -238,7 +238,7 @@ After consolidation, the orchestrate workflow becomes 5 clear phases:
 ┌─────────────────────────────────────────────────────────────────┐
 │  PHASE 4: VERIFY (Post-Implement Gate)                          │
 ├─────────────────────────────────────────────────────────────────┤
-│  /speckit.verify                                                 │
+│  /specflow.verify                                                 │
 │  Checks: Task completion, checklist verification, compliance    │
 │  Output: Verification report, USER GATE assessment              │
 └─────────────────────────────────────────────────────────────────┘
@@ -246,7 +246,7 @@ After consolidation, the orchestrate workflow becomes 5 clear phases:
 ┌─────────────────────────────────────────────────────────────────┐
 │  PHASE 5: MERGE                                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│  /speckit.merge                                                  │
+│  /specflow.merge                                                  │
 │  Actions: Push, PR, merge, archive, handoff extraction          │
 │  Output: Merged to main, phase archived                         │
 └─────────────────────────────────────────────────────────────────┘
@@ -256,10 +256,10 @@ After consolidation, the orchestrate workflow becomes 5 clear phases:
 
 ## Design Command Flow
 
-The new `/speckit.design` command produces all artifacts in sequence:
+The new `/specflow.design` command produces all artifacts in sequence:
 
 ```
-/speckit.design
+/specflow.design
     │
     ├─1. Load Context
     │   └── memory docs, handoffs, codebase patterns
@@ -291,7 +291,7 @@ The new `/speckit.design` command produces all artifacts in sequence:
 ### Regeneration Strategy
 
 If users need to regenerate a single artifact:
-- **Option A**: Flags on design command (`/speckit.design --only=tasks`)
+- **Option A**: Flags on design command (`/specflow.design --only=tasks`)
 - **Option B**: Keep individual commands but mark as "advanced" in docs
 - **Decision**: TBD in implementation
 
@@ -303,11 +303,11 @@ When orchestrate encounters ambiguity:
 3. Update relevant artifact with answers
 4. Resume workflow
 
-This replaces the explicit `/speckit.clarify` step with organic questioning.
+This replaces the explicit `/specflow.clarify` step with organic questioning.
 
 ### Backlog in Roadmap
 
-The `/speckit.roadmap backlog` subcommand will:
+The `/specflow.roadmap backlog` subcommand will:
 - Scan completed phases for deferred items
 - Parse backlog items from ROADMAP.md
 - Interactively or automatically triage into phases

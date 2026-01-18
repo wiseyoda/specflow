@@ -8,7 +8,7 @@ pdr: pdr-orchestration-engine.md
 
 ### 1050 - Workflow Runner
 
-**Goal**: Server-side process management for running decomposed SpecKit commands via Claude CLI with stream-json.
+**Goal**: Server-side process management for running decomposed SpecFlow commands via Claude CLI with stream-json.
 
 **Scope**:
 - Workflow runner service that spawns Claude CLI processes

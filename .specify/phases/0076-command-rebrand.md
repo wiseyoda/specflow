@@ -8,14 +8,14 @@ pdr: pdr-command-rebrand.md
 
 ### 0076 - Rebrand to SpecFlow
 
-**Goal**: Complete rebrand from SpecKit to **SpecFlow** (Agentic Orchestration based on SpecKit). Rename CLI, commands, repository, and all documentation. Clean break with no deprecation stubs.
+**Goal**: Complete rebrand from SpecFlow to **SpecFlow** (Agentic Orchestration based on SpecFlow). Rename CLI, commands, repository, and all documentation. Clean break with no deprecation stubs.
 
 **Scope**:
 - Rename GitHub repository to `specflow`
-- Rename CLI binary from `speckit` to `specflow`
-- Rename all command files from `speckit.*.md` to `flow.*.md`
+- Rename CLI binary from `specflow` to `specflow`
+- Rename all command files from `specflow.*.md` to `flow.*.md`
 - Update all command content to reference `/flow.*`
-- Update all bash scripts (`bin/speckit` → `bin/specflow`)
+- Update all bash scripts (`bin/specflow` → `bin/specflow`)
 - Update CLAUDE.md with new branding and command names
 - Update all documentation (README, commands-analysis, memory docs)
 - Update dashboard/website references
@@ -42,13 +42,13 @@ pdr: pdr-command-rebrand.md
 **User Stories**:
 1. As a new user, I run `specflow` CLI and see `/flow.*` commands - immediately clear it's workflow-driven
 2. As a documentation reader, I see consistent SpecFlow branding everywhere
-3. As a developer, I type `specflow` instead of `speckit` - shorter mental model
+3. As a developer, I type `specflow` instead of `specflow` - shorter mental model
 
 **Deliverables**:
 - [ ] Rename GitHub repository to `specflow`
-- [ ] Rename `bin/speckit` → `bin/specflow`
+- [ ] Rename `bin/specflow` → `bin/specflow`
 - [ ] Update all bash scripts to reference `specflow` binary
-- [ ] Rename all `commands/speckit.*.md` → `commands/flow.*.md`
+- [ ] Rename all `commands/specflow.*.md` → `commands/flow.*.md`
 - [ ] Update all command file content to reference `/flow.*`
 - [ ] Update CLAUDE.md: branding, commands, binary name
 - [ ] Update `docs/commands-analysis.md`
@@ -56,13 +56,13 @@ pdr: pdr-command-rebrand.md
 - [ ] Update install.sh for new binary name
 - [ ] Update any memory documents with command/binary references
 - [ ] Update dashboard/website references
-- [ ] Delete all old `speckit.*` files (clean break)
-- [ ] Verify: `grep -r "speckit" .` returns 0 results in active code
+- [ ] Delete all old `specflow.*` files (clean break)
+- [ ] Verify: `grep -r "specflow" .` returns 0 results in active code
 
 **Verification Gate**: Technical
 - `specflow help` works
 - All commands accessible via `/flow.*` prefix
-- No `speckit` references in active code/documentation
+- No `specflow` references in active code/documentation
 - Dashboard/website shows SpecFlow branding
 
 **Dependencies**:

@@ -8,7 +8,7 @@ pdr: pdr-orchestration-engine.md
 
 ### 1052 - Dashboard Orchestration
 
-**Goal**: Complete dashboard UI for starting, monitoring, and managing SpecKit workflows.
+**Goal**: Complete dashboard UI for starting, monitoring, and managing SpecFlow workflows.
 
 **Scope**:
 - "Start Workflow" action on project cards and detail page

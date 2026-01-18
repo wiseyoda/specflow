@@ -12,14 +12,14 @@
 
 ### 1.1 Goal
 
-Reduce cognitive load and streamline the SpecKit user experience by consolidating entry points, removing orphaned code, unifying similar commands, and adding UI/UX design artifact support for visual phases.
+Reduce cognitive load and streamline the SpecFlow user experience by consolidating entry points, removing orphaned code, unifying similar commands, and adding UI/UX design artifact support for visual phases.
 
 ### 1.2 Problem Statement
 
-SpecKit has accumulated complexity through organic growth:
+SpecFlow has accumulated complexity through organic growth:
 - Users face confusion about which commands to use
 - Orphaned/duplicate code exists in the repository
-- Overlapping functionality between commands (e.g., `/speckit.memory` vs `/speckit.memory-init`)
+- Overlapping functionality between commands (e.g., `/specflow.memory` vs `/specflow.memory-init`)
 - CLAUDE.md becomes bloated in target projects
 - No design documentation process for UI-heavy phases
 
@@ -27,10 +27,10 @@ SpecKit has accumulated complexity through organic growth:
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
-| Entry point usage | 90%+ sessions via `/speckit.start` | Documentation directs to it |
+| Entry point usage | 90%+ sessions via `/specflow.start` | Documentation directs to it |
 | Codebase cleanliness | 0 orphaned scripts | Audit of scripts/bash/ |
-| Command clarity | Single `/speckit.memory` covers all needs | No memory command confusion |
-| CLAUDE.md size | ≤15 lines for SpecKit section | Line count |
+| Command clarity | Single `/specflow.memory` covers all needs | No memory command confusion |
+| CLAUDE.md size | ≤15 lines for SpecFlow section | Line count |
 | UI phase coverage | 100% of UI phases have design.md | Verification gate check |
 
 ---
@@ -41,25 +41,25 @@ SpecKit has accumulated complexity through organic growth:
 
 **Code Cleanup**:
 - Delete orphaned scripts from `.specify/scripts/bash/`
-- Remove `/speckit.issue` slash command (CLI works directly)
-- Consolidate `/speckit.memory` and `/speckit.memory-init`
+- Remove `/specflow.issue` slash command (CLI works directly)
+- Consolidate `/specflow.memory` and `/specflow.memory-init`
 
 **Documentation Overhaul**:
-- Update README.md to recommend `/speckit.start`
+- Update README.md to recommend `/specflow.start`
 - Split CLAUDE.md: minimal pointer (~10 lines) + detailed `.specify/USAGE.md`
 - Update all docs/ files (8 files)
-- Update slash command handoffs (10 commands) to point to `/speckit.start`
-- Update `bin/speckit` help text
+- Update slash command handoffs (10 commands) to point to `/specflow.start`
+- Update `bin/specflow` help text
 
 **UI/UX Design Artifacts**:
-- Add UI detection to `/speckit.specify`
+- Add UI detection to `/specflow.specify`
 - Create `ui/design.md` for UI phases
-- Add design verification to `/speckit.plan`
+- Add design verification to `/specflow.plan`
 - Create `templates/ui-design-template.md`
 
 **State Simplification**:
 - Derive step completion from filesystem artifacts
-- Update `speckit status --json` to report derived state
+- Update `specflow status --json` to report derived state
 
 ### 2.2 Out of Scope
 
@@ -81,34 +81,34 @@ SpecKit has accumulated complexity through organic growth:
 ## 3. User Stories
 
 ### US-001: Single Entry Point
-**As a** SpecKit user,
-**I want to** always start with `/speckit.start` and have it route me correctly,
+**As a** SpecFlow user,
+**I want to** always start with `/specflow.start` and have it route me correctly,
 **So that** I don't need to remember which command to use for my current situation.
 
 **Acceptance Criteria**:
-- [ ] All documentation recommends `/speckit.start` as primary entry
-- [ ] All slash command handoffs point to `/speckit.start`
-- [ ] `bin/speckit` help text mentions `/speckit.start`
+- [ ] All documentation recommends `/specflow.start` as primary entry
+- [ ] All slash command handoffs point to `/specflow.start`
+- [ ] `bin/specflow` help text mentions `/specflow.start`
 
 ### US-002: Direct CLI for Simple Operations
 **As a** developer working in my terminal,
-**I want to** run `speckit issue create "bug description"` directly,
+**I want to** run `specflow issue create "bug description"` directly,
 **So that** I don't need a slash command wrapper for straightforward CLI operations.
 
 **Acceptance Criteria**:
-- [ ] `/speckit.issue` slash command deleted
-- [ ] CLI `speckit issue` remains fully functional
+- [ ] `/specflow.issue` slash command deleted
+- [ ] CLI `specflow issue` remains fully functional
 - [ ] Documentation shows direct CLI usage
 
 ### US-003: Unified Memory Management
 **As a** user managing my project's memory documents,
-**I want to** use one command (`/speckit.memory`) with clear subcommands,
-**So that** I don't confuse `/speckit.memory` vs `/speckit.memory-init`.
+**I want to** use one command (`/specflow.memory`) with clear subcommands,
+**So that** I don't confuse `/specflow.memory` vs `/specflow.memory-init`.
 
 **Acceptance Criteria**:
-- [ ] `/speckit.memory generate` handles codebase analysis (was memory-init)
-- [ ] `/speckit.memory-init` errors with message pointing to `/speckit.memory generate`
-- [ ] Single `/speckit.memory --help` shows all subcommands
+- [ ] `/specflow.memory generate` handles codebase analysis (was memory-init)
+- [ ] `/specflow.memory-init` errors with message pointing to `/specflow.memory generate`
+- [ ] Single `/specflow.memory --help` shows all subcommands
 
 **Clarification**: Deprecated commands error with instructions (not warning+execute) to keep context clean.
 
@@ -124,11 +124,11 @@ SpecKit has accumulated complexity through organic growth:
 
 ### US-005: Filesystem-Derived State
 **As a** user resuming work after context loss,
-**I want to** have SpecKit figure out where I am from my files,
+**I want to** have SpecFlow figure out where I am from my files,
 **So that** state corruption doesn't block my progress.
 
 **Acceptance Criteria**:
-- [ ] `speckit status --json` derives step completion from artifacts
+- [ ] `specflow status --json` derives step completion from artifacts
 - [ ] State file tracks only: phase, blockers, user gates
 - [ ] Recovery works even with outdated state file
 
@@ -138,20 +138,20 @@ SpecKit has accumulated complexity through organic growth:
 **So that** UI decisions are explicit and reviewable before implementation.
 
 **Acceptance Criteria**:
-- [ ] `/speckit.specify` detects UI keywords in phase scope
+- [ ] `/specflow.specify` detects UI keywords in phase scope
 - [ ] `specs/XXXX/ui/design.md` created for UI phases
-- [ ] `/speckit.plan` verifies design.md exists for UI phases
+- [ ] `/specflow.plan` verifies design.md exists for UI phases
 - [ ] `templates/ui-design-template.md` exists
 
 ### US-007: Minimal CLAUDE.md
 **As a** project maintainer,
-**I want** SpecKit to add minimal content (~10 lines) to my CLAUDE.md,
+**I want** SpecFlow to add minimal content (~10 lines) to my CLAUDE.md,
 **So that** my project's instructions stay concise and focused.
 
 **Acceptance Criteria**:
-- [ ] SpecKit section in target CLAUDE.md ≤15 lines
+- [ ] SpecFlow section in target CLAUDE.md ≤15 lines
 - [ ] Detailed reference in `.specify/USAGE.md`
-- [ ] `speckit claude-md merge` uses minimal approach
+- [ ] `specflow claude-md merge` uses minimal approach
 
 ---
 
@@ -162,26 +162,26 @@ SpecKit has accumulated complexity through organic growth:
 | Deliverable | Action | Target |
 |-------------|--------|--------|
 | `.specify/scripts/bash/` | DELETE directory | Delete orphaned scripts (setup-plan.sh, update-agent-context.sh, create-new-feature.sh, common.sh) |
-| `commands/speckit.issue.md` | DELETE | Remove slash command wrapper |
-| `commands/speckit.memory.md` | UPDATE | Add `generate` subcommand handling |
-| `commands/speckit.memory-init.md` | DEPRECATE | Add pointer to `/speckit.memory generate` |
-| `scripts/bash/speckit-status.sh` | UPDATE | Derive state from filesystem |
+| `commands/specflow.issue.md` | DELETE | Remove slash command wrapper |
+| `commands/specflow.memory.md` | UPDATE | Add `generate` subcommand handling |
+| `commands/specflow.memory-init.md` | DEPRECATE | Add pointer to `/specflow.memory generate` |
+| `scripts/bash/specflow-status.sh` | UPDATE | Derive state from filesystem |
 
 ### 4.2 Documentation Updates
 
 | Deliverable | Action | Notes |
 |-------------|--------|-------|
-| `README.md` | UPDATE | Recommend `/speckit.start` as primary entry |
-| `CLAUDE.md` | UPDATE | Minimal SpecKit section (~10 lines) |
+| `README.md` | UPDATE | Recommend `/specflow.start` as primary entry |
+| `CLAUDE.md` | UPDATE | Minimal SpecFlow section (~10 lines) |
 | `.specify/USAGE.md` | CREATE | Full CLI reference, syntax notes |
-| `speckit claude-md merge` | UPDATE | Use minimal approach |
-| `bin/speckit` | UPDATE | Help text recommends `/speckit.start` |
+| `specflow claude-md merge` | UPDATE | Use minimal approach |
+| `bin/specflow` | UPDATE | Help text recommends `/specflow.start` |
 
 **docs/ folder (8 files)**:
 | File | Action | Notes |
 |------|--------|-------|
 | `docs/cli-reference.md` | UPDATE | Current commands |
-| `docs/slash-commands.md` | UPDATE | Recommend /speckit.start |
+| `docs/slash-commands.md` | UPDATE | Recommend /specflow.start |
 | `docs/integration-guide.md` | UPDATE | Workflow examples |
 | `docs/project-structure.md` | VERIFY | Accuracy check |
 | `docs/configuration.md` | VERIFY | Accuracy check |
@@ -192,23 +192,23 @@ SpecKit has accumulated complexity through organic growth:
 **Slash Command Handoffs (10 commands)**:
 | Command | Action |
 |---------|--------|
-| `commands/speckit.init.md` | Add handoff to /speckit.start |
-| `commands/speckit.orchestrate.md` | Update handoffs |
-| `commands/speckit.verify.md` | Update handoffs |
-| `commands/speckit.merge.md` | Update handoffs |
-| `commands/speckit.backlog.md` | Update handoffs |
-| `commands/speckit.review.md` | Update handoffs |
-| `commands/speckit.roadmap.md` | Update handoffs |
-| `commands/speckit.constitution.md` | Update handoffs |
-| `commands/speckit.phase.md` | Update handoffs |
-| `commands/speckit.specify.md` | Update handoffs + UI detection |
+| `commands/specflow.init.md` | Add handoff to /specflow.start |
+| `commands/specflow.orchestrate.md` | Update handoffs |
+| `commands/specflow.verify.md` | Update handoffs |
+| `commands/specflow.merge.md` | Update handoffs |
+| `commands/specflow.backlog.md` | Update handoffs |
+| `commands/specflow.review.md` | Update handoffs |
+| `commands/specflow.roadmap.md` | Update handoffs |
+| `commands/specflow.constitution.md` | Update handoffs |
+| `commands/specflow.phase.md` | Update handoffs |
+| `commands/specflow.specify.md` | Update handoffs + UI detection |
 
 ### 4.3 UI/UX Design Artifacts
 
 | Deliverable | Action | Notes |
 |-------------|--------|-------|
-| `commands/speckit.specify.md` | UPDATE | Add UI detection, design.md generation |
-| `commands/speckit.plan.md` | UPDATE | Add UI design verification |
+| `commands/specflow.specify.md` | UPDATE | Add UI detection, design.md generation |
+| `commands/specflow.plan.md` | UPDATE | Add UI design verification |
 | `templates/ui-design-template.md` | CREATE | Template for design.md |
 
 ---
@@ -247,19 +247,19 @@ The following keywords in phase scope/goal trigger UI design documentation:
 ### 5.3 CLAUDE.md Minimal Section
 
 ```markdown
-## SpecKit
+## SpecFlow
 
-This project uses SpecKit for spec-driven development.
+This project uses SpecFlow for spec-driven development.
 
-**Quick Start**: Run `/speckit.start` - it routes you to the right command.
+**Quick Start**: Run `/specflow.start` - it routes you to the right command.
 
-**CLI**: `speckit --help` for all commands
+**CLI**: `specflow --help` for all commands
 **Full Reference**: See `.specify/USAGE.md`
 ```
 
 ### 5.4 State Derivation Logic
 
-`speckit status --json` derives step completion:
+`specflow status --json` derives step completion:
 - specify: `spec.md` exists and non-empty
 - clarify: `spec.md` has no `[NEEDS CLARIFICATION]` markers
 - plan: `plan.md` exists
@@ -275,12 +275,12 @@ This project uses SpecKit for spec-driven development.
 
 Phase 0050 is complete when:
 - [ ] All orphaned scripts deleted (0 scripts in `.specify/scripts/bash/`)
-- [ ] `/speckit.issue` slash command removed, CLI documented
-- [ ] `/speckit.memory generate` works (replaces memory-init)
-- [ ] Documentation recommends `/speckit.start` as primary entry
-- [ ] `speckit status --json` derives step completion from artifacts
+- [ ] `/specflow.issue` slash command removed, CLI documented
+- [ ] `/specflow.memory generate` works (replaces memory-init)
+- [ ] Documentation recommends `/specflow.start` as primary entry
+- [ ] `specflow status --json` derives step completion from artifacts
 - [ ] UI phases auto-generate `ui/design.md`
-- [ ] CLAUDE.md SpecKit section ≤15 lines
+- [ ] CLAUDE.md SpecFlow section ≤15 lines
 - [ ] `.specify/USAGE.md` exists with full reference
 
 ---

@@ -9,45 +9,45 @@ PDRs are the bridge between ideas and implementation:
 1. **Capture Requirements** - Agent or human writes a PDR for a feature idea
 2. **Refine & Approve** - Iterate until requirements are clear
 3. **Bundle into Phases** - Group related PDRs into implementation phases
-4. **Implement** - SpecKit generates specs, plans, and tasks from approved PDRs
+4. **Implement** - SpecFlow generates specs, plans, and tasks from approved PDRs
 
 ## Commands
 
-### CLI Commands (`speckit pdr`)
+### CLI Commands (`specflow pdr`)
 
 ```bash
 # List all PDRs with status
-speckit pdr list
+specflow pdr list
 
 # Show status summary
-speckit pdr status
+specflow pdr status
 
 # Show details for a specific PDR
-speckit pdr show pdr-my-feature.md
+specflow pdr show pdr-my-feature.md
 
 # Validate PDR structure
-speckit pdr validate pdr-my-feature.md
+specflow pdr validate pdr-my-feature.md
 
 # Show PDR directory path
-speckit pdr path
+specflow pdr path
 
 # Initialize PDR directory (if missing)
-speckit pdr init
+specflow pdr init
 ```
 
-### Skill Command (`/speckit.phase`)
+### Skill Command (`/specflow.phase`)
 
 Creates ROADMAP.md phases from PDRs:
 
 ```
 # Create phase from specific PDRs
-/speckit.phase pdr-offline-mode.md pdr-sync-status.md
+/specflow.phase pdr-offline-mode.md pdr-sync-status.md
 
 # Create phases from all approved PDRs
-/speckit.phase all approved
+/specflow.phase all approved
 
 # Interactive selection
-/speckit.phase
+/specflow.phase
 ```
 
 ## Creating a PDR
@@ -92,17 +92,17 @@ Examples:
 ```
 [Idea]
    ↓
-[Create PDR]         speckit pdr init (if needed)
+[Create PDR]         specflow pdr init (if needed)
    ↓                 cp templates/pdr-template.md .specify/memory/pdrs/pdr-feature.md
 [Refine PDR]         Edit file, fill in sections
    ↓
-[Validate]           speckit pdr validate pdr-feature.md
+[Validate]           specflow pdr validate pdr-feature.md
    ↓
 [Approve]            Edit file: Status: Draft → Approved
    ↓
-[Create Phase]       /speckit.phase pdr-feature.md
+[Create Phase]       /specflow.phase pdr-feature.md
    ↓
-[Implement]          /speckit.orchestrate
+[Implement]          /specflow.orchestrate
 ```
 
 ## Required Sections

@@ -9,7 +9,7 @@
 
 setup_test_dir() {
   local name="$1"
-  local dir="${TEST_TEMP_DIR:-/tmp}/speckit-test-${name}-$$"
+  local dir="${TEST_TEMP_DIR:-/tmp}/specflow-test-${name}-$$"
   mkdir -p "$dir"
   echo "$dir"
 }

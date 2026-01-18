@@ -119,7 +119,7 @@ Provide rich project detail views with multiple visualization modes, enabling de
 ```
 
 ### State Management
-- View preference: localStorage (`speckit-view-preference-{projectId}`)
+- View preference: localStorage (`specflow-view-preference-{projectId}`)
 - Project data: From `useConnection()` context (SSE)
 - Tasks data: Fetched via API, cached locally
 
@@ -156,11 +156,11 @@ Provide rich project detail views with multiple visualization modes, enabling de
 
 ### E1: Project Without State File
 - Show empty state with message
-- Suggest running `speckit init` in project
+- Suggest running `specflow init` in project
 
 ### E2: Project Without Tasks
 - Kanban view shows empty columns
-- Message: "No tasks found. Run /speckit.tasks to generate."
+- Message: "No tasks found. Run /specflow.tasks to generate."
 
 ### E3: Invalid Project ID
 - Return 404 page

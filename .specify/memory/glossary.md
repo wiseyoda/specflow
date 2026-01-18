@@ -1,6 +1,6 @@
 # Glossary
 
-> Domain terminology, artifact types, and SpecKit-specific concepts.
+> Domain terminology, artifact types, and SpecFlow-specific concepts.
 
 **Last Updated**: 2026-01-11
 
@@ -12,7 +12,7 @@
 |------|------------|
 | **SDD** | Spec-Driven Development - methodology prioritizing specification before implementation |
 | **Phase** | A discrete feature/deliverable in the roadmap, numbered using ABBC format (0010, 0020, 0021) |
-| **Orchestration** | Automated execution of the full SpecKit workflow (discover → verify, 9 steps) |
+| **Orchestration** | Automated execution of the full SpecFlow workflow (discover → verify, 9 steps) |
 | **Memory Documents** | Project-level docs capturing decisions and principles in `.specify/memory/` |
 | **Discovery** | Codebase examination and clarifying questions BEFORE writing specs |
 
@@ -78,34 +78,34 @@
 ### Slash Commands (Claude Code)
 | Command | Purpose |
 |---------|---------|
-| `/speckit.start` | Smart entry point |
-| `/speckit.init` | Requirements interview |
-| `/speckit.orchestrate` | Full automated workflow (9 steps, `--no-discovery` to skip) |
-| `/speckit.specify` | Create specification |
-| `/speckit.clarify` | Resolve spec ambiguities |
-| `/speckit.plan` | Create technical plan |
-| `/speckit.tasks` | Generate task list |
-| `/speckit.analyze` | Cross-artifact consistency |
-| `/speckit.checklist` | Create verification checklist |
-| `/speckit.implement` | Execute tasks |
-| `/speckit.verify` | Verify completion |
-| `/speckit.merge` | Complete phase (push, PR, merge) |
-| `/speckit.backlog` | Triage backlog items |
-| `/speckit.memory` | Verify/reconcile memory docs |
-| `/speckit.memory-init` | Generate memory docs from codebase |
+| `/specflow.start` | Smart entry point |
+| `/specflow.init` | Requirements interview |
+| `/specflow.orchestrate` | Full automated workflow (9 steps, `--no-discovery` to skip) |
+| `/specflow.specify` | Create specification |
+| `/specflow.clarify` | Resolve spec ambiguities |
+| `/specflow.plan` | Create technical plan |
+| `/specflow.tasks` | Generate task list |
+| `/specflow.analyze` | Cross-artifact consistency |
+| `/specflow.checklist` | Create verification checklist |
+| `/specflow.implement` | Execute tasks |
+| `/specflow.verify` | Verify completion |
+| `/specflow.merge` | Complete phase (push, PR, merge) |
+| `/specflow.backlog` | Triage backlog items |
+| `/specflow.memory` | Verify/reconcile memory docs |
+| `/specflow.memory-init` | Generate memory docs from codebase |
 
 ### CLI Commands (Terminal)
 | Command | Purpose |
 |---------|---------|
-| `speckit scaffold` | Create project structure |
-| `speckit state` | State management |
-| `speckit roadmap` | ROADMAP operations (status, insert, defer, restore) |
-| `speckit tasks` | Task operations (mark, status) |
-| `speckit context` | Show project context |
-| `speckit doctor` | Run diagnostics (shows suggested fix commands) |
-| `speckit gate` | Validation gates (specify, plan, tasks, implement) |
-| `speckit lessons` | Lessons learned tracking |
-| `speckit memory` | Memory document operations |
+| `specflow scaffold` | Create project structure |
+| `specflow state` | State management |
+| `specflow roadmap` | ROADMAP operations (status, insert, defer, restore) |
+| `specflow tasks` | Task operations (mark, status) |
+| `specflow context` | Show project context |
+| `specflow doctor` | Run diagnostics (shows suggested fix commands) |
+| `specflow gate` | Validation gates (specify, plan, tasks, implement) |
+| `specflow lessons` | Lessons learned tracking |
+| `specflow memory` | Memory document operations |
 
 ---
 

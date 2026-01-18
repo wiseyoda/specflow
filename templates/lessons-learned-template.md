@@ -131,15 +131,15 @@ Examples:
 This file should be:
 1. **Checked BEFORE starting implementation tasks** - Agents should scan for relevant entries
 2. **Updated AFTER encountering issues** - Add entries when problems are solved
-3. **Reviewed at phase completion** - During `/speckit.verify`, add any new learnings
+3. **Reviewed at phase completion** - During `/specflow.verify`, add any new learnings
 
 ### Adding Entries
 
 ```bash
 # CLI command (if available)
-speckit lessons add --type error "Brief description"
-speckit lessons add --type decision "Brief description"
-speckit lessons add --type gotcha "Technology" "Issue" "Workaround"
+specflow lessons add --type error "Brief description"
+specflow lessons add --type decision "Brief description"
+specflow lessons add --type gotcha "Technology" "Issue" "Workaround"
 
 # Or manually edit this file
 ```
@@ -148,7 +148,7 @@ speckit lessons add --type gotcha "Technology" "Issue" "Workaround"
 
 ```bash
 # CLI command (if available)
-speckit lessons check "keyword"
+specflow lessons check "keyword"
 
 # Or use grep
 grep -i "keyword" lessons-learned.md

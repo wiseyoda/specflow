@@ -1,7 +1,7 @@
-# PDR: SpecKit UX Simplification
+# PDR: SpecFlow UX Simplification
 
 <!--
-  This PDR captures the product requirements for simplifying the SpecKit user experience
+  This PDR captures the product requirements for simplifying the SpecFlow user experience
   based on comprehensive workflow analysis conducted 2026-01-11.
 -->
 
@@ -16,7 +16,7 @@
 
 ## Problem Statement
 
-**The Problem**: SpecKit has accumulated complexity through organic growth. Users face confusion about which commands to use, encounter orphaned/duplicate code, and navigate overlapping functionality. The cognitive load of learning the system is higher than necessary.
+**The Problem**: SpecFlow has accumulated complexity through organic growth. Users face confusion about which commands to use, encounter orphaned/duplicate code, and navigate overlapping functionality. The cognitive load of learning the system is higher than necessary.
 
 **Who is affected**:
 - New users trying to onboard
@@ -32,7 +32,7 @@
 ## Desired Outcome
 
 **After this feature ships, users will be able to**:
-- Start any SpecKit workflow with a single entry point (`/speckit.start`)
+- Start any SpecFlow workflow with a single entry point (`/specflow.start`)
 - Use CLI commands directly without needing slash command wrappers for simple operations
 - Navigate a cleaner codebase without orphaned or duplicate scripts
 - Understand memory management through a single unified command
@@ -44,8 +44,8 @@
 ## User Stories
 
 ### Story 1: Single Entry Point
-**As a** SpecKit user,
-**I want to** always start with `/speckit.start` and have it route me correctly,
+**As a** SpecFlow user,
+**I want to** always start with `/specflow.start` and have it route me correctly,
 **So that** I don't need to remember which command to use for my current situation.
 
 **Value**: Eliminates the "which command do I run?" mental overhead.
@@ -54,7 +54,7 @@
 
 ### Story 2: Direct CLI for Simple Operations
 **As a** developer working in my terminal,
-**I want to** run `speckit issue create "bug description"` directly,
+**I want to** run `specflow issue create "bug description"` directly,
 **So that** I don't need a slash command wrapper for straightforward CLI operations.
 
 **Value**: Reduces indirection, faster execution, matches developer muscle memory.
@@ -63,8 +63,8 @@
 
 ### Story 3: Unified Memory Management
 **As a** user managing my project's memory documents,
-**I want to** use one command (`/speckit.memory`) with clear subcommands,
-**So that** I don't confuse `/speckit.memory` vs `/speckit.memory-init`.
+**I want to** use one command (`/specflow.memory`) with clear subcommands,
+**So that** I don't confuse `/specflow.memory` vs `/specflow.memory-init`.
 
 **Value**: Single mental model for all memory operations.
 
@@ -81,7 +81,7 @@
 
 ### Story 5: Filesystem-Derived State
 **As a** user resuming work after context loss,
-**I want to** have SpecKit figure out where I am from my files,
+**I want to** have SpecFlow figure out where I am from my files,
 **So that** state corruption doesn't block my progress.
 
 **Value**: Self-healing behavior, reduced "stuck" situations.
@@ -92,10 +92,10 @@
 
 | Criterion | Target | How We'll Measure |
 |-----------|--------|-------------------|
-| Entry point usage | 90%+ of sessions start with `/speckit.start` | Documentation recommends it, handoffs point to it |
+| Entry point usage | 90%+ of sessions start with `/specflow.start` | Documentation recommends it, handoffs point to it |
 | Command discoverability | User finds correct command within 1 attempt | Reduced "which command?" questions |
 | Codebase cleanliness | 0 orphaned scripts | All scripts in `scripts/bash/` are used |
-| Memory command clarity | Single `/speckit.memory` covers all needs | No confusion between memory commands |
+| Memory command clarity | Single `/specflow.memory` covers all needs | No confusion between memory commands |
 
 ---
 
@@ -145,19 +145,19 @@
    - `create-new-feature.sh`
    - Duplicate `common.sh`
 
-2. [ ] `/speckit.issue` slash command removed
+2. [ ] `/specflow.issue` slash command removed
    - CLI usage documented in CLAUDE.md instead
-   - `speckit issue` CLI remains fully functional
+   - `specflow issue` CLI remains fully functional
 
 3. [ ] Documentation comprehensively updated:
 
    **Primary Documentation**:
-   - [ ] `README.md` - Recommend `/speckit.start` as THE entry point
-   - [ ] `CLAUDE.md` - Update CLI reference, remove /speckit.issue mention
+   - [ ] `README.md` - Recommend `/specflow.start` as THE entry point
+   - [ ] `CLAUDE.md` - Update CLI reference, remove /specflow.issue mention
 
    **docs/ folder** (8 files):
    - [ ] `docs/cli-reference.md` - Update with current commands
-   - [ ] `docs/slash-commands.md` - Recommend /speckit.start, update command list
+   - [ ] `docs/slash-commands.md` - Recommend /specflow.start, update command list
    - [ ] `docs/integration-guide.md` - Update workflow examples
    - [ ] `docs/project-structure.md` - Verify accuracy
    - [ ] `docs/configuration.md` - Verify accuracy
@@ -166,37 +166,37 @@
    - [ ] `docs/COMMAND-AUDIT.md` - Update or archive if stale
 
    **CLI Help Text**:
-   - [ ] `bin/speckit` - Update help output to recommend `/speckit.start`
+   - [ ] `bin/specflow` - Update help output to recommend `/specflow.start`
 
    **Slash Command Handoffs** (10 commands with entry point references):
-   - [ ] `commands/speckit.start.md` - Already correct (is the entry point)
-   - [ ] `commands/speckit.init.md` - Add handoff to /speckit.start for "continue later"
-   - [ ] `commands/speckit.orchestrate.md` - Handoffs should mention /speckit.start
-   - [ ] `commands/speckit.verify.md` - Handoffs point to /speckit.start
-   - [ ] `commands/speckit.merge.md` - Handoffs point to /speckit.start
-   - [ ] `commands/speckit.backlog.md` - Handoffs point to /speckit.start
-   - [ ] `commands/speckit.review.md` - Handoffs point to /speckit.start
-   - [ ] `commands/speckit.roadmap.md` - Handoffs point to /speckit.start
-   - [ ] `commands/speckit.constitution.md` - Handoffs point to /speckit.start
-   - [ ] `commands/speckit.phase.md` - Handoffs point to /speckit.start
-   - [ ] `commands/speckit.issue.md` - DELETE (replaced by CLI docs)
+   - [ ] `commands/specflow.start.md` - Already correct (is the entry point)
+   - [ ] `commands/specflow.init.md` - Add handoff to /specflow.start for "continue later"
+   - [ ] `commands/specflow.orchestrate.md` - Handoffs should mention /specflow.start
+   - [ ] `commands/specflow.verify.md` - Handoffs point to /specflow.start
+   - [ ] `commands/specflow.merge.md` - Handoffs point to /specflow.start
+   - [ ] `commands/specflow.backlog.md` - Handoffs point to /specflow.start
+   - [ ] `commands/specflow.review.md` - Handoffs point to /specflow.start
+   - [ ] `commands/specflow.roadmap.md` - Handoffs point to /specflow.start
+   - [ ] `commands/specflow.constitution.md` - Handoffs point to /specflow.start
+   - [ ] `commands/specflow.phase.md` - Handoffs point to /specflow.start
+   - [ ] `commands/specflow.issue.md` - DELETE (replaced by CLI docs)
 
 ### Short-term Actions (Should complete)
 
 4. [ ] Memory commands consolidated:
-   - `/speckit.memory` handles verify/reconcile (current)
-   - `/speckit.memory generate` handles codebase analysis (was `memory-init`)
-   - `/speckit.memory-init` deprecated with pointer to new command
+   - `/specflow.memory` handles verify/reconcile (current)
+   - `/specflow.memory generate` handles codebase analysis (was `memory-init`)
+   - `/specflow.memory-init` deprecated with pointer to new command
 
 5. [ ] State tracking simplified:
    - Orchestration derives step completion from filesystem artifacts
    - State file tracks: current phase, blockers, user gates only
-   - `speckit status --json` reports derived state
+   - `specflow status --json` reports derived state
 
 6. [ ] Entry point consolidation:
-   - `/speckit.start` documented as THE way to begin
-   - Handoffs from other commands point to `/speckit.start`
-   - `/speckit.init` and `/speckit.orchestrate` still work but are "advanced"
+   - `/specflow.start` documented as THE way to begin
+   - Handoffs from other commands point to `/specflow.start`
+   - `/specflow.init` and `/specflow.orchestrate` still work but are "advanced"
 
 ### Consider Later (Nice to have)
 
@@ -219,7 +219,7 @@
 **Slash Commands**: 21 total
 - Essential workflow: 15 commands
 - Potential consolidation: 2 commands (memory-init → memory)
-- Remove wrapper: 1 command (/speckit.issue)
+- Remove wrapper: 1 command (/specflow.issue)
 
 **CLI Commands**: 23 total
 - All actively used in workflow or support functions
@@ -235,8 +235,8 @@
 
 The main workflow is sound:
 ```
-/speckit.start → /speckit.init (or orchestrate) → specify → clarify →
-plan → tasks → analyze → checklist → implement → verify → /speckit.merge
+/specflow.start → /specflow.init (or orchestrate) → specify → clarify →
+plan → tasks → analyze → checklist → implement → verify → /specflow.merge
 ```
 
 The complexity issues are at the edges:
@@ -248,7 +248,7 @@ The complexity issues are at the edges:
 ### Risk Assessment
 
 - **Low Risk**: Deleting orphaned scripts (not used)
-- **Low Risk**: Removing /speckit.issue (CLI works directly)
+- **Low Risk**: Removing /specflow.issue (CLI works directly)
 - **Medium Risk**: Memory command consolidation (users may have muscle memory)
 - **Low Risk**: Documentation updates (always safe)
 - **Medium Risk**: State simplification (must preserve recovery capabilities)

@@ -2,7 +2,7 @@
 #
 # Test Suite: Checklist Operations
 #
-# Tests for speckit checklist commands:
+# Tests for specflow checklist commands:
 #   - status, list, incomplete, show
 #
 
@@ -25,7 +25,7 @@ test_checklist_status() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-checklist.sh" status specs/001-feature/checklists 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-checklist.sh" status specs/001-feature/checklists 2>&1)
 
   assert_contains "$output" "2 / 4" "Shows 2 completed of 4"
   assert_contains "$output" "50%" "Shows 50% completion"
@@ -42,7 +42,7 @@ test_checklist_status_json() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-checklist.sh" status specs/001-feature/checklists --json)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-checklist.sh" status specs/001-feature/checklists --json)
 
   echo "$output" | jq '.' >/dev/null 2>&1
   assert_equals "0" "$?" "JSON output is valid"
@@ -67,7 +67,7 @@ EOF
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-checklist.sh" list specs/001-feature/checklists 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-checklist.sh" list specs/001-feature/checklists 2>&1)
 
   assert_contains "$output" "security.md" "Shows security checklist"
   assert_contains "$output" "testing.md" "Shows testing checklist"
@@ -85,7 +85,7 @@ test_checklist_incomplete() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-checklist.sh" incomplete specs/001-feature/checklists 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-checklist.sh" incomplete specs/001-feature/checklists 2>&1)
 
   assert_contains "$output" "Incomplete item one" "Shows first incomplete"
   assert_contains "$output" "Incomplete item two" "Shows second incomplete"
@@ -100,7 +100,7 @@ test_checklist_incomplete_json() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-checklist.sh" incomplete specs/001-feature/checklists --json)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-checklist.sh" incomplete specs/001-feature/checklists --json)
 
   echo "$output" | jq '.' >/dev/null 2>&1
   assert_equals "0" "$?" "JSON output is valid"
@@ -121,7 +121,7 @@ test_checklist_show() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-checklist.sh" show specs/001-feature/checklists/mylist.md 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-checklist.sh" show specs/001-feature/checklists/mylist.md 2>&1)
 
   assert_contains "$output" "2/3" "Shows 2 of 3 completed"
 }
@@ -136,7 +136,7 @@ test_checklist_show_json() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-checklist.sh" show specs/001-feature/checklists/items.md --json)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-checklist.sh" show specs/001-feature/checklists/items.md --json)
 
   echo "$output" | jq '.' >/dev/null 2>&1
   assert_equals "0" "$?" "JSON output is valid"
@@ -155,7 +155,7 @@ test_checklist_all_complete() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-checklist.sh" incomplete specs/001-feature/checklists 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-checklist.sh" incomplete specs/001-feature/checklists 2>&1)
 
   assert_contains "$output" "All checklist items complete" "Shows all complete message"
 }
@@ -166,14 +166,14 @@ test_checklist_no_files() {
 
   # Empty directory, no checklist files
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-checklist.sh" status specs/001-feature/checklists 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-checklist.sh" status specs/001-feature/checklists 2>&1)
 
   assert_contains "$output" "No checklists found" "Shows no checklists message"
 }
 
 test_checklist_help() {
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-checklist.sh" --help)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-checklist.sh" --help)
 
   assert_contains "$output" "checklist" "Help shows command name"
   assert_contains "$output" "status" "Help shows status command"

@@ -1,6 +1,6 @@
 # State Hardening Plan
 
-> Ensure SpecKit CLI and Claude commands properly update orchestration state for dashboard visibility.
+> Ensure SpecFlow CLI and Claude commands properly update orchestration state for dashboard visibility.
 
 ## Executive Summary
 
@@ -17,7 +17,7 @@ This plan addresses all gaps with minimal token overhead.
 ## Part 1: Task In-Progress Tracking (Batch Mode)
 
 ### Current Behavior
-- `speckit tasks mark T###` marks task complete (checkbox `[X]`)
+- `specflow tasks mark T###` marks task complete (checkbox `[X]`)
 - No intermediate state - dashboard only sees "todo" or "done"
 - Tasks worked in batches, marked in batches
 
@@ -28,11 +28,11 @@ This plan addresses all gaps with minimal token overhead.
 
 ### Changes Required
 
-#### 1.1 Add `speckit tasks start` command
-**File**: `scripts/bash/speckit-tasks.sh`
+#### 1.1 Add `specflow tasks start` command
+**File**: `scripts/bash/specflow-tasks.sh`
 
 ```bash
-# New command: speckit tasks start <id>... [--section <name>]
+# New command: specflow tasks start <id>... [--section <name>]
 # Marks task(s) as "in progress" in state (not in tasks.md)
 
 # Store in state:
@@ -53,33 +53,33 @@ This plan addresses all gaps with minimal token overhead.
 }
 ```
 
-#### 1.2 Update `speckit tasks mark` to clear in_progress
-**File**: `scripts/bash/speckit-tasks.sh`
+#### 1.2 Update `specflow tasks mark` to clear in_progress
+**File**: `scripts/bash/specflow-tasks.sh`
 
 When marking a task complete:
 1. Mark checkbox in tasks.md (existing)
 2. Update counts in state (existing)
 3. Remove from `current_tasks` array if present (new)
 
-#### 1.3 Add `speckit tasks working` command
-**File**: `scripts/bash/speckit-tasks.sh`
+#### 1.3 Add `specflow tasks working` command
+**File**: `scripts/bash/specflow-tasks.sh`
 
 ```bash
 # Show currently in-progress tasks
-speckit tasks working --json
+specflow tasks working --json
 # Returns: { "tasks": ["T001", "T002"], "section": "Setup", "started_at": "..." }
 ```
 
 #### 1.4 Update implement.md to use batch tracking
-**File**: `commands/speckit.implement.md`
+**File**: `commands/specflow.implement.md`
 
 Add to step 6 (Execute implementation):
 ```bash
 # Before starting a task section
-speckit tasks start T001 T002 T003 --section "Setup"
+specflow tasks start T001 T002 T003 --section "Setup"
 
 # After completing section
-speckit tasks mark T001 T002 T003
+specflow tasks mark T001 T002 T003
 ```
 
 ### Dashboard Integration
@@ -107,43 +107,43 @@ speckit tasks mark T001 T002 T003
 #### 2.1 Add state update blocks to each command
 
 **Files to modify**:
-- `commands/speckit.specify.md`
-- `commands/speckit.clarify.md`
-- `commands/speckit.plan.md`
-- `commands/speckit.tasks.md`
-- `commands/speckit.checklist.md`
-- `commands/speckit.implement.md`
-- `commands/speckit.verify.md`
+- `commands/specflow.specify.md`
+- `commands/specflow.clarify.md`
+- `commands/specflow.plan.md`
+- `commands/specflow.tasks.md`
+- `commands/specflow.checklist.md`
+- `commands/specflow.implement.md`
+- `commands/specflow.verify.md`
 
 **Pattern to add at START of each command**:
 ```bash
 # === STATE: Mark step in_progress ===
-speckit state set "orchestration.step.current={step_name}"
-speckit state set "orchestration.step.status=in_progress"
+specflow state set "orchestration.step.current={step_name}"
+specflow state set "orchestration.step.status=in_progress"
 ```
 
 **Pattern to add at END of each command (before handoff)**:
 ```bash
 # === STATE: Mark step complete ===
-speckit state set "orchestration.step.status=complete"
+specflow state set "orchestration.step.status=complete"
 ```
 
 #### 2.2 Specific command mappings
 
 | Command | step.current | step.index |
 |---------|--------------|------------|
-| speckit.specify | specify | 1 |
-| speckit.clarify | clarify | 2 |
-| speckit.plan | plan | 3 |
-| speckit.tasks | tasks | 4 |
-| speckit.analyze | analyze | 5 |
-| speckit.checklist | checklist | 6 |
-| speckit.implement | implement | 7 |
-| speckit.verify | verify | 8 |
+| specflow.specify | specify | 1 |
+| specflow.clarify | clarify | 2 |
+| specflow.plan | plan | 3 |
+| specflow.tasks | tasks | 4 |
+| specflow.analyze | analyze | 5 |
+| specflow.checklist | checklist | 6 |
+| specflow.implement | implement | 7 |
+| specflow.verify | verify | 8 |
 
 #### 2.3 Update orchestrate.md to not duplicate
 
-**File**: `commands/speckit.orchestrate.md`
+**File**: `commands/specflow.orchestrate.md`
 
 Since commands now self-manage state:
 - Remove state updates BEFORE calling each step (commands handle it)
@@ -152,12 +152,12 @@ Since commands now self-manage state:
 
 ```bash
 # After specify completes, advance index only
-speckit state set "orchestration.step.index=2"
+specflow state set "orchestration.step.index=2"
 # (specify.md already set status=complete)
 ```
 
 ### Token Cost Analysis
-- 2 additional `speckit state set` calls per step: ~50 tokens each
+- 2 additional `specflow state set` calls per step: ~50 tokens each
 - 9 steps × 2 calls × 50 tokens = ~900 tokens per full workflow
 - Acceptable overhead for real-time visibility
 
@@ -166,7 +166,7 @@ speckit state set "orchestration.step.index=2"
 ## Part 3: Post-Merge State Updates
 
 ### Current Behavior
-- `speckit.merge` archives state and deletes branch
+- `specflow.merge` archives state and deletes branch
 - After branch deletion, state file may not persist properly
 - Dashboard shows stale data when on main branch
 
@@ -178,7 +178,7 @@ speckit state set "orchestration.step.index=2"
 ### Changes Required
 
 #### 3.1 Reorder merge.md operations
-**File**: `commands/speckit.merge.md`
+**File**: `commands/specflow.merge.md`
 
 Current order:
 1. Push branch
@@ -196,17 +196,17 @@ New order:
 6. Update ROADMAP
 
 #### 3.2 Add pre-merge state update
-**File**: `commands/speckit.merge.md`
+**File**: `commands/specflow.merge.md`
 
 Add before step 2 (Git Push):
 ```bash
 # === STATE: Record phase completion before merge ===
 # Get current values for history entry
-PHASE_NUMBER=$(speckit state get orchestration.phase.number)
-PHASE_NAME=$(speckit state get orchestration.phase.name)
-BRANCH=$(speckit state get orchestration.phase.branch)
-TASKS_COMPLETED=$(speckit state get orchestration.steps.implement.tasks_completed)
-TASKS_TOTAL=$(speckit state get orchestration.steps.implement.tasks_total)
+PHASE_NUMBER=$(specflow state get orchestration.phase.number)
+PHASE_NAME=$(specflow state get orchestration.phase.name)
+BRANCH=$(specflow state get orchestration.phase.branch)
+TASKS_COMPLETED=$(specflow state get orchestration.steps.implement.tasks_completed)
+TASKS_TOTAL=$(specflow state get orchestration.steps.implement.tasks_total)
 
 # Create history entry JSON
 HISTORY_ENTRY=$(cat <<EOF
@@ -223,12 +223,12 @@ EOF
 )
 
 # Append to history (via CLI or direct jq)
-speckit state set "actions.history[+]=$HISTORY_ENTRY"
+specflow state set "actions.history[+]=$HISTORY_ENTRY"
 
 # Mark phase complete
-speckit state set "orchestration.phase.status=complete"
-speckit state set "orchestration.step.current=complete"
-speckit state set "orchestration.step.status=complete"
+specflow state set "orchestration.phase.status=complete"
+specflow state set "orchestration.step.current=complete"
+specflow state set "orchestration.step.status=complete"
 
 # Commit state update
 git add .specify/orchestration-state.json
@@ -236,18 +236,18 @@ git commit -m "chore: record phase $PHASE_NUMBER completion"
 ```
 
 #### 3.3 Ensure state file is in git
-**Files**: `.gitignore`, `speckit.init.md`
+**Files**: `.gitignore`, `specflow.init.md`
 
 Verify `.specify/orchestration-state.json` is NOT in .gitignore
 (It should be tracked so state persists across branches)
 
-#### 3.4 Update `speckit state archive` to be idempotent
-**File**: `scripts/bash/speckit-state.sh`
+#### 3.4 Update `specflow state archive` to be idempotent
+**File**: `scripts/bash/specflow-state.sh`
 
 Make archive command safe to run multiple times:
 ```bash
 # Check if already archived (phase.status == complete)
-if [[ "$(speckit state get orchestration.phase.status)" == "complete" ]]; then
+if [[ "$(specflow state get orchestration.phase.status)" == "complete" ]]; then
   log_info "Phase already archived"
   return 0
 fi
@@ -258,7 +258,7 @@ fi
 ## Part 4: Verify Step Updates
 
 ### Current Behavior
-- `speckit.verify` updates ROADMAP but may not update state correctly
+- `specflow.verify` updates ROADMAP but may not update state correctly
 - USER GATE phases set `awaiting_user_gate` but dashboard might not show it
 
 ### Target Behavior
@@ -269,24 +269,24 @@ fi
 ### Changes Required
 
 #### 4.1 Add explicit state updates to verify.md
-**File**: `commands/speckit.verify.md`
+**File**: `commands/specflow.verify.md`
 
 At START:
 ```bash
-speckit state set "orchestration.step.current=verify"
-speckit state set "orchestration.step.status=in_progress"
+specflow state set "orchestration.step.current=verify"
+specflow state set "orchestration.step.status=in_progress"
 ```
 
 For USER GATE phases:
 ```bash
-speckit state set "orchestration.phase.status=awaiting_user_gate"
-speckit state set "orchestration.step.status=awaiting_user"
+specflow state set "orchestration.phase.status=awaiting_user_gate"
+specflow state set "orchestration.step.status=awaiting_user"
 ```
 
 For non-USER GATE phases:
 ```bash
-speckit state set "orchestration.phase.status=verified"
-speckit state set "orchestration.step.status=complete"
+specflow state set "orchestration.phase.status=verified"
+specflow state set "orchestration.step.status=complete"
 ```
 
 #### 4.2 Add verification status to dashboard
@@ -300,22 +300,22 @@ Add to phase status enum: `"verified"`, `"awaiting_user_gate"`
 
 ### New CLI commands to support state hardening
 
-#### 5.1 `speckit state touch`
-**File**: `scripts/bash/speckit-state.sh`
+#### 5.1 `specflow state touch`
+**File**: `scripts/bash/specflow-state.sh`
 
 ```bash
 # Update last_updated timestamp
-speckit state touch
+specflow state touch
 ```
 Already exists in json.sh as `state_touch` - ensure exposed via CLI.
 
-#### 5.2 `speckit tasks start`
-**File**: `scripts/bash/speckit-tasks.sh`
+#### 5.2 `specflow tasks start`
+**File**: `scripts/bash/specflow-tasks.sh`
 
 New command for batch tracking (detailed in Part 1).
 
-#### 5.3 `speckit tasks working`
-**File**: `scripts/bash/speckit-tasks.sh`
+#### 5.3 `specflow tasks working`
+**File**: `scripts/bash/specflow-tasks.sh`
 
 Query current in-progress tasks (detailed in Part 1).
 
@@ -361,7 +361,7 @@ When parsing tasks, check if task ID is in `state.orchestration.implement.curren
 ## Implementation Order
 
 ### Phase 1: Foundation (Low Risk)
-1. Add `speckit tasks start` and `speckit tasks working` commands
+1. Add `specflow tasks start` and `specflow tasks working` commands
 2. Update state schema with `implement.current_tasks`
 3. Add `failed` status support to schema and CLI
 4. Update dashboard types and task parser
@@ -375,12 +375,12 @@ When parsing tasks, check if task ID is in `state.orchestration.implement.curren
 ### Phase 3: Merge Flow (Higher Risk)
 9. Reorder merge.md operations
 10. Add pre-merge state recording
-11. Make `speckit state archive` idempotent
+11. Make `specflow state archive` idempotent
 12. Test full merge workflow
 
 ### Phase 4: Self-Healing
 13. Add staleness detection to commands
-14. Add `--auto-heal` to `speckit status`
+14. Add `--auto-heal` to `specflow status`
 15. Add dashboard stale state indicator
 
 ### Phase 5: Polish
@@ -394,14 +394,14 @@ When parsing tasks, check if task ID is in `state.orchestration.implement.curren
 ## Testing Checklist
 
 ### Task Tracking
-- [ ] `speckit tasks start T001 T002` updates state.implement.current_tasks
-- [ ] `speckit tasks mark T001` removes T001 from current_tasks
-- [ ] `speckit tasks working` shows current batch
+- [ ] `specflow tasks start T001 T002` updates state.implement.current_tasks
+- [ ] `specflow tasks mark T001` removes T001 from current_tasks
+- [ ] `specflow tasks working` shows current batch
 - [ ] Dashboard shows tasks as "in_progress"
 
 ### Step Updates
-- [ ] Running `/speckit.specify` alone updates step state
-- [ ] Running `/speckit.orchestrate` doesn't double-update
+- [ ] Running `/specflow.specify` alone updates step state
+- [ ] Running `/specflow.orchestrate` doesn't double-update
 - [ ] State reflects current step during execution
 - [ ] State shows complete after step finishes
 
@@ -419,7 +419,7 @@ When parsing tasks, check if task ID is in `state.orchestration.implement.curren
 
 ### Self-Healing
 - [ ] Commands detect stale state and auto-infer
-- [ ] `speckit status --auto-heal` fixes inconsistencies
+- [ ] `specflow status --auto-heal` fixes inconsistencies
 - [ ] Dashboard shows "state may be outdated" when stale
 
 ### Edge Cases
@@ -433,8 +433,8 @@ When parsing tasks, check if task ID is in `state.orchestration.implement.curren
 ## Part 7: Self-Healing State Inference
 
 ### Current Behavior
-- `speckit state infer` exists but must be run manually
-- Stale state requires explicit `speckit doctor --fix`
+- `specflow state infer` exists but must be run manually
+- Stale state requires explicit `specflow doctor --fix`
 
 ### Target Behavior
 - Commands auto-detect stale state and self-correct
@@ -446,21 +446,21 @@ When parsing tasks, check if task ID is in `state.orchestration.implement.curren
 **Pattern for each command**:
 ```bash
 # At start of command, check if state matches reality
-CURRENT_STEP=$(speckit state get orchestration.step.current)
+CURRENT_STEP=$(specflow state get orchestration.step.current)
 EXPECTED_ARTIFACTS_EXIST=true  # Check based on step
 
 # If state says we're past this step but artifacts are missing, infer
 if [[ "$CURRENT_STEP" != "{this_step}" ]]; then
   # Check if we should even be running this step
-  speckit state infer --apply 2>/dev/null || true
+  specflow state infer --apply 2>/dev/null || true
 fi
 ```
 
-#### 7.2 Add `--auto-heal` flag to `speckit status`
-**File**: `scripts/bash/speckit-status.sh`
+#### 7.2 Add `--auto-heal` flag to `specflow status`
+**File**: `scripts/bash/specflow-status.sh`
 
 ```bash
-speckit status --auto-heal
+specflow status --auto-heal
 # If inconsistencies detected, auto-run infer
 ```
 
@@ -503,12 +503,12 @@ When stale detected, dashboard could show "State may be outdated" indicator.
 set -e  # Exit on error
 
 # Trap errors
-trap 'speckit state set "orchestration.step.status=failed"; exit 1' ERR
+trap 'specflow state set "orchestration.step.status=failed"; exit 1' ERR
 
 # ... command logic ...
 
 # On success
-speckit state set "orchestration.step.status=complete"
+specflow state set "orchestration.step.status=complete"
 ```
 
 **Alternative (for Claude commands)**:
@@ -519,7 +519,7 @@ At end of command, add error recovery section:
 If any step above fails:
 1. Set step status to failed:
    ```bash
-   speckit state set "orchestration.step.status=failed"
+   specflow state set "orchestration.step.status=failed"
    ```
 2. Report the error clearly to the user
 3. Suggest recovery steps (retry, skip, manual fix)
@@ -545,12 +545,12 @@ if (step.status === 'failed') {
 ```
 
 #### 8.4 Add retry capability
-**File**: `commands/speckit.orchestrate.md`
+**File**: `commands/specflow.orchestrate.md`
 
 When resuming and step.status is `failed`:
 ```bash
 # Detect failed state
-if [[ "$(speckit state get orchestration.step.status)" == "failed" ]]; then
+if [[ "$(specflow state get orchestration.step.status)" == "failed" ]]; then
   echo "Previous step failed. Options:"
   echo "1. Retry the step"
   echo "2. Skip to next step"
@@ -577,20 +577,20 @@ This is <1% overhead on a typical phase with 50+ tasks.
 ## Files to Modify
 
 ### Scripts
-- `scripts/bash/speckit-tasks.sh` - Add start, working commands
-- `scripts/bash/speckit-state.sh` - Add touch exposure, archive idempotency
-- `scripts/bash/speckit-status.sh` - Add `--auto-heal` flag
+- `scripts/bash/specflow-tasks.sh` - Add start, working commands
+- `scripts/bash/specflow-state.sh` - Add touch exposure, archive idempotency
+- `scripts/bash/specflow-status.sh` - Add `--auto-heal` flag
 
 ### Commands
-- `commands/speckit.specify.md` - Add state updates + error handling
-- `commands/speckit.clarify.md` - Add state updates + error handling
-- `commands/speckit.plan.md` - Add state updates + error handling
-- `commands/speckit.tasks.md` - Add state updates + error handling
-- `commands/speckit.checklist.md` - Add state updates + error handling
-- `commands/speckit.implement.md` - Add batch tracking + error handling
-- `commands/speckit.verify.md` - Add state updates + error handling
-- `commands/speckit.merge.md` - Reorder, add pre-merge recording
-- `commands/speckit.orchestrate.md` - Remove duplicates, add failed state recovery
+- `commands/specflow.specify.md` - Add state updates + error handling
+- `commands/specflow.clarify.md` - Add state updates + error handling
+- `commands/specflow.plan.md` - Add state updates + error handling
+- `commands/specflow.tasks.md` - Add state updates + error handling
+- `commands/specflow.checklist.md` - Add state updates + error handling
+- `commands/specflow.implement.md` - Add batch tracking + error handling
+- `commands/specflow.verify.md` - Add state updates + error handling
+- `commands/specflow.merge.md` - Reorder, add pre-merge recording
+- `commands/specflow.orchestrate.md` - Remove duplicates, add failed state recovery
 
 ### Dashboard
 - `dashboard/lib/types.ts` - Add implement.current_tasks, failed status

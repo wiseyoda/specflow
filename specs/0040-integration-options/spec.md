@@ -3,29 +3,29 @@
 **Phase**: 0040
 **Status**: Draft
 **Created**: 2026-01-11
-**Author**: Claude (via /speckit.orchestrate)
+**Author**: Claude (via /specflow.orchestrate)
 
 ---
 
 ## Overview
 
-This phase enables SpecKit to support projects with existing documentation. Currently, SpecKit assumes a greenfield project where all documentation is created from scratch. Many real-world projects have existing ADRs (Architecture Decision Records), README files, API documentation, and other technical documentation that should be preserved and integrated rather than replaced.
+This phase enables SpecFlow to support projects with existing documentation. Currently, SpecFlow assumes a greenfield project where all documentation is created from scratch. Many real-world projects have existing ADRs (Architecture Decision Records), README files, API documentation, and other technical documentation that should be preserved and integrated rather than replaced.
 
-The goal is to detect existing documentation, offer integration options, and import relevant documents into the SpecKit structure without losing information.
+The goal is to detect existing documentation, offer integration options, and import relevant documents into the SpecFlow structure without losing information.
 
 ---
 
 ## Problem Statement
 
-**Current State**: SpecKit creates all documentation from scratch, ignoring existing project documentation.
+**Current State**: SpecFlow creates all documentation from scratch, ignoring existing project documentation.
 
 **Pain Points**:
-1. Projects with existing ADRs lose architectural context when adopting SpecKit
+1. Projects with existing ADRs lose architectural context when adopting SpecFlow
 2. Existing README, CONTRIBUTING, and other docs are not recognized
 3. No way to reference existing architecture documents from memory docs
 4. API documentation (OpenAPI, etc.) is not integrated
 
-**Desired State**: SpecKit detects and integrates existing documentation, preserving institutional knowledge while adding SpecKit's structured workflow.
+**Desired State**: SpecFlow detects and integrates existing documentation, preserving institutional knowledge while adding SpecFlow's structured workflow.
 
 ---
 
@@ -33,12 +33,12 @@ The goal is to detect existing documentation, offer integration options, and imp
 
 ### US1: Detect Existing Documentation
 
-**As a** developer adopting SpecKit on an existing project,
-**I want** SpecKit to detect my existing documentation,
+**As a** developer adopting SpecFlow on an existing project,
+**I want** SpecFlow to detect my existing documentation,
 **So that** I can see what's available before deciding what to import.
 
 **Acceptance Criteria**:
-- [ ] `speckit detect --docs` scans for common documentation patterns
+- [ ] `specflow detect --docs` scans for common documentation patterns
 - [ ] Detects: README.md, CONTRIBUTING.md, ARCHITECTURE.md, docs/, ADRs
 - [ ] Detects: OpenAPI/Swagger files (openapi.yaml, swagger.json)
 - [ ] Output shows found documents with their paths
@@ -47,11 +47,11 @@ The goal is to detect existing documentation, offer integration options, and imp
 ### US2: Import ADRs
 
 **As a** developer with existing Architecture Decision Records,
-**I want** to import my ADRs into SpecKit's memory structure,
+**I want** to import my ADRs into SpecFlow's memory structure,
 **So that** the AI understands past architectural decisions.
 
 **Acceptance Criteria**:
-- [ ] `speckit import adrs <path>` imports ADR files
+- [ ] `specflow import adrs <path>` imports ADR files
 - [ ] Preserves original ADR format and content
 - [ ] Creates `.specify/memory/adrs/` directory
 - [ ] Links ADRs in constitution.md or creates adr-index.md
@@ -61,18 +61,18 @@ The goal is to detect existing documentation, offer integration options, and imp
 ### US3: Reference Existing Architecture Docs
 
 **As a** developer with existing architecture documentation,
-**I want** to link it to SpecKit's memory documents,
+**I want** to link it to SpecFlow's memory documents,
 **So that** the AI can reference it during planning.
 
 **Acceptance Criteria**:
-- [ ] `speckit detect` identifies architecture-related documents
+- [ ] `specflow detect` identifies architecture-related documents
 - [ ] Offers to create references in tech-stack.md or constitution.md
 - [ ] References use relative paths from project root
 - [ ] Does not duplicate content, only references
 
 ### US4: Integration Guide
 
-**As a** developer new to SpecKit,
+**As a** developer new to SpecFlow,
 **I want** documentation explaining how to integrate existing docs,
 **So that** I can make informed decisions about migration.
 
@@ -87,8 +87,8 @@ The goal is to detect existing documentation, offer integration options, and imp
 ## Scope
 
 ### In Scope
-- `speckit detect --docs` enhancement for documentation discovery
-- `speckit import adrs <path>` command for ADR import
+- `specflow detect --docs` enhancement for documentation discovery
+- `specflow import adrs <path>` command for ADR import
 - Reference linking in memory documents
 - Integration documentation
 
@@ -131,7 +131,7 @@ ADR import should:
 All operations must:
 - Never modify original files
 - Support `--dry-run` for preview
-- Create backups before any changes to SpecKit files
+- Create backups before any changes to SpecFlow files
 
 ---
 
@@ -146,7 +146,7 @@ All operations must:
 
 ## Dependencies
 
-- Existing `speckit detect` command infrastructure
+- Existing `specflow detect` command infrastructure
 - Memory document structure (constitution.md, etc.)
 - CLI common library functions
 

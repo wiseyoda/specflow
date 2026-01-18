@@ -1,6 +1,6 @@
 # Tech Stack
 
-> Approved technologies and versions for SpecKit.
+> Approved technologies and versions for SpecFlow.
 
 **Last Updated**: 2026-01-12
 **Constitution Alignment**: Principles II (POSIX-Compliant Bash), III (CLI Over Direct Edits)
@@ -71,16 +71,16 @@
 ## File Conventions
 
 ### CLI (Core)
-- **Scripts**: `scripts/bash/speckit-*.sh`
+- **Scripts**: `scripts/bash/specflow-*.sh`
 - **Libraries**: `scripts/bash/lib/*.sh`
 - **Templates**: `templates/*.md`, `templates/*.yaml`
-- **Commands**: `commands/speckit.*.md`
+- **Commands**: `commands/specflow.*.md`
 
 ### Web Dashboard (Milestone 1)
 - **Dashboard app**: `packages/dashboard/` (Next.js app)
 - **Shared types**: `packages/shared/` (TypeScript types)
-- **Database**: `~/.speckit/speckit.db` (SQLite)
-- **Agent logs**: `~/.speckit/agent-logs/` (session history)
+- **Database**: `~/.specflow/specflow.db` (SQLite)
+- **Agent logs**: `~/.specflow/agent-logs/` (session history)
 
 ---
 
@@ -106,7 +106,7 @@
 | Pattern | Reason | Alternative |
 |---------|--------|-------------|
 | Non-POSIX bash features | Portability | Use POSIX-compliant syntax |
-| Direct JSON file edits | Consistency | Use `speckit state set` CLI |
+| Direct JSON file edits | Consistency | Use `specflow state set` CLI |
 | Hardcoded paths | Portability | Use `get_*` functions from common.sh |
 | Silent failures | Debuggability | Always log errors with context |
 

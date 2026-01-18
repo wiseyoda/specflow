@@ -9,30 +9,30 @@
 
 ## Deprecation Stubs
 
-### V-100: `/speckit.start` Deprecation
+### V-100: `/specflow.start` Deprecation
 
-- [x] V-101: File `commands/speckit.start.md` exists and is <50 lines (29 lines)
-- [x] V-102: Running `/speckit.start` displays deprecation notice
-- [x] V-103: Deprecation notice mentions `/speckit.orchestrate` as replacement
+- [x] V-101: File `commands/specflow.start.md` exists and is <50 lines (29 lines)
+- [x] V-102: Running `/specflow.start` displays deprecation notice
+- [x] V-103: Deprecation notice mentions `/specflow.orchestrate` as replacement
 - [x] V-104: File has `description: DEPRECATED` in frontmatter
 
-### V-200: `/speckit.constitution` Deprecation
+### V-200: `/specflow.constitution` Deprecation
 
-- [x] V-201: File `commands/speckit.constitution.md` exists and is <50 lines (32 lines)
-- [x] V-202: Running `/speckit.constitution` displays deprecation notice
-- [x] V-203: Deprecation notice mentions `/speckit.init` as replacement
+- [x] V-201: File `commands/specflow.constitution.md` exists and is <50 lines (32 lines)
+- [x] V-202: Running `/specflow.constitution` displays deprecation notice
+- [x] V-203: Deprecation notice mentions `/specflow.init` as replacement
 - [x] V-204: File has `description: DEPRECATED` in frontmatter
 
-### V-300: `/speckit.phase` Deprecation
+### V-300: `/specflow.phase` Deprecation
 
-- [x] V-301: File `commands/speckit.phase.md` exists and is <50 lines (32 lines)
-- [x] V-302: Running `/speckit.phase` displays deprecation notice
-- [x] V-303: Deprecation notice mentions `/speckit.roadmap add-pdr` as replacement
+- [x] V-301: File `commands/specflow.phase.md` exists and is <50 lines (32 lines)
+- [x] V-302: Running `/specflow.phase` displays deprecation notice
+- [x] V-303: Deprecation notice mentions `/specflow.roadmap add-pdr` as replacement
 - [x] V-304: File has `description: DEPRECATED` in frontmatter
 
-### V-400: `/speckit.memory-init` Deletion
+### V-400: `/specflow.memory-init` Deletion
 
-- [x] V-401: File `commands/speckit.memory-init.md` does NOT exist
+- [x] V-401: File `commands/specflow.memory-init.md` does NOT exist
 
 ---
 
@@ -40,7 +40,7 @@
 
 ### V-500: One-Command Setup Flow
 
-- [x] V-501: `/speckit.init` command includes `.specify/` structure creation
+- [x] V-501: `/specflow.init` command includes `.specify/` structure creation
 - [x] V-502: Interview artifacts step documented in `.specify/discovery/`
 - [x] V-503: Constitution step creates `.specify/memory/constitution.md`
 - [x] V-504: Memory docs step creates tech-stack.md, etc.
@@ -65,13 +65,13 @@
 
 ### V-800: Generate Subcommand Removed
 
-- [x] V-801: File `commands/speckit.memory.md` does NOT contain "## Generate Subcommand" section
+- [x] V-801: File `commands/specflow.memory.md` does NOT contain "## Generate Subcommand" section
 - [x] V-802: Argument routing table lists "generate" as DEPRECATED
-- [x] V-803: Generate Deprecation section shows helpful message about `/speckit.init`
+- [x] V-803: Generate Deprecation section shows helpful message about `/specflow.init`
 
 ### V-900: Existing Functions Preserved
 
-- [x] V-901: `/speckit.memory` (default) still runs verification flow
+- [x] V-901: `/specflow.memory` (default) still runs verification flow
 - [x] V-902: `--reconcile` flag still documented
 - [x] V-903: `--promote` flag still documented
 
@@ -111,7 +111,7 @@
 ### V-1400: Cross-References
 
 - [x] V-1401: No command file has handoff to deprecated command (verified with grep)
-- [x] V-1402: All 6 handoffs updated to use `speckit.orchestrate`
+- [x] V-1402: All 6 handoffs updated to use `specflow.orchestrate`
 
 ---
 
@@ -125,7 +125,7 @@
 
 ### SC-002: Single-Command Setup
 
-- [x] `/speckit.init` documented with full 4-step flow (discovery → constitution → memory → roadmap)
+- [x] `/specflow.init` documented with full 4-step flow (discovery → constitution → memory → roadmap)
 
 ### SC-003: Deprecation Guidance
 
@@ -140,9 +140,9 @@
 
 ### SC-005: No Functionality Lost
 
-- [x] Constitution creation available via `/speckit.init` (Step 2)
-- [x] Memory generation available via `/speckit.init` (Step 3)
-- [x] PDR conversion available via `/speckit.roadmap add-pdr`
+- [x] Constitution creation available via `/specflow.init` (Step 2)
+- [x] Memory generation available via `/specflow.init` (Step 3)
+- [x] PDR conversion available via `/specflow.roadmap add-pdr`
 - [x] Memory verify/reconcile/promote all preserved
 
 ---

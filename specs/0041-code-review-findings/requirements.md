@@ -8,45 +8,45 @@
 
 - [ ] **FR-BP001**: Remove unsafe eval() in check-prerequisites.sh:82
 - [ ] **FR-BP002**: Upgrade check-prerequisites.sh:22 to `set -euo pipefail`
-- [ ] **FR-BP003**: Remove jq debug leftover in speckit-state.sh:624
-- [ ] **FR-BP004**: Quote parameter expansion in speckit-context.sh:307
-- [ ] **FR-BP005**: Add comment for magic number in speckit-roadmap.sh:743
-- [ ] **FR-BP006**: Add input validation error check in speckit-feature.sh:71-80
+- [ ] **FR-BP003**: Remove jq debug leftover in specflow-state.sh:624
+- [ ] **FR-BP004**: Quote parameter expansion in specflow-context.sh:307
+- [ ] **FR-BP005**: Add comment for magic number in specflow-roadmap.sh:743
+- [ ] **FR-BP006**: Add input validation error check in specflow-feature.sh:71-80
 
 ## Refactoring (RF) - 7 items
 
 - [ ] **FR-RF001**: Extract cmd_migrate() (395 lines) and cmd_infer() (188 lines) into smaller functions
-- [ ] **FR-RF002**: Simplify registry clean in speckit-state.sh:604-645 to single jq approach
+- [ ] **FR-RF002**: Simplify registry clean in specflow-state.sh:604-645 to single jq approach
 - [ ] **FR-RF003**: Extract duplicate registry manipulation patterns to helpers
-- [ ] **FR-RF004**: Use state machine pattern for state inference in speckit-state.sh:1318
-- [ ] **FR-RF005**: Make scaffold path logic data-driven in speckit-scaffold.sh:770-957
+- [ ] **FR-RF004**: Use state machine pattern for state inference in specflow-state.sh:1318
+- [ ] **FR-RF005**: Make scaffold path logic data-driven in specflow-scaffold.sh:770-957
 - [ ] **FR-RF006**: Create shared validation lib for phase validation regex
-- [ ] **FR-RF007**: Add error handling on external commands in speckit-import.sh
+- [ ] **FR-RF007**: Add error handling on external commands in specflow-import.sh
 
 ## Hardening (HD) - 4 items
 
-- [ ] **FR-HD001**: Sanitize user input before jq/grep in speckit-state.sh, speckit-roadmap.sh
-- [ ] **FR-HD002**: Add trap cleanup for temp files in speckit-state.sh, speckit-roadmap.sh
-- [ ] **FR-HD003**: Add require_* checks for external dependencies in speckit-roadmap.sh
-- [ ] **FR-HD004**: Use grep -F or escape variables in speckit-roadmap.sh patterns
+- [ ] **FR-HD001**: Sanitize user input before jq/grep in specflow-state.sh, specflow-roadmap.sh
+- [ ] **FR-HD002**: Add trap cleanup for temp files in specflow-state.sh, specflow-roadmap.sh
+- [ ] **FR-HD003**: Add require_* checks for external dependencies in specflow-roadmap.sh
+- [ ] **FR-HD004**: Use grep -F or escape variables in specflow-roadmap.sh patterns
 
 ## Missing Features (MF) - 3 items
 
-- [ ] **FR-MF001**: Validate non-placeholder goals in speckit-roadmap.sh:626 insert mode
-- [ ] **FR-MF002**: Extend speckit-gate.sh:363 to support pytest, go test, bats
-- [ ] **FR-MF003**: Add backlog priority tracking/sorting to speckit-roadmap.sh:1156
+- [ ] **FR-MF001**: Validate non-placeholder goals in specflow-roadmap.sh:626 insert mode
+- [ ] **FR-MF002**: Extend specflow-gate.sh:363 to support pytest, go test, bats
+- [ ] **FR-MF003**: Add backlog priority tracking/sorting to specflow-roadmap.sh:1156
 
 ## Orphaned Code (OC) - 4 items
 
 - [ ] **FR-OC001**: Delete legacy check-prerequisites.sh (both instances)
-- [ ] **FR-OC002**: Update speckit.specify.md:57-60 from create-new-feature.sh to speckit feature create
+- [ ] **FR-OC002**: Update specflow.specify.md:57-60 from create-new-feature.sh to specflow feature create
 - [ ] **FR-OC003**: Remove legacy init-*.md references from CLAUDE.md:83
-- [ ] **FR-OC004**: Inline/delete unused helpers (escape_for_sed, today_date) in speckit-roadmap.sh
+- [ ] **FR-OC004**: Inline/delete unused helpers (escape_for_sed, today_date) in specflow-roadmap.sh
 
 ## Over-Engineering (OE) - 4 items
 
 - [ ] **FR-OE001**: (DEFERRED) Migrate phase data to JSON state - high effort architectural change
-- [ ] **FR-OE002**: (DEFERRED) Split speckit-state.sh into state.sh + registry.sh - high effort
+- [ ] **FR-OE002**: (DEFERRED) Split specflow-state.sh into state.sh + registry.sh - high effort
 - [ ] **FR-OE003**: Store status as text, convert to emoji for display only
 - [ ] **FR-OE004**: Use validation config file for check_sections() parameters
 
@@ -56,8 +56,8 @@
 - [ ] **FR-OD002**: Replace YOUR_USERNAME placeholders in README.md:29,63,326 install commands
 - [ ] **FR-OD003**: Fix ROADMAP.md:33-40 status icons to match legend
 - [ ] **FR-OD004**: Add lib/json.sh and lib/detection.sh to CLAUDE.md:29-45 architecture diagram
-- [ ] **FR-OD005**: Update speckit.specify.md:57-60 to reference speckit feature create
-- [ ] **FR-OD006**: (DEFERRED) Split speckit.memory.md - low impact, works as-is
+- [ ] **FR-OD005**: Update specflow.specify.md:57-60 to reference specflow feature create
+- [ ] **FR-OD006**: (DEFERRED) Split specflow.memory.md - low impact, works as-is
 - [ ] **FR-OD007**: Add "Customizing Templates" section to README.md
 - [ ] **FR-OD008**: Update README.md:328-337 to match actual CLI syntax
 

@@ -9,8 +9,8 @@
 ## Functional Requirements
 
 ### Core Functionality
-- [ ] FR-001: System starts Next.js web server via `speckit dashboard`
-- [ ] FR-002: System reads project list from `~/.speckit/registry.json`
+- [ ] FR-001: System starts Next.js web server via `specflow dashboard`
+- [ ] FR-002: System reads project list from `~/.specflow/registry.json`
 - [ ] FR-003: System validates registry data against Zod schema
 - [ ] FR-004: System displays projects in list with name, path, status badge
 - [ ] FR-005: System expands project details inline when clicked
@@ -47,8 +47,8 @@
 - [ ] Click outside closes command palette
 
 ### US-4: Dashboard CLI Command (P1)
-- [ ] `speckit dashboard` starts server on port 3000
-- [ ] `speckit dashboard --dev` starts in development mode
+- [ ] `specflow dashboard` starts server on port 3000
+- [ ] `specflow dashboard --dev` starts in development mode
 - [ ] Helpful error when pnpm/Node.js missing
 
 ---

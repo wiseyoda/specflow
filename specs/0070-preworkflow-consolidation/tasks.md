@@ -24,31 +24,31 @@
 
 - [x] T001 [P1] [Setup] Create backup of current command files before modification
   - File: N/A (shell operation)
-  - Copy `commands/speckit.start.md`, `speckit.constitution.md`, `speckit.phase.md` to temp backup
-  - **Done**: Backed up to `/tmp/speckit-backup-0070/`
+  - Copy `commands/specflow.start.md`, `specflow.constitution.md`, `specflow.phase.md` to temp backup
+  - **Done**: Backed up to `/tmp/specflow-backup-0070/`
 
 ---
 
 ## User Story 1: Deprecation Stubs (P1)
 
-- [x] T002 [P1] [US1] Delete `/speckit.memory-init` command file
-  - File: `commands/speckit.memory-init.md`
+- [x] T002 [P1] [US1] Delete `/specflow.memory-init` command file
+  - File: `commands/specflow.memory-init.md`
   - Action: Delete file (already deprecated with redirect to memory generate)
   - **Done**: File deleted
 
-- [x] T003 [P1] [US1] Replace `/speckit.start` with deprecation stub
-  - File: `commands/speckit.start.md`
-  - Action: Replace ~400 lines with ~30 line deprecation stub pointing to `/speckit.orchestrate`
+- [x] T003 [P1] [US1] Replace `/specflow.start` with deprecation stub
+  - File: `commands/specflow.start.md`
+  - Action: Replace ~400 lines with ~30 line deprecation stub pointing to `/specflow.orchestrate`
   - **Done**: Now 30 lines with deprecation notice
 
-- [x] T004 [P1] [US1] Replace `/speckit.constitution` with deprecation stub
-  - File: `commands/speckit.constitution.md`
-  - Action: Replace ~270 lines with ~30 line deprecation stub pointing to `/speckit.init`
+- [x] T004 [P1] [US1] Replace `/specflow.constitution` with deprecation stub
+  - File: `commands/specflow.constitution.md`
+  - Action: Replace ~270 lines with ~30 line deprecation stub pointing to `/specflow.init`
   - **Done**: Now 32 lines with deprecation notice
 
-- [x] T005 [P1] [US1] Replace `/speckit.phase` with deprecation stub
-  - File: `commands/speckit.phase.md`
-  - Action: Replace ~340 lines with ~30 line deprecation stub pointing to `/speckit.roadmap add-pdr`
+- [x] T005 [P1] [US1] Replace `/specflow.phase` with deprecation stub
+  - File: `commands/specflow.phase.md`
+  - Action: Replace ~340 lines with ~30 line deprecation stub pointing to `/specflow.roadmap add-pdr`
   - Note: Save the phase logic to reference when expanding roadmap
   - **Done**: Now 32 lines with deprecation notice, original backed up
 
@@ -56,35 +56,35 @@
 
 ## User Story 2: Init Expansion (P1)
 
-- [x] T006 [P1] [US2] Add constitution generation step to `/speckit.init`
-  - File: `commands/speckit.init.md`
+- [x] T006 [P1] [US2] Add constitution generation step to `/specflow.init`
+  - File: `commands/specflow.init.md`
   - Add section: Check constitution completion, generate if incomplete
   - Detection: Look for `[PROJECT_NAME]`, `[PRINCIPLE_` placeholders
-  - Uses logic from: `commands/speckit.constitution.md` (before deprecation)
+  - Uses logic from: `commands/specflow.constitution.md` (before deprecation)
   - **Done**: Step 2 added with smart placeholder detection
 
-- [x] T007 [P1] [US2] Add memory document generation step to `/speckit.init`
-  - File: `commands/speckit.init.md`
+- [x] T007 [P1] [US2] Add memory document generation step to `/specflow.init`
+  - File: `commands/specflow.init.md`
   - Add section: Generate memory docs after constitution
   - Detection: Look for placeholder patterns in tech-stack.md etc.
   - Uses existing export functionality
   - **Done**: Step 3 added with placeholder detection
 
-- [x] T008 [P1] [US2] Add roadmap creation step to `/speckit.init`
-  - File: `commands/speckit.init.md`
+- [x] T008 [P1] [US2] Add roadmap creation step to `/specflow.init`
+  - File: `commands/specflow.init.md`
   - Add section: Create ROADMAP.md if not exists
-  - Uses logic from: `commands/speckit.roadmap.md`
+  - Uses logic from: `commands/specflow.roadmap.md`
   - **Done**: Step 4 added with completion detection
 
 - [x] T009 [P1] [US2] Add smart completion detection and pre-flight checks to init
-  - File: `commands/speckit.init.md`
+  - File: `commands/specflow.init.md`
   - Add detection logic for each step (placeholders vs complete)
   - Add pre-flight check: abort if orchestration phase is in progress
   - Report which steps were skipped vs executed
   - **Done**: Pre-flight checks section added, smart detection in each step
 
 - [x] T010 [P1] [US2] Add `--force` flag to regenerate all artifacts
-  - File: `commands/speckit.init.md`
+  - File: `commands/specflow.init.md`
   - Update argument routing table
   - When set, regenerate even if artifacts appear complete
   - **Done**: `--force` flag documented in argument routing table
@@ -93,37 +93,37 @@
 
 ## User Story 3: Memory Reduction (P2)
 
-- [x] T011 [P2] [US3] Remove `generate` subcommand section from `/speckit.memory`
-  - File: `commands/speckit.memory.md`
+- [x] T011 [P2] [US3] Remove `generate` subcommand section from `/specflow.memory`
+  - File: `commands/specflow.memory.md`
   - Remove lines 731-781 (Generate Subcommand section)
   - Update argument documentation to remove generate references
   - **Done**: Generate section removed (~50 lines)
 
 - [x] T012 [P2] [US3] Add helpful message for `generate` subcommand attempts
-  - File: `commands/speckit.memory.md`
-  - Add routing: if `generate` → show message about `/speckit.init`
+  - File: `commands/specflow.memory.md`
+  - Add routing: if `generate` → show message about `/specflow.init`
   - **Done**: Argument routing and Generate Deprecation section added
 
 ---
 
 ## User Story 4: Roadmap Expansion (P2)
 
-- [x] T013 [P2] [US4] Add `add-pdr` subcommand routing to `/speckit.roadmap`
-  - File: `commands/speckit.roadmap.md`
+- [x] T013 [P2] [US4] Add `add-pdr` subcommand routing to `/specflow.roadmap`
+  - File: `commands/specflow.roadmap.md`
   - Update argument routing table at top of file
   - Add `add-pdr` as first positional argument option
   - **Done**: Argument routing section added
 
-- [x] T014 [P2] [US4] Add `add-pdr` implementation section to `/speckit.roadmap`
-  - File: `commands/speckit.roadmap.md`
-  - Move logic from `speckit.phase.md` (PDR listing, selection, conversion)
+- [x] T014 [P2] [US4] Add `add-pdr` implementation section to `/specflow.roadmap`
+  - File: `commands/specflow.roadmap.md`
+  - Move logic from `specflow.phase.md` (PDR listing, selection, conversion)
   - Preserve PDR validation and marking as processed
   - **Done**: Full "Add PDR Subcommand" section (~250 lines) added
 
 - [x] T015 [P2] [US4] Update roadmap handoffs to include add-pdr option
-  - File: `commands/speckit.roadmap.md`
+  - File: `commands/specflow.roadmap.md`
   - Update handoffs section in frontmatter if applicable
-  - **Done**: Handoffs updated, deprecated `speckit.start` removed
+  - **Done**: Handoffs updated, deprecated `specflow.start` removed
 
 ---
 
@@ -145,7 +145,7 @@
 
 - [x] T018 [P3] [Docs] Search and update references to deprecated commands
   - Files: Multiple (search results)
-  - Search for: `/speckit.start`, `/speckit.constitution`, `/speckit.phase`, `/speckit.memory-init`
+  - Search for: `/specflow.start`, `/specflow.constitution`, `/specflow.phase`, `/specflow.memory-init`
   - Update handoffs in other command files
   - **Done**: Updated 6 handoffs (specify, backlog, merge, review, verify, plan)
 
@@ -189,16 +189,16 @@ T001 (backup) ✅
 
 After all tasks complete:
 
-- [x] Run `/speckit.start` → shows deprecation notice
-- [x] Run `/speckit.constitution` → shows deprecation notice
-- [x] Run `/speckit.phase` → shows deprecation notice
+- [x] Run `/specflow.start` → shows deprecation notice
+- [x] Run `/specflow.constitution` → shows deprecation notice
+- [x] Run `/specflow.phase` → shows deprecation notice
 - [x] Check CLAUDE.md → correctly documents v2.2 changes
 - [x] Check commands-analysis.md → correctly documents changes
 
 **Pending User Verification**:
-- [ ] Run `/speckit.init` on fresh project → all artifacts created
-- [ ] Run `/speckit.init` on project with constitution → constitution preserved
-- [ ] Run `/speckit.init` while phase in progress → warns and aborts
-- [ ] Run `/speckit.memory generate` → shows helpful message
-- [ ] Run `/speckit.roadmap add-pdr` → lists PDRs
+- [ ] Run `/specflow.init` on fresh project → all artifacts created
+- [ ] Run `/specflow.init` on project with constitution → constitution preserved
+- [ ] Run `/specflow.init` while phase in progress → warns and aborts
+- [ ] Run `/specflow.memory generate` → shows helpful message
+- [ ] Run `/specflow.roadmap add-pdr` → lists PDRs
 - [ ] Verify existing project with constitution/memory/roadmap works unchanged (SC-004)

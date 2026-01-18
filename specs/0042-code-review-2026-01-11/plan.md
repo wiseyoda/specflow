@@ -10,15 +10,15 @@
 
 | Category | Files | Findings |
 |----------|-------|----------|
-| POSIX Compliance | `speckit-doctor.sh`, `speckit-reconcile.sh` | BP001, BP002 |
-| 4-Digit Phases | `speckit-feature.sh`, `bin/speckit` | BP004, BP005 |
+| POSIX Compliance | `specflow-doctor.sh`, `specflow-reconcile.sh` | BP001, BP002 |
+| 4-Digit Phases | `specflow-feature.sh`, `bin/specflow` | BP004, BP005 |
 | Error Consistency | Multiple scripts | BP003 |
-| Dispatcher | `bin/speckit` | MF001 |
-| Gate Enhancements | `speckit-gate.sh` | HD001, MF002 |
-| Context Enhancements | `speckit-context.sh` | MF003, OC001 |
-| Import Validation | `speckit-import.sh` | HD003 |
+| Dispatcher | `bin/specflow` | MF001 |
+| Gate Enhancements | `specflow-gate.sh` | HD001, MF002 |
+| Context Enhancements | `specflow-context.sh` | MF003, OC001 |
+| Import Validation | `specflow-import.sh` | HD003 |
 | Common Library | `lib/common.sh` | RF004 |
-| Doctor Refactoring | `speckit-doctor.sh` | RF003 |
+| Doctor Refactoring | `specflow-doctor.sh` | RF003 |
 | Temp File Cleanup | Various | HD002 |
 | Documentation | `README.md`, `CLAUDE.md` | OD001-OD003 |
 | Scripts Structure | `.specify/scripts/` | OC002 |
@@ -47,12 +47,12 @@
 
 Replace `declare -a` arrays with POSIX-compatible alternatives.
 
-**speckit-doctor.sh (BP001)**:
+**specflow-doctor.sh (BP001)**:
 - Lines 69-71: `declare -a ISSUES=()` etc.
 - Replace with simple variables or positional parameters
 - Use string accumulation with delimiter instead of arrays
 
-**speckit-reconcile.sh (BP002)**:
+**specflow-reconcile.sh (BP002)**:
 - Lines 57-58: `declare -a DIFFERENCES=()`, `declare -a FIXES=()`
 - Same approach as doctor.sh
 
@@ -60,20 +60,20 @@ Replace `declare -a` arrays with POSIX-compatible alternatives.
 
 ### Phase 2: 4-Digit Phase Consistency (BP004, BP005)
 
-**speckit-feature.sh (BP004)**:
+**specflow-feature.sh (BP004)**:
 - Line 31-32: Help text shows "001, 002, etc."
 - Line 65-68: `normalize_phase()` pads to 3 digits
 - Change all references to 4-digit format (0010, 0020)
 - Update `normalize_phase()` to pad to 4 digits
 
-**bin/speckit (BP005)**:
+**bin/specflow (BP005)**:
 - Line 28: Example shows 3-digit phases
 - Line 89, 182-186: Help text uses 3-digit examples
 - Update all examples to 4-digit format
 
 ### Phase 3: Missing CLI Commands (MF001)
 
-Add `gate` and `lessons` to dispatcher in `bin/speckit`:
+Add `gate` and `lessons` to dispatcher in `bin/specflow`:
 ```bash
 gate)
   run_script "gate" "$@"
@@ -83,11 +83,11 @@ lessons)
   ;;
 ```
 
-These scripts already exist (`speckit-gate.sh`, `speckit-lessons.sh`) but aren't routed.
+These scripts already exist (`specflow-gate.sh`, `specflow-lessons.sh`) but aren't routed.
 
 ### Phase 4: Gate Enhancements (HD001, MF002)
 
-**speckit-gate.sh**:
+**specflow-gate.sh**:
 - HD001: Add error handling around test runner execution (line 419)
   - Wrap `$test_cmd` with proper error capture
   - Provide helpful message when test fails vs not configured
@@ -97,7 +97,7 @@ These scripts already exist (`speckit-gate.sh`, `speckit-lessons.sh`) but aren't
 
 ### Phase 5: Context Enhancements (MF003, OC001)
 
-**speckit-context.sh**:
+**specflow-context.sh**:
 - OC001: Remove unused `include_tasks` variable (line 164)
   - Variable is declared but has no effect (always true)
 - MF003: Add memory document status to output
@@ -106,7 +106,7 @@ These scripts already exist (`speckit-gate.sh`, `speckit-lessons.sh`) but aren't
 
 ### Phase 6: Import Validation (HD003)
 
-**speckit-import.sh**:
+**specflow-import.sh**:
 - Add ADR format validation before import
 - Check for required sections (Title, Status, Context, Decision)
 - Warn on missing sections but don't block import
@@ -153,7 +153,7 @@ Only remove if truly unused (grep across all scripts).
 
 **README.md (OD001)**:
 - Verify CLI Reference matches actual implementation
-- Add `/speckit.review` to Claude Code Commands table
+- Add `/specflow.review` to Claude Code Commands table
 
 **CLAUDE.md (OD002)**:
 - Add gate and lessons commands to Key Files section
@@ -164,7 +164,7 @@ Only remove if truly unused (grep across all scripts).
 
 Add clarifying comment or documentation about `.specify/scripts/` vs `scripts/bash/`:
 - `.specify/scripts/` = Project-specific scripts
-- `scripts/bash/` = SpecKit system scripts (this repo only)
+- `scripts/bash/` = SpecFlow system scripts (this repo only)
 
 ## Technical Notes
 
@@ -217,7 +217,7 @@ fi
 ## Out of Scope
 
 Per review document, these items are deferred:
-- RF001: Refactor speckit-roadmap.sh (1425 lines)
+- RF001: Refactor specflow-roadmap.sh (1425 lines)
 - RF002: Extract scaffold templates to separate files
 - OE001: Simplify project-type templates
 - OE002: Reconsider manifest versioning
@@ -241,6 +241,6 @@ Per review document, these items are deferred:
 After implementation:
 1. Run `shellcheck` on all modified scripts
 2. Run existing test suite: `./tests/test-runner.sh`
-3. Run `speckit doctor` to verify no regressions
-4. Manual verification of new commands: `speckit gate --help`, `speckit lessons --help`
+3. Run `specflow doctor` to verify no regressions
+4. Manual verification of new commands: `specflow gate --help`, `specflow lessons --help`
 5. Verify 4-digit phase examples in help text

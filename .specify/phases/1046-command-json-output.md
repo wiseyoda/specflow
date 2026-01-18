@@ -8,7 +8,7 @@ pdr: pdr-orchestration-engine.md
 
 ### 1046 - Command JSON Output
 
-**Goal**: Standardize JSON output across all SpecKit CLI commands to enable programmatic control from the dashboard.
+**Goal**: Standardize JSON output across all SpecFlow CLI commands to enable programmatic control from the dashboard.
 
 **Scope**:
 - Define comprehensive JSON output schema for command results
@@ -18,7 +18,7 @@ pdr: pdr-orchestration-engine.md
 - Document JSON schema in memory docs
 
 **User Stories**:
-1. As a dashboard, I call `speckit doctor --json` and parse structured results
+1. As a dashboard, I call `specflow doctor --json` and parse structured results
 2. As a dashboard, I get consistent error format across all commands
 3. As a developer, I can pipe command output to jq for scripting
 4. As a dashboard, I know what files changed and what to do next

@@ -13,20 +13,20 @@ Make the first-run experience smooth and project-agnostic by adding multi-langua
 
 ### User Story 1 - Project Type Detection (Priority: P1)
 
-As a developer setting up SpecKit in a Python/Rust/Go project, I want the scaffold command to detect my project type and customize templates accordingly, so I don't have to manually edit TypeScript-specific templates.
+As a developer setting up SpecFlow in a Python/Rust/Go project, I want the scaffold command to detect my project type and customize templates accordingly, so I don't have to manually edit TypeScript-specific templates.
 
 **Why this priority**: Without project detection, every non-TypeScript user must manually edit templates, creating a poor first impression.
 
-**Independent Test**: Run `speckit scaffold` in a Python project with requirements.txt or pyproject.toml and verify constitution.md and tech-stack.md contain Python-appropriate content.
+**Independent Test**: Run `specflow scaffold` in a Python project with requirements.txt or pyproject.toml and verify constitution.md and tech-stack.md contain Python-appropriate content.
 
 **Acceptance Scenarios**:
 
-1. **Given** a project with `pyproject.toml` or `requirements.txt`, **When** `speckit scaffold` runs, **Then** templates reference Python, pytest, ruff
-2. **Given** a project with `Cargo.toml`, **When** `speckit scaffold` runs, **Then** templates reference Rust, cargo test, rustfmt
-3. **Given** a project with `go.mod`, **When** `speckit scaffold` runs, **Then** templates reference Go, go test, gofmt
-4. **Given** a project with `package.json` (no tsconfig), **When** `speckit scaffold` runs, **Then** templates reference JavaScript, Jest/Vitest
-5. **Given** a project with `*.sh` files but no language markers, **When** `speckit scaffold` runs, **Then** templates reference Bash, shellcheck, POSIX
-6. **Given** an empty project with no language markers, **When** `speckit scaffold` runs, **Then** templates use generic placeholders with comments
+1. **Given** a project with `pyproject.toml` or `requirements.txt`, **When** `specflow scaffold` runs, **Then** templates reference Python, pytest, ruff
+2. **Given** a project with `Cargo.toml`, **When** `specflow scaffold` runs, **Then** templates reference Rust, cargo test, rustfmt
+3. **Given** a project with `go.mod`, **When** `specflow scaffold` runs, **Then** templates reference Go, go test, gofmt
+4. **Given** a project with `package.json` (no tsconfig), **When** `specflow scaffold` runs, **Then** templates reference JavaScript, Jest/Vitest
+5. **Given** a project with `*.sh` files but no language markers, **When** `specflow scaffold` runs, **Then** templates reference Bash, shellcheck, POSIX
+6. **Given** an empty project with no language markers, **When** `specflow scaffold` runs, **Then** templates use generic placeholders with comments
 
 ---
 
@@ -36,23 +36,23 @@ As a developer with an existing project, I want a --safe mode that shows what wo
 
 **Why this priority**: Users with existing projects need confidence that scaffold won't overwrite their work.
 
-**Independent Test**: Run `speckit scaffold --safe` in a project with existing `.specify/` directory and verify no files are modified.
+**Independent Test**: Run `specflow scaffold --safe` in a project with existing `.specify/` directory and verify no files are modified.
 
 **Acceptance Scenarios**:
 
-1. **Given** an existing project, **When** `speckit scaffold --safe` runs, **Then** output shows what would be created/modified without writing anything
-2. **Given** an empty project, **When** `speckit scaffold --safe` runs, **Then** output shows full structure that would be created
+1. **Given** an existing project, **When** `specflow scaffold --safe` runs, **Then** output shows what would be created/modified without writing anything
+2. **Given** an empty project, **When** `specflow scaffold --safe` runs, **Then** output shows full structure that would be created
 3. **Given** `--safe` flag, **When** command completes, **Then** exit code is 0 and no filesystem changes occur
 
 ---
 
 ### User Story 3 - Onboarding Documentation (Priority: P2)
 
-As a new SpecKit user, I want clear quickstart documentation in the README, so I can understand how to get started in under 5 minutes.
+As a new SpecFlow user, I want clear quickstart documentation in the README, so I can understand how to get started in under 5 minutes.
 
 **Why this priority**: Documentation is the first thing users read; confusion here stops adoption.
 
-**Independent Test**: A new user can read README.md and successfully run their first SpecKit command within 5 minutes.
+**Independent Test**: A new user can read README.md and successfully run their first SpecFlow command within 5 minutes.
 
 **Acceptance Scenarios**:
 
@@ -64,17 +64,17 @@ As a new SpecKit user, I want clear quickstart documentation in the README, so I
 
 ### User Story 4 - CLI Output Optimization (Priority: P3)
 
-As a developer using SpecKit, I want the first 3 lines of CLI output to show user-critical information, so I can quickly understand command results.
+As a developer using SpecFlow, I want the first 3 lines of CLI output to show user-critical information, so I can quickly understand command results.
 
 **Why this priority**: Improves daily UX but doesn't block initial adoption.
 
-**Independent Test**: Run any speckit command and verify the first 3 lines contain the most important information.
+**Independent Test**: Run any specflow command and verify the first 3 lines contain the most important information.
 
 **Acceptance Scenarios**:
 
 1. **Given** any CLI command, **When** it completes, **Then** the first line shows success/failure status
-2. **Given** `speckit scaffold`, **When** it completes, **Then** first 3 lines show: status, what was created, next steps
-3. **Given** `speckit doctor`, **When** it completes, **Then** first line shows overall health status, details follow
+2. **Given** `specflow scaffold`, **When** it completes, **Then** first 3 lines show: status, what was created, next steps
+3. **Given** `specflow doctor`, **When** it completes, **Then** first line shows overall health status, details follow
 
 ---
 

@@ -16,7 +16,7 @@ Remediate 92 compliance violations identified in a comprehensive audit, achievin
 ## User Stories
 
 ### US1: CLI Output Clarity
-**As a** developer using SpecKit CLI,
+**As a** developer using SpecFlow CLI,
 **I want to** see the most important information in the first 3 lines of output,
 **So that** I can quickly understand command results without scrolling.
 
@@ -36,12 +36,12 @@ Remediate 92 compliance violations identified in a comprehensive audit, achievin
 - [ ] Deprecated script references removed from slash commands
 
 ### US3: Working CLI Commands
-**As a** developer using SpecKit,
-**I want to** run `speckit phase` without errors,
+**As a** developer using SpecFlow,
+**I want to** run `specflow phase` without errors,
 **So that** I can manage phase details as documented.
 
 **Acceptance Criteria**:
-- [ ] `speckit phase` command works without "slash command" warning
+- [ ] `specflow phase` command works without "slash command" warning
 - [ ] LIB008 bug fixed (remove 'phase' from warning list)
 - [ ] All CLI commands documented correctly in help output
 
@@ -62,45 +62,45 @@ Remediate 92 compliance violations identified in a comprehensive audit, achievin
 ### FR1: Critical Bug Fixes (P1)
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| FR1.1 | Fix bin/speckit:334 - remove 'phase' from slash-command warning | Critical |
+| FR1.1 | Fix bin/specflow:334 - remove 'phase' from slash-command warning | Critical |
 | FR1.2 | Delete `.specify/templates/` if it exists (templates/ is canonical) | Critical |
 
 ### FR2: Hardcoded Path Remediation
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| FR2.1 | Centralize SPECKIT_SYSTEM_DIR, SPECKIT_REGISTRY in common.sh | High |
-| FR2.2 | Update speckit-doctor.sh to use get_speckit_system_dir() | High |
-| FR2.3 | Update speckit-detect.sh to use get_speckit_system_dir() | High |
-| FR2.4 | Update speckit-state.sh to use centralized registry path | High |
-| FR2.5 | Update speckit-templates.sh to use get_speckit_system_dir() | High |
-| FR2.6 | Update speckit-scaffold.sh to use get_speckit_system_dir() | High |
+| FR2.1 | Centralize SPECFLOW_SYSTEM_DIR, SPECFLOW_REGISTRY in common.sh | High |
+| FR2.2 | Update specflow-doctor.sh to use get_specflow_system_dir() | High |
+| FR2.3 | Update specflow-detect.sh to use get_specflow_system_dir() | High |
+| FR2.4 | Update specflow-state.sh to use centralized registry path | High |
+| FR2.5 | Update specflow-templates.sh to use get_specflow_system_dir() | High |
+| FR2.6 | Update specflow-scaffold.sh to use get_specflow_system_dir() | High |
 
 ### FR3: Three-Line Output Rule Compliance
 | ID | Requirement | Priority |
 |----|-------------|----------|
 | FR3.1 | Create `print_summary()` helper function in common.sh | High |
-| FR3.2 | Refactor speckit-detect.sh main() for three-line output | High |
-| FR3.3 | Refactor speckit-gate.sh main() for three-line output | High |
-| FR3.4 | Refactor speckit-lessons.sh search/list for three-line output | High |
-| FR3.5 | Refactor speckit-import.sh import() for three-line output | High |
-| FR3.6 | Refactor speckit-context.sh context() for three-line output | High |
-| FR3.7 | Refactor speckit-git.sh branches() for three-line output | High |
-| FR3.8 | Refactor speckit-manifest.sh status() for three-line output | High |
-| FR3.9 | Refactor speckit-reconcile.sh functions for three-line output | High |
-| FR3.10 | Refactor speckit-templates.sh functions for three-line output | High |
-| FR3.11 | Refactor speckit-phase.sh cmd_migrate for three-line output | High |
-| FR3.12 | Refactor speckit-roadmap.sh validate/renumber for three-line output | High |
-| FR3.13 | Refactor speckit-memory.sh functions for three-line output | High |
-| FR3.14 | Refactor speckit-migrate.sh cmd_roadmap for three-line output | High |
-| FR3.15 | Refactor speckit-pdr.sh cmd_validate for three-line output | High |
-| FR3.16 | Refactor speckit-scaffold.sh cmd_scaffold for three-line output | High |
-| FR3.17 | Refactor speckit-state.sh reconcile/migrate/infer for three-line output | High |
+| FR3.2 | Refactor specflow-detect.sh main() for three-line output | High |
+| FR3.3 | Refactor specflow-gate.sh main() for three-line output | High |
+| FR3.4 | Refactor specflow-lessons.sh search/list for three-line output | High |
+| FR3.5 | Refactor specflow-import.sh import() for three-line output | High |
+| FR3.6 | Refactor specflow-context.sh context() for three-line output | High |
+| FR3.7 | Refactor specflow-git.sh branches() for three-line output | High |
+| FR3.8 | Refactor specflow-manifest.sh status() for three-line output | High |
+| FR3.9 | Refactor specflow-reconcile.sh functions for three-line output | High |
+| FR3.10 | Refactor specflow-templates.sh functions for three-line output | High |
+| FR3.11 | Refactor specflow-phase.sh cmd_migrate for three-line output | High |
+| FR3.12 | Refactor specflow-roadmap.sh validate/renumber for three-line output | High |
+| FR3.13 | Refactor specflow-memory.sh functions for three-line output | High |
+| FR3.14 | Refactor specflow-migrate.sh cmd_roadmap for three-line output | High |
+| FR3.15 | Refactor specflow-pdr.sh cmd_validate for three-line output | High |
+| FR3.16 | Refactor specflow-scaffold.sh cmd_scaffold for three-line output | High |
+| FR3.17 | Refactor specflow-state.sh reconcile/migrate/infer for three-line output | High |
 
 ### FR4: POSIX Compliance Fixes
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| FR4.1 | Add platform detection for sed -i in speckit-lessons.sh | Medium |
-| FR4.2 | Add shopt -s extglob to speckit-feature.sh where needed | Medium |
+| FR4.1 | Add platform detection for sed -i in specflow-lessons.sh | Medium |
+| FR4.2 | Add shopt -s extglob to specflow-feature.sh where needed | Medium |
 
 ### FR5: Library File Fixes
 | ID | Requirement | Priority |
@@ -108,18 +108,18 @@ Remediate 92 compliance violations identified in a comprehensive audit, achievin
 | FR5.1 | Add double-source guard to json.sh | Medium |
 | FR5.2 | Fix unquoted variable in jq interpolation (json.sh:84) | Medium |
 | FR5.3 | Fix json_array_append unquoted interpolation (json.sh:217) | Medium |
-| FR5.4 | Fix speckit-issue.sh arithmetic to avoid set -e exit | Low |
+| FR5.4 | Fix specflow-issue.sh arithmetic to avoid set -e exit | Low |
 
 ### FR6: Slash Command Updates
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| FR6.1 | Remove references to setup-plan.sh from speckit.specify.md | Medium |
-| FR6.2 | Remove references to setup-plan.sh from speckit.plan.md | Medium |
+| FR6.1 | Remove references to setup-plan.sh from specflow.specify.md | Medium |
+| FR6.2 | Remove references to setup-plan.sh from specflow.plan.md | Medium |
 | FR6.3 | Remove references to update-agent-context.sh | Medium |
-| FR6.4 | Update speckit.verify.md to use speckit tasks mark | Medium |
-| FR6.5 | Update speckit.backlog.md to use proper CLI commands | Medium |
-| FR6.6 | Update speckit.phase.md to use speckit pdr commands | Medium |
-| FR6.7 | Update speckit.init.md to use speckit state set | Medium |
+| FR6.4 | Update specflow.verify.md to use specflow tasks mark | Medium |
+| FR6.5 | Update specflow.backlog.md to use proper CLI commands | Medium |
+| FR6.6 | Update specflow.phase.md to use specflow pdr commands | Medium |
+| FR6.7 | Update specflow.init.md to use specflow state set | Medium |
 
 ### FR7: Template Standardization
 | ID | Requirement | Priority |
@@ -193,7 +193,7 @@ Remediate 92 compliance violations identified in a comprehensive audit, achievin
 ## Verification Gate
 
 Phase completion requires:
-1. `speckit phase` command works without errors (LIB008 fixed)
+1. `specflow phase` command works without errors (LIB008 fixed)
 2. All CLI commands show status in first 3 lines (three-line rule)
 3. Single template directory exists (templates/ only)
 4. All slash commands reference valid CLI commands

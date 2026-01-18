@@ -1,6 +1,6 @@
 # Requirements Decisions Log
 
-> Decisions captured during `/speckit.init` interview. These feed into memory document generation.
+> Decisions captured during `/specflow.init` interview. These feed into memory document generation.
 
 ## Decision Index
 | ID | Phase | Title | Confidence | Memory Doc Impact |

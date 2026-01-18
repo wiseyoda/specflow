@@ -65,7 +65,7 @@ description: 'Pre-specification discovery document for codebase context and scop
 ### From Related Issues
 
 ```bash
-speckit issue list --phase [NNNN]
+specflow issue list --phase [NNNN]
 ```
 
 | Issue | Description | Priority |

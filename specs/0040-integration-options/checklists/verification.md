@@ -7,7 +7,7 @@
 
 ## Detection (US1)
 
-- [x] `speckit detect --docs` runs without error
+- [x] `specflow detect --docs` runs without error
 - [x] Detects docs/ directory when present
 - [x] Detects adr/ directories (adr/, adrs/, docs/adr/, docs/decisions/)
 - [x] Detects ADR files with NNN-*.md naming
@@ -18,8 +18,8 @@
 
 ## Import (US2)
 
-- [x] `speckit import adrs <path>` command exists
-- [x] `speckit import adrs --help` shows usage
+- [x] `specflow import adrs <path>` command exists
+- [x] `specflow import adrs --help` shows usage
 - [x] Validates source path exists
 - [x] Reports error for non-existent path
 - [x] Creates .specify/memory/adrs/ directory

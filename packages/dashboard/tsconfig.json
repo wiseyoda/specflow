@@ -20,8 +20,8 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@speckit/shared": ["../shared/src/index.ts"],
-      "@speckit/shared/*": ["../shared/src/*"]
+      "@specflow/shared": ["../shared/src/index.ts"],
+      "@specflow/shared/*": ["../shared/src/*"]
     }
   },
   "include": [

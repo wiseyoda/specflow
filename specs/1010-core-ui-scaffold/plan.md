@@ -6,7 +6,7 @@
 
 ## Summary
 
-Establish a Next.js 14+ web dashboard for SpecKit that displays registered projects from `~/.speckit/registry.json`. The dashboard uses pnpm workspaces with shared Zod schemas, implements dark/light mode with system preference detection, and provides a command palette shell activated by Cmd+K. Entry point is `speckit dashboard` CLI command.
+Establish a Next.js 14+ web dashboard for SpecFlow that displays registered projects from `~/.specflow/registry.json`. The dashboard uses pnpm workspaces with shared Zod schemas, implements dark/light mode with system preference detection, and provides a command palette shell activated by Cmd+K. Entry point is `specflow dashboard` CLI command.
 
 ---
 
@@ -14,7 +14,7 @@ Establish a Next.js 14+ web dashboard for SpecKit that displays registered proje
 
 **Language/Version**: TypeScript 5.x (strict mode)
 **Primary Dependencies**: Next.js 14+, React 18+, Tailwind CSS 3.x, shadcn/ui, Zod, next-themes
-**Storage**: File-based (`~/.speckit/registry.json`) - no database in this phase
+**Storage**: File-based (`~/.specflow/registry.json`) - no database in this phase
 **Testing**: Vitest (per user preferences)
 **Target Platform**: Desktop browsers (macOS, Linux, Windows)
 **Project Type**: Monorepo (pnpm workspaces)
@@ -28,7 +28,7 @@ Establish a Next.js 14+ web dashboard for SpecKit that displays registered proje
 
 | Principle | Status | Notes |
 |-----------|--------|-------|
-| I. Developer Experience First | ✅ Pass | Simple `speckit dashboard` command, keyboard-driven UI |
+| I. Developer Experience First | ✅ Pass | Simple `specflow dashboard` command, keyboard-driven UI |
 | II. POSIX-Compliant Bash | ✅ Pass | CLI launcher script uses POSIX bash |
 | III. CLI Over Direct Edits | ✅ Pass | Dashboard reads files, doesn't modify them |
 | IV. Simplicity Over Cleverness | ✅ Pass | Standard Next.js patterns, no exotic libraries |
@@ -96,9 +96,9 @@ packages/
     └── tsconfig.json
 
 scripts/bash/
-└── speckit-dashboard.sh          # CLI launcher
+└── specflow-dashboard.sh          # CLI launcher
 
-bin/speckit                       # Add dashboard command routing
+bin/specflow                       # Add dashboard command routing
 
 pnpm-workspace.yaml               # Workspace config (root)
 package.json                      # Root package.json with scripts
@@ -128,7 +128,7 @@ CommandPalette (global modal, triggered by Cmd+K)
 ### Data Flow
 
 ```
-~/.speckit/registry.json
+~/.specflow/registry.json
     ↓
 API Route: /api/projects (reads file, validates with Zod)
     ↓
@@ -171,10 +171,10 @@ export type Registry = z.infer<typeof RegistrySchema>;
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import path from 'path';
-import { RegistrySchema } from '@speckit/shared';
+import { RegistrySchema } from '@specflow/shared';
 
 export async function GET() {
-  const registryPath = path.join(homedir(), '.speckit', 'registry.json');
+  const registryPath = path.join(homedir(), '.specflow', 'registry.json');
 
   try {
     const content = await fs.readFile(registryPath, 'utf-8');
@@ -252,7 +252,7 @@ export function CommandPalette() {
 ### 5. CLI Launcher
 
 ```bash
-# scripts/bash/speckit-dashboard.sh
+# scripts/bash/specflow-dashboard.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -263,10 +263,10 @@ DASHBOARD_DIR="${SCRIPT_DIR}/../../packages/dashboard"
 
 show_help() {
   cat << 'EOF'
-speckit dashboard - Start the SpecKit web dashboard
+specflow dashboard - Start the SpecFlow web dashboard
 
 USAGE:
-    speckit dashboard [OPTIONS]
+    specflow dashboard [OPTIONS]
 
 OPTIONS:
     --dev       Run in development mode (hot reload)
@@ -274,8 +274,8 @@ OPTIONS:
     -h, --help  Show this help
 
 EXAMPLES:
-    speckit dashboard           # Start production server
-    speckit dashboard --dev     # Start dev server with hot reload
+    specflow dashboard           # Start production server
+    specflow dashboard --dev     # Start dev server with hot reload
 EOF
 }
 
@@ -307,7 +307,7 @@ main() {
   # Navigate to dashboard
   if [[ ! -d "$DASHBOARD_DIR" ]]; then
     log_error "Dashboard not found at $DASHBOARD_DIR"
-    log_info "Run 'speckit dashboard --setup' to initialize"
+    log_info "Run 'specflow dashboard --setup' to initialize"
     exit 1
   fi
 
@@ -335,7 +335,7 @@ main "$@"
 
 ```json
 {
-  "name": "@speckit/dashboard",
+  "name": "@specflow/dashboard",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -350,7 +350,7 @@ main "$@"
     "react-dom": "^18.3.0",
     "next-themes": "^0.3.0",
     "lucide-react": "^0.400.0",
-    "@speckit/shared": "workspace:*",
+    "@specflow/shared": "workspace:*",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "tailwind-merge": "^2.3.0",
@@ -372,7 +372,7 @@ main "$@"
 
 ```json
 {
-  "name": "@speckit/shared",
+  "name": "@specflow/shared",
   "version": "0.1.0",
   "private": true,
   "main": "./src/index.ts",
@@ -419,5 +419,5 @@ main "$@"
 5. **Project List** - List view with expansion
 6. **Theme Toggle** - Dark/light mode with persistence
 7. **Command Palette** - Cmd+K shell (placeholder content)
-8. **CLI Launcher** - `speckit dashboard` command
+8. **CLI Launcher** - `specflow dashboard` command
 9. **Polish** - Error states, loading states, edge cases

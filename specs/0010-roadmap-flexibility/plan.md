@@ -18,7 +18,7 @@
 - **Principle V (Helpful Errors)**: All errors include actionable guidance
 
 ### Existing Patterns
-- Scripts follow `speckit-<name>.sh` naming
+- Scripts follow `specflow-<name>.sh` naming
 - Source `lib/common.sh` and `lib/json.sh`
 - Support `--help` and `--json` flags
 - Use `log_*` functions for output
@@ -32,18 +32,18 @@
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `scripts/bash/speckit-roadmap.sh` | MODIFY | Add insert, defer, restore commands |
-| `scripts/bash/speckit-migrate.sh` | CREATE | New script for 2.0→2.1 migration |
+| `scripts/bash/specflow-roadmap.sh` | MODIFY | Add insert, defer, restore commands |
+| `scripts/bash/specflow-migrate.sh` | CREATE | New script for 2.0→2.1 migration |
 | `templates/roadmap-template.md` | MODIFY | Update with 4-digit ABBC numbering |
-| `bin/speckit` | MODIFY | Add migrate subcommand routing |
+| `bin/specflow` | MODIFY | Add migrate subcommand routing |
 
 ### Command Structure
 
 ```text
-speckit roadmap insert --after <phase> "<name>"   # NEW
-speckit roadmap defer <phase> [--force]           # NEW
-speckit roadmap restore <phase> [--after <phase>] # NEW
-speckit migrate roadmap                           # NEW (separate script)
+specflow roadmap insert --after <phase> "<name>"   # NEW
+specflow roadmap defer <phase> [--force]           # NEW
+specflow roadmap restore <phase> [--after <phase>] # NEW
+specflow migrate roadmap                           # NEW (separate script)
 ```
 
 ---
@@ -51,7 +51,7 @@ speckit migrate roadmap                           # NEW (separate script)
 ## Phase 1: Parser Updates
 
 ### Goal
-Update `speckit-roadmap.sh` to support 4-digit phase numbers and add helper functions for the new commands.
+Update `specflow-roadmap.sh` to support 4-digit phase numbers and add helper functions for the new commands.
 
 ### Changes
 
@@ -79,7 +79,7 @@ Update `speckit-roadmap.sh` to support 4-digit phase numbers and add helper func
 ## Phase 2: Insert Command
 
 ### Goal
-Implement `speckit roadmap insert --after <phase> "<name>"` with interactive content prompts.
+Implement `specflow roadmap insert --after <phase> "<name>"` with interactive content prompts.
 
 ### Implementation
 
@@ -116,7 +116,7 @@ Implement `speckit roadmap insert --after <phase> "<name>"` with interactive con
 ## Phase 3: Defer Command
 
 ### Goal
-Implement `speckit roadmap defer <phase>` to move phases to Backlog section.
+Implement `specflow roadmap defer <phase>` to move phases to Backlog section.
 
 ### Implementation
 
@@ -148,7 +148,7 @@ Implement `speckit roadmap defer <phase>` to move phases to Backlog section.
 ## Phase 4: Restore Command
 
 ### Goal
-Implement `speckit roadmap restore <phase>` with smart renumbering.
+Implement `specflow roadmap restore <phase>` with smart renumbering.
 
 ### Implementation
 
@@ -185,7 +185,7 @@ Implement `speckit roadmap restore <phase>` with smart renumbering.
 ## Phase 5: Migration Script
 
 ### Goal
-Create `speckit-migrate.sh` for 2.0→2.1 roadmap format conversion.
+Create `specflow-migrate.sh` for 2.0→2.1 roadmap format conversion.
 
 ### Implementation
 

@@ -1,58 +1,58 @@
 # Slash Commands Reference
 
-Complete reference for SpecKit slash commands used in Claude Code.
+Complete reference for SpecFlow slash commands used in Claude Code.
 
 ## Overview
 
-Slash commands are invoked in Claude Code with `/speckit.<command>`. They orchestrate AI-assisted development workflows.
+Slash commands are invoked in Claude Code with `/specflow.<command>`. They orchestrate AI-assisted development workflows.
 
-**Syntax:** `/speckit.<command> [arguments]`
+**Syntax:** `/specflow.<command> [arguments]`
 
 ---
 
 ## Core Workflow Commands
 
-### /speckit.start
+### /specflow.start
 
 **Smart entry point** - Auto-detects project state and routes to the appropriate workflow.
 
 ```
-/speckit.start
-/speckit.start --skip-detections
-/speckit.start --verbose
+/specflow.start
+/specflow.start --skip-detections
+/specflow.start --verbose
 ```
 
-This is the recommended way to begin any SpecKit session. It analyzes your project and suggests the next logical step.
+This is the recommended way to begin any SpecFlow session. It analyzes your project and suggests the next logical step.
 
-### /speckit.init
+### /specflow.init
 
 **Project initialization interview** - Guided discovery process that captures requirements, decisions, and project context.
 
 ```
-/speckit.init                    # Start or resume interview
-/speckit.init status             # Show interview progress
-/speckit.init pause              # Pause for later
-/speckit.init deeper             # Go deeper on current topic
-/speckit.init faster             # Accelerate interview
-/speckit.init skip               # Skip current phase
-/speckit.init focus <topic>      # Focus on specific topic
-/speckit.init compare            # Compare options
-/speckit.init research <topic>   # Research a topic
-/speckit.init revisit <phase>    # Revisit a phase
-/speckit.init validate           # Validate interview state
-/speckit.init export             # Export to memory documents
+/specflow.init                    # Start or resume interview
+/specflow.init status             # Show interview progress
+/specflow.init pause              # Pause for later
+/specflow.init deeper             # Go deeper on current topic
+/specflow.init faster             # Accelerate interview
+/specflow.init skip               # Skip current phase
+/specflow.init focus <topic>      # Focus on specific topic
+/specflow.init compare            # Compare options
+/specflow.init research <topic>   # Research a topic
+/specflow.init revisit <phase>    # Revisit a phase
+/specflow.init validate           # Validate interview state
+/specflow.init export             # Export to memory documents
 ```
 
-### /speckit.orchestrate
+### /specflow.orchestrate
 
 **Full workflow automation** - Runs the complete development cycle with state persistence and self-healing.
 
 ```
-/speckit.orchestrate             # Start from beginning or resume
-/speckit.orchestrate --resume    # Resume from last step
-/speckit.orchestrate --phase <N> # Start at specific phase
-/speckit.orchestrate --skip-gates  # Skip validation gates
-/speckit.orchestrate --no-discovery  # Skip codebase examination and questions
+/specflow.orchestrate             # Start from beginning or resume
+/specflow.orchestrate --resume    # Resume from last step
+/specflow.orchestrate --phase <N> # Start at specific phase
+/specflow.orchestrate --skip-gates  # Skip validation gates
+/specflow.orchestrate --no-discovery  # Skip codebase examination and questions
 ```
 
 The orchestrator manages 9 steps:
@@ -70,63 +70,63 @@ The orchestrator manages 9 steps:
 
 ## Specification Commands
 
-### /speckit.specify
+### /specflow.specify
 
 **Create feature specification** from requirements or natural language description.
 
 ```
-/speckit.specify
-/speckit.specify "Add user authentication with OAuth"
+/specflow.specify
+/specflow.specify "Add user authentication with OAuth"
 ```
 
 Creates `spec.md` in the current feature directory.
 
-### /speckit.clarify
+### /specflow.clarify
 
 **Resolve ambiguities** by asking up to 5 targeted clarification questions. Encodes answers back into the spec.
 
 ```
-/speckit.clarify
+/specflow.clarify
 ```
 
-Run this after `/speckit.specify` to improve spec quality.
+Run this after `/specflow.specify` to improve spec quality.
 
-### /speckit.plan
+### /specflow.plan
 
 **Create implementation plan** using the plan template to generate design artifacts.
 
 ```
-/speckit.plan
+/specflow.plan
 ```
 
 Creates `plan.md` with architecture decisions, component design, and implementation approach.
 
-### /speckit.tasks
+### /specflow.tasks
 
 **Generate task breakdown** - Creates actionable, dependency-ordered tasks from the plan.
 
 ```
-/speckit.tasks
+/specflow.tasks
 ```
 
 Creates `tasks.md` with implementation tasks, acceptance criteria, and dependencies.
 
-### /speckit.analyze
+### /specflow.analyze
 
 **Cross-artifact consistency analysis** - Non-destructive analysis of spec.md, plan.md, and tasks.md.
 
 ```
-/speckit.analyze
+/specflow.analyze
 ```
 
 Identifies inconsistencies, gaps, and potential issues across artifacts.
 
-### /speckit.checklist
+### /specflow.checklist
 
 **Generate verification checklist** based on feature requirements.
 
 ```
-/speckit.checklist
+/specflow.checklist
 ```
 
 Creates a checklist for verifying the implementation meets all requirements.
@@ -135,23 +135,23 @@ Creates a checklist for verifying the implementation meets all requirements.
 
 ## Implementation Commands
 
-### /speckit.implement
+### /specflow.implement
 
 **Execute implementation tasks** from tasks.md.
 
 ```
-/speckit.implement               # Start implementation
-/speckit.implement continue      # Resume from last incomplete task
-/speckit.implement phase <N>     # Start at specific phase
-/speckit.implement --tdd         # Enforce test-driven development
+/specflow.implement               # Start implementation
+/specflow.implement continue      # Resume from last incomplete task
+/specflow.implement phase <N>     # Start at specific phase
+/specflow.implement --tdd         # Enforce test-driven development
 ```
 
-### /speckit.verify
+### /specflow.verify
 
 **Verify implementation** against specifications. Updates ROADMAP.md with completion status.
 
 ```
-/speckit.verify
+/specflow.verify
 ```
 
 Checks:
@@ -160,112 +160,112 @@ Checks:
 - Spec requirements met
 - Tests passing
 
-### /speckit.merge
+### /specflow.merge
 
 **Complete a phase** - Push, create PR, merge to main, cleanup branches, archive state.
 
 ```
-/speckit.merge                   # Full merge workflow
-/speckit.merge --pr-only         # Create PR but don't merge
-/speckit.merge --dry-run         # Preview what would happen
-/speckit.merge --force           # Skip task completion check
-/speckit.merge --next-phase      # Auto-start next phase after merge
+/specflow.merge                   # Full merge workflow
+/specflow.merge --pr-only         # Create PR but don't merge
+/specflow.merge --dry-run         # Preview what would happen
+/specflow.merge --force           # Skip task completion check
+/specflow.merge --next-phase      # Auto-start next phase after merge
 ```
 
 ---
 
 ## Project Management Commands
 
-### /speckit.roadmap
+### /specflow.roadmap
 
 **Create or update ROADMAP.md** with development phases and verification gates.
 
 ```
-/speckit.roadmap
+/specflow.roadmap
 ```
 
-### /speckit.backlog
+### /specflow.backlog
 
 **Triage backlog items** - Scan completed phases for orphaned tasks, assign to future phases.
 
 ```
-/speckit.backlog                 # Interactive triage
-/speckit.backlog --auto          # Auto-assign high-confidence matches
-/speckit.backlog --dry-run       # Preview assignments
+/specflow.backlog                 # Interactive triage
+/specflow.backlog --auto          # Auto-assign high-confidence matches
+/specflow.backlog --dry-run       # Preview assignments
 ```
 
-### /speckit.phase
+### /specflow.phase
 
 **Create ROADMAP phases from PDRs** - Converts Product Design Requirements into implementation-ready phases.
 
 ```
-/speckit.phase
-/speckit.phase <pdr-file>
+/specflow.phase
+/specflow.phase <pdr-file>
 ```
 
-### /speckit.constitution
+### /specflow.constitution
 
 **Create or update project constitution** from interactive or provided principle inputs.
 
 ```
-/speckit.constitution
+/specflow.constitution
 ```
 
 ---
 
 ## Memory Document Commands
 
-### /speckit.memory
+### /specflow.memory
 
 **Verify and reconcile memory documents** - Clean up, optimize, and detect drift.
 
 ```
-/speckit.memory                  # Full analysis and reconciliation
-/speckit.memory --dry-run        # Analyze only, no changes
-/speckit.memory --verbose        # Detailed analysis output
-/speckit.memory --fix            # Auto-fix without confirmation
-/speckit.memory --no-reconcile   # Skip drift detection (faster)
-/speckit.memory --promote        # Scan completed specs for decisions to promote
-/speckit.memory --deep           # Full codebase scan
+/specflow.memory                  # Full analysis and reconciliation
+/specflow.memory --dry-run        # Analyze only, no changes
+/specflow.memory --verbose        # Detailed analysis output
+/specflow.memory --fix            # Auto-fix without confirmation
+/specflow.memory --no-reconcile   # Skip drift detection (faster)
+/specflow.memory --promote        # Scan completed specs for decisions to promote
+/specflow.memory --deep           # Full codebase scan
 ```
 
-### /speckit.memory-init
+### /specflow.memory-init
 
 **Generate memory docs from codebase** - Analyzes existing code to create memory documents.
 
 ```
-/speckit.memory-init all              # Generate all documents
-/speckit.memory-init recommended      # Generate recommended set
-/speckit.memory-init coding-standards # Generate specific document
-/speckit.memory-init tech-stack       # Generate tech stack doc
-/speckit.memory-init glossary         # Generate glossary
-/speckit.memory-init --force          # Overwrite existing
-/speckit.memory-init --dry-run        # Preview without writing
+/specflow.memory-init all              # Generate all documents
+/specflow.memory-init recommended      # Generate recommended set
+/specflow.memory-init coding-standards # Generate specific document
+/specflow.memory-init tech-stack       # Generate tech stack doc
+/specflow.memory-init glossary         # Generate glossary
+/specflow.memory-init --force          # Overwrite existing
+/specflow.memory-init --dry-run        # Preview without writing
 ```
 
 ---
 
 ## Quality & Review Commands
 
-### /speckit.review
+### /specflow.review
 
 **Systematic code review** - Generate categorized findings that can be triaged into implementation phases.
 
 ```
-/speckit.review
-/speckit.review <path>
+/specflow.review
+/specflow.review <path>
 ```
 
 ---
 
 ## Utility Commands
 
-### /speckit.taskstoissues
+### /specflow.taskstoissues
 
 **Convert tasks to GitHub issues** - Export tasks.md items as GitHub issues.
 
 ```
-/speckit.taskstoissues
+/specflow.taskstoissues
 ```
 
 Located in `commands/utilities/`.
@@ -275,32 +275,32 @@ Located in `commands/utilities/`.
 ## Command Flow
 
 ```
-/speckit.start              # Entry point
+/specflow.start              # Entry point
     │
     ▼
-/speckit.init               # Requirements interview
+/specflow.init               # Requirements interview
     │
     ▼
-/speckit.roadmap            # Create development phases
+/specflow.roadmap            # Create development phases
     │
     ▼
-/speckit.orchestrate        # Automated workflow (9 steps)
+/specflow.orchestrate        # Automated workflow (9 steps)
     │
     ├── DISCOVER            # Examine codebase, ask questions
-    ├── /speckit.specify    # Feature specification
-    ├── /speckit.clarify    # Resolve ambiguities
-    ├── /speckit.plan       # Implementation plan
-    ├── /speckit.tasks      # Task breakdown
-    ├── /speckit.analyze    # Consistency check
-    ├── /speckit.checklist  # Verification checklist
-    ├── /speckit.implement  # Execute tasks
-    └── /speckit.verify     # Verify completion
+    ├── /specflow.specify    # Feature specification
+    ├── /specflow.clarify    # Resolve ambiguities
+    ├── /specflow.plan       # Implementation plan
+    ├── /specflow.tasks      # Task breakdown
+    ├── /specflow.analyze    # Consistency check
+    ├── /specflow.checklist  # Verification checklist
+    ├── /specflow.implement  # Execute tasks
+    └── /specflow.verify     # Verify completion
     │
     ▼
-/speckit.merge              # Complete phase
+/specflow.merge              # Complete phase
     │
     ▼
-/speckit.backlog            # Triage remaining items
+/specflow.backlog            # Triage remaining items
     │
     └── (next phase)
 ```
@@ -309,20 +309,20 @@ Located in `commands/utilities/`.
 
 ## Quick Reference
 
-**Recommended Entry Point**: `/speckit.start` - Routes you to the right command automatically.
+**Recommended Entry Point**: `/specflow.start` - Routes you to the right command automatically.
 
 | Command | Purpose |
 |---------|---------|
-| `/speckit.start` | **Primary entry point** - Auto-detect state, route to next step |
-| `/speckit.init` | Requirements interview |
-| `/speckit.orchestrate` | Full automated workflow |
-| `/speckit.specify` | Create feature spec |
-| `/speckit.plan` | Create implementation plan |
-| `/speckit.tasks` | Generate task breakdown |
-| `/speckit.implement` | Execute tasks |
-| `/speckit.verify` | Verify completion |
-| `/speckit.merge` | Complete phase, merge PR |
-| `/speckit.memory` | Manage memory documents (incl. generate) |
-| `/speckit.review` | Code review |
+| `/specflow.start` | **Primary entry point** - Auto-detect state, route to next step |
+| `/specflow.init` | Requirements interview |
+| `/specflow.orchestrate` | Full automated workflow |
+| `/specflow.specify` | Create feature spec |
+| `/specflow.plan` | Create implementation plan |
+| `/specflow.tasks` | Generate task breakdown |
+| `/specflow.implement` | Execute tasks |
+| `/specflow.verify` | Verify completion |
+| `/specflow.merge` | Complete phase, merge PR |
+| `/specflow.memory` | Manage memory documents (incl. generate) |
+| `/specflow.review` | Code review |
 
-**Note**: For issue management, use the CLI directly: `speckit issue list`, `speckit issue create`, etc.
+**Note**: For issue management, use the CLI directly: `specflow issue list`, `specflow issue create`, etc.

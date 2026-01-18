@@ -1,6 +1,6 @@
-# SpecKit Constitution
+# SpecFlow Constitution
 
-> Core principles and governance for SpecKit development. All implementation decisions must align with these principles.
+> Core principles and governance for SpecFlow development. All implementation decisions must align with these principles.
 
 **Version**: 1.1.0
 **Created**: 2026-01-10
@@ -10,7 +10,7 @@
 
 ## Preamble
 
-SpecKit is a spec-driven development framework for Claude Code. It provides CLI tools and slash commands that guide AI-assisted development through structured workflows. This constitution defines the fundamental principles guiding development.
+SpecFlow is a spec-driven development framework for Claude Code. It provides CLI tools and slash commands that guide AI-assisted development through structured workflows. This constitution defines the fundamental principles guiding development.
 
 ---
 
@@ -29,7 +29,7 @@ All scripts are written in POSIX-compliant bash, validated with shellcheck.
 ### III. CLI Over Direct Edits
 State and artifact changes go through CLI commands, not direct file edits.
 - **Rationale**: Consistency, validation, audit trail
-- **Implications**: `speckit state set`, `speckit tasks mark`, not Edit tool on JSON
+- **Implications**: `specflow state set`, `specflow tasks mark`, not Edit tool on JSON
 
 ### IV. Simplicity Over Cleverness
 Prefer readable, maintainable code over clever optimizations.
@@ -59,7 +59,7 @@ CLI output must put user-critical information in the first 3 lines.
   ```
   OK: Tasks 40/40 complete (100%)
     File: specs/0020-onboarding-polish/tasks.md
-    Next: Run /speckit.verify to complete phase
+    Next: Run /specflow.verify to complete phase
   ```
 
 ---
@@ -92,4 +92,4 @@ To amend this constitution:
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.1.0 | 2026-01-10 | Added Principle VII: Three-Line Output Rule |
-| 1.0.0 | 2026-01-10 | Initial constitution for SpecKit |
+| 1.0.0 | 2026-01-10 | Initial constitution for SpecFlow |

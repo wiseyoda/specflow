@@ -10,19 +10,19 @@
 
 ### Architecture Overview
 
-SpecKit is a bash-based CLI framework with:
-- **Entry point**: `bin/speckit` (dispatcher)
-- **Core scripts**: `scripts/bash/speckit-*.sh` (individual commands)
+SpecFlow is a bash-based CLI framework with:
+- **Entry point**: `bin/specflow` (dispatcher)
+- **Core scripts**: `scripts/bash/specflow-*.sh` (individual commands)
 - **Libraries**: `scripts/bash/lib/{common,json,detection}.sh`
-- **Slash commands**: `commands/speckit.*.md` (Claude Code prompts)
+- **Slash commands**: `commands/specflow.*.md` (Claude Code prompts)
 - **Templates**: `templates/` (canonical location)
 
 ### Current State Analysis
 
 | Area | Status | Key Findings |
 |------|--------|--------------|
-| bin/speckit | Needs fix | 'phase' incorrectly listed as slash-only command |
-| common.sh | Needs extension | Has `get_speckit_system_dir()`, needs `get_speckit_registry()` |
+| bin/specflow | Needs fix | 'phase' incorrectly listed as slash-only command |
+| common.sh | Needs extension | Has `get_specflow_system_dir()`, needs `get_specflow_registry()` |
 | Hardcoded paths | 5 files | Need to use common.sh helpers |
 | Three-line rule | 26 violations | All CLI scripts need refactoring |
 | Templates | Duplicate dir | `.specify/templates/` should be deleted |
@@ -48,9 +48,9 @@ SpecKit is a bash-based CLI framework with:
 
 ### Phase 1: Critical Fixes (Blocking Issues)
 
-**1.1 Fix LIB008 - bin/speckit command routing**
+**1.1 Fix LIB008 - bin/specflow command routing**
 - Remove 'phase' from slash-command warning list (line 337)
-- 'phase' is a valid CLI command (speckit-phase.sh exists)
+- 'phase' is a valid CLI command (specflow-phase.sh exists)
 
 **1.2 Remove duplicate templates directory**
 - Delete `.specify/templates/` entirely
@@ -60,8 +60,8 @@ SpecKit is a bash-based CLI framework with:
 
 **2.1 Add missing path helpers**
 ```bash
-get_speckit_registry() {
-  echo "${HOME}/.speckit/registry.json"
+get_specflow_registry() {
+  echo "${HOME}/.specflow/registry.json"
 }
 ```
 
@@ -93,11 +93,11 @@ print_summary() {
 ### Phase 3: Hardcoded Path Remediation
 
 Update 5 files to use common.sh helpers:
-1. `speckit-doctor.sh` - Use `get_speckit_system_dir()`
-2. `speckit-detect.sh` - Use `get_speckit_system_dir()`
-3. `speckit-state.sh` - Use `get_speckit_registry()`
-4. `speckit-templates.sh` - Use `get_speckit_system_dir()`
-5. `speckit-scaffold.sh` - Use `get_speckit_system_dir()`
+1. `specflow-doctor.sh` - Use `get_specflow_system_dir()`
+2. `specflow-detect.sh` - Use `get_specflow_system_dir()`
+3. `specflow-state.sh` - Use `get_specflow_registry()`
+4. `specflow-templates.sh` - Use `get_specflow_system_dir()`
+5. `specflow-scaffold.sh` - Use `get_specflow_system_dir()`
 
 ### Phase 4: Three-Line Rule Compliance
 
@@ -122,27 +122,27 @@ cmd_validate() {
   # Three-line output at end
   print_summary "ok" "$count items validated" \
     "File: $filepath" \
-    "Run speckit X to continue"
+    "Run specflow X to continue"
 }
 ```
 
 Scripts to update:
-- speckit-detect.sh (1 function)
-- speckit-gate.sh (1 function)
-- speckit-lessons.sh (2 functions)
-- speckit-import.sh (1 function)
-- speckit-context.sh (1 function)
-- speckit-git.sh (1 function)
-- speckit-manifest.sh (1 function)
-- speckit-reconcile.sh (3 functions)
-- speckit-templates.sh (3 functions)
-- speckit-phase.sh (1 function)
-- speckit-roadmap.sh (2 functions)
-- speckit-memory.sh (3 functions)
-- speckit-migrate.sh (1 function)
-- speckit-pdr.sh (1 function)
-- speckit-scaffold.sh (1 function)
-- speckit-state.sh (3 functions)
+- specflow-detect.sh (1 function)
+- specflow-gate.sh (1 function)
+- specflow-lessons.sh (2 functions)
+- specflow-import.sh (1 function)
+- specflow-context.sh (1 function)
+- specflow-git.sh (1 function)
+- specflow-manifest.sh (1 function)
+- specflow-reconcile.sh (3 functions)
+- specflow-templates.sh (3 functions)
+- specflow-phase.sh (1 function)
+- specflow-roadmap.sh (2 functions)
+- specflow-memory.sh (3 functions)
+- specflow-migrate.sh (1 function)
+- specflow-pdr.sh (1 function)
+- specflow-scaffold.sh (1 function)
+- specflow-state.sh (3 functions)
 
 ### Phase 5: POSIX Compliance Fixes
 
@@ -169,7 +169,7 @@ sed_in_place() {
 - Add double-source guard
 - Fix unquoted jq interpolations (lines 84, 217)
 
-**6.2 speckit-issue.sh arithmetic fix**
+**6.2 specflow-issue.sh arithmetic fix**
 - Change `((count++))` to `((count++)) || true`
 
 ### Phase 7: Slash Command Updates
@@ -181,12 +181,12 @@ Update 7 slash commands to:
 
 | Command | Changes |
 |---------|---------|
-| speckit.specify.md | Remove setup-plan.sh reference |
-| speckit.plan.md | Remove setup-plan.sh, update-agent-context.sh |
-| speckit.verify.md | Use speckit tasks mark |
-| speckit.backlog.md | Use speckit CLI |
-| speckit.phase.md | Already updated |
-| speckit.init.md | Use speckit state set |
+| specflow.specify.md | Remove setup-plan.sh reference |
+| specflow.plan.md | Remove setup-plan.sh, update-agent-context.sh |
+| specflow.verify.md | Use specflow tasks mark |
+| specflow.backlog.md | Use specflow CLI |
+| specflow.phase.md | Already updated |
+| specflow.init.md | Use specflow state set |
 
 ### Phase 8: Template Standardization
 
@@ -243,7 +243,7 @@ Phase 9 (Documentation)
 
 ## Testing Strategy
 
-1. **After Phase 1**: Verify `speckit phase` works
+1. **After Phase 1**: Verify `specflow phase` works
 2. **After Phase 2**: Verify common.sh loads correctly
 3. **After Phase 3**: Verify path resolution works
 4. **After Phase 4**: Sample output verification for three-line rule
@@ -257,9 +257,9 @@ Phase 9 (Documentation)
 
 | Metric | Target | Verification |
 |--------|--------|--------------|
-| LIB008 fixed | `speckit phase` works | Manual test |
+| LIB008 fixed | `specflow phase` works | Manual test |
 | Duplicate templates | 0 (deleted) | `ls .specify/templates/` fails |
-| Hardcoded paths | 0 in scripts | `grep -r "HOME/.speckit"` returns common.sh only |
+| Hardcoded paths | 0 in scripts | `grep -r "HOME/.specflow"` returns common.sh only |
 | Three-line compliant | 100% | Sample output checks |
 | Slash command refs | All valid | Manual audit |
 | Constitution score | 95%+ | Re-run compliance check |
@@ -271,45 +271,45 @@ Phase 9 (Documentation)
 ### High Priority
 | File | Changes |
 |------|---------|
-| bin/speckit | Remove 'phase' from slash-command list |
+| bin/specflow | Remove 'phase' from slash-command list |
 | scripts/bash/lib/common.sh | Add helpers |
-| scripts/bash/speckit-detect.sh | Three-line + path |
-| scripts/bash/speckit-doctor.sh | Path fix |
-| scripts/bash/speckit-state.sh | Registry path + three-line |
+| scripts/bash/specflow-detect.sh | Three-line + path |
+| scripts/bash/specflow-doctor.sh | Path fix |
+| scripts/bash/specflow-state.sh | Registry path + three-line |
 
 ### Medium Priority
 | File | Changes |
 |------|---------|
-| scripts/bash/speckit-gate.sh | Three-line |
-| scripts/bash/speckit-lessons.sh | Three-line + sed |
-| scripts/bash/speckit-import.sh | Three-line |
-| scripts/bash/speckit-context.sh | Three-line |
-| scripts/bash/speckit-git.sh | Three-line |
-| scripts/bash/speckit-manifest.sh | Three-line |
-| scripts/bash/speckit-reconcile.sh | Three-line |
-| scripts/bash/speckit-templates.sh | Three-line + path |
-| scripts/bash/speckit-phase.sh | Three-line |
-| scripts/bash/speckit-roadmap.sh | Three-line |
-| scripts/bash/speckit-memory.sh | Three-line |
-| scripts/bash/speckit-migrate.sh | Three-line |
-| scripts/bash/speckit-pdr.sh | Three-line |
-| scripts/bash/speckit-scaffold.sh | Three-line + path |
+| scripts/bash/specflow-gate.sh | Three-line |
+| scripts/bash/specflow-lessons.sh | Three-line + sed |
+| scripts/bash/specflow-import.sh | Three-line |
+| scripts/bash/specflow-context.sh | Three-line |
+| scripts/bash/specflow-git.sh | Three-line |
+| scripts/bash/specflow-manifest.sh | Three-line |
+| scripts/bash/specflow-reconcile.sh | Three-line |
+| scripts/bash/specflow-templates.sh | Three-line + path |
+| scripts/bash/specflow-phase.sh | Three-line |
+| scripts/bash/specflow-roadmap.sh | Three-line |
+| scripts/bash/specflow-memory.sh | Three-line |
+| scripts/bash/specflow-migrate.sh | Three-line |
+| scripts/bash/specflow-pdr.sh | Three-line |
+| scripts/bash/specflow-scaffold.sh | Three-line + path |
 
 ### Library Files
 | File | Changes |
 |------|---------|
 | scripts/bash/lib/json.sh | Guards + escaping |
-| scripts/bash/speckit-issue.sh | Arithmetic fix |
-| scripts/bash/speckit-feature.sh | extglob |
+| scripts/bash/specflow-issue.sh | Arithmetic fix |
+| scripts/bash/specflow-feature.sh | extglob |
 
 ### Slash Commands
 | File | Changes |
 |------|---------|
-| commands/speckit.specify.md | Remove deprecated refs |
-| commands/speckit.plan.md | Remove deprecated refs |
-| commands/speckit.verify.md | Use CLI |
-| commands/speckit.backlog.md | Use CLI |
-| commands/speckit.init.md | Use CLI |
+| commands/specflow.specify.md | Remove deprecated refs |
+| commands/specflow.plan.md | Remove deprecated refs |
+| commands/specflow.verify.md | Use CLI |
+| commands/specflow.backlog.md | Use CLI |
+| commands/specflow.init.md | Use CLI |
 
 ### Templates
 | File | Changes |

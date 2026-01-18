@@ -17,9 +17,9 @@
 **Files to Modify**:
 | Category | Count | Files |
 |----------|-------|-------|
-| Slash Commands | 12 | speckit.{issue,memory,memory-init,specify,plan,init,orchestrate,verify,merge,backlog,review,roadmap,constitution,phase}.md |
+| Slash Commands | 12 | specflow.{issue,memory,memory-init,specify,plan,init,orchestrate,verify,merge,backlog,review,roadmap,constitution,phase}.md |
 | Docs | 8 | cli-reference, slash-commands, integration-guide, project-structure, configuration, troubleshooting, templates, COMMAND-AUDIT.md |
-| CLI | 2 | bin/speckit, scripts/bash/speckit-status.sh |
+| CLI | 2 | bin/specflow, scripts/bash/specflow-status.sh |
 | Templates | 2 | CLAUDE.md template, new ui-design-template.md |
 | New Files | 1 | .specify/USAGE.md template |
 
@@ -29,12 +29,12 @@ Slash commands use YAML frontmatter for handoffs:
 ```yaml
 handoffs:
   - label: "Button Text"
-    agent: speckit.target
+    agent: specflow.target
     prompt: "Context for next command"
     send: true  # Optional: marks as default
 ```
 
-All handoffs should include `/speckit.start` as an option for "Continue Later".
+All handoffs should include `/specflow.start` as an option for "Continue Later".
 
 ### 1.3 Constitution Compliance Check
 
@@ -42,7 +42,7 @@ All handoffs should include `/speckit.start` as an option for "Continue Later".
 |-----------|------------|-------|
 | I. Developer Experience First | ✅ | Entry point consolidation improves UX |
 | II. POSIX-Compliant Bash | ✅ | No new bash scripts, only markdown |
-| III. CLI Over Direct Edits | ✅ | Using speckit commands for state |
+| III. CLI Over Direct Edits | ✅ | Using specflow commands for state |
 | IV. Simplicity Over Cleverness | ✅ | Removing complexity, not adding |
 | V. Helpful Error Messages | ✅ | Deprecation errors include next steps |
 | VI. Graceful Degradation | ✅ | No feature removal |
@@ -56,21 +56,21 @@ All handoffs should include `/speckit.start` as an option for "Continue Later".
 
 **Task Group**: Code cleanup and deprecation
 
-1. **Delete `/speckit.issue` slash command**
-   - File: `commands/speckit.issue.md`
+1. **Delete `/specflow.issue` slash command**
+   - File: `commands/specflow.issue.md`
    - Action: DELETE file
-   - Reason: CLI `speckit issue` works directly
+   - Reason: CLI `specflow issue` works directly
 
-2. **Deprecate `/speckit.memory-init`**
-   - File: `commands/speckit.memory-init.md`
-   - Action: REPLACE with error message pointing to `/speckit.memory generate`
+2. **Deprecate `/specflow.memory-init`**
+   - File: `commands/specflow.memory-init.md`
+   - Action: REPLACE with error message pointing to `/specflow.memory generate`
    - Pattern:
      ```markdown
      ## DEPRECATED
 
-     This command has been consolidated into `/speckit.memory`.
+     This command has been consolidated into `/specflow.memory`.
 
-     **Use Instead**: `/speckit.memory generate`
+     **Use Instead**: `/specflow.memory generate`
 
      The `generate` subcommand provides the same functionality.
      ```
@@ -79,8 +79,8 @@ All handoffs should include `/speckit.start` as an option for "Continue Later".
 
 **Task Group**: Unify memory commands
 
-1. **Update `/speckit.memory` to handle `generate` subcommand**
-   - File: `commands/speckit.memory.md`
+1. **Update `/specflow.memory` to handle `generate` subcommand**
+   - File: `commands/specflow.memory.md`
    - Add: Section for `generate` subcommand that:
      - Detects project type
      - Generates memory documents
@@ -88,27 +88,27 @@ All handoffs should include `/speckit.start` as an option for "Continue Later".
 
 ### Phase 2.3: Handoff Updates
 
-**Task Group**: Point all handoffs to `/speckit.start`
+**Task Group**: Point all handoffs to `/specflow.start`
 
 Commands to update (add "Continue Later" handoff):
-1. `speckit.init.md`
-2. `speckit.orchestrate.md`
-3. `speckit.verify.md`
-4. `speckit.merge.md`
-5. `speckit.backlog.md`
-6. `speckit.review.md`
-7. `speckit.roadmap.md`
-8. `speckit.constitution.md`
-9. `speckit.phase.md`
-10. `speckit.specify.md`
-11. `speckit.plan.md`
+1. `specflow.init.md`
+2. `specflow.orchestrate.md`
+3. `specflow.verify.md`
+4. `specflow.merge.md`
+5. `specflow.backlog.md`
+6. `specflow.review.md`
+7. `specflow.roadmap.md`
+8. `specflow.constitution.md`
+9. `specflow.phase.md`
+10. `specflow.specify.md`
+11. `specflow.plan.md`
 
 Pattern to add to each:
 ```yaml
 handoffs:
   # ... existing handoffs ...
   - label: "Continue Later"
-    agent: speckit.start
+    agent: specflow.start
     prompt: "Resume work on this project"
 ```
 
@@ -120,14 +120,14 @@ handoffs:
    - File: `templates/ui-design-template.md`
    - Content: Before/After/Rationale/Components structure
 
-2. **Update `/speckit.specify` for UI detection**
-   - File: `commands/speckit.specify.md`
+2. **Update `/specflow.specify` for UI detection**
+   - File: `commands/specflow.specify.md`
    - Add: UI keyword detection logic
    - Add: Auto-create `specs/XXXX/ui/design.md` for UI phases
    - Keywords: dashboard, form, button, screen, page, view, component, interface, modal, dialog, panel, widget, layout, navigation, menu, sidebar, header, footer
 
-3. **Update `/speckit.plan` for UI verification**
-   - File: `commands/speckit.plan.md`
+3. **Update `/specflow.plan` for UI verification**
+   - File: `commands/specflow.plan.md`
    - Add: Check if UI phase, verify design.md exists
 
 ### Phase 2.5: Documentation Overhaul
@@ -135,22 +135,22 @@ handoffs:
 **Task Group**: Comprehensive documentation updates
 
 1. **README.md**
-   - Add prominent `/speckit.start` recommendation
+   - Add prominent `/specflow.start` recommendation
    - Update quick start section
 
-2. **bin/speckit help text**
-   - Add note about `/speckit.start` entry point
+2. **bin/specflow help text**
+   - Add note about `/specflow.start` entry point
    - Keep existing error handling for slash command confusion
 
 3. **docs/ folder updates**:
-   - `cli-reference.md` - Verify current, remove /speckit.issue reference
-   - `slash-commands.md` - Add `/speckit.start` prominence, remove /speckit.issue
+   - `cli-reference.md` - Verify current, remove /specflow.issue reference
+   - `slash-commands.md` - Add `/specflow.start` prominence, remove /specflow.issue
    - `integration-guide.md` - Update workflow examples
    - `project-structure.md` - Verify accuracy
    - `configuration.md` - Verify accuracy
    - `troubleshooting.md` - Update with current diagnostics
    - `templates.md` - Verify accuracy, add ui-design-template reference
-   - `COMMAND-AUDIT.md` - Mark /speckit.issue as DELETED, update status
+   - `COMMAND-AUDIT.md` - Mark /specflow.issue as DELETED, update status
 
 ### Phase 2.6: CLAUDE.md Split
 
@@ -162,15 +162,15 @@ handoffs:
    - Common patterns
    - Troubleshooting
 
-2. **Update CLAUDE.md template in `speckit claude-md merge`**
-   - Minimal SpecKit section (~10 lines):
+2. **Update CLAUDE.md template in `specflow claude-md merge`**
+   - Minimal SpecFlow section (~10 lines):
      ```markdown
-     ## SpecKit
+     ## SpecFlow
 
-     This project uses SpecKit for spec-driven development.
+     This project uses SpecFlow for spec-driven development.
 
-     **Quick Start**: `/speckit.start` - routes to the right command
-     **CLI Help**: `speckit --help`
+     **Quick Start**: `/specflow.start` - routes to the right command
+     **CLI Help**: `specflow --help`
      **Full Reference**: `.specify/USAGE.md`
      ```
 
@@ -178,7 +178,7 @@ handoffs:
 
 **Task Group**: Filesystem-based state detection
 
-1. **Update `scripts/bash/speckit-status.sh`**
+1. **Update `scripts/bash/specflow-status.sh`**
    - Add artifact existence checks
    - Derive step completion from:
      - specify: `spec.md` exists
@@ -198,7 +198,7 @@ handoffs:
 
 | File | Reason |
 |------|--------|
-| `commands/speckit.issue.md` | CLI works directly |
+| `commands/specflow.issue.md` | CLI works directly |
 
 ### 3.2 Files to CREATE
 
@@ -211,16 +211,16 @@ handoffs:
 
 | File | Changes |
 |------|---------|
-| `commands/speckit.memory.md` | Add `generate` subcommand |
-| `commands/speckit.memory-init.md` | Replace with deprecation message |
-| `commands/speckit.specify.md` | Add UI detection, handoff |
-| `commands/speckit.plan.md` | Add UI verification, handoff |
-| `commands/speckit.{init,orchestrate,verify,merge,backlog,review,roadmap,constitution,phase}.md` | Add "Continue Later" handoff |
-| `README.md` | Add /speckit.start prominence |
-| `bin/speckit` | Add /speckit.start note in help |
-| `scripts/bash/speckit-status.sh` | Add state derivation logic |
-| `scripts/bash/speckit-claude-md.sh` | Update merge for minimal section |
-| `docs/cli-reference.md` | Remove /speckit.issue |
+| `commands/specflow.memory.md` | Add `generate` subcommand |
+| `commands/specflow.memory-init.md` | Replace with deprecation message |
+| `commands/specflow.specify.md` | Add UI detection, handoff |
+| `commands/specflow.plan.md` | Add UI verification, handoff |
+| `commands/specflow.{init,orchestrate,verify,merge,backlog,review,roadmap,constitution,phase}.md` | Add "Continue Later" handoff |
+| `README.md` | Add /specflow.start prominence |
+| `bin/specflow` | Add /specflow.start note in help |
+| `scripts/bash/specflow-status.sh` | Add state derivation logic |
+| `scripts/bash/specflow-claude-md.sh` | Update merge for minimal section |
+| `docs/cli-reference.md` | Remove /specflow.issue |
 | `docs/slash-commands.md` | Update command list, add start prominence |
 | `docs/integration-guide.md` | Update examples |
 | `docs/troubleshooting.md` | Update diagnostics |
@@ -242,9 +242,9 @@ handoffs:
 
 ## 5. Testing Strategy
 
-1. **Pre-implementation**: Verify `/speckit.issue` CLI works
-2. **Post-deprecation**: Verify `/speckit.memory-init` shows error message
-3. **Post-consolidation**: Verify `/speckit.memory generate` works
+1. **Pre-implementation**: Verify `/specflow.issue` CLI works
+2. **Post-deprecation**: Verify `/specflow.memory-init` shows error message
+3. **Post-consolidation**: Verify `/specflow.memory generate` works
 4. **Post-handoffs**: Spot-check 2-3 commands for "Continue Later"
 5. **Post-UI**: Create test UI phase, verify design.md created
 6. **Post-docs**: Manual review of all updated files

@@ -2,7 +2,7 @@
 #
 # Test Suite: Scaffold
 #
-# Tests for speckit scaffold command:
+# Tests for specflow scaffold command:
 #   - Creating project structure
 #   - --force flag
 #   - --status flag
@@ -17,7 +17,7 @@ test_scaffold_creates_structure() {
   git init -q .
 
   # Run scaffold
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Verify directories created
   assert_dir_exists ".specify" "Main directory created"
@@ -35,7 +35,7 @@ test_scaffold_creates_state_file() {
   git init -q .
 
   # Run scaffold
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Verify state file created
   assert_file_exists ".specify/orchestration-state.json" "State file created"
@@ -48,14 +48,14 @@ test_scaffold_status() {
 
   # Check status before scaffold
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" --status 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" --status 2>&1)
   assert_contains "$output" "missing" "Status shows missing before scaffold"
 
   # Run scaffold
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Check status after scaffold
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" --status 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" --status 2>&1)
   # Should show project is initialized
   assert_contains "$output" "OK" "Status shows OK after scaffold"
 }
@@ -65,13 +65,13 @@ test_scaffold_force() {
   git init -q .
 
   # Run scaffold first time
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Modify state file
   echo '{"modified": true}' > .specify/orchestration-state.json
 
   # Run with force - should recreate
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" --force
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" --force
 
   # Verify state was recreated (not modified version)
   assert_json_equals ".specify/orchestration-state.json" ".schema_version" "2.0" "State recreated with force"
@@ -82,13 +82,13 @@ test_scaffold_idempotent() {
   git init -q .
 
   # Run scaffold twice
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Add a file to a directory
   echo "test" > .specify/memory/test.md
 
   # Run again without force
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" 2>/dev/null || true
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" 2>/dev/null || true
 
   # Verify file still exists
   assert_file_exists ".specify/memory/test.md" "Existing files preserved"
@@ -99,7 +99,7 @@ test_scaffold_not_git_repo() {
 
   # Scaffold should fail or warn
   local exit_code=0
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" 2>/dev/null || exit_code=$?
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" 2>/dev/null || exit_code=$?
 
   # Either fails or creates structure anyway
   # Just verify it handles the case
@@ -112,7 +112,7 @@ test_scaffold_creates_gitkeep() {
   git init -q .
 
   # Run scaffold
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Check for .gitkeep files in empty directories
   # At least archive should have one

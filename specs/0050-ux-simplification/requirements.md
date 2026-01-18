@@ -16,24 +16,24 @@
 - [ ] Delete `.specify/scripts/bash/` directory (should be empty)
 
 ### FR-002: Slash Command Removal
-- [ ] Delete `commands/speckit.issue.md`
-- [ ] Verify `speckit issue` CLI remains functional
+- [ ] Delete `commands/specflow.issue.md`
+- [ ] Verify `specflow issue` CLI remains functional
 - [ ] Document CLI usage in appropriate locations
 
 ### FR-003: Memory Command Consolidation
-- [ ] Update `commands/speckit.memory.md` to handle `generate` subcommand
-- [ ] Update `commands/speckit.memory-init.md` with deprecation notice
-- [ ] Ensure `/speckit.memory generate` works correctly
+- [ ] Update `commands/specflow.memory.md` to handle `generate` subcommand
+- [ ] Update `commands/specflow.memory-init.md` with deprecation notice
+- [ ] Ensure `/specflow.memory generate` works correctly
 
 ### FR-004: Entry Point Consolidation
-- [ ] Update `README.md` to recommend `/speckit.start`
-- [ ] Update `bin/speckit` help text to recommend `/speckit.start`
+- [ ] Update `README.md` to recommend `/specflow.start`
+- [ ] Update `bin/specflow` help text to recommend `/specflow.start`
 - [ ] Update all slash command handoffs (10 commands)
 
 ### FR-005: Documentation Split
 - [ ] Create `.specify/USAGE.md` with full CLI reference
 - [ ] Update `CLAUDE.md` to minimal section (≤15 lines)
-- [ ] Update `speckit claude-md merge` command for minimal approach
+- [ ] Update `specflow claude-md merge` command for minimal approach
 
 ### FR-006: docs/ Folder Updates
 - [ ] Update `docs/cli-reference.md`
@@ -46,15 +46,15 @@
 - [ ] Update or archive `docs/COMMAND-AUDIT.md`
 
 ### FR-007: State Derivation
-- [ ] Update `scripts/bash/speckit-status.sh` for artifact-based derivation
-- [ ] Verify `speckit status --json` reports derived state
+- [ ] Update `scripts/bash/specflow-status.sh` for artifact-based derivation
+- [ ] Verify `specflow status --json` reports derived state
 - [ ] Test recovery with outdated state file
 
 ### FR-008: UI Design Artifacts
-- [ ] Add UI detection logic to `/speckit.specify`
+- [ ] Add UI detection logic to `/specflow.specify`
 - [ ] Create `templates/ui-design-template.md`
 - [ ] Auto-create `specs/XXXX/ui/design.md` for UI phases
-- [ ] Add design verification to `/speckit.plan`
+- [ ] Add design verification to `/specflow.plan`
 
 ---
 
@@ -82,10 +82,10 @@
 
 ### VC-001: Gate Check
 - [ ] 0 scripts in `.specify/scripts/bash/`
-- [ ] `/speckit.issue` slash command removed
-- [ ] `/speckit.memory generate` works
-- [ ] Documentation recommends `/speckit.start`
-- [ ] `speckit status --json` derives from artifacts
+- [ ] `/specflow.issue` slash command removed
+- [ ] `/specflow.memory generate` works
+- [ ] Documentation recommends `/specflow.start`
+- [ ] `specflow status --json` derives from artifacts
 - [ ] UI phases get `ui/design.md`
 - [ ] CLAUDE.md section ≤15 lines
 - [ ] `.specify/USAGE.md` exists

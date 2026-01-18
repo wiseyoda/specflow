@@ -5,7 +5,7 @@
 - [ ] **US-1**: Initialize Uninitialized Project
   - [ ] "Initialize" button on `not_initialized` projects
   - [ ] Confirmation dialog before execution
-  - [ ] Runs `speckit init --non-interactive`
+  - [ ] Runs `specflow init --non-interactive`
   - [ ] Streaming output display
   - [ ] Status updates after completion
 
@@ -19,13 +19,13 @@
 - [ ] **US-3**: Scaffold Project Structure
   - [ ] "Scaffold" in actions dropdown
   - [ ] Shows what will be created
-  - [ ] Runs `speckit scaffold`
+  - [ ] Runs `specflow scaffold`
   - [ ] Streaming output display
 
 - [ ] **US-4**: Migrate v1 to v2 Schema
   - [ ] "Migrate to v2" on v1 projects
   - [ ] Confirmation dialog
-  - [ ] Runs `speckit state migrate`
+  - [ ] Runs `specflow state migrate`
   - [ ] State updates to v2 after completion
 
 - [ ] **US-5**: View Command Output

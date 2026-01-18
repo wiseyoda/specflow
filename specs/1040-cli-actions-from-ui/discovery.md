@@ -11,7 +11,7 @@ The web dashboard is a Next.js 16 application with React 19, located in `/packag
 - **Styling**: Tailwind CSS + shadcn/ui components
 - **State Management**: React Context API (ConnectionContext)
 - **Real-time**: Server-Sent Events (SSE) for file watching
-- **Validation**: Zod schemas in `@speckit/shared`
+- **Validation**: Zod schemas in `@specflow/shared`
 
 ### Current Data Flow
 
@@ -39,16 +39,16 @@ Relevant commands for UI integration:
 
 | Command | Purpose | JSON Support |
 |---------|---------|--------------|
-| `speckit tasks mark <id>...` | Mark task(s) complete | Yes |
-| `speckit tasks status` | Get task counts | Yes |
-| `speckit issue create <title>` | Create backlog item | Yes |
-| `speckit issue list` | List issues | Yes |
-| `speckit phase show <id>` | Get phase details | Yes |
-| `speckit state set <key=value>` | Update orchestration state | No |
+| `specflow tasks mark <id>...` | Mark task(s) complete | Yes |
+| `specflow tasks status` | Get task counts | Yes |
+| `specflow issue create <title>` | Create backlog item | Yes |
+| `specflow issue list` | List issues | Yes |
+| `specflow phase show <id>` | Get phase details | Yes |
+| `specflow state set <key=value>` | Update orchestration state | No |
 
 ### Task Data Structure
 
-From `@speckit/shared`:
+From `@specflow/shared`:
 ```typescript
 interface Task {
   id: string;           // e.g., "T001"
@@ -96,7 +96,7 @@ Should clicking a task toggle it (complete ↔ incomplete) or only mark complete
 
 **Options**:
 - **Toggle**: More intuitive, allows undoing mistakes
-- **Complete only**: Simpler, matches `speckit tasks mark` which only completes
+- **Complete only**: Simpler, matches `specflow tasks mark` which only completes
 
 ### Q3: Command Output Display
 How should CLI output be displayed?
@@ -117,7 +117,7 @@ Should keyboard shortcuts work globally or only in specific views?
 Should "Add backlog item" create an issue or add to ROADMAP.md?
 
 **Current behavior**:
-- `speckit issue create` creates `.specify/issues/ISSUE-XXX.md`
+- `specflow issue create` creates `.specify/issues/ISSUE-XXX.md`
 - Issues have category, priority, phase assignment
 - ROADMAP.md has a separate "Issues Backlog" section
 
@@ -126,13 +126,13 @@ Should "Add backlog item" create an issue or add to ROADMAP.md?
 1. **Security**: Must validate/sanitize all inputs before shell commands (OWASP injection prevention)
 2. **Path Resolution**: CLI commands need project path context - API must pass `--path` or `cwd`
 3. **SSE Architecture**: Changes made via CLI are already broadcasted - UI updates automatically
-4. **No TypeScript CLI**: All SpecKit commands are bash scripts - no existing TypeScript entry points
+4. **No TypeScript CLI**: All SpecFlow commands are bash scripts - no existing TypeScript entry points
 
 ## Integration Points
 
 ```
 User clicks task → API POST /api/tasks/[id]/complete
-  → spawn('speckit', ['tasks', 'mark', id, '--path', projectPath])
+  → spawn('specflow', ['tasks', 'mark', id, '--path', projectPath])
   → Watcher detects tasks.md change
   → SSE broadcasts updated TasksData
   → UI re-renders with new status
@@ -142,8 +142,8 @@ User clicks task → API POST /api/tasks/[id]/complete
 
 1. **Shell out to CLI** - Reuses tested logic, maintains single source of truth
 2. **Toast + Drawer** - Non-intrusive feedback with expandable details for full output
-3. **Full command palette** - Expose all `speckit` commands via Cmd+K
-4. **Issue creation focus** - Primary backlog mechanism via `speckit issue create`
+3. **Full command palette** - Expose all `specflow` commands via Cmd+K
+4. **Issue creation focus** - Primary backlog mechanism via `specflow issue create`
 5. **Foundation for 1050** - Output streaming patterns reusable for agent logs
 
 ---
@@ -153,22 +153,22 @@ User clicks task → API POST /api/tasks/[id]/complete
 After user discussion, the scope has been **revised** from the original phase spec:
 
 ### In Scope
-1. **API shell-out pattern** - Standard way to execute `speckit` commands from API routes
+1. **API shell-out pattern** - Standard way to execute `specflow` commands from API routes
 2. **Output streaming infrastructure** - Stream command output to UI (foundation for agent logs in 1050)
-3. **Command palette** - Full `speckit` command access via Cmd+K
+3. **Command palette** - Full `specflow` command access via Cmd+K
 4. **Toast + Drawer feedback** - Non-intrusive notifications with expandable details
-5. **Issue creation flow** - `speckit issue create` as primary backlog mechanism
+5. **Issue creation flow** - `specflow issue create` as primary backlog mechanism
 
 ### Revised Verification Gate
 - Create issue from UI appears in `.specify/issues/`
-- Run any `speckit` command from command palette
+- Run any `specflow` command from command palette
 - Command output streams to drawer in real-time
 - Errors display in toast with helpful messages
 
 ### Deferred (not in scope for 1040)
 - Task checkbox toggle from UI (agents mark tasks during implementation)
 - `t` keyboard shortcut for task toggle
-- `/speckit.orchestrate` (complex, better suited for 1050's agent work)
+- `/specflow.orchestrate` (complex, better suited for 1050's agent work)
 
 ### Rationale
 - Task marking is agent-driven, not user-driven

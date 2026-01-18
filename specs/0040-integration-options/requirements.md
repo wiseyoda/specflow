@@ -6,7 +6,7 @@
 ## Functional Requirements
 
 ### Detection (US1)
-- [ ] FR1.1: `speckit detect --docs` command exists
+- [ ] FR1.1: `specflow detect --docs` command exists
 - [ ] FR1.2: Detects README.md, CONTRIBUTING.md, ARCHITECTURE.md
 - [ ] FR1.3: Detects docs/ and doc/ directories
 - [ ] FR1.4: Detects ADR directories (adr/, adrs/, docs/adr/, docs/decisions/)
@@ -16,7 +16,7 @@
 - [ ] FR1.8: Supports --json output
 
 ### Import (US2)
-- [ ] FR2.1: `speckit import adrs <path>` command exists
+- [ ] FR2.1: `specflow import adrs <path>` command exists
 - [ ] FR2.2: Creates .specify/memory/adrs/ directory
 - [ ] FR2.3: Copies ADR files preserving content
 - [ ] FR2.4: Preserves original filenames

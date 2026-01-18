@@ -1,6 +1,6 @@
 # Verification Checklist: Phase 1040 - CLI Actions from UI
 
-> Use this checklist during `/speckit.verify` to confirm implementation completeness.
+> Use this checklist during `/specflow.verify` to confirm implementation completeness.
 
 ## User Gate Verification (Required)
 
@@ -14,12 +14,12 @@ These items MUST pass for phase completion:
 - [x] Verify `.specify/issues/` contains new issue file
 - [x] Verify toast shows success message
 
-### VG-2: Run Any SpecKit Command
+### VG-2: Run Any SpecFlow Command
 - [x] Open command palette (Cmd+K)
-- [x] Verify command list shows all speckit commands
-- [x] Run `speckit status`
+- [x] Verify command list shows all specflow commands
+- [x] Run `specflow status`
 - [x] Verify output appears in drawer
-- [x] Run `speckit tasks status`
+- [x] Run `specflow tasks status`
 - [x] Verify output appears in drawer
 
 ### VG-3: Command Output Streaming
@@ -68,7 +68,7 @@ These items MUST pass for phase completion:
 
 ### FR-007: Command Discovery
 - [x] `/api/commands/list` returns available commands
-- [x] Commands are parsed from `speckit help` output
+- [x] Commands are parsed from `specflow help` output
 - [x] Command list includes subcommands
 
 ### FR-008: Timeout Handling
@@ -117,7 +117,7 @@ These items MUST pass for phase completion:
 
 - [x] No command injection vulnerabilities
 - [x] Inputs are validated with Zod schemas
-- [x] Only speckit commands can be executed (no arbitrary shell)
+- [x] Only specflow commands can be executed (no arbitrary shell)
 
 ---
 

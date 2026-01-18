@@ -34,17 +34,17 @@ discover → specify → clarify → plan → tasks → analyze → checklist �
 
 | Command | Lines | File |
 |---------|-------|------|
-| orchestrate | 748 | commands/speckit.orchestrate.md |
-| specify | 549 | commands/speckit.specify.md |
-| clarify | 378 | commands/speckit.clarify.md |
-| plan | 123 | commands/speckit.plan.md |
-| tasks | 203 | commands/speckit.tasks.md |
-| analyze | 216 | commands/speckit.analyze.md |
-| checklist | 517 | commands/speckit.checklist.md |
-| implement | 412 | commands/speckit.implement.md |
-| verify | 517 | commands/speckit.verify.md |
-| merge | 478 | commands/speckit.merge.md |
-| backlog | 247 | commands/speckit.backlog.md |
+| orchestrate | 748 | commands/specflow.orchestrate.md |
+| specify | 549 | commands/specflow.specify.md |
+| clarify | 378 | commands/specflow.clarify.md |
+| plan | 123 | commands/specflow.plan.md |
+| tasks | 203 | commands/specflow.tasks.md |
+| analyze | 216 | commands/specflow.analyze.md |
+| checklist | 517 | commands/specflow.checklist.md |
+| implement | 412 | commands/specflow.implement.md |
+| verify | 517 | commands/specflow.verify.md |
+| merge | 478 | commands/specflow.merge.md |
+| backlog | 247 | commands/specflow.backlog.md |
 
 ### Deprecation Pattern (from Phase 0070)
 
@@ -54,7 +54,7 @@ Deprecated commands are converted to stubs (~30 lines each) that:
 3. Provide migration table
 4. Reference replacement command(s)
 
-Examples: `speckit.start.md`, `speckit.constitution.md`, `speckit.phase.md`
+Examples: `specflow.start.md`, `specflow.constitution.md`, `specflow.phase.md`
 
 ### Key Integration Points
 
@@ -63,11 +63,11 @@ Examples: `speckit.start.md`, `speckit.constitution.md`, `speckit.phase.md`
    - `orchestration.step.current` - Current step name
    - `orchestration.step.index` - Step number (0-8)
    - `orchestration.step.status` - in_progress/completed/failed
-3. **CLI commands** - All state changes via `speckit state set`, `speckit tasks mark`
+3. **CLI commands** - All state changes via `specflow state set`, `specflow tasks mark`
 
 ### Proposed Changes (Updated with Decisions)
 
-1. **Create `/speckit.design`**:
+1. **Create `/specflow.design`**:
    - Combines: discover → specify → clarify → plan → tasks → checklist
    - Produces all design artifacts in sequence
    - Codebase examination and clarifications asked inline
@@ -78,22 +78,22 @@ Examples: `speckit.start.md`, `speckit.constitution.md`, `speckit.phase.md`
      - `--tasks` regenerates tasks + checklist
      - `--checklist` regenerates checklist only
 
-2. **Update `/speckit.orchestrate`**:
+2. **Update `/specflow.orchestrate`**:
    - New 4-step workflow: design → analyze → implement → verify
    - Step indices: 0=design, 1=analyze, 2=implement, 3=verify
    - Inline clarify behavior (questions asked in context during design)
 
-3. **Move `/speckit.backlog` to `/speckit.roadmap backlog`**:
+3. **Move `/specflow.backlog` to `/specflow.roadmap backlog`**:
    - Backlog is a roadmap operation
-   - `speckit.roadmap.md` already has subcommand structure
+   - `specflow.roadmap.md` already has subcommand structure
 
 4. **Deprecate 6 commands**:
-   - specify → use `/speckit.design`
-   - clarify → use `/speckit.design` (inline)
-   - plan → use `/speckit.design --plan`
-   - tasks → use `/speckit.design --tasks`
-   - checklist → use `/speckit.design --checklist`
-   - backlog → use `/speckit.roadmap backlog`
+   - specify → use `/specflow.design`
+   - clarify → use `/specflow.design` (inline)
+   - plan → use `/specflow.design --plan`
+   - tasks → use `/specflow.design --tasks`
+   - checklist → use `/specflow.design --checklist`
+   - backlog → use `/specflow.roadmap backlog`
 
 ## Clarification Decisions (Resolved)
 

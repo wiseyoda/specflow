@@ -1,7 +1,7 @@
 # Verification Checklist: Code Review Findings
 
 **Phase**: 0041 - Code Review Findings
-**Purpose**: Post-completion verification for /speckit.verify
+**Purpose**: Post-completion verification for /specflow.verify
 **Created**: 2026-01-11
 
 ---
@@ -13,8 +13,8 @@
 - [ ] Verify 33 findings implemented (36 - 3 deferred)
 - [ ] Confirm 3 deferred items have documented rationale:
   - [ ] OE001: Migrate roadmap to JSON (deferred: architectural, v3.0)
-  - [ ] OE002: Split speckit-state.sh (deferred: architectural, v3.0)
-  - [ ] OD006: Split speckit.memory.md (deferred: low impact)
+  - [ ] OE002: Split specflow-state.sh (deferred: architectural, v3.0)
+  - [ ] OD006: Split specflow.memory.md (deferred: low impact)
 
 ### SC-002: Shellcheck Compliance
 - [ ] Run: `shellcheck scripts/bash/*.sh`
@@ -38,10 +38,10 @@
 - [ ] Returns no matches
 
 ### SC-006: Multi-Runner Gate
-- [ ] `speckit gate` detects pytest (Python project)
-- [ ] `speckit gate` detects go test (Go project)
-- [ ] `speckit gate` detects bats (Bash project)
-- [ ] `speckit gate` falls back to npm test (Node project)
+- [ ] `specflow gate` detects pytest (Python project)
+- [ ] `specflow gate` detects go test (Go project)
+- [ ] `specflow gate` detects bats (Bash project)
+- [ ] `specflow gate` falls back to npm test (Node project)
 
 ---
 
@@ -55,7 +55,7 @@
 
 ### US2: Accurate Documentation
 - [ ] README install commands work
-- [ ] speckit.specify.md references current commands
+- [ ] specflow.specify.md references current commands
 - [ ] CLAUDE.md architecture diagram complete
 - [ ] ROADMAP status icons match legend
 
@@ -78,18 +78,18 @@
 |------|-------------|
 | lib/common.sh | sanitize_for_pattern() exists |
 | lib/common.sh | validate_phase_number() exists |
-| speckit-state.sh | No debug leftovers |
-| speckit-state.sh | cmd_migrate split into functions |
-| speckit-state.sh | cmd_infer split into functions |
-| speckit-state.sh | Trap cleanup on temp files |
-| speckit-roadmap.sh | Placeholder goal validation |
-| speckit-roadmap.sh | grep -F for literals |
-| speckit-roadmap.sh | Status stored as text |
-| speckit-gate.sh | detect_test_runner() exists |
-| speckit-gate.sh | Supports pytest, go test, bats |
-| speckit-feature.sh | Input validation checks |
-| speckit-context.sh | Quoted parameter expansions |
-| speckit-import.sh | Error handling on external cmds |
+| specflow-state.sh | No debug leftovers |
+| specflow-state.sh | cmd_migrate split into functions |
+| specflow-state.sh | cmd_infer split into functions |
+| specflow-state.sh | Trap cleanup on temp files |
+| specflow-roadmap.sh | Placeholder goal validation |
+| specflow-roadmap.sh | grep -F for literals |
+| specflow-roadmap.sh | Status stored as text |
+| specflow-gate.sh | detect_test_runner() exists |
+| specflow-gate.sh | Supports pytest, go test, bats |
+| specflow-feature.sh | Input validation checks |
+| specflow-context.sh | Quoted parameter expansions |
+| specflow-import.sh | Error handling on external cmds |
 
 ### Documentation Modified
 | File | Verification |
@@ -100,7 +100,7 @@
 | CLAUDE.md | Architecture includes lib/*.sh |
 | CLAUDE.md | No init-*.md references |
 | ROADMAP.md | Status icons match legend |
-| speckit.specify.md | References speckit feature create |
+| specflow.specify.md | References specflow feature create |
 
 ### Files Deleted
 | File | Verification |
@@ -113,7 +113,7 @@
 ## Final Sign-Off
 
 - [ ] All 42 tasks marked complete in tasks.md
-- [ ] `speckit doctor` shows no warnings
+- [ ] `specflow doctor` shows no warnings
 - [ ] Git working tree clean (all changes committed)
 - [ ] Branch ready for merge to main
 
@@ -128,7 +128,7 @@ shellcheck scripts/bash/*.sh
 grep -r "YOUR_USERNAME" README.md
 grep -r "check-prerequisites.sh" . --include="*.md" --include="*.sh"
 grep -r "create-new-feature.sh" . --include="*.md"
-speckit doctor
+specflow doctor
 
 # Verify file deletions
 ls scripts/bash/check-prerequisites.sh 2>&1  # Should fail
@@ -137,5 +137,5 @@ ls .specify/scripts/bash/check-prerequisites.sh 2>&1  # Should fail
 # Verify new functions
 grep -n "sanitize_for_pattern" scripts/bash/lib/common.sh
 grep -n "validate_phase_number" scripts/bash/lib/common.sh
-grep -n "detect_test_runner" scripts/bash/speckit-gate.sh
+grep -n "detect_test_runner" scripts/bash/specflow-gate.sh
 ```

@@ -2,7 +2,7 @@
 #
 # Test Suite: Reconciliation
 #
-# Tests for speckit reconcile command:
+# Tests for specflow reconcile command:
 #   - Task completion comparison
 #   - Git branch comparison
 #   - State/file sync
@@ -16,11 +16,11 @@
 
 test_reconcile_in_sync() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Run reconcile on fresh project
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-reconcile.sh" 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-reconcile.sh" 2>&1)
 
   # Should show in sync or no active phase
   assert_matches "$output" "sync|No active phase|not_started" "Reports sync status"
@@ -28,15 +28,15 @@ test_reconcile_in_sync() {
 
 test_reconcile_git_branch_mismatch() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Set branch in state (v2.0 schema)
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.phase.branch=feat/test-branch"
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.phase.status=in_progress"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.phase.branch=feat/test-branch"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.phase.status=in_progress"
 
   # Current branch is main/master
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-reconcile.sh" 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-reconcile.sh" 2>&1)
 
   # Should detect branch mismatch
   # (might show as mismatch or just comparison)
@@ -45,13 +45,13 @@ test_reconcile_git_branch_mismatch() {
 
 test_reconcile_task_comparison() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Set up orchestration state (v2.0 schema paths)
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.phase.number=001"
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.phase.status=in_progress"
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.progress.tasks_completed=5"
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.progress.tasks_total=10"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.phase.number=001"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.phase.status=in_progress"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.progress.tasks_completed=5"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.progress.tasks_total=10"
 
   # Create tasks.md with different count
   mkdir -p specs/001-test
@@ -72,7 +72,7 @@ EOF
 
   # Run reconcile
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-reconcile.sh" 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-reconcile.sh" 2>&1)
 
   # Should detect task mismatch (state says 5, file says 7)
   assert_matches "$output" "task|Task" "Checks task completion"
@@ -80,18 +80,18 @@ EOF
 
 test_reconcile_dry_run() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Set mismatch (v2.0 schema)
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.phase.branch=wrong-branch"
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.phase.status=in_progress"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.phase.branch=wrong-branch"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.phase.status=in_progress"
 
   # Get original value
   local original
   original=$(jq -r '.orchestration.phase.branch' .specify/orchestration-state.json)
 
   # Run with dry-run
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-reconcile.sh" --dry-run --trust-files 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-reconcile.sh" --dry-run --trust-files 2>&1
 
   # Value should not have changed
   local after
@@ -101,13 +101,13 @@ test_reconcile_dry_run() {
 
 test_reconcile_trust_files() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Set up with task mismatch (v2.0 schema)
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.phase.number=001"
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.phase.status=in_progress"
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.progress.tasks_completed=2"
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.progress.tasks_total=5"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.phase.number=001"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.phase.status=in_progress"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.progress.tasks_completed=2"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.progress.tasks_total=5"
 
   # Create tasks.md with 4/5 complete
   mkdir -p specs/001-test
@@ -121,7 +121,7 @@ test_reconcile_trust_files() {
 EOF
 
   # Run with trust-files
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-reconcile.sh" --trust-files 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-reconcile.sh" --trust-files 2>&1
 
   # State should be updated to match files
   local completed
@@ -131,15 +131,15 @@ EOF
 
 test_reconcile_interview_check() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Set interview in progress
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".interview.status=in_progress"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".interview.status=in_progress"
 
   # But no discovery files exist
   # Run reconcile
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-reconcile.sh" 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-reconcile.sh" 2>&1)
 
   # Should report on interview state
   assert_matches "$output" "interview|Interview" "Checks interview state"
@@ -147,11 +147,11 @@ test_reconcile_interview_check() {
 
 test_reconcile_roadmap_check() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Set orchestration in progress (v2.0 schema)
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.phase.number=002"
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.phase.status=in_progress"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.phase.number=002"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.phase.status=in_progress"
 
   # Create ROADMAP with matching status
   cat > ROADMAP.md << 'EOF'
@@ -166,7 +166,7 @@ EOF
 
   # Run reconcile
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-reconcile.sh" 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-reconcile.sh" 2>&1)
 
   # Should check ROADMAP
   assert_contains "$output" "ROADMAP" "Checks ROADMAP status"
@@ -174,12 +174,12 @@ EOF
 
 test_reconcile_spec_artifacts() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Set step past specify (v2.0 schema) - e.g., on plan step
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.phase.number=001"
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.phase.status=in_progress"
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.step.current=plan"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.phase.number=001"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.phase.status=in_progress"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.step.current=plan"
 
   # But no spec.md exists
   mkdir -p specs/001-test
@@ -187,7 +187,7 @@ test_reconcile_spec_artifacts() {
 
   # Run reconcile
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-reconcile.sh" 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-reconcile.sh" 2>&1)
 
   # Should detect missing spec
   assert_matches "$output" "Spec|spec" "Checks spec artifacts"
@@ -195,11 +195,11 @@ test_reconcile_spec_artifacts() {
 
 test_reconcile_summary() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Run reconcile
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-reconcile.sh" 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-reconcile.sh" 2>&1)
 
   # Should include summary info - either "in sync" or "difference(s)"
   assert_matches "$output" "in sync|difference" "Includes summary info"
@@ -207,11 +207,11 @@ test_reconcile_summary() {
 
 test_reconcile_json_output() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" >/dev/null 2>&1
 
   # Run with JSON output
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-reconcile.sh" --json 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-reconcile.sh" --json 2>&1)
 
   # Extract JSON block (from { to final })
   local json_block
@@ -232,11 +232,11 @@ test_reconcile_json_output() {
 
 test_reconcile_exit_code() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Fresh project should be in sync
   local exit_code=0
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-reconcile.sh" >/dev/null 2>&1 || exit_code=$?
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-reconcile.sh" >/dev/null 2>&1 || exit_code=$?
 
   # Exit code 0 = in sync, 2 = differences found
   [[ "$exit_code" -eq 0 || "$exit_code" -eq 2 ]]

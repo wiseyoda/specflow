@@ -33,10 +33,10 @@ scripts/bash/
 ├── lib/
 │   ├── common.sh         # Common utilities
 │   └── json.sh           # JSON utilities
-├── speckit-checklist.sh  # Checklist operations
-├── speckit-doctor.sh     # Diagnostics
-├── speckit-roadmap.sh    # ROADMAP operations
-├── speckit-scaffold.sh   # Project scaffolding
+├── specflow-checklist.sh  # Checklist operations
+├── specflow-doctor.sh     # Diagnostics
+├── specflow-roadmap.sh    # ROADMAP operations
+├── specflow-scaffold.sh   # Project scaffolding
 └── ...                   # Other commands
 ```
 
@@ -86,21 +86,21 @@ scripts/bash/
 
 #### Issue 1: declare -A (bash 4.0+)
 
-**Location**: `scripts/bash/speckit-context.sh` (suspected)
+**Location**: `scripts/bash/specflow-context.sh` (suspected)
 **Problem**: `declare -A` creates associative arrays, requires bash 4.0+. macOS ships with bash 3.2.
 **Fix**: Replace with alternative patterns (parallel arrays, case statements, or simple variables).
 
 #### Issue 2: head -n -1 syntax
 
-**Location**: `scripts/bash/speckit-claude-md.sh` (suspected)
+**Location**: `scripts/bash/specflow-claude-md.sh` (suspected)
 **Problem**: `head -n -1` (show all but last line) works on GNU coreutils but not BSD (macOS).
 **Fix**: Use POSIX alternatives: `sed '$d'` or `awk 'NR>1{print prev} {prev=$0}'`
 
 #### Issue 3: get_repo_root path resolution
 
-**Location**: `scripts/bash/speckit-feature.sh`, `scripts/bash/speckit-tasks.sh`
-**Problem**: Path resolution fails in test isolation when SPECKIT_PROJECT_ROOT is set.
-**Fix**: Ensure scripts honor SPECKIT_PROJECT_ROOT environment variable consistently.
+**Location**: `scripts/bash/specflow-feature.sh`, `scripts/bash/specflow-tasks.sh`
+**Problem**: Path resolution fails in test isolation when SPECFLOW_PROJECT_ROOT is set.
+**Fix**: Ensure scripts honor SPECFLOW_PROJECT_ROOT environment variable consistently.
 
 ## Constitution Compliance Check
 

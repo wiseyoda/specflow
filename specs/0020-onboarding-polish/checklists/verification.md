@@ -2,18 +2,18 @@
 
 **Phase**: 0020
 **Created**: 2026-01-10
-**Purpose**: Post-completion verification for `/speckit.verify`
+**Purpose**: Post-completion verification for `/specflow.verify`
 
 ---
 
 ## Functional Requirements Verification
 
 ### FR-001: Project Type Detection
-- [x] `speckit scaffold` in TypeScript project (with tsconfig.json) detects "typescript"
-- [x] `speckit scaffold` in Python project (with pyproject.toml) detects "python"
-- [x] `speckit scaffold` in Rust project (with Cargo.toml) detects "rust"
-- [x] `speckit scaffold` in Go project (with go.mod) detects "go"
-- [x] `speckit scaffold` in Bash project (with *.sh files only) detects "bash"
+- [x] `specflow scaffold` in TypeScript project (with tsconfig.json) detects "typescript"
+- [x] `specflow scaffold` in Python project (with pyproject.toml) detects "python"
+- [x] `specflow scaffold` in Rust project (with Cargo.toml) detects "rust"
+- [x] `specflow scaffold` in Go project (with go.mod) detects "go"
+- [x] `specflow scaffold` in Bash project (with *.sh files only) detects "bash"
 - [x] Empty project defaults to "generic" type
 
 ### FR-002: Template Customization
@@ -22,8 +22,8 @@
 - [x] Templates don't contain other language sections (clean extraction)
 
 ### FR-003: Safe Mode
-- [x] `speckit scaffold --safe` shows preview without writing files
-- [x] `speckit scaffold --safe` exits with code 0
+- [x] `specflow scaffold --safe` shows preview without writing files
+- [x] `specflow scaffold --safe` exits with code 0
 - [x] No files created/modified when --safe is used
 
 ### FR-004: README Documentation
@@ -42,7 +42,7 @@
 - [x] Generic templates have placeholder comments for customization
 
 ### FR-007: Type Override
-- [x] `speckit scaffold --type python` forces Python templates
+- [x] `specflow scaffold --type python` forces Python templates
 - [x] Override works even when other markers present
 
 ---
@@ -92,18 +92,18 @@
 # Detection test
 mkdir /tmp/test-py && cd /tmp/test-py
 touch pyproject.toml
-speckit scaffold
+specflow scaffold
 grep -q "Python" .specify/memory/constitution.md && echo "PASS" || echo "FAIL"
 
 # Safe mode test
 rm -rf /tmp/test-safe && mkdir /tmp/test-safe && cd /tmp/test-safe
-speckit scaffold --safe
+specflow scaffold --safe
 ls .specify 2>/dev/null && echo "FAIL: Files created" || echo "PASS: No files"
 
 # Type override test
 mkdir /tmp/test-override && cd /tmp/test-override
 touch package.json
-speckit scaffold --type python
+specflow scaffold --type python
 grep -q "Python" .specify/memory/constitution.md && echo "PASS" || echo "FAIL"
 ```
 

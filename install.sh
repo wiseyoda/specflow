@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 #
-# SpecKit Installation Script
+# SpecFlow Installation Script
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/USER/claude-speckit-orchestration/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/USER/claude-specflow-orchestration/main/install.sh | bash
 #   or
 #   ./install.sh
 #
 # Options:
 #   --upgrade     Upgrade existing installation
-#   --uninstall   Remove SpecKit
+#   --uninstall   Remove SpecFlow
 #   --check       Check installation status
 #
 
@@ -24,9 +24,9 @@ BOLD='\033[1m'
 RESET='\033[0m'
 
 # Paths
-SPECKIT_HOME="${HOME}/.claude/speckit-system"
-SPECKIT_BIN="${SPECKIT_HOME}/bin"
-SPECKIT_COMMANDS="${HOME}/.claude/commands"
+SPECFLOW_HOME="${HOME}/.claude/specflow-system"
+SPECFLOW_BIN="${SPECFLOW_HOME}/bin"
+SPECFLOW_COMMANDS="${HOME}/.claude/commands"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log_info() { echo -e "${BLUE}INFO${RESET}: $*"; }
@@ -38,7 +38,7 @@ log_step() { echo -e "${BLUE}==>${RESET} ${BOLD}$*${RESET}"; }
 print_banner() {
   echo ""
   echo -e "${BOLD}╔════════════════════════════════════════════════╗${RESET}"
-  echo -e "${BOLD}║              SpecKit Installer                 ║${RESET}"
+  echo -e "${BOLD}║              SpecFlow Installer                 ║${RESET}"
   echo -e "${BOLD}║   Spec-Driven Development for Claude Code     ║${RESET}"
   echo -e "${BOLD}╚════════════════════════════════════════════════╝${RESET}"
   echo ""
@@ -77,7 +77,7 @@ check_dependencies() {
 }
 
 check_existing() {
-  if [[ -d "$SPECKIT_HOME" ]]; then
+  if [[ -d "$SPECFLOW_HOME" ]]; then
     return 0  # Exists
   else
     return 1  # Doesn't exist
@@ -85,8 +85,8 @@ check_existing() {
 }
 
 get_installed_version() {
-  if [[ -f "${SPECKIT_HOME}/VERSION" ]]; then
-    cat "${SPECKIT_HOME}/VERSION"
+  if [[ -f "${SPECFLOW_HOME}/VERSION" ]]; then
+    cat "${SPECFLOW_HOME}/VERSION"
   else
     echo "unknown"
   fi
@@ -100,66 +100,66 @@ get_repo_version() {
   fi
 }
 
-install_speckit() {
+install_specflow() {
   local upgrade="${1:-false}"
 
   if [[ "$upgrade" == "true" ]]; then
-    log_step "Upgrading SpecKit"
+    log_step "Upgrading SpecFlow"
   else
-    log_step "Installing SpecKit"
+    log_step "Installing SpecFlow"
   fi
 
   # Create directories
-  mkdir -p "$SPECKIT_HOME"/{bin,scripts/bash/lib,templates,packages}
-  mkdir -p "$SPECKIT_COMMANDS"
+  mkdir -p "$SPECFLOW_HOME"/{bin,scripts/bash/lib,templates,packages}
+  mkdir -p "$SPECFLOW_COMMANDS"
 
   # Copy CLI
   log_info "Installing CLI..."
-  cp "${REPO_DIR}/bin/speckit" "${SPECKIT_BIN}/speckit"
-  chmod +x "${SPECKIT_BIN}/speckit"
+  cp "${REPO_DIR}/bin/specflow" "${SPECFLOW_BIN}/specflow"
+  chmod +x "${SPECFLOW_BIN}/specflow"
 
   # Copy scripts
   log_info "Installing scripts..."
-  cp "${REPO_DIR}/scripts/bash/lib/"*.sh "${SPECKIT_HOME}/scripts/bash/lib/"
-  cp "${REPO_DIR}/scripts/bash/"*.sh "${SPECKIT_HOME}/scripts/bash/" 2>/dev/null || true
-  chmod +x "${SPECKIT_HOME}/scripts/bash/"*.sh 2>/dev/null || true
+  cp "${REPO_DIR}/scripts/bash/lib/"*.sh "${SPECFLOW_HOME}/scripts/bash/lib/"
+  cp "${REPO_DIR}/scripts/bash/"*.sh "${SPECFLOW_HOME}/scripts/bash/" 2>/dev/null || true
+  chmod +x "${SPECFLOW_HOME}/scripts/bash/"*.sh 2>/dev/null || true
 
   # Copy templates
   log_info "Installing templates..."
-  cp "${REPO_DIR}/templates/"* "${SPECKIT_HOME}/templates/" 2>/dev/null || true
+  cp "${REPO_DIR}/templates/"* "${SPECFLOW_HOME}/templates/" 2>/dev/null || true
 
   # Copy packages (dashboard and shared) - exclude node_modules
   if [[ -d "${REPO_DIR}/packages" ]]; then
     log_info "Installing packages (dashboard, shared)..."
-    rm -rf "${SPECKIT_HOME}/packages"
-    mkdir -p "${SPECKIT_HOME}/packages"
+    rm -rf "${SPECFLOW_HOME}/packages"
+    mkdir -p "${SPECFLOW_HOME}/packages"
     # Use rsync to exclude node_modules and .next
     if command -v rsync &>/dev/null; then
-      rsync -a --exclude='node_modules' --exclude='.next' "${REPO_DIR}/packages/" "${SPECKIT_HOME}/packages/"
+      rsync -a --exclude='node_modules' --exclude='.next' "${REPO_DIR}/packages/" "${SPECFLOW_HOME}/packages/"
     else
       # Fallback: copy then remove node_modules
-      cp -R "${REPO_DIR}/packages" "${SPECKIT_HOME}/"
-      find "${SPECKIT_HOME}/packages" -name "node_modules" -type d -exec rm -rf {} + 2>/dev/null || true
-      find "${SPECKIT_HOME}/packages" -name ".next" -type d -exec rm -rf {} + 2>/dev/null || true
+      cp -R "${REPO_DIR}/packages" "${SPECFLOW_HOME}/"
+      find "${SPECFLOW_HOME}/packages" -name "node_modules" -type d -exec rm -rf {} + 2>/dev/null || true
+      find "${SPECFLOW_HOME}/packages" -name ".next" -type d -exec rm -rf {} + 2>/dev/null || true
     fi
     # Copy pnpm-workspace.yaml for workspace dependencies
     if [[ -f "${REPO_DIR}/pnpm-workspace.yaml" ]]; then
-      cp "${REPO_DIR}/pnpm-workspace.yaml" "${SPECKIT_HOME}/"
+      cp "${REPO_DIR}/pnpm-workspace.yaml" "${SPECFLOW_HOME}/"
     fi
   fi
 
   # Copy commands (with backup if upgrading)
   log_info "Installing commands..."
   if [[ "$upgrade" == "true" ]]; then
-    # Backup existing commands to ~/.speckit/backups/ (NOT ~/.claude/ to avoid import)
-    local backup_dir="${HOME}/.speckit/backups/commands-$(date +%Y%m%d%H%M%S)"
+    # Backup existing commands to ~/.specflow/backups/ (NOT ~/.claude/ to avoid import)
+    local backup_dir="${HOME}/.specflow/backups/commands-$(date +%Y%m%d%H%M%S)"
     mkdir -p "$backup_dir"
-    cp "${SPECKIT_COMMANDS}/speckit."*.md "$backup_dir/" 2>/dev/null || true
+    cp "${SPECFLOW_COMMANDS}/specflow."*.md "$backup_dir/" 2>/dev/null || true
     log_info "Backed up existing commands to $backup_dir"
 
     # Clean up old backups that were incorrectly placed in ~/.claude/commands/
     local old_backup_count=0
-    for old_backup in "${SPECKIT_COMMANDS}/.backup-"*; do
+    for old_backup in "${SPECFLOW_COMMANDS}/.backup-"*; do
       if [[ -d "$old_backup" ]]; then
         rm -rf "$old_backup"
         ((old_backup_count++)) || true
@@ -172,32 +172,32 @@ install_speckit() {
 
   # Build list of valid command files from source
   local valid_commands=()
-  for cmd in "${REPO_DIR}/commands/"speckit.*.md "${REPO_DIR}/commands/utilities/"speckit.*.md; do
+  for cmd in "${REPO_DIR}/commands/"specflow.*.md "${REPO_DIR}/commands/utilities/"specflow.*.md; do
     if [[ -f "$cmd" ]]; then
       valid_commands+=("$(basename "$cmd")")
     fi
   done
 
   # Copy commands from main commands directory
-  for cmd in "${REPO_DIR}/commands/"speckit.*.md; do
+  for cmd in "${REPO_DIR}/commands/"specflow.*.md; do
     if [[ -f "$cmd" ]]; then
       local filename=$(basename "$cmd")
-      cp "$cmd" "${SPECKIT_COMMANDS}/${filename}"
+      cp "$cmd" "${SPECFLOW_COMMANDS}/${filename}"
     fi
   done
 
   # Copy utility commands
-  for cmd in "${REPO_DIR}/commands/utilities/"speckit.*.md; do
+  for cmd in "${REPO_DIR}/commands/utilities/"specflow.*.md; do
     if [[ -f "$cmd" ]]; then
       local filename=$(basename "$cmd")
-      cp "$cmd" "${SPECKIT_COMMANDS}/${filename}"
+      cp "$cmd" "${SPECFLOW_COMMANDS}/${filename}"
     fi
   done
 
   # Clean up stale commands (those not in source anymore)
   if [[ "$upgrade" == "true" ]]; then
     local stale_count=0
-    for installed in "${SPECKIT_COMMANDS}/"speckit.*.md; do
+    for installed in "${SPECFLOW_COMMANDS}/"specflow.*.md; do
       if [[ -f "$installed" ]]; then
         local filename=$(basename "$installed")
         local is_valid=false
@@ -220,13 +220,13 @@ install_speckit() {
 
   # Copy QUESTION_CATEGORIES
   if [[ -f "${REPO_DIR}/QUESTION_CATEGORIES.md" ]]; then
-    cp "${REPO_DIR}/QUESTION_CATEGORIES.md" "${SPECKIT_HOME}/"
+    cp "${REPO_DIR}/QUESTION_CATEGORIES.md" "${SPECFLOW_HOME}/"
   fi
 
   # Write version file
-  get_repo_version > "${SPECKIT_HOME}/VERSION"
+  get_repo_version > "${SPECFLOW_HOME}/VERSION"
 
-  log_success "SpecKit installed to ${SPECKIT_HOME}"
+  log_success "SpecFlow installed to ${SPECFLOW_HOME}"
 }
 
 setup_path() {
@@ -249,68 +249,68 @@ setup_path() {
       ;;
   esac
 
-  local path_line='export PATH="$HOME/.claude/speckit-system/bin:$PATH"'
+  local path_line='export PATH="$HOME/.claude/specflow-system/bin:$PATH"'
 
-  if grep -q "speckit-system/bin" "$shell_rc" 2>/dev/null; then
+  if grep -q "specflow-system/bin" "$shell_rc" 2>/dev/null; then
     log_info "PATH already configured in $shell_rc"
   else
     echo "" >> "$shell_rc"
-    echo "# SpecKit CLI" >> "$shell_rc"
+    echo "# SpecFlow CLI" >> "$shell_rc"
     echo "$path_line" >> "$shell_rc"
     log_success "Added to $shell_rc"
     echo ""
-    log_warn "Run 'source $shell_rc' or restart your terminal to use 'speckit' command"
+    log_warn "Run 'source $shell_rc' or restart your terminal to use 'specflow' command"
   fi
 }
 
-uninstall_speckit() {
-  log_step "Uninstalling SpecKit"
+uninstall_specflow() {
+  log_step "Uninstalling SpecFlow"
 
-  if [[ -d "$SPECKIT_HOME" ]]; then
-    rm -rf "$SPECKIT_HOME"
-    log_success "Removed $SPECKIT_HOME"
+  if [[ -d "$SPECFLOW_HOME" ]]; then
+    rm -rf "$SPECFLOW_HOME"
+    log_success "Removed $SPECFLOW_HOME"
   fi
 
   # Remove commands (but keep backup)
-  local backup_dir="${SPECKIT_COMMANDS}/.speckit-uninstall-backup"
+  local backup_dir="${SPECFLOW_COMMANDS}/.specflow-uninstall-backup"
   mkdir -p "$backup_dir"
-  mv "${SPECKIT_COMMANDS}/speckit."*.md "$backup_dir/" 2>/dev/null || true
+  mv "${SPECFLOW_COMMANDS}/specflow."*.md "$backup_dir/" 2>/dev/null || true
   log_success "Moved commands to $backup_dir"
 
   log_warn "PATH entry in shell config not removed - edit manually if desired"
-  log_success "SpecKit uninstalled"
+  log_success "SpecFlow uninstalled"
 }
 
 check_status() {
-  log_step "SpecKit Installation Status"
+  log_step "SpecFlow Installation Status"
   echo ""
 
   if check_existing; then
-    log_success "SpecKit is installed"
+    log_success "SpecFlow is installed"
     echo "  Version: $(get_installed_version)"
-    echo "  Location: $SPECKIT_HOME"
+    echo "  Location: $SPECFLOW_HOME"
     echo ""
 
     # Check components
     echo "Components:"
-    [[ -x "${SPECKIT_BIN}/speckit" ]] && log_success "  CLI: installed" || log_warn "  CLI: missing"
-    [[ -d "${SPECKIT_HOME}/scripts" ]] && log_success "  Scripts: installed" || log_warn "  Scripts: missing"
-    [[ -d "${SPECKIT_HOME}/templates" ]] && log_success "  Templates: installed" || log_warn "  Templates: missing"
-    [[ -d "${SPECKIT_HOME}/packages/dashboard" ]] && log_success "  Dashboard: installed" || log_warn "  Dashboard: missing"
+    [[ -x "${SPECFLOW_BIN}/specflow" ]] && log_success "  CLI: installed" || log_warn "  CLI: missing"
+    [[ -d "${SPECFLOW_HOME}/scripts" ]] && log_success "  Scripts: installed" || log_warn "  Scripts: missing"
+    [[ -d "${SPECFLOW_HOME}/templates" ]] && log_success "  Templates: installed" || log_warn "  Templates: missing"
+    [[ -d "${SPECFLOW_HOME}/packages/dashboard" ]] && log_success "  Dashboard: installed" || log_warn "  Dashboard: missing"
 
     # Count commands
-    local cmd_count=$(ls "${SPECKIT_COMMANDS}/speckit."*.md 2>/dev/null | wc -l | tr -d ' ')
+    local cmd_count=$(ls "${SPECFLOW_COMMANDS}/specflow."*.md 2>/dev/null | wc -l | tr -d ' ')
     log_success "  Commands: $cmd_count installed"
 
     # Check PATH
     echo ""
-    if command -v speckit &>/dev/null; then
-      log_success "speckit command available in PATH"
+    if command -v specflow &>/dev/null; then
+      log_success "specflow command available in PATH"
     else
-      log_warn "speckit not in PATH - add to shell config"
+      log_warn "specflow not in PATH - add to shell config"
     fi
   else
-    log_warn "SpecKit is not installed"
+    log_warn "SpecFlow is not installed"
     echo "  Run: ./install.sh"
   fi
 }
@@ -351,39 +351,39 @@ main() {
       if check_existing; then
         local installed=$(get_installed_version)
         local available=$(get_repo_version)
-        log_warn "SpecKit already installed (version: $installed)"
+        log_warn "SpecFlow already installed (version: $installed)"
         echo ""
         read -p "Upgrade to version $available? [y/N] " response
         if [[ "$response" =~ ^[Yy] ]]; then
           check_dependencies || true
-          install_speckit true
+          install_specflow true
           setup_path
         else
           log_info "Use --upgrade to upgrade, or --check to see status"
         fi
       else
         check_dependencies || true
-        install_speckit false
+        install_specflow false
         setup_path
       fi
       ;;
     upgrade)
       if ! check_existing; then
-        log_error "SpecKit not installed. Run without --upgrade to install."
+        log_error "SpecFlow not installed. Run without --upgrade to install."
         exit 1
       fi
       check_dependencies || true
-      install_speckit true
+      install_specflow true
       setup_path
       ;;
     uninstall)
       if ! check_existing; then
-        log_warn "SpecKit not installed"
+        log_warn "SpecFlow not installed"
         exit 0
       fi
-      read -p "Are you sure you want to uninstall SpecKit? [y/N] " response
+      read -p "Are you sure you want to uninstall SpecFlow? [y/N] " response
       if [[ "$response" =~ ^[Yy] ]]; then
-        uninstall_speckit
+        uninstall_specflow
       fi
       ;;
     check)

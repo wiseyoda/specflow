@@ -9,9 +9,9 @@
 
 ## User Scenarios & Testing
 
-### User Story 1 - Run SpecKit Command from Palette (Priority: P1)
+### User Story 1 - Run SpecFlow Command from Palette (Priority: P1)
 
-As a developer, I want to run any `speckit` command from the dashboard command palette so I can manage my project without switching to the terminal.
+As a developer, I want to run any `specflow` command from the dashboard command palette so I can manage my project without switching to the terminal.
 
 **Why this priority**: Core functionality that enables all other features. Command palette is the primary interface for CLI actions.
 
@@ -20,7 +20,7 @@ As a developer, I want to run any `speckit` command from the dashboard command p
 **Acceptance Scenarios**:
 
 1. **Given** the dashboard is open, **When** I press Cmd+K, **Then** the command palette opens with a search input
-2. **Given** the command palette is open, **When** I type "speckit", **Then** I see a list of available speckit commands
+2. **Given** the command palette is open, **When** I type "specflow", **Then** I see a list of available specflow commands
 3. **Given** I select a command, **When** I press Enter, **Then** the command executes and output appears in a drawer
 4. **Given** a command is running, **When** it produces output, **Then** output streams to the drawer in real-time
 
@@ -32,7 +32,7 @@ As a developer, I want to create a backlog issue from the dashboard so I can cap
 
 **Why this priority**: Issue creation is the primary user-initiated action (agents handle task marking).
 
-**Independent Test**: Use command palette to run `speckit issue create "Test issue"`, verify `.specify/issues/ISSUE-XXX.md` is created.
+**Independent Test**: Use command palette to run `specflow issue create "Test issue"`, verify `.specify/issues/ISSUE-XXX.md` is created.
 
 **Acceptance Scenarios**:
 
@@ -76,7 +76,7 @@ As a developer, I want to see helpful error messages when commands fail so I can
 
 ### Edge Cases
 
-- What happens when the speckit CLI is not installed? (Show installation instructions)
+- What happens when the specflow CLI is not installed? (Show installation instructions)
 - What happens when a command requires interactive input? (Not supported - show warning)
 - What happens when the project path is invalid? (Clear error with path shown)
 - What happens when multiple commands run simultaneously? (Queue or show "command in progress")
@@ -88,13 +88,13 @@ As a developer, I want to see helpful error messages when commands fail so I can
 
 ### Functional Requirements
 
-- **FR-001**: System MUST execute `speckit` CLI commands via API routes using child process spawn
+- **FR-001**: System MUST execute `specflow` CLI commands via API routes using child process spawn
 - **FR-002**: System MUST stream command stdout/stderr to the UI in real-time
 - **FR-003**: System MUST display command results in an expandable drawer component
 - **FR-004**: System MUST show toast notifications for command success/failure
 - **FR-005**: System MUST sanitize all user inputs before passing to shell commands (prevent injection)
 - **FR-006**: System MUST pass the correct project path (`--path` or cwd) to CLI commands
-- **FR-007**: Command palette MUST list all available `speckit` commands (discovered dynamically from `speckit help` output)
+- **FR-007**: Command palette MUST list all available `specflow` commands (discovered dynamically from `specflow help` output)
 - **FR-010**: System MUST prompt for required arguments inline after command selection
 - **FR-011**: System MUST cache command list on startup and refresh periodically
 - **FR-008**: System MUST handle command timeouts (default 60 seconds, configurable)
@@ -108,7 +108,7 @@ As a developer, I want to see helpful error messages when commands fail so I can
 
 ### Key Entities
 
-- **Command**: A speckit CLI command with name, arguments, and project context
+- **Command**: A specflow CLI command with name, arguments, and project context
 - **CommandExecution**: An instance of a command run, with output buffer, status, timestamps
 - **CommandHistory**: Session-scoped list of past executions for review
 
@@ -118,15 +118,15 @@ As a developer, I want to see helpful error messages when commands fail so I can
 
 ### Measurable Outcomes
 
-- **SC-001**: User can execute `speckit issue create "test"` from command palette and issue file appears in < 3 seconds
+- **SC-001**: User can execute `specflow issue create "test"` from command palette and issue file appears in < 3 seconds
 - **SC-002**: Command output streams to drawer with < 100ms latency (visible character-by-character)
 - **SC-003**: Error messages include actionable context (command that failed, exit code, stderr snippet)
-- **SC-004**: Command palette shows all speckit commands (at least: issue, tasks, phase, state, status)
+- **SC-004**: Command palette shows all specflow commands (at least: issue, tasks, phase, state, status)
 
 ### Verification Gate (USER GATE)
 
 - [ ] Create issue from UI appears in `.specify/issues/`
-- [ ] Run any `speckit` command from command palette
+- [ ] Run any `specflow` command from command palette
 - [ ] Command output streams to drawer in real-time
 - [ ] Errors display in toast with helpful messages
 
@@ -136,7 +136,7 @@ As a developer, I want to see helpful error messages when commands fail so I can
 
 - Task checkbox toggle from UI (agents mark tasks during implementation)
 - Keyboard shortcut `t` for task toggle (deferred)
-- Full `/speckit.orchestrate` from UI (complex, deferred to 1050)
+- Full `/specflow.orchestrate` from UI (complex, deferred to 1050)
 - Persistent command history across sessions (nice-to-have for future)
 - Command autocomplete/suggestions (nice-to-have for future)
 
@@ -146,7 +146,7 @@ As a developer, I want to see helpful error messages when commands fail so I can
 
 Based on discovery findings:
 
-1. **Shell-out pattern**: API routes spawn `speckit` child processes - reuses tested CLI logic
+1. **Shell-out pattern**: API routes spawn `specflow` child processes - reuses tested CLI logic
 2. **Output streaming**: Use Node.js child_process with streaming to Server-Sent Events
 3. **Security**: Validate inputs with Zod, use parameterized arguments (no string interpolation)
 4. **Project context**: Pass project path from registry or current selection

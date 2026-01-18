@@ -20,12 +20,12 @@
 
 ## US1: Detect Existing Documentation
 
-### Enhance speckit-detect.sh
+### Enhance specflow-detect.sh
 
-- [x] T002 [P1] [US1] Add --docs alias flag for --check docs (scripts/bash/speckit-detect.sh)
-- [x] T003 [P1] [US1] Add ADR directory detection patterns: adr/, adrs/, ADR/, docs/adr/, docs/decisions/, architecture/decisions/ (scripts/bash/speckit-detect.sh:218-260)
-- [x] T004 [P1] [US1] Add ADR file pattern detection: NNN-*.md, ADR-NNN-*.md (scripts/bash/speckit-detect.sh)
-- [x] T005 [P2] [US1] Add ARCHITECTURE.md, CONTRIBUTING.md, DESIGN.md detection (scripts/bash/speckit-detect.sh:296-317)
+- [x] T002 [P1] [US1] Add --docs alias flag for --check docs (scripts/bash/specflow-detect.sh)
+- [x] T003 [P1] [US1] Add ADR directory detection patterns: adr/, adrs/, ADR/, docs/adr/, docs/decisions/, architecture/decisions/ (scripts/bash/specflow-detect.sh:218-260)
+- [x] T004 [P1] [US1] Add ADR file pattern detection: NNN-*.md, ADR-NNN-*.md (scripts/bash/specflow-detect.sh)
+- [x] T005 [P2] [US1] Add ARCHITECTURE.md, CONTRIBUTING.md, DESIGN.md detection (scripts/bash/specflow-detect.sh:296-317)
 - [x] T006 [P2] [US1] Add suggested import commands to detection output when ADRs found
 
 ### Detection Tests
@@ -35,9 +35,9 @@
 
 ## US2: Import ADRs
 
-### Create speckit-import.sh
+### Create specflow-import.sh
 
-- [x] T009 [P1] [US2] Create scripts/bash/speckit-import.sh with command structure and help
+- [x] T009 [P1] [US2] Create scripts/bash/specflow-import.sh with command structure and help
 - [x] T010 [P1] [US2] Implement ADR source path validation and file detection
 - [x] T011 [P1] [US2] Implement ADR file copy to .specify/memory/adrs/
 - [x] T012 [P1] [US2] Implement adr-index.md generation with title/status extraction
@@ -45,7 +45,7 @@
 
 ### Import Routing
 
-- [x] T014 [P1] [US2] Add import command routing to bin/speckit
+- [x] T014 [P1] [US2] Add import command routing to bin/specflow
 
 ### Import Tests
 

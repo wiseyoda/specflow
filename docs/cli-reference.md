@@ -1,11 +1,11 @@
 # CLI Reference
 
-Complete reference for the `speckit` command-line interface.
+Complete reference for the `specflow` command-line interface.
 
 ## Overview
 
 ```bash
-speckit <command> [subcommand] [options]
+specflow <command> [subcommand] [options]
 ```
 
 All commands support `--help` for detailed usage and `--json` for machine-readable output.
@@ -19,20 +19,20 @@ All commands support `--help` for detailed usage and `--json` for machine-readab
 Manage the `.specify/orchestration-state.json` file.
 
 ```bash
-speckit state get                    # Show full state
-speckit state get orchestration      # Get specific section
-speckit state set "key=value"        # Set value
-speckit state init                   # Initialize state file (generates UUID)
-speckit state reset                  # Reset to defaults
-speckit state validate               # Validate state structure
-speckit state migrate                # Migrate v1.x to v2.0 schema
+specflow state get                    # Show full state
+specflow state get orchestration      # Get specific section
+specflow state set "key=value"        # Set value
+specflow state init                   # Initialize state file (generates UUID)
+specflow state reset                  # Reset to defaults
+specflow state validate               # Validate state structure
+specflow state migrate                # Migrate v1.x to v2.0 schema
 ```
 
 **Registry subcommands:**
 ```bash
-speckit state registry list          # List all registered projects
-speckit state registry sync          # Sync registry with current project
-speckit state registry clean         # Remove stale entries
+specflow state registry list          # List all registered projects
+specflow state registry sync          # Sync registry with current project
+specflow state registry clean         # Remove stale entries
 ```
 
 ### scaffold - Project Setup
@@ -40,13 +40,13 @@ speckit state registry clean         # Remove stale entries
 Create the `.specify/` directory structure.
 
 ```bash
-speckit scaffold                     # Create structure (auto-detects project type)
-speckit scaffold --safe              # Preview what would be created
-speckit scaffold --status            # Show what exists vs needed
-speckit scaffold --force             # Recreate (overwrites existing)
-speckit scaffold --type python       # Force specific project type
-speckit scaffold --skip-templates    # Don't copy templates
-speckit scaffold --skip-scripts      # Don't copy scripts
+specflow scaffold                     # Create structure (auto-detects project type)
+specflow scaffold --safe              # Preview what would be created
+specflow scaffold --status            # Show what exists vs needed
+specflow scaffold --force             # Recreate (overwrites existing)
+specflow scaffold --type python       # Force specific project type
+specflow scaffold --skip-templates    # Don't copy templates
+specflow scaffold --skip-scripts      # Don't copy scripts
 ```
 
 **Detected project types:** typescript, javascript, python, rust, go, bash, generic
@@ -56,12 +56,12 @@ speckit scaffold --skip-scripts      # Don't copy scripts
 Get information about the current feature/phase context.
 
 ```bash
-speckit context                      # Show context (JSON)
-speckit context --check              # Verify prerequisites
-speckit context --summary            # Human-readable summary
-speckit context --require-spec       # Require spec.md exists
-speckit context --require-plan       # Require plan.md exists
-speckit context --require-tasks      # Require tasks.md exists
+specflow context                      # Show context (JSON)
+specflow context --check              # Verify prerequisites
+specflow context --summary            # Human-readable summary
+specflow context --require-spec       # Require spec.md exists
+specflow context --require-plan       # Require plan.md exists
+specflow context --require-tasks      # Require tasks.md exists
 ```
 
 ### doctor - Diagnostics
@@ -69,23 +69,23 @@ speckit context --require-tasks      # Require tasks.md exists
 Run health checks and auto-fix issues.
 
 ```bash
-speckit doctor                       # Run all checks
-speckit doctor --fix                 # Auto-fix issues found
-speckit doctor --check <area>        # Check specific area only
+specflow doctor                       # Run all checks
+specflow doctor --fix                 # Auto-fix issues found
+specflow doctor --check <area>        # Check specific area only
 ```
 
 **Valid check areas:** `system`, `project`, `state`, `manifest`, `paths`, `git`, `templates`, `version`, `roadmap`, `reality`, `all`
 
-**Suggested fixes:** Doctor displays actionable fix commands for detected issues (e.g., `speckit templates sync`, `speckit doctor --fix`).
+**Suggested fixes:** Doctor displays actionable fix commands for detected issues (e.g., `specflow templates sync`, `specflow doctor --fix`).
 
 ### status - Comprehensive Status
 
 Get full project status (used by orchestrate).
 
 ```bash
-speckit status                       # Full status report
-speckit status --json                # JSON output
-speckit status --quick               # Skip deep validation
+specflow status                       # Full status report
+specflow status --json                # JSON output
+specflow status --quick               # Skip deep validation
 ```
 
 ---
@@ -95,25 +95,25 @@ speckit status --quick               # Skip deep validation
 ### feature - Feature Operations
 
 ```bash
-speckit feature create <phase> <name>  # Create feature directory and branch
-speckit feature list                   # List all features
-speckit feature current                # Show current feature
+specflow feature create <phase> <name>  # Create feature directory and branch
+specflow feature list                   # List all features
+specflow feature current                # Show current feature
 ```
 
 **Example:**
 ```bash
-speckit feature create 0010 user-auth  # Creates specs/0010-user-auth/
+specflow feature create 0010 user-auth  # Creates specs/0010-user-auth/
 ```
 
 ### roadmap - ROADMAP.md Operations
 
 ```bash
-speckit roadmap status               # Show all phases with status
-speckit roadmap next                 # Get next pending phase
-speckit roadmap current              # Get current in-progress phase
-speckit roadmap update <phase> <status>  # Update phase status
-speckit roadmap validate             # Check ROADMAP.md structure
-speckit roadmap renumber             # Smart renumber all phases (fills gaps)
+specflow roadmap status               # Show all phases with status
+specflow roadmap next                 # Get next pending phase
+specflow roadmap current              # Get current in-progress phase
+specflow roadmap update <phase> <status>  # Update phase status
+specflow roadmap validate             # Check ROADMAP.md structure
+specflow roadmap renumber             # Smart renumber all phases (fills gaps)
 ```
 
 **Valid statuses:** `pending`, `in_progress`, `complete`, `blocked`, `deferred`
@@ -123,13 +123,13 @@ speckit roadmap renumber             # Smart renumber all phases (fills gaps)
 Manage individual phase detail files in `.specify/phases/`.
 
 ```bash
-speckit phase list                   # List all phases with location
-speckit phase list --active          # Show only active phases
-speckit phase show <num>             # Show phase details
-speckit phase create <num> <name>    # Create phase detail file
-speckit phase archive <num>          # Archive to HISTORY.md
-speckit phase migrate                # Migrate inline ROADMAP to files
-speckit phase path [num]             # Show phase file path
+specflow phase list                   # List all phases with location
+specflow phase list --active          # Show only active phases
+specflow phase show <num>             # Show phase details
+specflow phase create <num> <name>    # Create phase detail file
+specflow phase archive <num>          # Archive to HISTORY.md
+specflow phase migrate                # Migrate inline ROADMAP to files
+specflow phase path [num]             # Show phase file path
 ```
 
 ### issue - Local Issue Tracking
@@ -137,14 +137,14 @@ speckit phase path [num]             # Show phase file path
 Manage issues in `.specify/issues/`.
 
 ```bash
-speckit issue list                   # List all issues
-speckit issue list --open            # List open issues only
-speckit issue show <id>              # Show issue details
-speckit issue create "<title>"       # Create new issue
-speckit issue close <id>             # Close an issue
-speckit issue update <id>            # Update issue fields
-speckit issue migrate                # Migrate issues from ROADMAP.md
-speckit issue path [id]              # Show issue file path
+specflow issue list                   # List all issues
+specflow issue list --open            # List open issues only
+specflow issue show <id>              # Show issue details
+specflow issue create "<title>"       # Create new issue
+specflow issue close <id>             # Close an issue
+specflow issue update <id>            # Update issue fields
+specflow issue migrate                # Migrate issues from ROADMAP.md
+specflow issue path [id]              # Show issue file path
 ```
 
 ---
@@ -154,23 +154,23 @@ speckit issue path [id]              # Show issue file path
 ### tasks - Task Operations
 
 ```bash
-speckit tasks status                 # Task completion summary
-speckit tasks status <file>          # Status for specific tasks.md
-speckit tasks incomplete             # List incomplete tasks
-speckit tasks mark <task_id>         # Mark task complete
-speckit tasks phase-status           # Status grouped by phase
-speckit tasks list                   # List all tasks
-speckit tasks find                   # Find all tasks.md files
+specflow tasks status                 # Task completion summary
+specflow tasks status <file>          # Status for specific tasks.md
+specflow tasks incomplete             # List incomplete tasks
+specflow tasks mark <task_id>         # Mark task complete
+specflow tasks phase-status           # Status grouped by phase
+specflow tasks list                   # List all tasks
+specflow tasks find                   # Find all tasks.md files
 ```
 
 ### checklist - Checklist Operations
 
 ```bash
-speckit checklist status             # All checklists completion status
-speckit checklist status <dir>       # Status for specific directory
-speckit checklist list               # List all checklists
-speckit checklist incomplete         # List incomplete items
-speckit checklist show <file>        # Show specific checklist
+specflow checklist status             # All checklists completion status
+specflow checklist status <dir>       # Status for specific directory
+specflow checklist list               # List all checklists
+specflow checklist incomplete         # List incomplete items
+specflow checklist show <file>        # Show specific checklist
 ```
 
 ---
@@ -180,14 +180,14 @@ speckit checklist show <file>        # Show specific checklist
 ### git - Git Shortcuts
 
 ```bash
-speckit git branch create <name>     # Create and checkout branch
-speckit git branch checkout <name>   # Checkout existing branch
-speckit git branch current           # Show current branch
-speckit git branch list              # List all branches
-speckit git commit "<message>"       # Stage all and commit
-speckit git merge <branch>           # Merge branch to current
-speckit git push                     # Push current branch
-speckit git sync                     # Fetch all, show status
+specflow git branch create <name>     # Create and checkout branch
+specflow git branch checkout <name>   # Checkout existing branch
+specflow git branch current           # Show current branch
+specflow git branch list              # List all branches
+specflow git commit "<message>"       # Stage all and commit
+specflow git merge <branch>           # Merge branch to current
+specflow git push                     # Push current branch
+specflow git sync                     # Fetch all, show status
 ```
 
 ---
@@ -197,31 +197,31 @@ speckit git sync                     # Fetch all, show status
 ### memory - Memory Document Operations
 
 ```bash
-speckit memory init constitution     # Initialize constitution.md
-speckit memory init tech-stack       # Initialize tech-stack.md
-speckit memory init recommended      # Initialize recommended docs
-speckit memory init all              # Initialize all memory docs
-speckit memory list                  # List documents with status
-speckit memory check                 # Check document health
+specflow memory init constitution     # Initialize constitution.md
+specflow memory init tech-stack       # Initialize tech-stack.md
+specflow memory init recommended      # Initialize recommended docs
+specflow memory init all              # Initialize all memory docs
+specflow memory list                  # List documents with status
+specflow memory check                 # Check document health
 ```
 
 ### lessons - Lessons Learned
 
 ```bash
-speckit lessons init                 # Initialize lessons-learned.md
-speckit lessons add error "<desc>"   # Add error entry
-speckit lessons add decision "<desc>"  # Add decision entry
-speckit lessons add gotcha "<desc>"  # Add gotcha entry
-speckit lessons check <keyword>      # Search lessons
-speckit lessons list                 # List all entries
+specflow lessons init                 # Initialize lessons-learned.md
+specflow lessons add error "<desc>"   # Add error entry
+specflow lessons add decision "<desc>"  # Add decision entry
+specflow lessons add gotcha "<desc>"  # Add gotcha entry
+specflow lessons check <keyword>      # Search lessons
+specflow lessons list                 # List all entries
 ```
 
 ### claude-md - CLAUDE.md Operations
 
 ```bash
-speckit claude-md update "<phase>" "<desc>"  # Add to Recent Changes
-speckit claude-md sync               # Sync from ROADMAP completions
-speckit claude-md show               # Show current content
+specflow claude-md update "<phase>" "<desc>"  # Add to Recent Changes
+specflow claude-md sync               # Sync from ROADMAP completions
+specflow claude-md show               # Show current content
 ```
 
 ---
@@ -233,12 +233,12 @@ speckit claude-md show               # Show current content
 Enforce quality gates between workflow stages.
 
 ```bash
-speckit gate specify                 # Validate spec.md before planning
-speckit gate plan                    # Validate plan.md before tasks
-speckit gate tasks                   # Validate tasks.md before implement
-speckit gate implement               # Validate before verification
-speckit gate all                     # Run all applicable gates
-speckit gate status                  # Show gate status
+specflow gate specify                 # Validate spec.md before planning
+specflow gate plan                    # Validate plan.md before tasks
+specflow gate tasks                   # Validate tasks.md before implement
+specflow gate implement               # Validate before verification
+specflow gate all                     # Run all applicable gates
+specflow gate status                  # Show gate status
 ```
 
 ---
@@ -248,16 +248,16 @@ speckit gate status                  # Show gate status
 ### templates - Template Management
 
 ```bash
-speckit templates list               # List available templates
-speckit templates check              # Check for upstream updates
-speckit templates copy <file>        # Copy template to project
-speckit templates update <file>      # Update specific template
-speckit templates update-all         # Update all templates
-speckit templates sync               # Update outdated + copy missing templates
-speckit templates diff <file>        # Show differences from upstream
+specflow templates list               # List available templates
+specflow templates check              # Check for upstream updates
+specflow templates copy <file>        # Copy template to project
+specflow templates update <file>      # Update specific template
+specflow templates update-all         # Update all templates
+specflow templates sync               # Update outdated + copy missing templates
+specflow templates diff <file>        # Show differences from upstream
 ```
 
-**Note:** `speckit doctor` suggests `speckit templates sync` when templates need attention. Missing templates are flagged as errors since they can cause workflow failures.
+**Note:** `specflow doctor` suggests `specflow templates sync` when templates need attention. Missing templates are flagged as errors since they can cause workflow failures.
 
 ---
 
@@ -266,12 +266,12 @@ speckit templates diff <file>        # Show differences from upstream
 ### detect - Content Detection
 
 ```bash
-speckit detect                       # Detect all existing content
-speckit detect --check system        # Check system installation
-speckit detect --check speckit       # Check SpecKit structure
-speckit detect --check docs          # Check documentation
-speckit detect --check state         # Check state file
-speckit detect --check files         # Check file structure
+specflow detect                       # Detect all existing content
+specflow detect --check system        # Check system installation
+specflow detect --check specflow       # Check SpecFlow structure
+specflow detect --check docs          # Check documentation
+specflow detect --check state         # Check state file
+specflow detect --check files         # Check file structure
 ```
 
 ### reconcile - State Reconciliation
@@ -279,10 +279,10 @@ speckit detect --check files         # Check file structure
 Sync state file with actual file system.
 
 ```bash
-speckit reconcile                    # Reconcile state with files
-speckit reconcile --dry-run          # Preview changes only
-speckit reconcile --trust-files      # Trust file system over state
-speckit reconcile --trust-state      # Trust state over file system
+specflow reconcile                    # Reconcile state with files
+specflow reconcile --dry-run          # Preview changes only
+specflow reconcile --trust-files      # Trust file system over state
+specflow reconcile --trust-state      # Trust state over file system
 ```
 
 ---
@@ -292,15 +292,15 @@ speckit reconcile --trust-state      # Trust state over file system
 ### import - Import Existing Docs
 
 ```bash
-speckit import adrs <path>           # Import Architecture Decision Records
-speckit import adrs <path> --dry-run # Preview import
-speckit import adrs <path> --force   # Overwrite existing imports
+specflow import adrs <path>           # Import Architecture Decision Records
+specflow import adrs <path> --dry-run # Preview import
+specflow import adrs <path> --force   # Overwrite existing imports
 ```
 
 ### migrate - Migration Utilities
 
 ```bash
-speckit migrate roadmap              # Migrate ROADMAP.md 2.0 to 2.1
+specflow migrate roadmap              # Migrate ROADMAP.md 2.0 to 2.1
                                      # (converts 3-digit to 4-digit phases)
 ```
 
@@ -311,23 +311,23 @@ speckit migrate roadmap              # Migrate ROADMAP.md 2.0 to 2.1
 ### manifest - Version Manifest
 
 ```bash
-speckit manifest init                # Create manifest.json
-speckit manifest get [key]           # Get version info
-speckit manifest set <key> <val>     # Set version value
-speckit manifest validate            # Validate compatibility
-speckit manifest upgrade             # Apply available upgrades
-speckit manifest status              # Show version status
+specflow manifest init                # Create manifest.json
+specflow manifest get [key]           # Get version info
+specflow manifest set <key> <val>     # Set version value
+specflow manifest validate            # Validate compatibility
+specflow manifest upgrade             # Apply available upgrades
+specflow manifest status              # Show version status
 ```
 
 ### pdr - Product Design Requirements
 
 ```bash
-speckit pdr list                     # List all PDRs with status
-speckit pdr status                   # Show PDR summary (counts)
-speckit pdr show <file>              # Show PDR details
-speckit pdr validate <file>          # Validate PDR structure
-speckit pdr path                     # Show PDR directory path
-speckit pdr init                     # Create PDR directory
+specflow pdr list                     # List all PDRs with status
+specflow pdr status                   # Show PDR summary (counts)
+specflow pdr show <file>              # Show PDR details
+specflow pdr validate <file>          # Validate PDR structure
+specflow pdr path                     # Show PDR directory path
+specflow pdr init                     # Create PDR directory
 ```
 
 ---
@@ -346,16 +346,16 @@ speckit pdr init                     # Create PDR directory
 
 ```bash
 # Initial setup
-speckit scaffold --safe              # Preview structure
-speckit scaffold                     # Create structure
-speckit doctor                       # Verify everything works
+specflow scaffold --safe              # Preview structure
+specflow scaffold                     # Create structure
+specflow doctor                       # Verify everything works
 
 # Feature development
-speckit feature create 0010 user-auth
-speckit roadmap update 0010 in_progress
-speckit tasks incomplete             # Check remaining work
+specflow feature create 0010 user-auth
+specflow roadmap update 0010 in_progress
+specflow tasks incomplete             # Check remaining work
 
 # End of phase
-speckit gate all                     # Validate before merge
-speckit phase archive 0010           # Archive completed phase
+specflow gate all                     # Validate before merge
+specflow phase archive 0010           # Archive completed phase
 ```

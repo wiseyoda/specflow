@@ -1,10 +1,10 @@
 # Configuration
 
-SpecKit configuration and state management.
+SpecFlow configuration and state management.
 
 ## State File
 
-SpecKit uses `.specify/orchestration-state.json` to track project state.
+SpecFlow uses `.specify/orchestration-state.json` to track project state.
 
 ### v2.0 Schema
 
@@ -51,17 +51,17 @@ SpecKit uses `.specify/orchestration-state.json` to track project state.
 ### State Operations
 
 ```bash
-speckit state get                    # Show full state
-speckit state get orchestration      # Get section
-speckit state set "phase.number=0020"  # Set value
-speckit state init                   # Initialize (generates UUID)
-speckit state reset                  # Reset to defaults
-speckit state validate               # Validate structure
+specflow state get                    # Show full state
+specflow state get orchestration      # Get section
+specflow state set "phase.number=0020"  # Set value
+specflow state init                   # Initialize (generates UUID)
+specflow state reset                  # Reset to defaults
+specflow state validate               # Validate structure
 ```
 
 ### Filesystem-Derived State
 
-The `speckit status` command derives progress from filesystem artifacts:
+The `specflow status` command derives progress from filesystem artifacts:
 
 - **Step detection**: Determined by which files exist (spec.md → plan.md → tasks.md → checklists/)
 - **Task counts**: Parsed directly from tasks.md checkbox status
@@ -71,7 +71,7 @@ This means orchestration can recover automatically if the state file is outdated
 
 ## Central Registry
 
-Projects are registered in `~/.speckit/registry.json` for web UI discovery.
+Projects are registered in `~/.specflow/registry.json` for web UI discovery.
 
 ```json
 {
@@ -89,9 +89,9 @@ Projects are registered in `~/.speckit/registry.json` for web UI discovery.
 ### Registry Operations
 
 ```bash
-speckit state registry list          # List registered projects
-speckit state registry sync          # Sync current project
-speckit state registry clean         # Remove stale entries
+specflow state registry list          # List registered projects
+specflow state registry sync          # Sync current project
+specflow state registry clean         # Remove stale entries
 ```
 
 ## Version Manifest
@@ -99,23 +99,23 @@ speckit state registry clean         # Remove stale entries
 Optional `manifest.json` for version tracking:
 
 ```bash
-speckit manifest init                # Create manifest
-speckit manifest status              # Show version status
-speckit manifest validate            # Check compatibility
-speckit manifest upgrade             # Apply upgrades
+specflow manifest init                # Create manifest
+specflow manifest status              # Show version status
+specflow manifest validate            # Check compatibility
+specflow manifest upgrade             # Apply upgrades
 ```
 
 ## Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SPECKIT_HOME` | System install location | `~/.claude/speckit-system` |
-| `SPECKIT_REGISTRY` | Registry location | `~/.speckit/registry.json` |
-| `SPECKIT_DEBUG` | Enable debug output | `false` |
+| `SPECFLOW_HOME` | System install location | `~/.claude/specflow-system` |
+| `SPECFLOW_REGISTRY` | Registry location | `~/.specflow/registry.json` |
+| `SPECFLOW_DEBUG` | Enable debug output | `false` |
 
 ## Project Detection
 
-SpecKit auto-detects project type from files:
+SpecFlow auto-detects project type from files:
 
 | File | Detected Type |
 |------|---------------|
@@ -129,7 +129,7 @@ SpecKit auto-detects project type from files:
 
 Override detection:
 ```bash
-speckit scaffold --type python
+specflow scaffold --type python
 ```
 
 ## Migrating from v1.x
@@ -137,14 +137,14 @@ speckit scaffold --type python
 If you have an existing v1.x project:
 
 ```bash
-speckit state migrate
+specflow state migrate
 ```
 
 This will:
 1. Backup current state to `.specify/archive/`
 2. Generate project UUID
 3. Convert to v2.0 schema
-4. Register in `~/.speckit/registry.json`
+4. Register in `~/.specflow/registry.json`
 
 In-progress interviews continue seamlessly.
 
@@ -164,7 +164,7 @@ In-progress interviews continue seamlessly.
 
 Migrate:
 ```bash
-speckit migrate roadmap
+specflow migrate roadmap
 ```
 
 ## File Locations Summary
@@ -236,7 +236,7 @@ speckit migrate roadmap
 |------|---------|----------|
 | `.specify/templates/` | Project-specific template overrides | Optional |
 
-> **Note**: Templates are optional at project level. Central templates at `~/.claude/speckit-system/templates/` are used if project templates don't exist.
+> **Note**: Templates are optional at project level. Central templates at `~/.claude/specflow-system/templates/` are used if project templates don't exist.
 
 ### Specifications (`specs/`)
 
@@ -258,13 +258,13 @@ speckit migrate roadmap
 
 | Path | Purpose |
 |------|---------|
-| `~/.claude/speckit-system/` | SpecKit system installation |
-| `~/.claude/speckit-system/bin/speckit` | CLI dispatcher |
-| `~/.claude/speckit-system/scripts/bash/` | Implementation scripts |
-| `~/.claude/speckit-system/scripts/bash/lib/` | Shared libraries |
-| `~/.claude/speckit-system/templates/` | Central templates |
-| `~/.claude/commands/speckit.*.md` | Slash commands |
-| `~/.speckit/registry.json` | Central project registry |
+| `~/.claude/specflow-system/` | SpecFlow system installation |
+| `~/.claude/specflow-system/bin/specflow` | CLI dispatcher |
+| `~/.claude/specflow-system/scripts/bash/` | Implementation scripts |
+| `~/.claude/specflow-system/scripts/bash/lib/` | Shared libraries |
+| `~/.claude/specflow-system/templates/` | Central templates |
+| `~/.claude/commands/specflow.*.md` | Slash commands |
+| `~/.specflow/registry.json` | Central project registry |
 
 ### State Config Paths
 
@@ -275,12 +275,12 @@ These paths are stored in `.specify/orchestration-state.json` under `config`:
 | `config.roadmap_path` | `ROADMAP.md` | ROADMAP location |
 | `config.memory_path` | `.specify/memory/` | Memory docs location |
 | `config.specs_path` | `specs/` | Specs location |
-| `config.scripts_path` | `~/.claude/speckit-system/scripts/` | Scripts location (central) |
+| `config.scripts_path` | `~/.claude/specflow-system/scripts/` | Scripts location (central) |
 | `config.templates_path` | `.specify/templates/` | Templates location |
 
 ### Default Scaffold Structure
 
-Running `speckit scaffold` creates:
+Running `specflow scaffold` creates:
 
 ```
 project-root/

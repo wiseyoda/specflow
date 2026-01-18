@@ -4,7 +4,7 @@
 
 ## Progress Dashboard
 
-> Last updated: 2026-01-17T18:37:46Z | Run `speckit tasks sync` to refresh
+> Last updated: 2026-01-17T18:37:46Z | Run `specflow tasks sync` to refresh
 
 | Phase | Status | Progress |
 |-------|--------|----------|
@@ -60,7 +60,7 @@
 ## Phase 3: Command Discovery
 
 - [x] **T012** [US1] Create `packages/dashboard/src/lib/command-discovery.ts`
-- [x] **T013** [US1] Implement `speckit help` parsing to extract commands
+- [x] **T013** [US1] Implement `specflow help` parsing to extract commands
 - [x] **T014** [US1] Create `src/app/api/commands/list/route.ts` GET handler
 - [x] **T015** [US1] Add caching with 5-minute refresh interval
 

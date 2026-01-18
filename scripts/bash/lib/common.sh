@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# common.sh - Shared functions for SpecKit scripts
+# common.sh - Shared functions for SpecFlow scripts
 #
 # Source this file at the start of each script:
 #   source "$(dirname "$0")/lib/common.sh"
 #
 
 # Guard against double-sourcing
-if [[ -n "${SPECKIT_COMMON_LOADED:-}" ]]; then
+if [[ -n "${SPECFLOW_COMMON_LOADED:-}" ]]; then
   return 0 2>/dev/null || exit 0
 fi
-SPECKIT_COMMON_LOADED=1
+SPECFLOW_COMMON_LOADED=1
 
 # Strict mode
 set -euo pipefail
@@ -62,7 +62,7 @@ log_error() {
 }
 
 log_debug() {
-  if [[ "${SPECKIT_DEBUG:-}" == "1" ]]; then
+  if [[ "${SPECFLOW_DEBUG:-}" == "1" ]]; then
     echo -e "${DIM}DEBUG: $*${RESET}" >&2
   fi
 }
@@ -132,7 +132,7 @@ print_status() {
 #   $1 - status: ok, warn, error
 #   $2 - action: what was done (e.g., "Created project structure")
 #   $3 - detail: key result (e.g., "5 directories, 3 files")
-#   $4 - hint: next step (e.g., "Run /speckit.init to start")
+#   $4 - hint: next step (e.g., "Run /specflow.init to start")
 #
 print_summary() {
   local status="${1:-ok}"
@@ -193,23 +193,23 @@ sed_in_place() {
 # =============================================================================
 
 # Get the repository root (where .git is)
-# Can be overridden with SPECKIT_PROJECT_ROOT env var (useful for testing)
+# Can be overridden with SPECFLOW_PROJECT_ROOT env var (useful for testing)
 get_repo_root() {
-  if [[ -n "${SPECKIT_PROJECT_ROOT:-}" ]]; then
-    echo "$SPECKIT_PROJECT_ROOT"
+  if [[ -n "${SPECFLOW_PROJECT_ROOT:-}" ]]; then
+    echo "$SPECFLOW_PROJECT_ROOT"
     return
   fi
   git rev-parse --show-toplevel 2>/dev/null || pwd
 }
 
-# Get the SpecKit system directory
-get_speckit_system_dir() {
-  echo "${HOME}/.claude/speckit-system"
+# Get the SpecFlow system directory
+get_specflow_system_dir() {
+  echo "${HOME}/.claude/specflow-system"
 }
 
-# Get the SpecKit registry file path
-get_speckit_registry() {
-  echo "${HOME}/.speckit/registry.json"
+# Get the SpecFlow registry file path
+get_specflow_registry() {
+  echo "${HOME}/.specflow/registry.json"
 }
 
 # Get the project's .specify directory
@@ -229,8 +229,8 @@ is_git_repo() {
   git rev-parse --git-dir &>/dev/null
 }
 
-# Check if we're in a SpecKit project
-is_speckit_project() {
+# Check if we're in a SpecFlow project
+is_specflow_project() {
   [[ -d "$(get_specify_dir)" ]]
 }
 
@@ -349,11 +349,11 @@ validate_context() {
   fi
 }
 
-# Validate that a SpecKit project exists
-validate_speckit_project() {
-  if ! is_speckit_project; then
-    log_error "Not a SpecKit project (no .specify/ directory)"
-    log_info "Run 'speckit scaffold' to initialize, or use /speckit.init"
+# Validate that a SpecFlow project exists
+validate_specflow_project() {
+  if ! is_specflow_project; then
+    log_error "Not a SpecFlow project (no .specify/ directory)"
+    log_info "Run 'specflow scaffold' to initialize, or use /specflow.init"
     exit 1
   fi
 }
@@ -364,7 +364,7 @@ validate_state_file() {
   state_file="$(get_state_file)"
   if [[ ! -f "$state_file" ]]; then
     log_error "State file not found: $state_file"
-    log_info "Run 'speckit state init' to create one"
+    log_info "Run 'specflow state init' to create one"
     exit 1
   fi
 }
@@ -374,16 +374,16 @@ validate_state_file() {
 # =============================================================================
 
 # Global flag for JSON output
-SPECKIT_JSON_OUTPUT="${SPECKIT_JSON_OUTPUT:-0}"
+SPECFLOW_JSON_OUTPUT="${SPECFLOW_JSON_OUTPUT:-0}"
 
 # Enable JSON output mode
 enable_json_output() {
-  SPECKIT_JSON_OUTPUT=1
+  SPECFLOW_JSON_OUTPUT=1
 }
 
 # Check if JSON output is enabled
 is_json_output() {
-  [[ "$SPECKIT_JSON_OUTPUT" == "1" ]]
+  [[ "$SPECFLOW_JSON_OUTPUT" == "1" ]]
 }
 
 # Output as JSON if JSON mode, otherwise run callback
@@ -403,20 +403,20 @@ output_or_json() {
 # =============================================================================
 
 # Parse common flags from arguments
-# Sets globals: SPECKIT_VERBOSE, SPECKIT_JSON_OUTPUT, REMAINING_ARGS
+# Sets globals: SPECFLOW_VERBOSE, SPECFLOW_JSON_OUTPUT, REMAINING_ARGS
 parse_common_flags() {
-  SPECKIT_VERBOSE=0
-  SPECKIT_JSON_OUTPUT=0
+  SPECFLOW_VERBOSE=0
+  SPECFLOW_JSON_OUTPUT=0
   REMAINING_ARGS=()
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -v|--verbose)
-        SPECKIT_VERBOSE=1
+        SPECFLOW_VERBOSE=1
         shift
         ;;
       --json)
-        SPECKIT_JSON_OUTPUT=1
+        SPECFLOW_JSON_OUTPUT=1
         shift
         ;;
       -h|--help)

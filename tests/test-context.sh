@@ -2,7 +2,7 @@
 #
 # Test Suite: Context Operations
 #
-# Tests for speckit context command:
+# Tests for specflow context command:
 #   - Detects feature from branch name
 #   - Returns paths and available documents
 #   - Validates requirements
@@ -22,7 +22,7 @@ test_context_detects_feature() {
 
   # Run context command
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-context.sh" 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-context.sh" 2>&1)
 
   assert_contains "$output" "FEATURE_DIR" "Shows feature directory"
   assert_contains "$output" "001-test-feature" "Shows branch name"
@@ -37,7 +37,7 @@ test_context_json_output() {
   touch specs/002-another-feature/spec.md
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-context.sh" --json 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-context.sh" --json 2>&1)
 
   # Should be valid JSON
   echo "$output" | jq '.' >/dev/null 2>&1
@@ -58,7 +58,7 @@ test_context_shows_available_docs() {
   touch specs/003-docs-feature/plan.md
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-context.sh" 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-context.sh" 2>&1)
 
   assert_contains "$output" "spec.md" "Shows spec.md"
   assert_contains "$output" "plan.md" "Shows plan.md"
@@ -73,7 +73,7 @@ test_context_require_spec() {
   # Don't create spec.md
 
   # Should fail with --require-spec
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-context.sh --require-spec" "Fails when spec missing"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-context.sh --require-spec" "Fails when spec missing"
 }
 
 test_context_require_plan() {
@@ -86,7 +86,7 @@ test_context_require_plan() {
   # Don't create plan.md
 
   # Should fail with --require-plan
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-context.sh --require-plan" "Fails when plan missing"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-context.sh --require-plan" "Fails when plan missing"
 }
 
 test_context_require_tasks() {
@@ -99,7 +99,7 @@ test_context_require_tasks() {
   # Don't create tasks.md
 
   # Should fail with --require-tasks
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-context.sh --require-tasks" "Fails when tasks missing"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-context.sh --require-tasks" "Fails when tasks missing"
 }
 
 test_context_invalid_branch_pattern() {
@@ -108,7 +108,7 @@ test_context_invalid_branch_pattern() {
   git checkout -b "main" -q
 
   # Should fail - branch doesn't match NNN-feature pattern
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-context.sh" "Fails on non-feature branch"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-context.sh" "Fails on non-feature branch"
 }
 
 test_context_missing_feature_dir() {
@@ -120,12 +120,12 @@ test_context_missing_feature_dir() {
   # Don't create the feature directory
 
   # Should fail
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-context.sh" "Fails when feature dir missing"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-context.sh" "Fails when feature dir missing"
 }
 
 test_context_help() {
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-context.sh" --help)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-context.sh" --help)
 
   assert_contains "$output" "context" "Help shows command name"
   assert_contains "$output" "--require-spec" "Help shows require-spec option"

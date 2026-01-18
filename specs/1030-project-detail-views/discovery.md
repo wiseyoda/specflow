@@ -85,7 +85,7 @@ packages/dashboard/src/
 
 ### File Watcher
 - Watcher already monitors:
-  - `~/.speckit/registry.json`
+  - `~/.specflow/registry.json`
   - All project state files (`.specify/orchestration-state.json`)
 - Could extend to watch `tasks.md` files for Kanban view
 

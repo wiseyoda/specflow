@@ -9,14 +9,14 @@
 ## Critical Fixes (Must Pass)
 
 ### LIB008 - Phase Command
-- [ ] `speckit phase` command runs without "slash command" error
-- [ ] `speckit phase --help` shows proper help output
-- [ ] `speckit phase show 0060` displays phase details
+- [ ] `specflow phase` command runs without "slash command" error
+- [ ] `specflow phase --help` shows proper help output
+- [ ] `specflow phase show 0060` displays phase details
 
 ### TPL012 - Duplicate Templates
 - [ ] `.specify/templates/` directory does not exist
 - [ ] `templates/` is the only template source
-- [ ] `speckit templates list` works correctly
+- [ ] `specflow templates list` works correctly
 
 ---
 
@@ -25,16 +25,16 @@
 ### Sample Commands to Test
 For each command, verify that **critical status appears in first 3 lines**:
 
-- [ ] `speckit detect` - Detection results first, not decorative header
-- [ ] `speckit gate specify` - Gate result (PASS/FAIL) in first line
-- [ ] `speckit lessons list` - Entry count or "no entries" first
-- [ ] `speckit context` - Feature context path first
-- [ ] `speckit templates check` - Template status first
-- [ ] `speckit roadmap validate` - Validation result first
-- [ ] `speckit memory list` - Document count first
-- [ ] `speckit pdr validate` - Validation result first
-- [ ] `speckit scaffold --status` - Status first
-- [ ] `speckit state reconcile` - Reconciliation result first
+- [ ] `specflow detect` - Detection results first, not decorative header
+- [ ] `specflow gate specify` - Gate result (PASS/FAIL) in first line
+- [ ] `specflow lessons list` - Entry count or "no entries" first
+- [ ] `specflow context` - Feature context path first
+- [ ] `specflow templates check` - Template status first
+- [ ] `specflow roadmap validate` - Validation result first
+- [ ] `specflow memory list` - Document count first
+- [ ] `specflow pdr validate` - Validation result first
+- [ ] `specflow scaffold --status` - Status first
+- [ ] `specflow state reconcile` - Reconciliation result first
 
 ### Pattern Verification
 - [ ] No `print_header()` calls before status output
@@ -45,9 +45,9 @@ For each command, verify that **critical status appears in first 3 lines**:
 
 ## Hardcoded Path Remediation
 
-- [ ] `grep -r "HOME/.speckit" scripts/bash/` only returns common.sh results
-- [ ] `grep -r "HOME/.claude/speckit" scripts/bash/` only returns common.sh results
-- [ ] All scripts use `get_speckit_system_dir()` or `get_speckit_registry()`
+- [ ] `grep -r "HOME/.specflow" scripts/bash/` only returns common.sh results
+- [ ] `grep -r "HOME/.claude/specflow" scripts/bash/` only returns common.sh results
+- [ ] All scripts use `get_specflow_system_dir()` or `get_specflow_registry()`
 
 ---
 
@@ -68,21 +68,21 @@ For each command, verify that **critical status appears in first 3 lines**:
 - [ ] `json_set` function works correctly
 - [ ] `json_array_append` function works correctly
 
-### speckit-issue.sh
+### specflow-issue.sh
 - [ ] Arithmetic operations don't exit on set -e
-- [ ] `speckit issue list` works without errors
+- [ ] `specflow issue list` works without errors
 
 ---
 
 ## Slash Command Compliance
 
 ### CLI Command References
-- [ ] `commands/speckit.specify.md` - No setup-plan.sh references
-- [ ] `commands/speckit.plan.md` - No deprecated script references
-- [ ] `commands/speckit.verify.md` - Uses `speckit tasks mark` for completions
-- [ ] `commands/speckit.backlog.md` - Uses CLI commands, not direct edits
-- [ ] `commands/speckit.phase.md` - Uses speckit pdr commands
-- [ ] `commands/speckit.init.md` - Uses speckit state set
+- [ ] `commands/specflow.specify.md` - No setup-plan.sh references
+- [ ] `commands/specflow.plan.md` - No deprecated script references
+- [ ] `commands/specflow.verify.md` - Uses `specflow tasks mark` for completions
+- [ ] `commands/specflow.backlog.md` - Uses CLI commands, not direct edits
+- [ ] `commands/specflow.phase.md` - Uses specflow pdr commands
+- [ ] `commands/specflow.init.md` - Uses specflow state set
 
 ### No Direct Edits
 - [ ] Slash commands don't use Edit tool on state files
@@ -136,5 +136,5 @@ Target: **95%+ overall compliance**
 - [ ] All 58 tasks marked complete in tasks.md
 - [ ] `./tests/test-runner.sh` passes all tests
 - [ ] No regressions in existing functionality
-- [ ] `speckit doctor` shows no issues
+- [ ] `specflow doctor` shows no issues
 - [ ] Git working directory clean (all changes committed)

@@ -2,7 +2,7 @@
 
 **Phase**: 0050
 **Created**: 2026-01-11
-**Purpose**: Post-completion verification for `/speckit.verify`
+**Purpose**: Post-completion verification for `/specflow.verify`
 
 ---
 
@@ -11,36 +11,36 @@
 ### G1: Orphaned Scripts Cleanup
 - [ ] `.specify/scripts/bash/` directory does not exist
 - [ ] No duplicate `common.sh` files in repository
-- [ ] All scripts in `scripts/bash/` are referenced in `bin/speckit`
+- [ ] All scripts in `scripts/bash/` are referenced in `bin/specflow`
 
 ### G2: Slash Command Removal
-- [ ] `commands/speckit.issue.md` file deleted
-- [ ] `speckit issue` CLI remains functional
-- [ ] No references to `/speckit.issue` in documentation
+- [ ] `commands/specflow.issue.md` file deleted
+- [ ] `specflow issue` CLI remains functional
+- [ ] No references to `/specflow.issue` in documentation
 
 ### G3: Memory Command Consolidation
-- [ ] `/speckit.memory generate` produces expected output
-- [ ] `/speckit.memory-init` errors with clear message pointing to new command
+- [ ] `/specflow.memory generate` produces expected output
+- [ ] `/specflow.memory-init` errors with clear message pointing to new command
 - [ ] No confusion between memory commands in documentation
 
 ### G4: Entry Point Consolidation
-- [ ] All 11 slash commands have "Continue Later" handoff to `/speckit.start`
-- [ ] `README.md` prominently recommends `/speckit.start`
-- [ ] `bin/speckit --help` mentions `/speckit.start`
+- [ ] All 11 slash commands have "Continue Later" handoff to `/specflow.start`
+- [ ] `README.md` prominently recommends `/specflow.start`
+- [ ] `bin/specflow --help` mentions `/specflow.start`
 
 ### G5: UI Design Artifacts
 - [ ] `templates/ui-design-template.md` exists
-- [ ] `/speckit.specify` detects UI keywords in phase scope
+- [ ] `/specflow.specify` detects UI keywords in phase scope
 - [ ] UI phases auto-create `ui/design.md`
-- [ ] `/speckit.plan` verifies design.md for UI phases
+- [ ] `/specflow.plan` verifies design.md for UI phases
 
 ### G6: CLAUDE.md Split
-- [ ] SpecKit section in CLAUDE.md ≤15 lines
+- [ ] SpecFlow section in CLAUDE.md ≤15 lines
 - [ ] `.specify/USAGE.md` template exists with full reference
-- [ ] `speckit claude-md merge` produces minimal output
+- [ ] `specflow claude-md merge` produces minimal output
 
 ### G7: State Derivation
-- [ ] `speckit status --json` derives step completion from artifacts
+- [ ] `specflow status --json` derives step completion from artifacts
 - [ ] State recovery works with outdated state file
 
 ---
@@ -48,15 +48,15 @@
 ## Functional Verification
 
 ### FV1: Commands Still Work
-- [ ] `speckit issue create "test"` works
-- [ ] `speckit issue list` works
-- [ ] `speckit memory generate` works (if applicable)
-- [ ] `speckit status` works
-- [ ] `speckit claude-md merge` works
+- [ ] `specflow issue create "test"` works
+- [ ] `specflow issue list` works
+- [ ] `specflow memory generate` works (if applicable)
+- [ ] `specflow status` works
+- [ ] `specflow claude-md merge` works
 
 ### FV2: Documentation Accuracy
-- [ ] `docs/cli-reference.md` - accurate, no /speckit.issue
-- [ ] `docs/slash-commands.md` - accurate, /speckit.start prominent
+- [ ] `docs/cli-reference.md` - accurate, no /specflow.issue
+- [ ] `docs/slash-commands.md` - accurate, /specflow.start prominent
 - [ ] `docs/integration-guide.md` - workflow examples work
 - [ ] `docs/project-structure.md` - matches actual structure
 - [ ] `docs/configuration.md` - accurate
@@ -65,9 +65,9 @@
 - [ ] `docs/COMMAND-AUDIT.md` - updated statuses
 
 ### FV3: Handoff Verification (spot check)
-- [ ] `/speckit.verify` shows "Continue Later" option
-- [ ] `/speckit.merge` shows "Continue Later" option
-- [ ] `/speckit.specify` shows "Continue Later" option
+- [ ] `/specflow.verify` shows "Continue Later" option
+- [ ] `/specflow.merge` shows "Continue Later" option
+- [ ] `/specflow.specify` shows "Continue Later" option
 
 ---
 
@@ -92,9 +92,9 @@
 ## Regression Testing
 
 ### RT1: Existing Workflows
-- [ ] `speckit scaffold` still works
-- [ ] `speckit state` commands still work
-- [ ] `speckit roadmap` commands still work
+- [ ] `specflow scaffold` still works
+- [ ] `specflow state` commands still work
+- [ ] `specflow roadmap` commands still work
 - [ ] Full orchestration workflow functional
 
 ### RT2: No Breaking Changes

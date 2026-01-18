@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# detection.sh - Project type detection library for SpecKit
+# detection.sh - Project type detection library for SpecFlow
 #
 # Functions:
 #   detect_project_type [path]  - Detect project type from markers
@@ -10,8 +10,8 @@
 #
 
 # Guard against double-sourcing
-[[ -n "${_SPECKIT_DETECTION_SH:-}" ]] && return 0
-readonly _SPECKIT_DETECTION_SH=1
+[[ -n "${_SPECFLOW_DETECTION_SH:-}" ]] && return 0
+readonly _SPECFLOW_DETECTION_SH=1
 
 # =============================================================================
 # Project Type Detection

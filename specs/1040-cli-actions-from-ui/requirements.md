@@ -4,13 +4,13 @@
 
 ## Functional Requirements
 
-- [ ] **FR-001**: System executes `speckit` CLI commands via API routes using child process spawn
+- [ ] **FR-001**: System executes `specflow` CLI commands via API routes using child process spawn
 - [ ] **FR-002**: System streams command stdout/stderr to the UI in real-time
 - [ ] **FR-003**: System displays command results in an expandable drawer component
 - [ ] **FR-004**: System shows toast notifications for command success/failure
 - [ ] **FR-005**: System sanitizes all user inputs before passing to shell commands
 - [ ] **FR-006**: System passes the correct project path to CLI commands
-- [ ] **FR-007**: Command palette lists all available `speckit` commands (from `speckit help`)
+- [ ] **FR-007**: Command palette lists all available `specflow` commands (from `specflow help`)
 - [ ] **FR-008**: System handles command timeouts (default 60 seconds)
 - [ ] **FR-009**: System preserves command history for the session
 - [ ] **FR-010**: System prompts for required arguments inline after command selection
@@ -24,7 +24,7 @@
 
 ## User Stories
 
-- [ ] **US-1**: Run SpecKit Command from Palette (P1)
+- [ ] **US-1**: Run SpecFlow Command from Palette (P1)
 - [ ] **US-2**: Create Issue from UI (P1)
 - [ ] **US-3**: View Command Output (P2)
 - [ ] **US-4**: Error Feedback (P2)
@@ -32,7 +32,7 @@
 ## Verification Gate (USER)
 
 - [ ] Create issue from UI appears in `.specify/issues/`
-- [ ] Run any `speckit` command from command palette
+- [ ] Run any `specflow` command from command palette
 - [ ] Command output streams to drawer in real-time
 - [ ] Errors display in toast with helpful messages
 

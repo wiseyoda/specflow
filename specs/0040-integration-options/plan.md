@@ -10,13 +10,13 @@
 
 ### Existing Infrastructure
 
-**speckit-detect.sh** (scripts/bash/speckit-detect.sh)
+**specflow-detect.sh** (scripts/bash/specflow-detect.sh)
 - Already has `detect_docs()` function (lines 218-293)
 - Detects: docs/, ADR directories, OpenAPI files, .github/
 - Supports `--json` output
 - Will extend this with `--docs` flag enhancements
 
-**No existing import command** - speckit-import.sh needs to be created.
+**No existing import command** - specflow-import.sh needs to be created.
 
 ### Architecture Approach
 
@@ -41,7 +41,7 @@
 ### Phase 1: Enhanced Detection (US1)
 
 **Files to modify**:
-- `scripts/bash/speckit-detect.sh`
+- `scripts/bash/specflow-detect.sh`
 
 **Changes**:
 1. Add `--docs` alias for `--check docs`
@@ -72,13 +72,13 @@ Other Docs:
 
 ### Phase 2: ADR Import (US2)
 
-**New file**: `scripts/bash/speckit-import.sh`
+**New file**: `scripts/bash/specflow-import.sh`
 
 **Command structure**:
 ```bash
-speckit import adrs <path>     # Import ADRs from path
-speckit import adrs --help     # Show help
-speckit import adrs --dry-run  # Preview without importing
+specflow import adrs <path>     # Import ADRs from path
+specflow import adrs --help     # Show help
+specflow import adrs --dry-run  # Preview without importing
 ```
 
 **Implementation steps**:
@@ -111,8 +111,8 @@ speckit import adrs --dry-run  # Preview without importing
 
 **Content outline**:
 1. Overview - When to use integration features
-2. Detection - `speckit detect --docs` walkthrough
-3. ADR Import - `speckit import adrs` walkthrough
+2. Detection - `specflow detect --docs` walkthrough
+3. ADR Import - `specflow import adrs` walkthrough
 4. Manual Integration - How to reference existing docs
 5. Examples - Common scenarios
 
@@ -124,9 +124,9 @@ speckit import adrs --dry-run  # Preview without importing
 
 | File | Action | Description |
 |------|--------|-------------|
-| `scripts/bash/speckit-detect.sh` | Modify | Add --docs alias, enhance ADR detection |
-| `scripts/bash/speckit-import.sh` | Create | New import command |
-| `bin/speckit` | Modify | Add import command routing |
+| `scripts/bash/specflow-detect.sh` | Modify | Add --docs alias, enhance ADR detection |
+| `scripts/bash/specflow-import.sh` | Create | New import command |
+| `bin/specflow` | Modify | Add import command routing |
 | `docs/integration-guide.md` | Create | Integration documentation |
 | `README.md` | Modify | Add integration section |
 | `tests/test-detect.sh` | Modify | Add tests for --docs |
@@ -165,7 +165,7 @@ Total ADRs: N
 
 ### Detection Tests (tests/test-detect.sh)
 - Create temp directory with various doc patterns
-- Test `speckit detect --docs` finds them
+- Test `specflow detect --docs` finds them
 - Test JSON output structure
 
 ### Import Tests (tests/test-import.sh)

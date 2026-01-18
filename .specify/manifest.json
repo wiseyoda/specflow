@@ -1,6 +1,6 @@
 {
   "manifest_schema": "1.0",
-  "speckit_version": "2.1.0",
+  "specflow_version": "2.1.0",
   "schema": {
     "state": "2.0",
     "roadmap": "2.1",

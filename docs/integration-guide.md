@@ -1,10 +1,10 @@
 # Integration Guide
 
-This guide explains how to integrate SpecKit with projects that have existing documentation.
+This guide explains how to integrate SpecFlow with projects that have existing documentation.
 
 ## Overview
 
-SpecKit can detect and import existing documentation from your project, preserving your institutional knowledge while adding SpecKit's structured workflow. This is especially useful for:
+SpecFlow can detect and import existing documentation from your project, preserving your institutional knowledge while adding SpecFlow's structured workflow. This is especially useful for:
 
 - Projects with existing Architecture Decision Records (ADRs)
 - Established codebases with existing documentation
@@ -17,7 +17,7 @@ SpecKit can detect and import existing documentation from your project, preservi
 Use the detect command to scan for existing documentation:
 
 ```bash
-speckit detect --docs
+specflow detect --docs
 ```
 
 This scans for:
@@ -41,7 +41,7 @@ ADR Directories Found:
   docs/adr/ (5 ADRs)
 
 Suggested next step:
-  speckit import adrs docs/adr
+  specflow import adrs docs/adr
 ```
 
 ### JSON Output
@@ -49,22 +49,22 @@ Suggested next step:
 For programmatic use:
 
 ```bash
-speckit detect --docs --json
+specflow detect --docs --json
 ```
 
 ## Importing ADRs
 
 ### Basic Import
 
-Import Architecture Decision Records into SpecKit's memory structure:
+Import Architecture Decision Records into SpecFlow's memory structure:
 
 ```bash
-speckit import adrs <path>
+specflow import adrs <path>
 ```
 
 Example:
 ```bash
-speckit import adrs docs/adr
+specflow import adrs docs/adr
 ```
 
 This will:
@@ -77,7 +77,7 @@ This will:
 Use dry-run mode to see what would happen without making changes:
 
 ```bash
-speckit import adrs docs/adr --dry-run
+specflow import adrs docs/adr --dry-run
 ```
 
 ### Force Overwrite
@@ -85,7 +85,7 @@ speckit import adrs docs/adr --dry-run
 If you've already imported ADRs and want to reimport:
 
 ```bash
-speckit import adrs docs/adr --force
+specflow import adrs docs/adr --force
 ```
 
 ### Supported ADR Patterns
@@ -135,7 +135,7 @@ Example:
 
 **Import never modifies or deletes your original files.**
 
-The import command copies files to the SpecKit structure. Your original ADR files in `docs/adr/` (or wherever they are) remain untouched.
+The import command copies files to the SpecFlow structure. Your original ADR files in `docs/adr/` (or wherever they are) remain untouched.
 
 ### Status Extraction
 
@@ -148,21 +148,21 @@ If no status is found, it will show "Unknown".
 
 ### Re-importing
 
-If your original ADRs change, you can re-import with `--force` to update the SpecKit copies. This will overwrite the files in `.specify/memory/adrs/`.
+If your original ADRs change, you can re-import with `--force` to update the SpecFlow copies. This will overwrite the files in `.specify/memory/adrs/`.
 
 ## Common Workflows
 
 ### New Project with Existing ADRs
 
 ```bash
-# 1. Initialize SpecKit
-speckit scaffold
+# 1. Initialize SpecFlow
+specflow scaffold
 
 # 2. Detect existing docs
-speckit detect --docs
+specflow detect --docs
 
 # 3. Import ADRs
-speckit import adrs docs/adr
+specflow import adrs docs/adr
 
 # 4. Verify import
 ls .specify/memory/adrs/
@@ -173,22 +173,22 @@ cat .specify/memory/adr-index.md
 
 ```bash
 # See what would be imported
-speckit import adrs docs/adr --dry-run
+specflow import adrs docs/adr --dry-run
 
 # If satisfied, run actual import
-speckit import adrs docs/adr
+specflow import adrs docs/adr
 ```
 
 ### After Import
 
-Once ADRs are imported, SpecKit's AI workflows can reference them:
+Once ADRs are imported, SpecFlow's AI workflows can reference them:
 
-- The `/speckit.start` command auto-detects your project state and routes to the right workflow
-- The `/speckit.specify` command can consider existing decisions
-- The `/speckit.plan` command can reference ADRs for context
+- The `/specflow.start` command auto-detects your project state and routes to the right workflow
+- The `/specflow.specify` command can consider existing decisions
+- The `/specflow.plan` command can reference ADRs for context
 - Memory documents can link to relevant ADRs
 
-**Recommended**: Use `/speckit.start` to begin any workflow - it will detect your imported ADRs and current project state automatically.
+**Recommended**: Use `/specflow.start` to begin any workflow - it will detect your imported ADRs and current project state automatically.
 
 ## Troubleshooting
 
@@ -203,7 +203,7 @@ The import command looks for specific file patterns. Ensure your ADRs match one 
 
 Use `--force` to overwrite existing imports:
 ```bash
-speckit import adrs docs/adr --force
+specflow import adrs docs/adr --force
 ```
 
 ### ADR Status Shows "Unknown"

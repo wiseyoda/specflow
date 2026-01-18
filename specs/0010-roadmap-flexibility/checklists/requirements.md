@@ -6,11 +6,11 @@
 ## Functional Requirements
 
 - [x] **FR-001**: 4-digit ABBC phase numbering scheme supported
-- [x] **FR-002**: `speckit roadmap insert` command implemented
-- [x] **FR-003**: `speckit roadmap defer` command implemented
-- [x] **FR-004**: `speckit roadmap restore` command implemented
+- [x] **FR-002**: `specflow roadmap insert` command implemented
+- [x] **FR-003**: `specflow roadmap defer` command implemented
+- [x] **FR-004**: `specflow roadmap restore` command implemented
 - [x] **FR-005**: Backlog section in ROADMAP.md supported
-- [x] **FR-006**: `speckit migrate roadmap` command implemented
+- [x] **FR-006**: `specflow migrate roadmap` command implemented
 - [x] **FR-007**: Internal reference updates on migration
 - [x] **FR-008**: Phase number format validation (4 digits, 0-padded)
 - [x] **FR-009**: In-progress phase protection with `--force` override

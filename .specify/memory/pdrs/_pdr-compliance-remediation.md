@@ -11,20 +11,20 @@
 
 ## Problem Statement
 
-**The Problem**: A comprehensive audit of 93 files revealed 92 compliance violations against SpecKit's own constitution and coding standards. The most significant gaps are:
+**The Problem**: A comprehensive audit of 93 files revealed 92 compliance violations against SpecFlow's own constitution and coding standards. The most significant gaps are:
 - 30% compliance with Principle VII (Three-Line Output Rule) - 26 violations
 - 70% compliance with Principle III (CLI Over Direct Edits) - 10 violations in commands
 - 2 critical bugs blocking functionality
 - 6 hardcoded paths violating portability standards
 
 **Who is affected**:
-- **Developers using SpecKit**: Experience inconsistent CLI output, broken commands
+- **Developers using SpecFlow**: Experience inconsistent CLI output, broken commands
 - **Contributors**: Unclear which standards to follow when patterns vary
 - **Maintainers**: Technical debt accumulating from inconsistent patterns
 
 **Current workaround**:
 - Users must scroll through verbose output to find critical information
-- `speckit phase` command is broken (blocked by slash-command warning)
+- `specflow phase` command is broken (blocked by slash-command warning)
 - Duplicate templates in two locations cause confusion about which to edit
 
 **Why now**:
@@ -80,7 +80,7 @@
 ## User Stories
 
 ### Story 1: CLI Output Clarity
-**As a** developer using SpecKit CLI,
+**As a** developer using SpecFlow CLI,
 **I want to** see the most important information in the first 3 lines of output,
 **So that** I can quickly understand command results without scrolling.
 
@@ -94,8 +94,8 @@
 **Value**: Predictable behavior, no hidden side effects
 
 ### Story 3: Working CLI Commands
-**As a** developer using SpecKit,
-**I want to** run `speckit phase` without errors,
+**As a** developer using SpecFlow,
+**I want to** run `specflow phase` without errors,
 **So that** I can manage phase details as documented.
 
 **Value**: Feature completeness, trust in documentation
@@ -117,55 +117,55 @@
 
 | ID | File | Line | Issue | Remediation |
 |----|------|------|-------|-------------|
-| CLI002 | speckit-doctor.sh | ~22 | Hardcoded SPECKIT_SYSTEM_DIR | Use get_speckit_system_dir() |
-| CLI003 | speckit-detect.sh | ~25 | Hardcoded SPECKIT_SYSTEM_DIR | Use get_speckit_system_dir() |
-| CS001 | speckit-state.sh | 29 | Hardcoded SPECKIT_REGISTRY | Move to common.sh |
-| CS002 | speckit-templates.sh | 23 | Hardcoded SPECKIT_SYSTEM_DIR | Move to common.sh |
-| CS003 | speckit-scaffold.sh | 25 | Hardcoded SPECKIT_SYSTEM_DIR | Move to common.sh |
+| CLI002 | specflow-doctor.sh | ~22 | Hardcoded SPECFLOW_SYSTEM_DIR | Use get_specflow_system_dir() |
+| CLI003 | specflow-detect.sh | ~25 | Hardcoded SPECFLOW_SYSTEM_DIR | Use get_specflow_system_dir() |
+| CS001 | specflow-state.sh | 29 | Hardcoded SPECFLOW_REGISTRY | Move to common.sh |
+| CS002 | specflow-templates.sh | 23 | Hardcoded SPECFLOW_SYSTEM_DIR | Move to common.sh |
+| CS003 | specflow-scaffold.sh | 25 | Hardcoded SPECFLOW_SYSTEM_DIR | Move to common.sh |
 
 #### POSIX Compliance (2 issues)
 
 | ID | File | Line | Issue | Remediation |
 |----|------|------|-------|-------------|
-| CLI005 | speckit-lessons.sh | ~302 | Non-portable sed -i | Add platform detection |
-| CLI012 | speckit-feature.sh | ~67 | Extended glob without extglob | Add shopt -s extglob |
+| CLI005 | specflow-lessons.sh | ~302 | Non-portable sed -i | Add platform detection |
+| CLI012 | specflow-feature.sh | ~67 | Extended glob without extglob | Add shopt -s extglob |
 
 #### Three-Line Output Rule (26 issues)
 
 | ID | File | Function | Issue |
 |----|------|----------|-------|
-| CLI001 | speckit-detect.sh | main | Decorative header before status |
-| CLI004 | speckit-gate.sh | main | Header before gate results |
-| CLI006 | speckit-lessons.sh | search | Header before search results |
-| CLI007 | speckit-lessons.sh | list | Header before entries list |
-| CLI008 | speckit-import.sh | import | 'ADR Import' header before status |
-| CLI009 | speckit-context.sh | context | 'Feature Context' header before path |
-| CLI010 | speckit-git.sh | branches | log_step before branch listing |
-| CLI011 | speckit-manifest.sh | status | Header before version status |
-| TLR001 | speckit-reconcile.sh | main | print_header before status |
-| TLR002 | speckit-reconcile.sh | apply_fixes | print_header before results |
-| TLR003 | speckit-reconcile.sh | show_summary | print_header before content |
-| TLR004 | speckit-templates.sh | cmd_check | print_header before status |
-| TLR005 | speckit-templates.sh | cmd_diff | print_header before output |
-| TLR006 | speckit-templates.sh | cmd_list | print_header before list |
-| TLR007 | speckit-phase.sh | cmd_migrate | log_step before analysis |
-| TLR008 | speckit-roadmap.sh | cmd_validate | log_step before results |
-| TLR009 | speckit-roadmap.sh | cmd_renumber | log_step before analysis |
-| TLR010 | speckit-memory.sh | cmd_init | log_step before creation |
-| TLR011 | speckit-memory.sh | cmd_list | log_step before listing |
-| TLR012 | speckit-memory.sh | cmd_check | log_step before health |
-| TLR013 | speckit-migrate.sh | cmd_roadmap | log_step before migration |
-| TLR014 | speckit-pdr.sh | cmd_validate | log_step before validation |
-| TLR015 | speckit-scaffold.sh | cmd_scaffold | log_step before creation |
-| TLR016 | speckit-state.sh | cmd_reconcile | log_step before results |
-| TLR017 | speckit-state.sh | cmd_migrate | log_step before output |
-| TLR018 | speckit-state.sh | cmd_infer | log_step before inference |
+| CLI001 | specflow-detect.sh | main | Decorative header before status |
+| CLI004 | specflow-gate.sh | main | Header before gate results |
+| CLI006 | specflow-lessons.sh | search | Header before search results |
+| CLI007 | specflow-lessons.sh | list | Header before entries list |
+| CLI008 | specflow-import.sh | import | 'ADR Import' header before status |
+| CLI009 | specflow-context.sh | context | 'Feature Context' header before path |
+| CLI010 | specflow-git.sh | branches | log_step before branch listing |
+| CLI011 | specflow-manifest.sh | status | Header before version status |
+| TLR001 | specflow-reconcile.sh | main | print_header before status |
+| TLR002 | specflow-reconcile.sh | apply_fixes | print_header before results |
+| TLR003 | specflow-reconcile.sh | show_summary | print_header before content |
+| TLR004 | specflow-templates.sh | cmd_check | print_header before status |
+| TLR005 | specflow-templates.sh | cmd_diff | print_header before output |
+| TLR006 | specflow-templates.sh | cmd_list | print_header before list |
+| TLR007 | specflow-phase.sh | cmd_migrate | log_step before analysis |
+| TLR008 | specflow-roadmap.sh | cmd_validate | log_step before results |
+| TLR009 | specflow-roadmap.sh | cmd_renumber | log_step before analysis |
+| TLR010 | specflow-memory.sh | cmd_init | log_step before creation |
+| TLR011 | specflow-memory.sh | cmd_list | log_step before listing |
+| TLR012 | specflow-memory.sh | cmd_check | log_step before health |
+| TLR013 | specflow-migrate.sh | cmd_roadmap | log_step before migration |
+| TLR014 | specflow-pdr.sh | cmd_validate | log_step before validation |
+| TLR015 | specflow-scaffold.sh | cmd_scaffold | log_step before creation |
+| TLR016 | specflow-state.sh | cmd_reconcile | log_step before results |
+| TLR017 | specflow-state.sh | cmd_migrate | log_step before output |
+| TLR018 | specflow-state.sh | cmd_infer | log_step before inference |
 
 #### Other Issues (1 issue)
 
 | ID | File | Line | Issue | Remediation |
 |----|------|------|-------|-------------|
-| CLI013 | speckit-issue.sh | ~364 | Arithmetic can cause set -e exit | Use ((x++)) \|\| true |
+| CLI013 | specflow-issue.sh | ~364 | Arithmetic can cause set -e exit | Use ((x++)) \|\| true |
 
 ---
 
@@ -173,14 +173,14 @@
 
 | ID | File | Line | Issue | Effort | Impact | Priority |
 |----|------|------|-------|--------|--------|----------|
-| **LIB008** | bin/speckit | 334 | **'phase' in slash-command warning blocks valid CLI** | 1 | 4 | **1** |
+| **LIB008** | bin/specflow | 334 | **'phase' in slash-command warning blocks valid CLI** | 1 | 4 | **1** |
 | LIB001 | json.sh | ~13-18 | Missing double-source guard | 1 | 3 | 2 |
 | LIB005 | json.sh | 84 | Unquoted variable in jq interpolation | 2 | 3 | 2 |
 | LIB006 | json.sh | 217 | json_array_append unquoted interpolation | 2 | 3 | 2 |
 | LIB002 | detection.sh | ~13-14 | Non-standard guard pattern | 1 | 2 | 3 |
 | LIB004 | common.sh | 473 | eval in atomic_transform() | 2 | 3 | 3 |
 | LIB003 | detection.sh | ~13-14 | Inconsistent guard variable naming | 1 | 1 | 4 |
-| LIB007 | bin/speckit | 45 | Useless cat in pipeline | 1 | 1 | 5 |
+| LIB007 | bin/specflow | 45 | Useless cat in pipeline | 1 | 1 | 5 |
 
 ---
 
@@ -190,27 +190,27 @@
 
 | ID | File | Issue | Required CLI |
 |----|------|-------|--------------|
-| CMD004 | speckit.verify.md | Uses sed to edit tasks.md | speckit tasks mark |
-| CMD005 | speckit.backlog.md | Direct tasks.md edit to defer | speckit tasks defer |
-| CMD006 | speckit.backlog.md | Direct ROADMAP.md Scope edit | speckit roadmap scope |
-| CMD007 | speckit.phase.md | Direct PDR file edits | speckit pdr update |
-| CMD012 | speckit.init.md | Direct discovery/state.md edit | speckit state set |
+| CMD004 | specflow.verify.md | Uses sed to edit tasks.md | specflow tasks mark |
+| CMD005 | specflow.backlog.md | Direct tasks.md edit to defer | specflow tasks defer |
+| CMD006 | specflow.backlog.md | Direct ROADMAP.md Scope edit | specflow roadmap scope |
+| CMD007 | specflow.phase.md | Direct PDR file edits | specflow pdr update |
+| CMD012 | specflow.init.md | Direct discovery/state.md edit | specflow state set |
 
 #### Deprecated Script References
 
 | ID | File | Issue | Replacement |
 |----|------|-------|-------------|
-| CMD001 | speckit.specify.md | Uses setup-plan.sh | speckit context |
-| CMD002 | speckit.plan.md | Uses setup-plan.sh | speckit context --json |
-| CMD003 | speckit.plan.md | Uses update-agent-context.sh | speckit claude-md update |
+| CMD001 | specflow.specify.md | Uses setup-plan.sh | specflow context |
+| CMD002 | specflow.plan.md | Uses setup-plan.sh | specflow context --json |
+| CMD003 | specflow.plan.md | Uses update-agent-context.sh | specflow claude-md update |
 
 #### Missing CLI Commands Referenced
 
 | ID | File | Issue |
 |----|------|-------|
-| CMD014 | speckit.merge.md | References speckit handoff create (doesn't exist) |
-| CMD025 | speckit.verify.md | References speckit roadmap update (syntax may differ) |
-| CMD026 | speckit.verify.md | References speckit claude-md update (may not exist) |
+| CMD014 | specflow.merge.md | References specflow handoff create (doesn't exist) |
+| CMD025 | specflow.verify.md | References specflow roadmap update (syntax may differ) |
+| CMD026 | specflow.verify.md | References specflow claude-md update (may not exist) |
 
 ---
 
@@ -241,12 +241,12 @@
 
 | ID | Script | Priority |
 |----|--------|----------|
-| TST001 | speckit-gate.sh | 2 |
-| TST006 | speckit-phase.sh | 2 |
-| TST002 | speckit-issue.sh | 3 |
-| TST003 | speckit-lessons.sh | 3 |
-| TST004 | speckit-manifest.sh | 4 |
-| TST005 | speckit-pdr.sh | 4 |
+| TST001 | specflow-gate.sh | 2 |
+| TST006 | specflow-phase.sh | 2 |
+| TST002 | specflow-issue.sh | 3 |
+| TST003 | specflow-lessons.sh | 3 |
+| TST004 | specflow-manifest.sh | 4 |
+| TST005 | specflow-pdr.sh | 4 |
 
 #### Test Quality Issues
 
@@ -314,7 +314,7 @@
 ### Phase 1: Critical Fixes (P1)
 **Effort**: 1-2 hours
 
-1. Fix LIB008: Remove 'phase' from bin/speckit:334 slash-command warning
+1. Fix LIB008: Remove 'phase' from bin/specflow:334 slash-command warning
 2. Resolve TPL012: Delete .specify/templates/ (templates/ is canonical)
 
 ### Phase 2: High-Impact Quick Wins (P2)
@@ -335,7 +335,7 @@
 ### Phase 4: Command Alignment
 **Effort**: 6-8 hours
 
-1. Add missing CLI commands (speckit tasks defer, speckit pdr update, etc.)
+1. Add missing CLI commands (specflow tasks defer, specflow pdr update, etc.)
 2. Update slash commands to reference correct CLI commands
 3. Remove deprecated script references
 
@@ -350,7 +350,7 @@
 
 ## Acceptance Criteria
 
-1. [ ] `speckit phase` command works without errors
+1. [ ] `specflow phase` command works without errors
 2. [ ] All CLI commands show status in first 3 lines
 3. [ ] Single template directory exists (templates/)
 4. [ ] All slash commands reference valid CLI commands

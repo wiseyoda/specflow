@@ -8,27 +8,27 @@
 
 ## POSIX Compliance (BP001, BP002)
 
-- [ ] No `declare -a` in `speckit-doctor.sh`
-- [ ] No `declare -a` in `speckit-reconcile.sh`
+- [ ] No `declare -a` in `specflow-doctor.sh`
+- [ ] No `declare -a` in `specflow-reconcile.sh`
 - [ ] No `declare -A` (associative arrays) in any script
-- [ ] `speckit doctor` runs without bash 4.0+ errors
-- [ ] `speckit reconcile` runs without bash 4.0+ errors
+- [ ] `specflow doctor` runs without bash 4.0+ errors
+- [ ] `specflow reconcile` runs without bash 4.0+ errors
 - [ ] shellcheck passes with no POSIX-related warnings
 
 ## 4-Digit Phase Consistency (BP004, BP005)
 
-- [ ] `speckit feature --help` shows 4-digit phase examples (0010, 0020)
-- [ ] `speckit help` shows 4-digit phase examples
-- [ ] `speckit feature create 0042 test-feature` works correctly
-- [ ] `speckit feature list` displays 4-digit phases
+- [ ] `specflow feature --help` shows 4-digit phase examples (0010, 0020)
+- [ ] `specflow help` shows 4-digit phase examples
+- [ ] `specflow feature create 0042 test-feature` works correctly
+- [ ] `specflow feature list` displays 4-digit phases
 - [ ] Find commands match both 3-digit and 4-digit phase directories
 
 ## CLI Dispatcher (MF001)
 
-- [ ] `speckit gate` routes to gate script
-- [ ] `speckit gate --help` displays help
-- [ ] `speckit lessons` routes to lessons script
-- [ ] `speckit lessons --help` displays help
+- [ ] `specflow gate` routes to gate script
+- [ ] `specflow gate --help` displays help
+- [ ] `specflow lessons` routes to lessons script
+- [ ] `specflow lessons --help` displays help
 
 ## Gate Enhancements (HD001, MF002)
 
@@ -40,8 +40,8 @@
 
 ## Context Enhancements (MF003, OC001)
 
-- [ ] No `include_tasks` variable in `speckit-context.sh`
-- [ ] `speckit context` shows memory document status
+- [ ] No `include_tasks` variable in `specflow-context.sh`
+- [ ] `specflow context` shows memory document status
 - [ ] JSON output includes memory document availability
 - [ ] Text output shows which memory docs exist
 
@@ -66,7 +66,7 @@
 ## Documentation (OD001-OD003)
 
 - [ ] README.md CLI Reference is accurate
-- [ ] README.md includes `/speckit.review` command
+- [ ] README.md includes `/specflow.review` command
 - [ ] CLAUDE.md Key Files includes gate and lessons
 - [ ] `.specify/scripts/` purpose is documented
 
@@ -78,7 +78,7 @@
 
 ## Final Verification
 
-- [ ] `speckit doctor` reports no issues
+- [ ] `specflow doctor` reports no issues
 - [ ] All 18 review findings addressed
 - [ ] Git commit created with proper message
 - [ ] Branch ready for merge to main
@@ -93,22 +93,22 @@ grep -r "declare -a" scripts/bash/*.sh
 grep -r "declare -A" scripts/bash/*.sh
 
 # 4-digit phases
-speckit feature --help | grep -E "[0-9]{4}"
-speckit help | grep -E "[0-9]{4}"
+specflow feature --help | grep -E "[0-9]{4}"
+specflow help | grep -E "[0-9]{4}"
 
 # Dispatcher
-speckit gate --help
-speckit lessons --help
+specflow gate --help
+specflow lessons --help
 
 # Context memory docs
-speckit context --json | jq '.memory_docs'
+specflow context --json | jq '.memory_docs'
 
 # Tests
 ./tests/test-runner.sh
 shellcheck scripts/bash/*.sh
 
 # Final
-speckit doctor
+specflow doctor
 ```
 
 ---

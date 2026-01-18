@@ -7,15 +7,15 @@
 
 ## Overview
 
-The dashboard reads from existing SpecKit data files. No new storage is introduced in this phase.
+The dashboard reads from existing SpecFlow data files. No new storage is introduced in this phase.
 
 ---
 
 ## Data Sources
 
-### 1. Registry (`~/.speckit/registry.json`)
+### 1. Registry (`~/.specflow/registry.json`)
 
-Central project registry maintained by SpecKit CLI.
+Central project registry maintained by SpecFlow CLI.
 
 **Schema**:
 ```typescript
@@ -91,7 +91,7 @@ export const OrchestrationStateSchema = z.object({
 ### Theme Preference
 
 **Storage**: `localStorage`
-**Key**: `speckit-dashboard-theme`
+**Key**: `specflow-dashboard-theme`
 **Values**: `"light"` | `"dark"` | `"system"`
 
 Managed by `next-themes` library.
@@ -135,7 +135,7 @@ interface ErrorResponse {
 ┌──────────────────────────────────────────────────────────┐
 │                     File System                          │
 ├──────────────────────────────────────────────────────────┤
-│  ~/.speckit/registry.json                                │
+│  ~/.specflow/registry.json                                │
 │  ~/project/.specify/orchestration-state.json             │
 └──────────────────────────────────────────────────────────┘
                             │

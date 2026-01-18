@@ -5,7 +5,7 @@
 
 ## Design Command Requirements
 
-- [ ] FR-001: `/speckit.design` produces all artifacts in sequence (discovery → spec → plan → tasks → checklists)
+- [ ] FR-001: `/specflow.design` produces all artifacts in sequence (discovery → spec → plan → tasks → checklists)
 - [ ] FR-002: Design asks clarification questions inline with context
 - [ ] FR-003: Design generates both implementation AND verification checklists
 - [ ] FR-004: `--spec` flag cascades: regenerates spec + plan + tasks + checklists
@@ -24,7 +24,7 @@
 
 ## Roadmap Backlog
 
-- [ ] FR-013: `/speckit.roadmap backlog` subcommand added
+- [ ] FR-013: `/specflow.roadmap backlog` subcommand added
 - [ ] FR-014: Backlog subcommand supports `--auto` and `--dry-run`
 
 ## Deprecation

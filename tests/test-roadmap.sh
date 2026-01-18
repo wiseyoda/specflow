@@ -2,7 +2,7 @@
 #
 # Test Suite: Roadmap
 #
-# Tests for speckit roadmap command:
+# Tests for specflow roadmap command:
 #   - status
 #   - update
 #   - next
@@ -44,7 +44,7 @@ test_roadmap_status() {
 
   # Run status
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" status 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-roadmap.sh" status 2>&1)
 
   # Should show phases
   assert_contains "$output" "0010" "Shows phase 0010"
@@ -58,7 +58,7 @@ test_roadmap_status_json() {
 
   # Run status with JSON
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" status --json 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-roadmap.sh" status --json 2>&1)
 
   # Should be valid JSON
   echo "$output" | jq '.' >/dev/null 2>&1
@@ -71,7 +71,7 @@ test_roadmap_next() {
 
   # Run next
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" next 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-roadmap.sh" next 2>&1)
 
   # Should return next pending phase (0030)
   # Could return 0020 if in_progress counts, or 0030 if only pending
@@ -84,7 +84,7 @@ test_roadmap_current() {
 
   # Run current
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" current 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-roadmap.sh" current 2>&1)
 
   # Should return current in-progress phase (0020)
   assert_contains "$output" "0020" "Returns current phase"
@@ -95,7 +95,7 @@ test_roadmap_validate_valid() {
   create_test_roadmap
 
   # Run validate
-  assert_command_succeeds "bash ${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh validate" "Valid ROADMAP passes"
+  assert_command_succeeds "bash ${PROJECT_ROOT}/scripts/bash/specflow-roadmap.sh validate" "Valid ROADMAP passes"
 }
 
 test_roadmap_validate_missing() {
@@ -103,7 +103,7 @@ test_roadmap_validate_missing() {
   # No ROADMAP.md
 
   # Validate should fail
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh validate" "Missing ROADMAP fails"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-roadmap.sh validate" "Missing ROADMAP fails"
 }
 
 test_roadmap_update_status() {
@@ -111,7 +111,7 @@ test_roadmap_update_status() {
   create_test_roadmap
 
   # Update phase 0030 to in_progress
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" update 0030 in_progress 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-roadmap.sh" update 0030 in_progress 2>&1
 
   # Verify update
   local content
@@ -124,7 +124,7 @@ test_roadmap_update_complete() {
   create_test_roadmap
 
   # Update phase 0020 to complete
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" update 0020 complete 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-roadmap.sh" update 0020 complete 2>&1
 
   # Verify update - Phase 0020 should now have ✅ instead of 🔄
   if grep -qE '^\|\s*0020.*✅' ROADMAP.md 2>/dev/null; then
@@ -138,12 +138,12 @@ test_roadmap_update_complete() {
 
 test_roadmap_path() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
   create_test_roadmap
 
   # Get path
   local path
-  path=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" path 2>&1)
+  path=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-roadmap.sh" path 2>&1)
 
   # Should contain ROADMAP.md
   assert_contains "$path" "ROADMAP.md" "Returns correct path"
@@ -157,7 +157,7 @@ test_roadmap_no_phases() {
 
   # Run status
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" status 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-roadmap.sh" status 2>&1)
 
   # Should handle gracefully
   # Either shows "no phases" or empty list
@@ -206,7 +206,7 @@ EOF
 
   # Run status
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" status 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-roadmap.sh" status 2>&1)
 
   # Should parse all phases
   assert_contains "$output" "0010" "Parses phase 0010"
@@ -220,7 +220,7 @@ test_roadmap_json_structure() {
 
   # Get JSON status
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-roadmap.sh" status --json 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-roadmap.sh" status --json 2>&1)
 
   # Check JSON structure
   local has_phases

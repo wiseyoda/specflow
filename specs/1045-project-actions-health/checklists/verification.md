@@ -1,6 +1,6 @@
 # Verification Checklist: Phase 1045 - Project Actions & Health
 
-> Purpose: Post-completion verification for /speckit.verify
+> Purpose: Post-completion verification for /specflow.verify
 > Created: 2026-01-17
 
 ## Pre-Verification Checks
@@ -27,7 +27,7 @@
 - [ ] Confirm button triggers command execution
 
 ### Command Execution
-- [ ] `speckit init --non-interactive` runs in correct project directory
+- [ ] `specflow init --non-interactive` runs in correct project directory
 - [ ] Output streams in real-time (not batched)
 - [ ] Modal shows running status during execution
 - [ ] Exit code displayed on completion
@@ -46,13 +46,13 @@
 
 ### Doctor (Diagnose)
 - [ ] No confirmation required for basic doctor
-- [ ] Runs `speckit doctor` command
+- [ ] Runs `specflow doctor` command
 - [ ] Output streams correctly
 - [ ] Health issues displayed in output
 
 ### Doctor (Auto-Fix)
 - [ ] Confirmation required before running
-- [ ] Runs `speckit doctor --fix` command
+- [ ] Runs `specflow doctor --fix` command
 - [ ] Output shows what was fixed
 - [ ] Health status updates after completion
 
@@ -64,7 +64,7 @@
 
 ### Execution
 - [ ] Confirmation dialog shows what will be created
-- [ ] Runs `speckit scaffold` command
+- [ ] Runs `specflow scaffold` command
 - [ ] Output streams correctly
 - [ ] Project status updates after completion
 
@@ -76,7 +76,7 @@
 
 ### Execution
 - [ ] Confirmation dialog explains migration
-- [ ] Runs `speckit state migrate` command
+- [ ] Runs `specflow state migrate` command
 - [ ] Output streams correctly
 - [ ] State updates to v2 schema after completion
 

@@ -22,12 +22,12 @@
 
 | Component | Purpose |
 |-----------|---------|
-| CLI Executor API | Execute `speckit` commands via child process |
+| CLI Executor API | Execute `specflow` commands via child process |
 | Command Streaming | SSE endpoint for command output |
 | Command Palette (full) | Searchable command list with argument prompts |
 | Output Drawer | Expandable panel for command output |
 | Toast Provider | Notifications for success/error |
-| Command Discovery | Parse `speckit help` for available commands |
+| Command Discovery | Parse `specflow help` for available commands |
 
 ---
 
@@ -42,7 +42,7 @@ Command palette prompts for arguments (if needed)
     ↓
 POST /api/commands/execute { command, args, projectPath }
     ↓
-API spawns child process: speckit <command> <args> --path <projectPath>
+API spawns child process: specflow <command> <args> --path <projectPath>
     ↓
 SSE streams stdout/stderr to client via /api/commands/stream?id=<executionId>
     ↓
@@ -136,7 +136,7 @@ class CLIExecutor {
 ```
 
 **Security**:
-- Validate command is in allowed list (from `speckit help`)
+- Validate command is in allowed list (from `specflow help`)
 - Sanitize args using Zod schema (no shell metacharacters)
 - Never use string interpolation for command construction
 
@@ -144,7 +144,7 @@ class CLIExecutor {
 
 **File**: `src/lib/command-discovery.ts`
 
-Parse `speckit help` output to extract available commands.
+Parse `specflow help` output to extract available commands.
 
 ```typescript
 interface SpeckitCommand {
@@ -209,7 +209,7 @@ Features:
 | Principle | How Addressed |
 |-----------|---------------|
 | I. Developer Experience First | Intuitive command palette, clear error messages |
-| III. CLI Over Direct Edits | All actions go through `speckit` CLI |
+| III. CLI Over Direct Edits | All actions go through `specflow` CLI |
 | V. Helpful Error Messages | Errors include command, exit code, stderr excerpt |
 | VII. Three-Line Output Rule | N/A (applies to CLI output, not UI) |
 
@@ -226,7 +226,7 @@ Features:
 
 ### Phase B: Command Discovery
 
-1. Parse `speckit help` output
+1. Parse `specflow help` output
 2. Command list API route (`/api/commands/list`)
 3. Cache management
 
@@ -284,7 +284,7 @@ No new dependencies required. Using existing:
 | File | Purpose |
 |------|---------|
 | `src/lib/cli-executor.ts` | Command execution service |
-| `src/lib/command-discovery.ts` | Parse speckit help |
+| `src/lib/command-discovery.ts` | Parse specflow help |
 | `src/app/api/commands/execute/route.ts` | Execute command API |
 | `src/app/api/commands/stream/route.ts` | SSE streaming API |
 | `src/app/api/commands/list/route.ts` | Available commands API |

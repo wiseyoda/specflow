@@ -2,7 +2,7 @@
 #
 # Test Suite: Template Operations
 #
-# Tests for speckit templates commands:
+# Tests for specflow templates commands:
 #   - check, update, update-all, diff, list, copy
 #
 
@@ -12,7 +12,7 @@
 
 # Create mock system templates for testing
 setup_mock_templates() {
-  local system_dir="${HOME}/.claude/speckit-system/templates"
+  local system_dir="${HOME}/.claude/specflow-system/templates"
   mkdir -p "$system_dir"
 
   # Create a versioned template
@@ -40,7 +40,7 @@ test_templates_list() {
   setup_mock_templates
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-templates.sh" list 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-templates.sh" list 2>&1)
 
   assert_contains "$output" "spec-template.md" "Lists spec template"
   assert_contains "$output" "plan-template.md" "Lists plan template"
@@ -51,7 +51,7 @@ test_templates_list_json() {
   setup_mock_templates
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-templates.sh" list --json)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-templates.sh" list --json)
 
   echo "$output" | jq '.' >/dev/null 2>&1
   assert_equals "0" "$?" "JSON output is valid"
@@ -74,7 +74,7 @@ version: '1.0'
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-templates.sh" check 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-templates.sh" check 2>&1)
 
   assert_contains "$output" "spec-template.md" "Shows spec template"
 }
@@ -91,7 +91,7 @@ version: '1.0'
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-templates.sh" check --json)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-templates.sh" check --json)
 
   echo "$output" | jq '.' >/dev/null 2>&1
   assert_equals "0" "$?" "JSON output is valid"
@@ -105,7 +105,7 @@ test_templates_copy() {
   setup_mock_templates
 
   # Copy a template
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-templates.sh" copy spec-template.md
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-templates.sh" copy spec-template.md
 
   assert_file_exists ".specify/templates/spec-template.md" "Template copied"
 }
@@ -124,7 +124,7 @@ version: '1.0'
 EOF
 
   # Update the template
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-templates.sh" update spec-template.md --no-backup
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-templates.sh" update spec-template.md --no-backup
 
   # Check new version
   local content
@@ -140,7 +140,7 @@ test_templates_update_creates_backup() {
   echo "old content" > .specify/templates/spec-template.md
 
   # Update without --no-backup
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-templates.sh" update spec-template.md
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-templates.sh" update spec-template.md
 
   # Check backup was created
   local backup_count
@@ -154,7 +154,7 @@ test_templates_diff_requires_both_files() {
   setup_mock_templates
 
   # No project template exists
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-templates.sh diff spec-template.md" "Fails when project template missing"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-templates.sh diff spec-template.md" "Fails when project template missing"
 }
 
 test_templates_diff_shows_differences() {
@@ -170,7 +170,7 @@ version: '1.0'
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-templates.sh" diff spec-template.md 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-templates.sh" diff spec-template.md 2>&1)
 
   # Output format: "System: 1.5, Project: 1.0"
   assert_contains "$output" "System:" "Shows system version"
@@ -180,12 +180,12 @@ EOF
 test_templates_invalid_command() {
   git init -q .
 
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-templates.sh invalid" "Fails on invalid command"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-templates.sh invalid" "Fails on invalid command"
 }
 
 test_templates_help() {
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-templates.sh" --help)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-templates.sh" --help)
 
   assert_contains "$output" "templates" "Help shows command name"
   assert_contains "$output" "check" "Help shows check command"

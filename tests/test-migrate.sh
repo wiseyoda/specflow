@@ -2,7 +2,7 @@
 #
 # Test Suite: State Migration
 #
-# Tests for speckit state migrate command:
+# Tests for specflow state migrate command:
 #   - v1.0 to v2.0 migration
 #   - Backup creation
 #   - Data preservation
@@ -31,7 +31,7 @@ test_migrate_v1_to_v2() {
 EOF
 
   # Run migration
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" migrate
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" migrate
 
   # Verify schema_version updated (v2.0 uses schema_version, not version)
   assert_json_equals ".specify/orchestration-state.json" ".schema_version" "2.0" "Schema version updated to 2.0"
@@ -58,7 +58,7 @@ test_migrate_creates_backup() {
 EOF
 
   # Run migration
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" migrate
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" migrate
 
   # Verify backup created
   assert_dir_exists ".specify/backup" "Backup directory created"
@@ -90,7 +90,7 @@ test_migrate_preserves_interview_data() {
 EOF
 
   # Run migration
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" migrate
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" migrate
 
   # Verify interview data preserved
   assert_json_equals ".specify/orchestration-state.json" ".interview.status" "in_progress" "Interview status preserved"
@@ -130,7 +130,7 @@ test_migrate_preserves_orchestration_data() {
 EOF
 
   # Run migration
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" migrate
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" migrate
 
   # Verify current phase data migrated to orchestration.phase
   assert_json_equals ".specify/orchestration-state.json" ".orchestration.phase.number" "003" "Phase number preserved"
@@ -161,11 +161,11 @@ EOF
 test_migrate_already_v2() {
   git init -q .
   mkdir -p .specify
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" init --force
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" init --force
 
   # Run migration on v2.0 file
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" migrate 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" migrate 2>&1)
 
   # Should report already v2.0
   assert_contains "$output" "already v2.0" "Reports already migrated"
@@ -186,7 +186,7 @@ test_migrate_adds_missing_sections() {
 EOF
 
   # Run migration
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" migrate
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" migrate
 
   # Verify missing sections added
   local has_interview
@@ -206,7 +206,7 @@ test_migrate_handles_invalid_json() {
   echo "not valid json" > .specify/orchestration-state.json
 
   # Migration should fail
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-state.sh migrate" "Fails on invalid JSON"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-state.sh migrate" "Fails on invalid JSON"
 }
 
 test_migrate_no_file() {
@@ -216,7 +216,7 @@ test_migrate_no_file() {
   # No state file
 
   # Migration should fail
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-state.sh migrate" "Fails when no file"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-state.sh migrate" "Fails when no file"
 }
 
 test_migrate_marks_migration() {
@@ -234,7 +234,7 @@ test_migrate_marks_migration() {
 EOF
 
   # Run migration
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" migrate
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" migrate
 
   # Check for migration marker
   local migrated_from
@@ -266,7 +266,7 @@ test_migrate_config_paths() {
 EOF
 
   # Run migration
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" migrate
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" migrate
 
   # Verify paths moved to config section
   assert_json_equals ".specify/orchestration-state.json" ".config.roadmap_path" "custom/ROADMAP.md" "Custom roadmap path preserved"

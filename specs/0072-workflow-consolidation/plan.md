@@ -4,7 +4,7 @@
 
 ## Summary
 
-Consolidate 11 workflow commands to 6 by creating a new `/speckit.design` command that produces all design artifacts in sequence, updating `/speckit.orchestrate` to use a 4-step workflow, moving backlog to a roadmap subcommand, and deprecating 6 commands.
+Consolidate 11 workflow commands to 6 by creating a new `/specflow.design` command that produces all design artifacts in sequence, updating `/specflow.orchestrate` to use a 4-step workflow, moving backlog to a roadmap subcommand, and deprecating 6 commands.
 
 ## Technical Context
 
@@ -48,15 +48,15 @@ specs/0072-workflow-consolidation/
 
 ```text
 commands/
-├── speckit.design.md       # NEW: Combined design command
-├── speckit.orchestrate.md  # MODIFY: 4-step workflow
-├── speckit.roadmap.md      # MODIFY: Add backlog subcommand
-├── speckit.specify.md      # DEPRECATE: → design
-├── speckit.clarify.md      # DEPRECATE: → design
-├── speckit.plan.md         # DEPRECATE: → design --plan
-├── speckit.tasks.md        # DEPRECATE: → design --tasks
-├── speckit.checklist.md    # DEPRECATE: → design --checklist
-└── speckit.backlog.md      # DEPRECATE: → roadmap backlog
+├── specflow.design.md       # NEW: Combined design command
+├── specflow.orchestrate.md  # MODIFY: 4-step workflow
+├── specflow.roadmap.md      # MODIFY: Add backlog subcommand
+├── specflow.specify.md      # DEPRECATE: → design
+├── specflow.clarify.md      # DEPRECATE: → design
+├── specflow.plan.md         # DEPRECATE: → design --plan
+├── specflow.tasks.md        # DEPRECATE: → design --tasks
+├── specflow.checklist.md    # DEPRECATE: → design --checklist
+└── specflow.backlog.md      # DEPRECATE: → roadmap backlog
 
 docs/
 └── commands-analysis.md    # MODIFY: Update command counts
@@ -66,10 +66,10 @@ CLAUDE.md                   # MODIFY: Update workflow documentation
 
 ## Architecture
 
-### New `/speckit.design` Command
+### New `/specflow.design` Command
 
 ```text
-/speckit.design [flags]
+/specflow.design [flags]
 
 Flags:
   (none)      - Full design flow: discover → spec → plan → tasks → checklists
@@ -90,7 +90,7 @@ Artifacts produced:
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│                     /speckit.design                         │
+│                     /specflow.design                         │
 ├─────────────────────────────────────────────────────────────┤
 │  PHASE 1: DISCOVER                                          │
 │  ├─ Load phase context from .specify/phases/NNNN-*.md      │
@@ -155,53 +155,53 @@ Note: Old indices 0-4,6 all map to new "design" step since design now encompasse
 
 ```markdown
 ---
-description: DEPRECATED - Use /speckit.design instead
+description: DEPRECATED - Use /specflow.design instead
 ---
 
 ## DEPRECATED
 
-This command has been deprecated and consolidated into `/speckit.design`.
+This command has been deprecated and consolidated into `/specflow.design`.
 
 **Reason**: [Specific reason for this command]
 
 **Migration**:
 
 # OLD (deprecated)
-/speckit.specify
+/specflow.specify
 
 # NEW (use this)
-/speckit.design         # Full design flow
-/speckit.design --spec  # Regenerate spec only
+/specflow.design         # Full design flow
+/specflow.design --spec  # Regenerate spec only
 
-For more information, see the documentation or run `/speckit.help`.
+For more information, see the documentation or run `/specflow.help`.
 ```
 
 ## Implementation Phases
 
 ### Phase 1: Create Design Command
-1. Create `commands/speckit.design.md` with full flow
+1. Create `commands/specflow.design.md` with full flow
 2. Combine logic from: discover, specify, clarify, plan, tasks, checklist
 3. Implement cascade flags (--spec, --plan, --tasks, --checklist)
 4. Always generate both implementation and verification checklists
 
 ### Phase 2: Update Orchestrate
-1. Update `commands/speckit.orchestrate.md` workflow steps
+1. Update `commands/specflow.orchestrate.md` workflow steps
 2. Change step indices from 0-8 to 0-3
 3. Add state migration logic for old indices
 4. Update status display to show 4 steps
 
 ### Phase 3: Expand Roadmap
-1. Add `backlog` subcommand to `commands/speckit.roadmap.md`
-2. Move backlog functionality from speckit.backlog.md
+1. Add `backlog` subcommand to `commands/specflow.roadmap.md`
+2. Move backlog functionality from specflow.backlog.md
 3. Support --auto and --dry-run flags
 
 ### Phase 4: Create Deprecation Stubs
-1. Convert speckit.specify.md to deprecation stub
-2. Convert speckit.clarify.md to deprecation stub
-3. Convert speckit.plan.md to deprecation stub
-4. Convert speckit.tasks.md to deprecation stub
-5. Convert speckit.checklist.md to deprecation stub
-6. Convert speckit.backlog.md to deprecation stub
+1. Convert specflow.specify.md to deprecation stub
+2. Convert specflow.clarify.md to deprecation stub
+3. Convert specflow.plan.md to deprecation stub
+4. Convert specflow.tasks.md to deprecation stub
+5. Convert specflow.checklist.md to deprecation stub
+6. Convert specflow.backlog.md to deprecation stub
 
 ### Phase 5: Update Documentation
 1. Update CLAUDE.md workflow section
@@ -219,10 +219,10 @@ For more information, see the documentation or run `/speckit.help`.
 ## Testing Strategy
 
 1. **Manual Testing**:
-   - Run `/speckit.design` on fresh phase
-   - Run `/speckit.design --plan` with existing spec
+   - Run `/specflow.design` on fresh phase
+   - Run `/specflow.design --plan` with existing spec
    - Run deprecated commands to verify stubs work
-   - Run `/speckit.orchestrate status` to verify 4-step display
+   - Run `/specflow.orchestrate status` to verify 4-step display
 
 2. **Integration Testing**:
    - Full workflow: design → analyze → implement → verify

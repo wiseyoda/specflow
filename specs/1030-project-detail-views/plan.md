@@ -13,7 +13,7 @@
 ### Existing Infrastructure
 - **SSE System**: File watcher + SSE endpoint from Phase 1020
 - **Project List**: `useProjects()` hook with real-time updates
-- **State Types**: `OrchestrationState` in `@speckit/shared`
+- **State Types**: `OrchestrationState` in `@specflow/shared`
 - **UI Library**: shadcn/ui with Tailwind CSS
 - **Routing**: Next.js App Router
 
@@ -57,7 +57,7 @@
 ```
 ┌─────────────────────────────────────────────────────────┐
 │ File System                                             │
-│  ├─ ~/.speckit/registry.json                            │
+│  ├─ ~/.specflow/registry.json                            │
 │  ├─ {project}/.specify/orchestration-state.json         │
 │  └─ {project}/.specify/tasks.md (NEW)                   │
 └──────────────────┬──────────────────────────────────────┘

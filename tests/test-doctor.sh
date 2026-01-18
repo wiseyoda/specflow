@@ -2,7 +2,7 @@
 #
 # Test Suite: Doctor (Diagnostics)
 #
-# Tests for speckit doctor command:
+# Tests for specflow doctor command:
 #   - System checks
 #   - Project structure checks
 #   - State validation
@@ -19,7 +19,7 @@ test_doctor_system_check() {
 
   # Run system check
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" --check system 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" --check system 2>&1)
 
   # Should check for jq
   assert_contains "$output" "jq" "Checks jq installation"
@@ -33,7 +33,7 @@ test_doctor_project_check_empty() {
 
   # Run project check on empty project
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" --check project 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" --check project 2>&1)
 
   # Should report .specify missing
   assert_contains "$output" ".specify" "Reports on .specify"
@@ -41,11 +41,11 @@ test_doctor_project_check_empty() {
 
 test_doctor_project_check_initialized() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" >/dev/null 2>&1
 
   # Run project check
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" --check project 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" --check project 2>&1)
 
   # Should report directories exist
   assert_matches "$output" "exists|OK|✓" "Reports directories exist"
@@ -53,11 +53,11 @@ test_doctor_project_check_initialized() {
 
 test_doctor_state_check_valid() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" >/dev/null 2>&1
 
   # Run state check
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" --check state 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" --check state 2>&1)
 
   # Should report valid state
   assert_contains "$output" "State" "Checks state file"
@@ -73,7 +73,7 @@ test_doctor_state_check_invalid() {
 
   # Run state check
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" --check state 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" --check state 2>&1)
 
   # Should report invalid JSON
   assert_matches "$output" "Invalid|invalid|error|ERROR" "Reports invalid JSON"
@@ -84,7 +84,7 @@ test_doctor_git_check() {
 
   # Run git check
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" --check git 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" --check git 2>&1)
 
   # Should report git status
   assert_matches "$output" "Git|git" "Checks git status"
@@ -96,7 +96,7 @@ test_doctor_git_check_not_repo() {
 
   # Run git check
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" --check git 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" --check git 2>&1)
 
   # Should report not a git repo
   assert_matches "$output" "not|Not|ERROR" "Reports not a git repo"
@@ -106,7 +106,7 @@ test_doctor_fix_creates_structure() {
   git init -q .
 
   # Run with --fix
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" --fix 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" --fix 2>&1
 
   # Should create .specify structure
   assert_dir_exists ".specify" "Creates .specify with --fix"
@@ -119,7 +119,7 @@ test_doctor_fix_creates_state() {
   # No state file exists
 
   # Run with --fix
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" --fix 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" --fix 2>&1
 
   # Should create state file
   assert_file_exists ".specify/orchestration-state.json" "Creates state file with --fix"
@@ -133,7 +133,7 @@ test_doctor_fix_repairs_invalid_state() {
   echo "not json" > .specify/orchestration-state.json
 
   # Run with --fix
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" --fix 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" --fix 2>&1
 
   # State should now be valid
   assert_json_valid ".specify/orchestration-state.json" "Repairs invalid state"
@@ -141,11 +141,11 @@ test_doctor_fix_repairs_invalid_state() {
 
 test_doctor_all_checks() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Run all checks
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" 2>&1)
 
   # Should include all sections
   assert_matches "$output" "system|System" "Includes system check"
@@ -156,11 +156,11 @@ test_doctor_all_checks() {
 
 test_doctor_summary_no_issues() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Run doctor
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" 2>&1)
 
   # Should report no issues or passed
   assert_matches "$output" "pass|Pass|success|Success|OK|0 issue" "Reports passing status"
@@ -168,11 +168,11 @@ test_doctor_summary_no_issues() {
 
 test_doctor_json_output() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Run with JSON output
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" --json 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" --json 2>&1)
 
   # Should include JSON summary - extract multi-line JSON block
   # The JSON starts with {"issues" and ends with ]}
@@ -190,11 +190,11 @@ test_doctor_json_output() {
 
 test_doctor_paths_check() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Run paths check
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" --check paths 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" --check paths 2>&1)
 
   # Should report on config paths
   assert_matches "$output" "path|Path" "Checks configured paths"
@@ -202,11 +202,11 @@ test_doctor_paths_check() {
 
 test_doctor_templates_check() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh"
 
   # Run templates check
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-doctor.sh" --check templates 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-doctor.sh" --check templates 2>&1)
 
   # Should report on templates
   assert_matches "$output" "template|Template" "Checks templates"

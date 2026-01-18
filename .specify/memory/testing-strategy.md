@@ -1,6 +1,6 @@
 # Testing Strategy
 
-> Custom bash test framework, patterns, and coverage approach for SpecKit.
+> Custom bash test framework, patterns, and coverage approach for SpecFlow.
 
 **Last Updated**: 2026-01-11
 **Constitution Alignment**: Principles II (POSIX-Compliant), V (Helpful Errors)
@@ -89,7 +89,7 @@ test_command_scenario() {
   # Setup test data...
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-command.sh" action)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-command.sh" action)
 
   assert_contains "$output" "expected" "Should contain expected"
 }
@@ -137,7 +137,7 @@ Each test runs in:
 - Fresh temp directory
 - Isolated git repository
 - Subshell context
-- Clean environment via `SPECKIT_PROJECT_ROOT`
+- Clean environment via `SPECFLOW_PROJECT_ROOT`
 
 ```bash
 # Per-test isolation

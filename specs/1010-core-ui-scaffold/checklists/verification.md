@@ -2,7 +2,7 @@
 
 **Phase**: 1010
 **Created**: 2026-01-17
-**Purpose**: Post-implementation verification for `/speckit.verify`
+**Purpose**: Post-implementation verification for `/specflow.verify`
 
 ---
 
@@ -10,8 +10,8 @@
 
 ### US1: View All Projects (P1)
 
-- [ ] `speckit dashboard` starts and opens in browser
-- [ ] Projects from `~/.speckit/registry.json` appear in list
+- [ ] `specflow dashboard` starts and opens in browser
+- [ ] Projects from `~/.specflow/registry.json` appear in list
 - [ ] Each project shows name and path
 - [ ] Clicking a project expands it inline
 - [ ] Empty state appears when no projects registered
@@ -35,9 +35,9 @@
 
 ### US4: CLI Command (P1)
 
-- [ ] `speckit dashboard --help` shows usage
-- [ ] `speckit dashboard` starts production server
-- [ ] `speckit dashboard --dev` starts development server with hot reload
+- [ ] `specflow dashboard --help` shows usage
+- [ ] `specflow dashboard` starts production server
+- [ ] `specflow dashboard --dev` starts development server with hot reload
 - [ ] Missing Node.js shows helpful error message
 - [ ] Missing pnpm shows helpful error message
 
@@ -47,7 +47,7 @@
 
 ### Core Functionality
 
-- [ ] FR-001: Next.js server starts via `speckit dashboard`
+- [ ] FR-001: Next.js server starts via `specflow dashboard`
 - [ ] FR-002: Registry file is read correctly
 - [ ] FR-003: Invalid registry shows error (not crash)
 - [ ] FR-004: Project list displays all projects

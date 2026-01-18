@@ -2,7 +2,7 @@
 #
 # Test Suite: Import
 #
-# Tests for speckit import command:
+# Tests for specflow import command:
 #   - ADR import
 #   - Dry run mode
 #   - Index generation
@@ -14,9 +14,9 @@
 
 test_import_adrs_help() {
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-import.sh" --help 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-import.sh" --help 2>&1)
 
-  assert_contains "$output" "speckit import" "Shows command name"
+  assert_contains "$output" "specflow import" "Shows command name"
   assert_contains "$output" "adrs" "Shows adrs type"
   assert_contains "$output" "--dry-run" "Shows dry-run option"
 }
@@ -26,7 +26,7 @@ test_import_adrs_missing_path() {
 
   # Missing path argument
   local exit_code=0
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-import.sh" adrs 2>&1 || exit_code=$?
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-import.sh" adrs 2>&1 || exit_code=$?
 
   assert_equals "1" "$exit_code" "Fails with missing path"
 }
@@ -37,7 +37,7 @@ test_import_adrs_nonexistent_path() {
   # Non-existent path
   local output
   local exit_code=0
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-import.sh" adrs /nonexistent/path 2>&1) || exit_code=$?
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-import.sh" adrs /nonexistent/path 2>&1) || exit_code=$?
 
   assert_equals "1" "$exit_code" "Fails with non-existent path"
   assert_contains "$output" "not found" "Reports path not found"
@@ -50,7 +50,7 @@ test_import_adrs_no_adr_files() {
 
   local output
   local exit_code=0
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-import.sh" adrs docs/adr 2>&1) || exit_code=$?
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-import.sh" adrs docs/adr 2>&1) || exit_code=$?
 
   assert_equals "1" "$exit_code" "Fails with no ADR files"
   assert_contains "$output" "No ADR files" "Reports no ADR files"
@@ -63,7 +63,7 @@ test_import_adrs_dry_run() {
   echo "# Use TypeScript" > docs/adr/002-use-typescript.md
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-import.sh" adrs docs/adr --dry-run 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-import.sh" adrs docs/adr --dry-run 2>&1)
 
   assert_contains "$output" "DRY RUN" "Shows dry run message"
   assert_contains "$output" "001-use-react.md" "Lists first file"
@@ -76,25 +76,25 @@ test_import_adrs_dry_run() {
 
 test_import_adrs_creates_directory() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" >/dev/null 2>&1
 
   mkdir -p docs/adr
   echo "# Use React" > docs/adr/001-use-react.md
 
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-import.sh" adrs docs/adr >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-import.sh" adrs docs/adr >/dev/null 2>&1
 
   assert_dir_exists ".specify/memory/adrs" "Creates adrs directory"
 }
 
 test_import_adrs_copies_files() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" >/dev/null 2>&1
 
   mkdir -p docs/adr
   echo "# Use React" > docs/adr/001-use-react.md
   echo "# Use TypeScript" > docs/adr/002-use-typescript.md
 
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-import.sh" adrs docs/adr >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-import.sh" adrs docs/adr >/dev/null 2>&1
 
   assert_file_exists ".specify/memory/adrs/001-use-react.md" "Copies first ADR"
   assert_file_exists ".specify/memory/adrs/002-use-typescript.md" "Copies second ADR"
@@ -102,12 +102,12 @@ test_import_adrs_copies_files() {
 
 test_import_adrs_creates_index() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" >/dev/null 2>&1
 
   mkdir -p docs/adr
   echo "# Use React" > docs/adr/001-use-react.md
 
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-import.sh" adrs docs/adr >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-import.sh" adrs docs/adr >/dev/null 2>&1
 
   assert_file_exists ".specify/memory/adr-index.md" "Creates adr-index.md"
 
@@ -121,7 +121,7 @@ test_import_adrs_creates_index() {
 
 test_import_adrs_extracts_status() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" >/dev/null 2>&1
 
   mkdir -p docs/adr
   cat > docs/adr/001-use-react.md << 'EOF'
@@ -136,7 +136,7 @@ We need a frontend framework.
 Use React.
 EOF
 
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-import.sh" adrs docs/adr >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-import.sh" adrs docs/adr >/dev/null 2>&1
 
   local content
   content=$(cat .specify/memory/adr-index.md)
@@ -145,7 +145,7 @@ EOF
 
 test_import_adrs_handles_different_patterns() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" >/dev/null 2>&1
 
   mkdir -p adr
   echo "# Decision 1" > adr/001-decision.md
@@ -153,26 +153,26 @@ test_import_adrs_handles_different_patterns() {
   echo "# Decision 3" > adr/0003-four-digit.md
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-import.sh" adrs adr 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-import.sh" adrs adr 2>&1)
 
   assert_contains "$output" "3 ADR" "Imports all ADR patterns"
 }
 
 test_import_adrs_force_overwrites() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" >/dev/null 2>&1
 
   mkdir -p docs/adr
   echo "# Original" > docs/adr/001-decision.md
 
   # First import
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-import.sh" adrs docs/adr >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-import.sh" adrs docs/adr >/dev/null 2>&1
 
   # Modify source
   echo "# Modified" > docs/adr/001-decision.md
 
   # Second import with force
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-import.sh" adrs docs/adr --force >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-import.sh" adrs docs/adr --force >/dev/null 2>&1
 
   local content
   content=$(cat .specify/memory/adrs/001-decision.md)
@@ -181,12 +181,12 @@ test_import_adrs_force_overwrites() {
 
 test_import_preserves_original() {
   git init -q .
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-scaffold.sh" >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-scaffold.sh" >/dev/null 2>&1
 
   mkdir -p docs/adr
   echo "# Original Content" > docs/adr/001-decision.md
 
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-import.sh" adrs docs/adr >/dev/null 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-import.sh" adrs docs/adr >/dev/null 2>&1
 
   # Original file should still exist
   assert_file_exists "docs/adr/001-decision.md" "Original file preserved"

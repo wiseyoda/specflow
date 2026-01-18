@@ -44,8 +44,8 @@ A developer runs a specific test suite to validate changes to a single script.
 
 **Acceptance Scenarios**:
 
-1. **Given** a change to speckit-state.sh, **When** I run `./tests/test-runner.sh state`, **Then** state tests pass
-2. **Given** a change to speckit-checklist.sh, **When** I run `./tests/test-runner.sh checklist`, **Then** checklist tests pass
+1. **Given** a change to specflow-state.sh, **When** I run `./tests/test-runner.sh state`, **Then** state tests pass
+2. **Given** a change to specflow-checklist.sh, **When** I run `./tests/test-runner.sh checklist`, **Then** checklist tests pass
 
 ---
 

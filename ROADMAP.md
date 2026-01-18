@@ -1,9 +1,9 @@
-# SpecKit Development Roadmap
+# SpecFlow Development Roadmap
 
 > **Source of Truth**: This document defines all feature phases, their order, and completion status.
 > Work proceeds through phases sequentially. Each phase produces a deployable increment.
 
-**Project**: SpecKit - Spec-Driven Development Framework for Claude Code
+**Project**: SpecFlow - Spec-Driven Development Framework for Claude Code
 **Created**: 2026-01-10
 **Schema Version**: 2.1 (ABBC numbering)
 **Status**: Active Development
@@ -41,7 +41,7 @@ This allows inserting urgent work without renumbering existing phases.
 | 0060 | Constitution Compliance | ✅ Complete | 95%+ constitution compliance, three-line rule, critical bugs fixed |
 | 0070 | Pre-Workflow Consolidation | ✅ Complete | 7 commands → 3, clear setup vs. utility separation |
 | 0072 | Workflow Consolidation | ✅ Complete | 11 commands → 6, single design command, inline clarify |
-| 0076 | Command Rebrand | ⬜ Not Started | Rename all `/speckit.*` → `/flow.*`, update all docs |
+| 0076 | Command Rebrand | ✅ Complete | Rename all `/specflow.*` → `/flow.*`, update all docs |
 | 1010 | Core UI Scaffold | ✅ Complete | **USER GATE**: Dashboard starts, shows projects, dark mode works |
 | 1020 | Real-Time File Watching | ✅ Complete | **USER GATE**: CLI changes reflect in UI within 2s |
 | 1030 | Project Detail Views | ✅ Complete | **USER GATE**: Kanban and Timeline views work |
@@ -71,14 +71,14 @@ Phase details are stored in modular files:
 
 To view a specific phase:
 ```bash
-speckit phase show 0010
+specflow phase show 0010
 ```
 
 To list all phases:
 ```bash
-speckit phase list
-speckit phase list --active
-speckit phase list --complete
+specflow phase list
+specflow phase list --active
+specflow phase list --complete
 ```
 
 ---
@@ -88,7 +88,7 @@ speckit phase list --complete
 
 | Gate | Phase | What User Verifies |
 |------|-------|-------------------|
-| **Gate 1** | 1010 | `speckit dashboard` starts, projects listed, dark mode, Cmd+K works |
+| **Gate 1** | 1010 | `specflow dashboard` starts, projects listed, dark mode, Cmd+K works |
 | **Gate 2** | 1020 | CLI state changes appear in UI within 2 seconds |
 | **Gate 3** | 1030 | Project detail with Kanban/Timeline views, view preference persists |
 | **Gate 4** | 1040 | Mark task complete, add backlog item, keyboard shortcuts work |
@@ -120,21 +120,21 @@ If a phase is running long:
 
 ### Starting a Phase
 ```
-/speckit.orchestrate
+/specflow.orchestrate
 ```
 Or manually:
 ```
-/speckit.specify "Phase NNNN - [Phase Name]"
+/specflow.specify "Phase NNNN - [Phase Name]"
 ```
 
 ### After Completing a Phase
 1. Update status in table above: ⬜ → ✅
-2. Archive phase: `speckit phase archive NNNN`
+2. Archive phase: `specflow phase archive NNNN`
 3. If USER GATE: get explicit user verification before proceeding
 
 ### Adding New Phases
-Use SpecKit commands:
+Use SpecFlow commands:
 ```bash
-speckit roadmap insert --after 0020 "New Phase Name"
-speckit phase create 0025 "new-phase"
+specflow roadmap insert --after 0020 "New Phase Name"
+specflow phase create 0025 "new-phase"
 ```

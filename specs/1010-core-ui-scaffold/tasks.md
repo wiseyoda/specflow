@@ -2,7 +2,7 @@
 
 ## Progress Dashboard
 
-> Last updated: 2026-01-17T14:10:02Z | Run `speckit tasks sync` to refresh
+> Last updated: 2026-01-17T14:10:02Z | Run `specflow tasks sync` to refresh
 
 | Phase | Status | Progress |
 |-------|--------|----------|
@@ -91,19 +91,19 @@
 
 ## Phase 4: User Story 4 - Dashboard CLI Command (Priority: P1)
 
-**Goal**: `speckit dashboard` command starts the web server
+**Goal**: `specflow dashboard` command starts the web server
 
-**Independent Test**: Run `speckit dashboard --dev` and verify server starts
+**Independent Test**: Run `specflow dashboard --dev` and verify server starts
 
 ### Implementation for User Story 4
 
-- [x] T024 [US4] Create `scripts/bash/speckit-dashboard.sh` with dependency checks, --dev flag, port handling
-- [x] T025 [US4] Add dashboard command routing to `bin/speckit` dispatcher
-- [x] T026 [US4] Update `bin/speckit` help text to include dashboard command
-- [x] T027 [US4] Test `speckit dashboard --help` works correctly
-- [x] T028 [US4] Test `speckit dashboard --dev` starts development server
+- [x] T024 [US4] Create `scripts/bash/specflow-dashboard.sh` with dependency checks, --dev flag, port handling
+- [x] T025 [US4] Add dashboard command routing to `bin/specflow` dispatcher
+- [x] T026 [US4] Update `bin/specflow` help text to include dashboard command
+- [x] T027 [US4] Test `specflow dashboard --help` works correctly
+- [x] T028 [US4] Test `specflow dashboard --dev` starts development server
 
-**Checkpoint**: CLI integration complete - can launch dashboard from speckit command
+**Checkpoint**: CLI integration complete - can launch dashboard from specflow command
 
 ---
 
@@ -147,7 +147,7 @@
 **Purpose**: Error handling, loading states, and final cleanup
 
 - [x] T038 [P] Add loading skeleton to project list while polling
-- [x] T039 [P] Handle malformed registry.json with error state suggesting `speckit doctor`
+- [x] T039 [P] Handle malformed registry.json with error state suggesting `specflow doctor`
 - [x] T040 [P] Handle missing project paths with "unavailable" badge
 - [x] T041 [P] Add port fallback logic to CLI (try 3001-3010 if 3000 busy)
 - [x] T042 Update root README.md with dashboard usage instructions

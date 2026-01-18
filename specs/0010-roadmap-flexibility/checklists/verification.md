@@ -1,7 +1,7 @@
 # Verification Checklist: Roadmap Flexibility
 
 **Phase**: 0010-roadmap-flexibility
-**Purpose**: Post-completion verification for /speckit.verify
+**Purpose**: Post-completion verification for /specflow.verify
 **Created**: 2026-01-10
 
 ---
@@ -10,7 +10,7 @@
 
 ### Insert Command (US1)
 
-- [x] **V-001**: `speckit roadmap insert --after 0020 "Test Phase"` creates phase 0021
+- [x] **V-001**: `specflow roadmap insert --after 0020 "Test Phase"` creates phase 0021
 - [x] **V-002**: Insert after existing 0021 creates 0022 (auto-increment)
 - [x] **V-003**: Insert with full decade (0020-0029 used) shows helpful error
 - [x] **V-004**: Insert after last phase creates next decade (e.g., 0090 → 0100)
@@ -21,7 +21,7 @@
 
 ### Defer Command (US2)
 
-- [x] **V-009**: `speckit roadmap defer 0040` moves phase to Backlog
+- [x] **V-009**: `specflow roadmap defer 0040` moves phase to Backlog
 - [x] **V-010**: Backlog section created if not exists
 - [x] **V-011**: Deferred phase preserves all content (Goal, Scope, Deliverables)
 - [x] **V-012**: Deferring in-progress phase fails without `--force`
@@ -31,7 +31,7 @@
 
 ### Restore Command (US2)
 
-- [x] **V-016**: `speckit roadmap restore 0040` restores from Backlog
+- [x] **V-016**: `specflow roadmap restore 0040` restores from Backlog
 - [x] **V-017**: Smart restore uses original number if available
 - [x] **V-018**: If original taken, finds next in same decade
 - [x] **V-019**: If decade full, prompts for `--after` target
@@ -41,7 +41,7 @@
 
 ### Migration Command (US3)
 
-- [x] **V-023**: `speckit migrate roadmap` converts 001→0010, 002→0020
+- [x] **V-023**: `specflow migrate roadmap` converts 001→0010, 002→0020
 - [x] **V-024**: Already-migrated roadmap shows "already current" message
 - [x] **V-025**: Mixed format roadmap shows detailed error
 - [x] **V-026**: Backup created before migration (roadmap.bak)
@@ -80,8 +80,8 @@
 
 ### CLI Integration
 
-- [x] **V-042**: `speckit roadmap --help` shows all new commands
-- [x] **V-043**: `speckit migrate --help` shows roadmap subcommand
+- [x] **V-042**: `specflow roadmap --help` shows all new commands
+- [x] **V-043**: `specflow migrate --help` shows roadmap subcommand
 - [x] **V-044**: Tab completion works for new commands (if applicable)
 
 ### State File Integration

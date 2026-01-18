@@ -34,8 +34,8 @@ pdr: pdr-orchestration-engine.md
   ## Group 2: Integration
   - [ ] T003: Wire up API
   ```
-- `speckit implement --group N` command
-- `speckit implement --list-groups` to show available groups
+- `specflow implement --group N` command
+- `specflow implement --list-groups` to show available groups
 - Updated plan.md template to suggest task grouping
 - Standalone `verify --json` command
 - Standalone `merge --json` command

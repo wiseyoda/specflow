@@ -17,72 +17,72 @@
 
 ## Phase 0: Setup
 
-- [x] T001 [P1] [-] Verify all dependencies available (git, jq, gh) | scripts/bash/speckit-roadmap.sh
+- [x] T001 [P1] [-] Verify all dependencies available (git, jq, gh) | scripts/bash/specflow-roadmap.sh
 
 ---
 
-## Phase 1: CLI Foundation (speckit roadmap backlog)
+## Phase 1: CLI Foundation (specflow roadmap backlog)
 
 ### US3 - Quick Add to Backlog
 
-- [x] T002 [P1] [US3] Add cmd_backlog function skeleton to speckit-roadmap.sh | scripts/bash/speckit-roadmap.sh
-- [x] T003 [P1] [US3] Implement `backlog add` action - parse arguments | scripts/bash/speckit-roadmap.sh
-- [x] T004 [P1] [US3] Implement `backlog add` - create Backlog section if missing | scripts/bash/speckit-roadmap.sh
-- [x] T005 [P1] [US3] Implement `backlog add` - append item with timestamp | scripts/bash/speckit-roadmap.sh
-- [x] T006 [P2] [US3] Implement `backlog list` action - display backlog items | scripts/bash/speckit-roadmap.sh
-- [x] T007 [P2] [US3] Implement `backlog clear` action - remove all items | scripts/bash/speckit-roadmap.sh
-- [x] T008 [P2] [US3] Add --json output support for backlog commands | scripts/bash/speckit-roadmap.sh
-- [x] T009 [P1] [US3] Add help text for backlog subcommand | scripts/bash/speckit-roadmap.sh
-- [x] T010 [P2] [US3] Handle special characters in backlog item text | scripts/bash/speckit-roadmap.sh
-- [x] T011 [P2] [US3] Register backlog command in main dispatcher | scripts/bash/speckit-roadmap.sh
+- [x] T002 [P1] [US3] Add cmd_backlog function skeleton to specflow-roadmap.sh | scripts/bash/specflow-roadmap.sh
+- [x] T003 [P1] [US3] Implement `backlog add` action - parse arguments | scripts/bash/specflow-roadmap.sh
+- [x] T004 [P1] [US3] Implement `backlog add` - create Backlog section if missing | scripts/bash/specflow-roadmap.sh
+- [x] T005 [P1] [US3] Implement `backlog add` - append item with timestamp | scripts/bash/specflow-roadmap.sh
+- [x] T006 [P2] [US3] Implement `backlog list` action - display backlog items | scripts/bash/specflow-roadmap.sh
+- [x] T007 [P2] [US3] Implement `backlog clear` action - remove all items | scripts/bash/specflow-roadmap.sh
+- [x] T008 [P2] [US3] Add --json output support for backlog commands | scripts/bash/specflow-roadmap.sh
+- [x] T009 [P1] [US3] Add help text for backlog subcommand | scripts/bash/specflow-roadmap.sh
+- [x] T010 [P2] [US3] Handle special characters in backlog item text | scripts/bash/specflow-roadmap.sh
+- [x] T011 [P2] [US3] Register backlog command in main dispatcher | scripts/bash/specflow-roadmap.sh
 
 ---
 
-## Phase 2: Merge Command (/speckit.merge)
+## Phase 2: Merge Command (/specflow.merge)
 
 ### US1 - Complete Phase with Single Command
 
-- [x] T012 [P1] [US1] Create speckit.merge.md command file with frontmatter | commands/speckit.merge.md
-- [x] T013 [P1] [US1] Document pre-flight checks (branch, uncommitted changes, tasks) | commands/speckit.merge.md
-- [x] T014 [P1] [US1] Document git push workflow | commands/speckit.merge.md
-- [x] T015 [P1] [US1] Document PR creation logic (gh vs manual) | commands/speckit.merge.md
-- [x] T016 [P1] [US1] Document PR merge workflow (default auto-merge) | commands/speckit.merge.md
-- [x] T017 [P1] [US1] Document --pr-only flag behavior | commands/speckit.merge.md
-- [x] T018 [P1] [US1] Document branch cleanup (checkout main, pull, delete local and remote) | commands/speckit.merge.md
-- [x] T019 [P1] [US1] Document state archive step (speckit state archive) | commands/speckit.merge.md
-- [x] T020 [P1] [US1] Document ROADMAP update step | commands/speckit.merge.md
-- [x] T021 [P2] [US1] Document backlog summary display | commands/speckit.merge.md
-- [x] T022 [P2] [US1] Document --force flag for incomplete tasks | commands/speckit.merge.md
-- [x] T023 [P2] [US1] Document --dry-run flag | commands/speckit.merge.md
-- [x] T024 [P1] [US1] Document error handling (network, conflicts, missing gh) | commands/speckit.merge.md
-- [x] T025 [P2] [US1] Add handoffs section for next steps | commands/speckit.merge.md
+- [x] T012 [P1] [US1] Create specflow.merge.md command file with frontmatter | commands/specflow.merge.md
+- [x] T013 [P1] [US1] Document pre-flight checks (branch, uncommitted changes, tasks) | commands/specflow.merge.md
+- [x] T014 [P1] [US1] Document git push workflow | commands/specflow.merge.md
+- [x] T015 [P1] [US1] Document PR creation logic (gh vs manual) | commands/specflow.merge.md
+- [x] T016 [P1] [US1] Document PR merge workflow (default auto-merge) | commands/specflow.merge.md
+- [x] T017 [P1] [US1] Document --pr-only flag behavior | commands/specflow.merge.md
+- [x] T018 [P1] [US1] Document branch cleanup (checkout main, pull, delete local and remote) | commands/specflow.merge.md
+- [x] T019 [P1] [US1] Document state archive step (specflow state archive) | commands/specflow.merge.md
+- [x] T020 [P1] [US1] Document ROADMAP update step | commands/specflow.merge.md
+- [x] T021 [P2] [US1] Document backlog summary display | commands/specflow.merge.md
+- [x] T022 [P2] [US1] Document --force flag for incomplete tasks | commands/specflow.merge.md
+- [x] T023 [P2] [US1] Document --dry-run flag | commands/specflow.merge.md
+- [x] T024 [P1] [US1] Document error handling (network, conflicts, missing gh) | commands/specflow.merge.md
+- [x] T025 [P2] [US1] Add handoffs section for next steps | commands/specflow.merge.md
 
 ---
 
-## Phase 3: Backlog Triage (/speckit.backlog)
+## Phase 3: Backlog Triage (/specflow.backlog)
 
 ### US2 - Triage Backlog into Phases
 
-- [x] T026 [P2] [US2] Create speckit.backlog.md command file with frontmatter | commands/speckit.backlog.md
-- [x] T027 [P2] [US2] Document backlog parsing from ROADMAP.md | commands/speckit.backlog.md
-- [x] T028 [P2] [US2] Document phase scope extraction for matching | commands/speckit.backlog.md
-- [x] T029 [P2] [US2] Document item-to-phase matching algorithm | commands/speckit.backlog.md
-- [x] T030 [P2] [US2] Document confidence scoring and thresholds | commands/speckit.backlog.md
-- [x] T031 [P2] [US2] Document user interaction for low-confidence matches | commands/speckit.backlog.md
-- [x] T032 [P2] [US2] Document new phase creation for unassignable items | commands/speckit.backlog.md
-- [x] T033 [P2] [US2] Document ROADMAP update with assignments | commands/speckit.backlog.md
-- [x] T034 [P2] [US2] Document summary output format | commands/speckit.backlog.md
-- [x] T035 [P2] [US2] Add handoffs section | commands/speckit.backlog.md
+- [x] T026 [P2] [US2] Create specflow.backlog.md command file with frontmatter | commands/specflow.backlog.md
+- [x] T027 [P2] [US2] Document backlog parsing from ROADMAP.md | commands/specflow.backlog.md
+- [x] T028 [P2] [US2] Document phase scope extraction for matching | commands/specflow.backlog.md
+- [x] T029 [P2] [US2] Document item-to-phase matching algorithm | commands/specflow.backlog.md
+- [x] T030 [P2] [US2] Document confidence scoring and thresholds | commands/specflow.backlog.md
+- [x] T031 [P2] [US2] Document user interaction for low-confidence matches | commands/specflow.backlog.md
+- [x] T032 [P2] [US2] Document new phase creation for unassignable items | commands/specflow.backlog.md
+- [x] T033 [P2] [US2] Document ROADMAP update with assignments | commands/specflow.backlog.md
+- [x] T034 [P2] [US2] Document summary output format | commands/specflow.backlog.md
+- [x] T035 [P2] [US2] Add handoffs section | commands/specflow.backlog.md
 
 ---
 
 ## Phase 4: Polish
 
-- [x] T036 [P3] [-] Update speckit help command output with new commands | bin/speckit
+- [x] T036 [P3] [-] Update specflow help command output with new commands | bin/specflow
 - [x] T037 [P3] [-] Update install.sh to include new command files | install.sh
 - [x] T038 [P2] [-] Test backlog add with empty ROADMAP (no Backlog section) | tests/
 - [x] T039 [P2] [-] Test merge command dry-run mode | tests/
-- [x] T040 [P2] [-] Run shellcheck on modified scripts | scripts/bash/speckit-roadmap.sh
+- [x] T040 [P2] [-] Run shellcheck on modified scripts | scripts/bash/specflow-roadmap.sh
 
 ---
 

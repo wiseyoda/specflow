@@ -25,13 +25,13 @@ pdr: pdr-orchestration-engine.md
 4. As a dashboard, I can track which design step is complete
 
 **Deliverables**:
-- `speckit discover` command with JSON output
+- `specflow discover` command with JSON output
   - Examines codebase, outputs discovery.md
   - Returns questions for user if any
-- `speckit design` command with JSON output
+- `specflow design` command with JSON output
   - Creates spec.md, requirements.md, plan.md, tasks.md
   - Accepts answers to discovery questions as input
-- `speckit check` command with JSON output
+- `specflow check` command with JSON output
   - Runs analyze and checklist
   - Validates cross-artifact consistency
 - Updated orchestrate to use these commands internally

@@ -2,7 +2,7 @@
 #
 # Test Suite: Task Operations
 #
-# Tests for speckit tasks commands:
+# Tests for specflow tasks commands:
 #   - status, incomplete, mark, phase-status, list, find
 #
 
@@ -29,7 +29,7 @@ test_tasks_status() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-tasks.sh" status specs/001-feature/tasks.md 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-tasks.sh" status specs/001-feature/tasks.md 2>&1)
 
   assert_contains "$output" "2 / 5" "Shows 2 completed of 5"
   assert_contains "$output" "40%" "Shows 40% completion"
@@ -45,7 +45,7 @@ test_tasks_status_json() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-tasks.sh" status specs/001-feature/tasks.md --json)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-tasks.sh" status specs/001-feature/tasks.md --json)
 
   echo "$output" | jq '.' >/dev/null 2>&1
   assert_equals "0" "$?" "JSON output is valid"
@@ -66,7 +66,7 @@ test_tasks_incomplete() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-tasks.sh" incomplete specs/001-feature/tasks.md 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-tasks.sh" incomplete specs/001-feature/tasks.md 2>&1)
 
   assert_contains "$output" "T002" "Shows T002"
   assert_contains "$output" "T003" "Shows T003"
@@ -81,7 +81,7 @@ test_tasks_incomplete_json() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-tasks.sh" incomplete specs/001-feature/tasks.md --json)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-tasks.sh" incomplete specs/001-feature/tasks.md --json)
 
   echo "$output" | jq '.' >/dev/null 2>&1
   assert_equals "0" "$?" "JSON output is valid"
@@ -100,7 +100,7 @@ test_tasks_mark() {
 EOF
 
   # Mark T001 complete
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-tasks.sh" mark T001 specs/001-feature/tasks.md
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-tasks.sh" mark T001 specs/001-feature/tasks.md
 
   # Verify it was marked
   local content
@@ -117,7 +117,7 @@ test_tasks_mark_already_complete() {
 EOF
 
   # Try to mark again (should warn but not fail)
-  assert_command_succeeds "bash ${PROJECT_ROOT}/scripts/bash/speckit-tasks.sh mark T001 specs/001-feature/tasks.md" "Marking already complete task succeeds"
+  assert_command_succeeds "bash ${PROJECT_ROOT}/scripts/bash/specflow-tasks.sh mark T001 specs/001-feature/tasks.md" "Marking already complete task succeeds"
 }
 
 test_tasks_mark_invalid_id() {
@@ -129,7 +129,7 @@ test_tasks_mark_invalid_id() {
 EOF
 
   # Try to mark non-existent task
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-tasks.sh mark T999 specs/001-feature/tasks.md" "Fails on non-existent task"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-tasks.sh mark T999 specs/001-feature/tasks.md" "Fails on non-existent task"
 }
 
 test_tasks_phase_status() {
@@ -147,7 +147,7 @@ test_tasks_phase_status() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-tasks.sh" phase-status specs/001-feature/tasks.md 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-tasks.sh" phase-status specs/001-feature/tasks.md 2>&1)
 
   assert_contains "$output" "Phase 1" "Shows Phase 1"
   assert_contains "$output" "Phase 2" "Shows Phase 2"
@@ -163,7 +163,7 @@ test_tasks_list() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-tasks.sh" list specs/001-feature/tasks.md 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-tasks.sh" list specs/001-feature/tasks.md 2>&1)
 
   assert_contains "$output" "T001" "Shows T001"
   assert_contains "$output" "T002" "Shows T002"
@@ -179,7 +179,7 @@ test_tasks_list_json() {
 EOF
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-tasks.sh" list specs/001-feature/tasks.md --json)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-tasks.sh" list specs/001-feature/tasks.md --json)
 
   echo "$output" | jq '.' >/dev/null 2>&1
   assert_equals "0" "$?" "JSON output is valid"
@@ -196,7 +196,7 @@ test_tasks_find() {
   touch specs/002-feature/tasks.md
 
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-tasks.sh" find 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-tasks.sh" find 2>&1)
 
   assert_contains "$output" "001-feature/tasks.md" "Finds first tasks.md"
   assert_contains "$output" "002-feature/tasks.md" "Finds second tasks.md"
@@ -204,7 +204,7 @@ test_tasks_find() {
 
 test_tasks_help() {
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-tasks.sh" --help)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-tasks.sh" --help)
 
   assert_contains "$output" "tasks" "Help shows command name"
   assert_contains "$output" "status" "Help shows status command"

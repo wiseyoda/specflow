@@ -11,15 +11,15 @@
 
 ### User Story 1 - View All Projects (Priority: P1)
 
-As a developer, I run `speckit dashboard` and see all my SpecKit projects listed in a web interface with their current status.
+As a developer, I run `specflow dashboard` and see all my SpecFlow projects listed in a web interface with their current status.
 
 **Why this priority**: Core value proposition - developers need to see their projects at a glance before any other dashboard feature matters.
 
-**Independent Test**: Can be fully tested by running `speckit dashboard`, opening the browser, and verifying projects from `~/.speckit/registry.json` appear in the list.
+**Independent Test**: Can be fully tested by running `specflow dashboard`, opening the browser, and verifying projects from `~/.specflow/registry.json` appear in the list.
 
 **Acceptance Scenarios**:
 
-1. **Given** I have 3 registered projects, **When** I run `speckit dashboard` and open localhost:3000, **Then** I see all 3 projects listed with their names and paths
+1. **Given** I have 3 registered projects, **When** I run `specflow dashboard` and open localhost:3000, **Then** I see all 3 projects listed with their names and paths
 2. **Given** I have no registered projects, **When** I open the dashboard, **Then** I see an empty state with instructions to register a project
 3. **Given** I'm viewing the project list, **When** I click a project, **Then** it expands inline to show more details (phase status, task progress)
 
@@ -59,24 +59,24 @@ As a developer, I can press Cmd+K (or Ctrl+K on Linux/Windows) to open a command
 
 ### User Story 4 - Dashboard CLI Command (Priority: P1)
 
-As a developer, I run `speckit dashboard` to start the web server, with options for development or production mode.
+As a developer, I run `specflow dashboard` to start the web server, with options for development or production mode.
 
 **Why this priority**: Entry point for all dashboard functionality. Must work reliably before any UI features matter.
 
-**Independent Test**: Can be tested by running `speckit dashboard` and verifying server starts on expected port.
+**Independent Test**: Can be tested by running `specflow dashboard` and verifying server starts on expected port.
 
 **Acceptance Scenarios**:
 
-1. **Given** Node.js and pnpm are installed, **When** I run `speckit dashboard`, **Then** the server starts on port 3000 (or next available)
-2. **Given** the server is running, **When** I run `speckit dashboard --dev`, **Then** it starts in development mode with hot reload
-3. **Given** pnpm is not installed, **When** I run `speckit dashboard`, **Then** I see a helpful error message explaining how to install it
+1. **Given** Node.js and pnpm are installed, **When** I run `specflow dashboard`, **Then** the server starts on port 3000 (or next available)
+2. **Given** the server is running, **When** I run `specflow dashboard --dev`, **Then** it starts in development mode with hot reload
+3. **Given** pnpm is not installed, **When** I run `specflow dashboard`, **Then** I see a helpful error message explaining how to install it
 
 ---
 
 ### Edge Cases
 
 - What happens when registry.json doesn't exist? → Show empty state with "No projects registered" message
-- What happens when registry.json is malformed? → Show error state with "Unable to read projects" and suggest `speckit doctor`
+- What happens when registry.json is malformed? → Show error state with "Unable to read projects" and suggest `specflow doctor`
 - What happens when a registered project path no longer exists? → Mark project as "unavailable" in the list
 - What happens when port 3000 is in use? → Try ports 3001-3010, display actual port in CLI output
 
@@ -86,8 +86,8 @@ As a developer, I run `speckit dashboard` to start the web server, with options 
 
 ### Functional Requirements
 
-- **FR-001**: System MUST start a Next.js web server when `speckit dashboard` is run
-- **FR-002**: System MUST read project list from `~/.speckit/registry.json`
+- **FR-001**: System MUST start a Next.js web server when `specflow dashboard` is run
+- **FR-002**: System MUST read project list from `~/.specflow/registry.json`
 - **FR-003**: System MUST validate registry data against Zod schema
 - **FR-004**: System MUST display projects in a list with name, path, and status badge
 - **FR-005**: System MUST expand project details inline when clicked
@@ -107,8 +107,8 @@ As a developer, I run `speckit dashboard` to start the web server, with options 
 
 ### Key Entities
 
-- **Project**: A registered SpecKit project with `id` (UUID), `name`, `path`, `registered_at`, `last_seen`
-- **Registry**: The central collection of all projects stored in `~/.speckit/registry.json`
+- **Project**: A registered SpecFlow project with `id` (UUID), `name`, `path`, `registered_at`, `last_seen`
+- **Registry**: The central collection of all projects stored in `~/.specflow/registry.json`
 - **Theme**: User preference for dark/light mode, stored in localStorage
 
 ---
@@ -117,7 +117,7 @@ As a developer, I run `speckit dashboard` to start the web server, with options 
 
 ### Measurable Outcomes
 
-- **SC-001**: `speckit dashboard` starts server within 5 seconds in production mode
+- **SC-001**: `specflow dashboard` starts server within 5 seconds in production mode
 - **SC-002**: All projects from registry.json appear in the UI with correct names and paths
 - **SC-003**: Theme toggle completes in under 100ms with no flash
 - **SC-004**: Command palette opens in under 100ms after keyboard shortcut

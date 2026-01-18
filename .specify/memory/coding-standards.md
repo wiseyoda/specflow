@@ -1,6 +1,6 @@
 # Coding Standards
 
-> POSIX-compliant bash conventions, patterns, and anti-patterns for SpecKit scripts.
+> POSIX-compliant bash conventions, patterns, and anti-patterns for SpecFlow scripts.
 
 **Last Updated**: 2026-01-11
 **Constitution Alignment**: Principles II (POSIX-Compliant Bash), IV (Simplicity)
@@ -11,21 +11,21 @@
 
 ### Directory Structure
 ```
-bin/speckit                    Main CLI dispatcher
+bin/specflow                    Main CLI dispatcher
 scripts/bash/
 ├── lib/
 │   ├── common.sh              Core utilities (logging, paths, validation)
 │   ├── json.sh                JSON manipulation (jq wrappers)
 │   └── detection.sh           Project type detection
-└── speckit-<command>.sh       Individual command implementations
+└── specflow-<command>.sh       Individual command implementations
 ```
 
 ### Naming Conventions
 | Type | Convention | Example |
 |------|------------|---------|
-| Executable | No extension | `speckit` |
+| Executable | No extension | `specflow` |
 | Library files | `.sh` extension | `common.sh` |
-| Command scripts | `speckit-<cmd>.sh` | `speckit-state.sh` |
+| Command scripts | `specflow-<cmd>.sh` | `specflow-state.sh` |
 | Functions | `snake_case` | `get_repo_root()` |
 | Constants | `UPPER_SNAKE_CASE` | `EXIT_SUCCESS` |
 | Local variables | `lower_snake_case` | `local file_path` |
@@ -45,10 +45,10 @@ scripts/bash/
 set -euo pipefail  # Strict mode
 
 # Guard against double-sourcing (libraries only)
-if [[ -n "${SPECKIT_COMMON_LOADED:-}" ]]; then
+if [[ -n "${SPECFLOW_COMMON_LOADED:-}" ]]; then
   return 0 2>/dev/null || exit 0
 fi
-SPECKIT_COMMON_LOADED=1
+SPECFLOW_COMMON_LOADED=1
 
 # Source libraries
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -90,7 +90,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 | `log_success` | Success message | stdout (green) |
 | `log_warn` | Warning | stderr (yellow) |
 | `log_error` | Error | stderr (red) |
-| `log_debug` | Debug (SPECKIT_DEBUG=1) | stdout (dim) |
+| `log_debug` | Debug (SPECFLOW_DEBUG=1) | stdout (dim) |
 | `log_step` | Major operation | stdout (cyan, bold) |
 
 **Three-Line Output Rule**: User-critical info in first 3 lines.
@@ -165,10 +165,10 @@ done
 ```bash
 show_help() {
   cat << 'EOF'
-speckit <command> - Brief description
+specflow <command> - Brief description
 
 USAGE:
-    speckit <command> [options]
+    specflow <command> [options]
 
 COMMANDS:
     subcommand    Description
@@ -178,7 +178,7 @@ OPTIONS:
     --json        JSON output
 
 EXAMPLES:
-    speckit command action
+    specflow command action
 EOF
 }
 ```

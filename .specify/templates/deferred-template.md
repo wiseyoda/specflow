@@ -6,7 +6,7 @@ description: 'Deferred items template - tracks items intentionally postponed fro
 # Deferred Items - Phase [PHASE_NUMBER]: [PHASE_NAME]
 
 > Items intentionally deferred from this phase with documented rationale and target phases.
-> **Created by**: speckit.verify
+> **Created by**: specflow.verify
 > **Date**: [DATE]
 
 ---

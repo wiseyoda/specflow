@@ -8,7 +8,7 @@
 
 ### Codebase Overview
 - **Primary language**: POSIX-compliant Bash
-- **Largest scripts**: speckit-state.sh (1607 lines), speckit-roadmap.sh (1419 lines)
+- **Largest scripts**: specflow-state.sh (1607 lines), specflow-roadmap.sh (1419 lines)
 - **Libraries**: common.sh, json.sh, detection.sh in `scripts/bash/lib/`
 - **Test framework**: Custom bash test runner in `tests/`
 
@@ -24,18 +24,18 @@ All changes must comply with these principles:
 
 | File | Findings | Categories |
 |------|----------|------------|
-| speckit-state.sh | 5 | BP003, RF001-RF004 |
-| speckit-roadmap.sh | 6 | BP005, HD001-HD004, MF001, MF003, OC004, OE001 |
+| specflow-state.sh | 5 | BP003, RF001-RF004 |
+| specflow-roadmap.sh | 6 | BP005, HD001-HD004, MF001, MF003, OC004, OE001 |
 | check-prerequisites.sh | 3 | BP001, BP002, OC001 |
-| speckit-context.sh | 1 | BP004 |
-| speckit-feature.sh | 1 | BP006 |
-| speckit-scaffold.sh | 1 | RF005 |
-| speckit-import.sh | 1 | RF007 |
-| speckit-gate.sh | 2 | MF002, OE003, OE004 |
+| specflow-context.sh | 1 | BP004 |
+| specflow-feature.sh | 1 | BP006 |
+| specflow-scaffold.sh | 1 | RF005 |
+| specflow-import.sh | 1 | RF007 |
+| specflow-gate.sh | 2 | MF002, OE003, OE004 |
 | README.md | 4 | OD001, OD002, OD007, OD008 |
 | CLAUDE.md | 2 | OC003, OD004 |
 | ROADMAP.md | 1 | OD003 |
-| speckit.specify.md | 2 | OC002, OD005 |
+| specflow.specify.md | 2 | OC002, OD005 |
 | lib/common.sh | 1 | RF006 |
 
 ---
@@ -54,12 +54,12 @@ All changes must comply with these principles:
 - **Files**:
   - scripts/bash/check-prerequisites.sh
   - .specify/scripts/bash/check-prerequisites.sh
-- **Action**: Delete both files (replaced by speckit-context.sh)
+- **Action**: Delete both files (replaced by specflow-context.sh)
 
 #### A3. Fix Documentation References (OC002, OD005)
-- **File**: commands/speckit.specify.md:57-60
+- **File**: commands/specflow.specify.md:57-60
 - **Issue**: References deleted create-new-feature.sh
-- **Fix**: Update to `speckit feature create`
+- **Fix**: Update to `specflow feature create`
 
 #### A4. Replace Placeholders (OD001, OD002)
 - **File**: README.md:3,29,63,326
@@ -75,7 +75,7 @@ All changes must comply with these principles:
 - **Fix**: Ensure all scripts have strict mode at top
 
 #### B2. Input Sanitization (HD001)
-- **Files**: speckit-state.sh, speckit-roadmap.sh
+- **Files**: specflow-state.sh, specflow-roadmap.sh
 - **Issue**: Unvalidated user input in jq/grep patterns
 - **Fix**: Add sanitize_for_pattern() helper in lib/common.sh
 
@@ -84,12 +84,12 @@ All changes must comply with these principles:
 - **Fix**: Add `trap 'rm -f "$temp_file"' EXIT` patterns
 
 #### B4. Validate Placeholder Goals (MF001)
-- **File**: speckit-roadmap.sh:626
+- **File**: specflow-roadmap.sh:626
 - **Issue**: Non-interactive insert accepts placeholder goals
 - **Fix**: Add validation check before write
 
 #### B5. Remove Debug Leftover (BP003)
-- **File**: speckit-state.sh:624
+- **File**: specflow-state.sh:624
 - **Issue**: jq debug code in production
 - **Fix**: Remove debug statements, simplify logic
 
@@ -98,14 +98,14 @@ All changes must comply with these principles:
 ### Phase C: Refactoring - Code Quality
 
 #### C1. Extract Large Functions (RF001)
-- **File**: speckit-state.sh
+- **File**: specflow-state.sh
 - **Target functions**:
   - `cmd_migrate()` (395 lines) → split into `migrate_schema_*()` helpers
   - `cmd_infer()` (188 lines) → split into `infer_*()` helpers
 - **Goal**: No function over 150 lines
 
 #### C2. Simplify Registry Operations (RF002, RF003)
-- **File**: speckit-state.sh:604-645
+- **File**: specflow-state.sh:604-645
 - **Issue**: Deep nesting (4 levels), duplicate patterns
 - **Fix**: Extract `registry_*()` helpers, single jq approach
 
@@ -115,7 +115,7 @@ All changes must comply with these principles:
 - **Remove**: Duplicate regex patterns from other scripts
 
 #### C4. Data-Driven Scaffold (RF005)
-- **File**: speckit-scaffold.sh:770-957
+- **File**: specflow-scaffold.sh:770-957
 - **Issue**: Hardcoded path logic
 - **Fix**: Move to JSON config or associative array
 
@@ -124,7 +124,7 @@ All changes must comply with these principles:
 ### Phase D: Feature Additions
 
 #### D1. Multi-Runner Gate Support (MF002)
-- **File**: speckit-gate.sh:363
+- **File**: specflow-gate.sh:363
 - **Current**: Only npm test
 - **Add**: pytest, go test, bats detection
 ```bash
@@ -142,7 +142,7 @@ detect_test_runner() {
 ```
 
 #### D2. Backlog Priority Support (MF003)
-- **File**: speckit-roadmap.sh:1156
+- **File**: specflow-roadmap.sh:1156
 - **Add**: Priority column parsing in backlog items
 - **Format**: `| Item | Description | Priority | Notes |`
 
@@ -177,39 +177,39 @@ detect_test_runner() {
 ### Phase F: Code Hygiene
 
 #### F1. Quote Parameter Expansions (BP004)
-- **File**: speckit-context.sh:307
+- **File**: specflow-context.sh:307
 - **Fix**: `"${param%suffix}"` instead of `${param%suffix}`
 
 #### F2. Add Magic Number Comments (BP005)
-- **File**: speckit-roadmap.sh:743
+- **File**: specflow-roadmap.sh:743
 - **Fix**: Add comment explaining the value
 
 #### F3. Input Validation (BP006)
-- **File**: speckit-feature.sh:71-80
+- **File**: specflow-feature.sh:71-80
 - **Fix**: Ensure callers check return values
 
 #### F4. External Command Error Handling (RF007)
-- **File**: speckit-import.sh
+- **File**: specflow-import.sh
 - **Fix**: Add error handling on cp, mv, etc.
 
 #### F5. Grep Pattern Safety (HD004)
-- **File**: speckit-roadmap.sh
+- **File**: specflow-roadmap.sh
 - **Fix**: Use `grep -F` for literal strings
 
 #### F6. Dependency Checks (HD003)
-- **File**: speckit-roadmap.sh
+- **File**: specflow-roadmap.sh
 - **Add**: `require_command()` checks at script start
 
 #### F7. Status Text Storage (OE003)
-- **Files**: speckit-roadmap.sh, speckit-gate.sh
+- **Files**: specflow-roadmap.sh, specflow-gate.sh
 - **Fix**: Store status as text, convert to emoji only for display
 
 #### F8. Validation Config (OE004)
-- **File**: speckit-gate.sh:104-123
+- **File**: specflow-gate.sh:104-123
 - **Fix**: Use config file for check_sections() parameters
 
 #### F9. Inline/Delete Unused Helpers (OC004)
-- **File**: speckit-roadmap.sh
+- **File**: specflow-roadmap.sh
 - **Delete**: escape_for_sed(), today_date() if unused
 
 ---
@@ -232,7 +232,7 @@ detect_test_runner() {
 After each phase:
 1. `shellcheck scripts/bash/*.sh` - No new errors
 2. `./tests/test-runner.sh` - All tests pass
-3. `speckit doctor` - No warnings
+3. `specflow doctor` - No warnings
 
 Final verification:
 - All 33 non-deferred findings addressed
@@ -247,8 +247,8 @@ Final verification:
 | ID | Finding | Rationale |
 |----|---------|-----------|
 | OE001 | Migrate roadmap to JSON state | Architectural change, v3.0 scope |
-| OE002 | Split speckit-state.sh | Architectural change, v3.0 scope |
-| OD006 | Split speckit.memory.md | Low impact, current format works |
+| OE002 | Split specflow-state.sh | Architectural change, v3.0 scope |
+| OD006 | Split specflow.memory.md | Low impact, current format works |
 
 ---
 

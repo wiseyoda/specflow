@@ -1,12 +1,12 @@
 # Project Structure
 
-After running `speckit scaffold`, your project will have the following structure.
+After running `specflow scaffold`, your project will have the following structure.
 
 ## Directory Layout
 
 ```
 your-project/
-├── .specify/                    # SpecKit working directory
+├── .specify/                    # SpecFlow working directory
 │   ├── discovery/               # Requirements interview artifacts
 │   │   ├── context.md           # Project identity and context
 │   │   ├── decisions.md         # Captured decisions
@@ -51,7 +51,7 @@ your-project/
 │           └── checklist.md
 │
 ├── ROADMAP.md                   # Development phases (lightweight index)
-├── CLAUDE.md                    # Agent instructions (minimal SpecKit section)
+├── CLAUDE.md                    # Agent instructions (minimal SpecFlow section)
 └── .specify/USAGE.md            # Full CLI and command reference
 ```
 
@@ -139,7 +139,7 @@ Phases use 4-digit numbers with 10-increment gaps:
 | 0020 | Second feature |
 | 0015 | Inserted between (if needed) |
 
-Use `speckit roadmap renumber` to clean up gaps.
+Use `specflow roadmap renumber` to clean up gaps.
 
 ## Specs Directory
 
@@ -168,7 +168,7 @@ specs/0010-user-auth/
 
 Generate recommended documents:
 ```bash
-speckit memory init recommended
+specflow memory init recommended
 ```
 
 ## Issue Files

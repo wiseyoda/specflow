@@ -173,7 +173,7 @@ packages:
 **Root package.json**:
 ```json
 {
-  "name": "speckit-dashboard",
+  "name": "specflow-dashboard",
   "private": true,
   "scripts": {
     "dev": "pnpm --filter dashboard dev",
@@ -234,7 +234,7 @@ The dashboard CLI command will:
 4. Open browser to localhost:3000
 
 ```bash
-# scripts/bash/speckit-dashboard.sh
+# scripts/bash/specflow-dashboard.sh
 check_dependencies() {
   command -v node >/dev/null 2>&1 || { log_error "Node.js not found"; exit 1; }
   command -v pnpm >/dev/null 2>&1 || { log_error "pnpm not found"; exit 1; }

@@ -67,13 +67,13 @@
 
 ### Test Status View
 1. On project detail page, verify default is Status tab
-2. Run `speckit state set "health.status=warning"` in project terminal
+2. Run `specflow state set "health.status=warning"` in project terminal
 3. Verify health indicator updates in dashboard
 
 ### Test Kanban View
 1. Click Kanban tab
 2. Verify task columns display correctly
-3. In project terminal, mark a task: `speckit tasks mark T001`
+3. In project terminal, mark a task: `specflow tasks mark T001`
 4. Verify task moves to Done column
 
 ### Test Timeline View

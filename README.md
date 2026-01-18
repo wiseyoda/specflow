@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">SpecKit</h1>
+  <h1 align="center">SpecFlow</h1>
   <p align="center">
     Spec-driven development framework for <a href="https://claude.ai/code">Claude Code</a>
     <br />
@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/wiseyoda/claude-speckit-orchestration/actions/workflows/test.yml"><img src="https://github.com/wiseyoda/claude-speckit-orchestration/actions/workflows/test.yml/badge.svg" alt="Test Suite"></a>
+  <a href="https://github.com/wiseyoda/claude-specflow-orchestration/actions/workflows/test.yml"><img src="https://github.com/wiseyoda/claude-specflow-orchestration/actions/workflows/test.yml/badge.svg" alt="Test Suite"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
   <a href="#requirements"><img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg" alt="Platform"></a>
   <a href="#requirements"><img src="https://img.shields.io/badge/bash-3.2%2B-green.svg" alt="Bash"></a>
@@ -16,9 +16,9 @@
 
 ---
 
-## Why SpecKit?
+## Why SpecFlow?
 
-Building software with AI assistants works best with structure. SpecKit provides:
+Building software with AI assistants works best with structure. SpecFlow provides:
 
 - **Guided requirements gathering** - Never miss critical decisions
 - **Consistent artifacts** - Specs, plans, and tasks that work together
@@ -44,21 +44,21 @@ Building software with AI assistants works best with structure. SpecKit provides
 ## Install
 
 ```bash
-git clone https://github.com/wiseyoda/claude-speckit-orchestration.git
-cd claude-speckit-orchestration
+git clone https://github.com/wiseyoda/claude-specflow-orchestration.git
+cd claude-specflow-orchestration
 ./install.sh
 ```
 
 Add to your shell profile (`~/.bashrc` or `~/.zshrc`):
 
 ```bash
-export PATH="$HOME/.claude/speckit-system/bin:$PATH"
+export PATH="$HOME/.claude/specflow-system/bin:$PATH"
 ```
 
 Verify:
 
 ```bash
-speckit doctor
+specflow doctor
 ```
 
 ---
@@ -69,16 +69,16 @@ speckit doctor
 
 ```bash
 cd your-project
-speckit scaffold
+specflow scaffold
 ```
 
 **2. Start in Claude Code:**
 
 ```
-/speckit.start
+/specflow.start
 ```
 
-That's it. SpecKit detects your project state and guides you to the next step.
+That's it. SpecFlow detects your project state and guides you to the next step.
 
 ---
 
@@ -86,16 +86,16 @@ That's it. SpecKit detects your project state and guides you to the next step.
 
 ```mermaid
 flowchart TD
-    A["/speckit.start"] --> B["/speckit.init"]
-    B --> C["/speckit.roadmap"]
-    C --> D["/speckit.orchestrate"]
+    A["/specflow.start"] --> B["/specflow.init"]
+    B --> C["/specflow.roadmap"]
+    C --> D["/specflow.orchestrate"]
     D --> E["discover → specify → clarify → plan → tasks → analyze → checklist → implement → verify"]
-    E --> F["/speckit.merge"]
+    E --> F["/specflow.merge"]
     F --> G["Next Phase"]
     G --> D
 ```
 
-SpecKit manages the full development lifecycle:
+SpecFlow manages the full development lifecycle:
 
 | Stage | What Happens |
 |-------|--------------|
@@ -108,23 +108,23 @@ SpecKit manages the full development lifecycle:
 
 ## Commands
 
-SpecKit has two interfaces:
+SpecFlow has two interfaces:
 
 | Interface | Syntax | Purpose |
 |-----------|--------|---------|
-| **CLI** | `speckit <cmd>` | Setup, diagnostics, state management |
-| **Slash** | `/speckit.<cmd>` | AI-assisted development workflows |
+| **CLI** | `specflow <cmd>` | Setup, diagnostics, state management |
+| **Slash** | `/specflow.<cmd>` | AI-assisted development workflows |
 
 ### Essential Commands
 
 | Command | Description |
 |---------|-------------|
-| `speckit scaffold` | Create `.specify/` project structure |
-| `speckit doctor` | Verify installation and project health |
-| `speckit dashboard` | Start web dashboard for project management |
-| `/speckit.start` | Smart entry point—detects state, suggests next step |
-| `/speckit.orchestrate` | Full automated workflow with state persistence |
-| `/speckit.merge` | Complete phase: push, PR, merge, cleanup |
+| `specflow scaffold` | Create `.specify/` project structure |
+| `specflow doctor` | Verify installation and project health |
+| `specflow dashboard` | Start web dashboard for project management |
+| `/specflow.start` | Smart entry point—detects state, suggests next step |
+| `/specflow.orchestrate` | Full automated workflow with state persistence |
+| `/specflow.merge` | Complete phase: push, PR, merge, cleanup |
 
 ### All Commands
 
@@ -134,15 +134,15 @@ See the full reference guides:
 
 ### Web Dashboard
 
-SpecKit includes a web dashboard for visual project management:
+SpecFlow includes a web dashboard for visual project management:
 
 ```bash
-speckit dashboard          # Start on port 3000
-speckit dashboard --dev    # Development mode with hot reload
-speckit dashboard --port 8080  # Custom port
+specflow dashboard          # Start on port 3000
+specflow dashboard --dev    # Development mode with hot reload
+specflow dashboard --port 8080  # Custom port
 ```
 
-The dashboard shows all registered SpecKit projects, with dark mode support and keyboard navigation (⌘K for command palette).
+The dashboard shows all registered SpecFlow projects, with dark mode support and keyboard navigation (⌘K for command palette).
 
 ---
 
@@ -174,7 +174,7 @@ The dashboard shows all registered SpecKit projects, with dark mode support and 
 ## Upgrade
 
 ```bash
-cd claude-speckit-orchestration
+cd claude-specflow-orchestration
 git pull
 ./install.sh --upgrade
 ```
@@ -195,8 +195,8 @@ Contributions are welcome! See [ROADMAP.md](ROADMAP.md) for current development 
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/wiseyoda/claude-speckit-orchestration/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/wiseyoda/claude-speckit-orchestration/discussions)
+- **Issues**: [GitHub Issues](https://github.com/wiseyoda/claude-specflow-orchestration/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/wiseyoda/claude-specflow-orchestration/discussions)
 
 ---
 

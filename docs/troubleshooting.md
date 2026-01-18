@@ -1,15 +1,15 @@
 # Troubleshooting
 
-Common issues and solutions for SpecKit.
+Common issues and solutions for SpecFlow.
 
 ## Quick Diagnostics
 
 Run the doctor command first:
 
 ```bash
-speckit doctor                    # Check everything
-speckit doctor --fix              # Auto-fix common issues
-speckit doctor --check <area>     # Check specific area
+specflow doctor                    # Check everything
+specflow doctor --fix              # Auto-fix common issues
+specflow doctor --check <area>     # Check specific area
 ```
 
 **Valid check areas:** `system`, `project`, `state`, `manifest`, `paths`, `git`, `templates`, `version`, `roadmap`, `reality`, `all`
@@ -20,13 +20,13 @@ speckit doctor --check <area>     # Check specific area
 
 ### CLI Not Found
 
-**Symptom:** `speckit: command not found`
+**Symptom:** `specflow: command not found`
 
 **Solution:** Add to your shell config:
 
 ```bash
 # Add to ~/.bashrc or ~/.zshrc
-export PATH="$HOME/.claude/speckit-system/bin:$PATH"
+export PATH="$HOME/.claude/specflow-system/bin:$PATH"
 ```
 
 Then reload:
@@ -55,7 +55,7 @@ sudo dnf install jq
 
 ```bash
 ./install.sh --check
-speckit doctor --check system
+specflow doctor --check system
 ```
 
 ---
@@ -70,10 +70,10 @@ speckit doctor --check system
 
 ```bash
 # Validate current state
-speckit state validate
+specflow state validate
 
 # Reset to defaults (loses current progress)
-speckit state reset
+specflow state reset
 
 # Or manually inspect
 cat .specify/orchestration-state.json | jq .
@@ -86,7 +86,7 @@ cat .specify/orchestration-state.json | jq .
 **Solution:** Migrate to v2.0:
 
 ```bash
-speckit state migrate
+specflow state migrate
 ```
 
 This preserves your progress and upgrades the schema.
@@ -99,16 +99,16 @@ This preserves your progress and upgrades the schema.
 
 ```bash
 # Preview what would change
-speckit reconcile --dry-run
+specflow reconcile --dry-run
 
 # Trust file system
-speckit reconcile --trust-files
+specflow reconcile --trust-files
 
 # Trust state file
-speckit reconcile --trust-state
+specflow reconcile --trust-state
 ```
 
-**Note:** `speckit status` automatically derives progress from filesystem artifacts. If your state file is outdated, the correct step and task counts will be detected from:
+**Note:** `specflow status` automatically derives progress from filesystem artifacts. If your state file is outdated, the correct step and task counts will be detected from:
 - Existing files: spec.md → plan.md → tasks.md → checklists/
 - Task checkboxes in tasks.md
 
@@ -118,13 +118,13 @@ speckit reconcile --trust-state
 
 ### Missing .specify Directory
 
-**Symptom:** Commands fail with "not a SpecKit project"
+**Symptom:** Commands fail with "not a SpecFlow project"
 
 **Solution:**
 
 ```bash
-speckit scaffold --safe    # Preview
-speckit scaffold           # Create structure
+specflow scaffold --safe    # Preview
+specflow scaffold           # Create structure
 ```
 
 ### Corrupted Structure
@@ -132,7 +132,7 @@ speckit scaffold           # Create structure
 **Solution:**
 
 ```bash
-speckit scaffold --force   # Recreate (preserves custom files)
+specflow scaffold --force   # Recreate (preserves custom files)
 ```
 
 ### Wrong Project Type Detected
@@ -140,7 +140,7 @@ speckit scaffold --force   # Recreate (preserves custom files)
 **Solution:**
 
 ```bash
-speckit scaffold --type python  # Force specific type
+specflow scaffold --type python  # Force specific type
 ```
 
 ---
@@ -154,7 +154,7 @@ speckit scaffold --type python  # Force specific type
 **Solution:**
 
 ```bash
-speckit roadmap validate
+specflow roadmap validate
 ```
 
 Common issues:
@@ -167,7 +167,7 @@ Common issues:
 **Solution:**
 
 ```bash
-speckit roadmap renumber
+specflow roadmap renumber
 ```
 
 ### 3-Digit to 4-Digit Migration
@@ -175,7 +175,7 @@ speckit roadmap renumber
 **Solution:**
 
 ```bash
-speckit migrate roadmap
+specflow migrate roadmap
 ```
 
 ---
@@ -202,10 +202,10 @@ git commit -m "Initial commit"
 
 ```bash
 # Check current branches
-speckit git branch list
+specflow git branch list
 
 # Sync with remote
-speckit git sync
+specflow git sync
 
 # Force checkout (loses local changes)
 git checkout -f main
@@ -217,14 +217,14 @@ git checkout -f main
 
 ### Templates Not Found
 
-**Note:** Missing templates are flagged as **errors** by `speckit doctor` since they can cause workflow failures.
+**Note:** Missing templates are flagged as **errors** by `specflow doctor` since they can cause workflow failures.
 
 **Solution:**
 
 ```bash
-speckit templates check           # See what's missing
-speckit templates sync            # Update outdated + copy missing (recommended)
-speckit doctor --check templates  # Full template check
+specflow templates check           # See what's missing
+specflow templates sync            # Update outdated + copy missing (recommended)
+specflow doctor --check templates  # Full template check
 ```
 
 ### Template Out of Date
@@ -232,13 +232,13 @@ speckit doctor --check templates  # Full template check
 **Solution:**
 
 ```bash
-speckit templates diff <file>     # See changes
-speckit templates update <file>   # Update specific
-speckit templates update-all      # Update all outdated
-speckit templates sync            # Update all + copy new templates
+specflow templates diff <file>     # See changes
+specflow templates update <file>   # Update specific
+specflow templates update-all      # Update all outdated
+specflow templates sync            # Update all + copy new templates
 ```
 
-**Tip:** `speckit doctor` suggests `speckit templates sync` when templates need attention.
+**Tip:** `specflow doctor` suggests `specflow templates sync` when templates need attention.
 
 ---
 
@@ -251,9 +251,9 @@ speckit templates sync            # Update all + copy new templates
 **Solution:**
 
 ```bash
-speckit memory init constitution
+specflow memory init constitution
 # or
-/speckit.constitution
+/specflow.constitution
 ```
 
 ### Drift Detection
@@ -263,7 +263,7 @@ speckit memory init constitution
 **Solution:**
 
 ```bash
-/speckit.memory --reconcile
+/specflow.memory --reconcile
 ```
 
 ---
@@ -278,13 +278,13 @@ speckit memory init constitution
 
 ```bash
 # Check current state
-speckit status
+specflow status
 
 # Force specific phase
-/speckit.orchestrate --phase 0020
+/specflow.orchestrate --phase 0020
 
 # Reset orchestration state
-speckit state set "orchestration.step.current=specify"
+specflow state set "orchestration.step.current=specify"
 ```
 
 ### Gate Failures
@@ -295,11 +295,11 @@ speckit state set "orchestration.step.current=specify"
 
 ```bash
 # Check what's failing
-speckit gate status
-speckit gate <gate-name>
+specflow gate status
+specflow gate <gate-name>
 
 # Skip gates (not recommended)
-/speckit.orchestrate --skip-gates
+/specflow.orchestrate --skip-gates
 ```
 
 ---
@@ -314,19 +314,19 @@ speckit gate <gate-name>
 
 ```bash
 # Quick status (skips deep validation)
-speckit status --quick
+specflow status --quick
 
 # Skip reconciliation
-/speckit.memory --no-reconcile
+/specflow.memory --no-reconcile
 ```
 
 ---
 
 ## Getting Help
 
-1. **Smart entry point:** `/speckit.start` - auto-detects project state and routes to the right command
-2. **Run diagnostics:** `speckit doctor`
-3. **Check specific area:** `speckit doctor --check <area>`
+1. **Smart entry point:** `/specflow.start` - auto-detects project state and routes to the right command
+2. **Run diagnostics:** `specflow doctor`
+3. **Check specific area:** `specflow doctor --check <area>`
 4. **Verbose output:** Add `--verbose` to most commands
 5. **JSON output:** Add `--json` for machine-readable errors
-6. **File an issue:** https://github.com/wiseyoda/claude-speckit-orchestration/issues
+6. **File an issue:** https://github.com/wiseyoda/claude-specflow-orchestration/issues

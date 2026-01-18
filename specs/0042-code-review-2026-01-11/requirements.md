@@ -3,14 +3,14 @@
 ## Functional Requirements
 
 ### Best Practices (BP)
-- [ ] **FR-BP001**: Remove `declare -a` from speckit-doctor.sh
-- [ ] **FR-BP002**: Remove `declare -a`/`declare -A` from speckit-reconcile.sh
+- [ ] **FR-BP001**: Remove `declare -a` from specflow-doctor.sh
+- [ ] **FR-BP002**: Remove `declare -a`/`declare -A` from specflow-reconcile.sh
 - [ ] **FR-BP003**: Standardize error messages to use log_error/log_warn
-- [ ] **FR-BP004**: Update speckit-feature.sh to use 4-digit phases
-- [ ] **FR-BP005**: Update bin/speckit help to show 4-digit phases
+- [ ] **FR-BP004**: Update specflow-feature.sh to use 4-digit phases
+- [ ] **FR-BP005**: Update bin/specflow help to show 4-digit phases
 
 ### Refactoring (RF)
-- [ ] **FR-RF003**: Create check abstraction in speckit-doctor.sh
+- [ ] **FR-RF003**: Create check abstraction in specflow-doctor.sh
 - [ ] **FR-RF004**: Audit and cleanup unused functions in common.sh
 
 ### Hardening (HD)
@@ -30,7 +30,7 @@
 ### Outdated Docs (OD)
 - [ ] **FR-OD001**: Update README.md CLI Reference
 - [ ] **FR-OD002**: Update CLAUDE.md Key Files section
-- [ ] **FR-OD003**: Add /speckit.review to README commands
+- [ ] **FR-OD003**: Add /specflow.review to README commands
 
 ## Non-Functional Requirements
 

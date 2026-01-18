@@ -2,7 +2,7 @@
 
 ## Progress Dashboard
 
-> Last updated: 2026-01-11T04:55:43Z | Run `speckit tasks sync` to refresh
+> Last updated: 2026-01-11T04:55:43Z | Run `specflow tasks sync` to refresh
 
 | Phase | Status | Progress |
 |-------|--------|----------|
@@ -23,11 +23,11 @@
 - [x] T003 [P] Implement detect_project_type() function in scripts/bash/lib/detection.sh
 - [x] T004 [P] Implement detection priority order (tsconfig > package.json > Cargo.toml > go.mod > pyproject.toml > *.sh)
 - [x] T005 Add select_template_section() helper in scripts/bash/lib/detection.sh
-- [x] T006 [US1] Integrate detection.sh into speckit-scaffold.sh (source library)
-- [x] T007 [US1] Add --type flag to speckit-scaffold.sh for explicit override
+- [x] T006 [US1] Integrate detection.sh into specflow-scaffold.sh (source library)
+- [x] T007 [US1] Add --type flag to specflow-scaffold.sh for explicit override
 - [x] T008 [P] [US1] Update constitution-template.md with language-specific sections (TypeScript, Python, Rust, Go, Bash, Generic)
 - [x] T009 [P] [US1] Update tech-stack-template.md with language-specific sections (TypeScript, Python, Rust, Go, Bash, Generic)
-- [x] T010 [US1] Add template section extraction logic to speckit-scaffold.sh (use select_template_section)
+- [x] T010 [US1] Add template section extraction logic to specflow-scaffold.sh (use select_template_section)
 ---
 
 **Input**: Design documents from `/specs/0020-onboarding-polish/`
@@ -70,15 +70,15 @@
 
 **Goal**: Scaffold detects project type and customizes templates automatically
 
-**Independent Test**: Run `speckit scaffold` in a Python project and verify templates contain Python content
+**Independent Test**: Run `specflow scaffold` in a Python project and verify templates contain Python content
 
 ### Implementation for User Story 1
 
-- [x] T006 [US1] Integrate detection.sh into speckit-scaffold.sh (source library)
-- [x] T007 [US1] Add --type flag to speckit-scaffold.sh for explicit override
+- [x] T006 [US1] Integrate detection.sh into specflow-scaffold.sh (source library)
+- [x] T007 [US1] Add --type flag to specflow-scaffold.sh for explicit override
 - [x] T008 [P] [US1] Update constitution-template.md with language-specific sections (TypeScript, Python, Rust, Go, Bash, Generic)
 - [x] T009 [P] [US1] Update tech-stack-template.md with language-specific sections (TypeScript, Python, Rust, Go, Bash, Generic)
-- [x] T010 [US1] Add template section extraction logic to speckit-scaffold.sh (use select_template_section)
+- [x] T010 [US1] Add template section extraction logic to specflow-scaffold.sh (use select_template_section)
 - [x] T011 [US1] Write constitution.md and tech-stack.md with detected language sections during scaffold
 - [x] T012 [US1] Test detection in TypeScript project (verify tsconfig.json detected)
 - [x] T013 [US1] Test detection in Python project (verify pyproject.toml/requirements.txt detected)
@@ -92,11 +92,11 @@
 
 **Goal**: Preview scaffold changes without modifying filesystem
 
-**Independent Test**: Run `speckit scaffold --safe` and verify no files created
+**Independent Test**: Run `specflow scaffold --safe` and verify no files created
 
 ### Implementation for User Story 2
 
-- [x] T015 [US2] Add --safe flag parsing to speckit-scaffold.sh
+- [x] T015 [US2] Add --safe flag parsing to specflow-scaffold.sh
 - [x] T016 [US2] Implement dry-run mode that collects operations without writing
 - [x] T017 [US2] Format --safe output to show: create/modify/skip actions with paths
 - [x] T018 [US2] Test --safe mode in empty project and existing project
@@ -126,13 +126,13 @@
 
 **Goal**: First 3 lines of CLI output contain user-critical information
 
-**Independent Test**: Run speckit scaffold and verify first 3 lines show status, result, next step
+**Independent Test**: Run specflow scaffold and verify first 3 lines show status, result, next step
 
 ### Implementation for User Story 4
 
 - [x] T023 [US4] Add print_summary() function to scripts/bash/lib/common.sh
-- [x] T024 [US4] Update speckit-scaffold.sh to use print_summary() for output
-- [x] T025 [US4] Update speckit-doctor.sh to show overall health status first
+- [x] T024 [US4] Update specflow-scaffold.sh to use print_summary() for output
+- [x] T025 [US4] Update specflow-doctor.sh to show overall health status first
 - [x] T026 [US4] Verify first 3 lines pattern in scaffold and doctor commands
 
 **Checkpoint**: CLI output prioritizes user-critical information

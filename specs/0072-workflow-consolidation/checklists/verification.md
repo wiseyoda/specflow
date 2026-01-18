@@ -8,12 +8,12 @@
 ## Functional Verification
 
 ### Design Command Core (FR-001 to FR-003)
-- [ ] `/speckit.design` produces discovery.md
-- [ ] `/speckit.design` produces spec.md
-- [ ] `/speckit.design` produces plan.md
-- [ ] `/speckit.design` produces tasks.md
-- [ ] `/speckit.design` produces checklists/implementation.md
-- [ ] `/speckit.design` produces checklists/verification.md
+- [ ] `/specflow.design` produces discovery.md
+- [ ] `/specflow.design` produces spec.md
+- [ ] `/specflow.design` produces plan.md
+- [ ] `/specflow.design` produces tasks.md
+- [ ] `/specflow.design` produces checklists/implementation.md
+- [ ] `/specflow.design` produces checklists/verification.md
 - [ ] Clarifying questions appear inline with context
 
 ### Cascade Flags (FR-004 to FR-007)
@@ -40,17 +40,17 @@
 - [ ] `skip-to verify` works
 
 ### Roadmap Backlog (FR-013, FR-014)
-- [ ] `/speckit.roadmap backlog` lists backlog items
+- [ ] `/specflow.roadmap backlog` lists backlog items
 - [ ] `--auto` flag auto-assigns items
 - [ ] `--dry-run` previews without changes
 
 ### Deprecation (FR-015 to FR-017)
-- [ ] `/speckit.specify` shows deprecation message
-- [ ] `/speckit.clarify` shows deprecation message
-- [ ] `/speckit.plan` shows deprecation message
-- [ ] `/speckit.tasks` shows deprecation message
-- [ ] `/speckit.checklist` shows deprecation message
-- [ ] `/speckit.backlog` shows deprecation message
+- [ ] `/specflow.specify` shows deprecation message
+- [ ] `/specflow.clarify` shows deprecation message
+- [ ] `/specflow.plan` shows deprecation message
+- [ ] `/specflow.tasks` shows deprecation message
+- [ ] `/specflow.checklist` shows deprecation message
+- [ ] `/specflow.backlog` shows deprecation message
 - [ ] Each stub mentions correct replacement command
 
 ### Documentation (FR-018, FR-019)
@@ -66,7 +66,7 @@
 - [ ] Deprecated workflow commands = 6 (specify, clarify, plan, tasks, checklist, backlog)
 
 ### SC-002: Design Produces All Artifacts
-- [ ] Single `/speckit.design` run produces 5+ files
+- [ ] Single `/specflow.design` run produces 5+ files
 
 ### SC-003: Both Checklist Types
 - [ ] implementation.md created

@@ -2,7 +2,7 @@
 
 ## Progress Dashboard
 
-> Last updated: 2026-01-17 | Run `speckit tasks sync` to refresh
+> Last updated: 2026-01-17 | Run `specflow tasks sync` to refresh
 
 | Phase | Status | Progress |
 |-------|--------|----------|
@@ -140,5 +140,5 @@
 
 - All view components use existing SSE infrastructure from Phase 1020
 - Task parser must handle varied task.md formats gracefully
-- View preference stored as `speckit-view-{projectId}` in localStorage
+- View preference stored as `specflow-view-{projectId}` in localStorage
 - Real-time updates via existing ConnectionContext

@@ -153,9 +153,9 @@ If a phase is running long:
 
 ### Deferred Items Flow
 When items are deferred from a phase:
-1. `/speckit.verify` creates `checklists/deferred.md` with full documentation
+1. `/specflow.verify` creates `checklists/deferred.md` with full documentation
 2. ROADMAP.md next phase section gets updated with reference
-3. `/speckit.specify` for next phase automatically checks for inherited items
+3. `/specflow.specify` for next phase automatically checks for inherited items
 4. Items not assigned to a specific phase go to Backlog section above
 
 ---
@@ -164,11 +164,11 @@ When items are deferred from a phase:
 
 ### Starting a Phase
 ```
-/speckit.orchestrate
+/specflow.orchestrate
 ```
 Or manually:
 ```
-/speckit.specify "Phase NNNN - [Phase Name]"
+/specflow.specify "Phase NNNN - [Phase Name]"
 ```
 
 ### After Completing a Phase
@@ -177,22 +177,22 @@ Or manually:
 3. If USER GATE: get explicit user verification before proceeding
 
 ### Adding New Phases
-Use SpecKit commands:
+Use SpecFlow commands:
 ```bash
 # Insert a phase after 0020
-speckit roadmap insert --after 0020 "New Phase Name"
+specflow roadmap insert --after 0020 "New Phase Name"
 
 # Defer a phase to backlog
-speckit roadmap defer 0040
+specflow roadmap defer 0040
 
 # Restore from backlog
-speckit roadmap restore 0040 --after 0030
+specflow roadmap restore 0040 --after 0030
 ```
 
 ### Migrating from v2.0
 If you have a 3-digit phase roadmap:
 ```bash
-speckit migrate roadmap
+specflow migrate roadmap
 ```
 This converts 001→0010, 002→0020, etc.
 

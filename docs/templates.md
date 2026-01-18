@@ -1,13 +1,13 @@
 # Templates Guide
 
-SpecKit uses templates to generate consistent documentation artifacts. Templates can be customized at project or system level.
+SpecFlow uses templates to generate consistent documentation artifacts. Templates can be customized at project or system level.
 
 ## Template Locations
 
 | Level | Location | Priority |
 |-------|----------|----------|
 | Project | `.specify/templates/` | Highest (overrides system) |
-| System | `~/.claude/speckit-system/templates/` | Default |
+| System | `~/.claude/specflow-system/templates/` | Default |
 
 ## Available Templates
 
@@ -33,7 +33,7 @@ templates/
 ### List Available Templates
 
 ```bash
-speckit templates list
+specflow templates list
 ```
 
 ### Copy Template to Project
@@ -41,7 +41,7 @@ speckit templates list
 Copy a system template to your project for customization:
 
 ```bash
-speckit templates copy spec-template.md
+specflow templates copy spec-template.md
 ```
 
 This creates `.specify/templates/spec-template.md` which overrides the system default.
@@ -51,21 +51,21 @@ This creates `.specify/templates/spec-template.md` which overrides the system de
 See if your project templates differ from upstream:
 
 ```bash
-speckit templates check
+specflow templates check
 ```
 
 ### View Differences
 
 ```bash
-speckit templates diff spec-template.md
+specflow templates diff spec-template.md
 ```
 
 ### Update Templates
 
 ```bash
-speckit templates update spec-template.md    # Update specific
-speckit templates update-all                  # Update all outdated
-speckit templates sync                        # Update outdated + copy new templates
+specflow templates update spec-template.md    # Update specific
+specflow templates update-all                  # Update all outdated
+specflow templates sync                        # Update outdated + copy new templates
 ```
 
 ### Sync Templates (Recommended)
@@ -73,14 +73,14 @@ speckit templates sync                        # Update outdated + copy new templ
 The `sync` command is the recommended way to keep templates current:
 
 ```bash
-speckit templates sync
+specflow templates sync
 ```
 
 This command:
 1. Updates any outdated project templates to match system versions
 2. Copies any new system templates missing from your project
 
-**Note:** `speckit doctor` flags missing templates as **errors** (not warnings) since they can cause workflow failures. Doctor will suggest running `speckit templates sync` when templates need attention.
+**Note:** `specflow doctor` flags missing templates as **errors** (not warnings) since they can cause workflow failures. Doctor will suggest running `specflow templates sync` when templates need attention.
 
 ## Template Variables
 
@@ -146,7 +146,7 @@ Create `.specify/templates/checklist-template.md`:
 
 ## Project Type Detection
 
-SpecKit auto-detects project type and selects appropriate template variants:
+SpecFlow auto-detects project type and selects appropriate template variants:
 
 | Detection | Project Type |
 |-----------|-------------|
@@ -169,4 +169,4 @@ The project type affects:
 2. **Customize gradually** - Only copy templates you need to modify
 3. **Keep templates minimal** - Don't over-engineer
 4. **Version control** - Commit `.specify/templates/` to your repo
-5. **Check updates** - Periodically run `speckit templates check`
+5. **Check updates** - Periodically run `specflow templates check`

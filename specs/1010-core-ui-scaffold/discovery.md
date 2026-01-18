@@ -10,13 +10,13 @@
 ## Codebase Findings
 
 ### Current Project Structure
-- **Pure Bash CLI**: All current functionality in `scripts/bash/speckit-*.sh`
+- **Pure Bash CLI**: All current functionality in `scripts/bash/specflow-*.sh`
 - **No existing frontend**: No `packages/`, TypeScript, or React files exist
 - **Test framework**: Custom bash test runner in `tests/test-runner.sh`
 - **25+ CLI commands**: state, scaffold, context, roadmap, tasks, doctor, etc.
 
 ### Registry Format
-Location: `~/.speckit/registry.json`
+Location: `~/.specflow/registry.json`
 ```json
 {
   "projects": {
@@ -57,16 +57,16 @@ Location: `~/.speckit/registry.json`
 ## Integration Points
 
 ### Data Sources
-1. **Registry** (`~/.speckit/registry.json`) - Project list
+1. **Registry** (`~/.specflow/registry.json`) - Project list
 2. **State files** (`.specify/orchestration-state.json`) - Per-project state
 3. **ROADMAP.md** - Phase status
 4. **Phase files** (`.specify/phases/*.md`) - Phase details
 
 ### CLI Commands to Wrap
-- `speckit status --json` - Comprehensive project status
-- `speckit roadmap status` - Phase statuses
-- `speckit tasks status --json` - Task progress
-- `speckit issue list --json` - Issues
+- `specflow status --json` - Comprehensive project status
+- `specflow roadmap status` - Phase statuses
+- `specflow tasks status --json` - Task progress
+- `specflow issue list --json` - Issues
 
 ---
 
@@ -91,7 +91,7 @@ Location: `~/.speckit/registry.json`
 - Project list from registry.json
 - Dark/light mode toggle
 - Command palette shell (Cmd+K opens, placeholder content)
-- `speckit dashboard` CLI command
+- `specflow dashboard` CLI command
 
 ### Out of Scope (Future Phases)
 - Project detail views

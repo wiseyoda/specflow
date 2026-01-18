@@ -35,7 +35,7 @@
 
 ## POSIX Compliance
 
-- [x] No `declare -A` usage (removed from speckit-gate.sh)
+- [x] No `declare -A` usage (removed from specflow-gate.sh)
 - [x] No `head -n -1` usage (using sed '$d' instead)
 - [ ] `shellcheck scripts/bash/*.sh` reports no errors (deferred to CI - not installed locally)
 

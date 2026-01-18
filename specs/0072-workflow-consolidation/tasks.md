@@ -2,7 +2,7 @@
 
 ## Progress Dashboard
 
-> Last updated: 2026-01-18T03:56:34Z | Run `speckit tasks sync` to refresh
+> Last updated: 2026-01-18T03:56:34Z | Run `specflow tasks sync` to refresh
 
 | Phase | Status | Progress |
 |-------|--------|----------|
@@ -20,13 +20,13 @@
 
 - [x] T001 Create specs/0072-workflow-consolidation/checklists/ directory
 - [x] T002 [P] Read all existing command files to understand current structure
-- [x] T003 [US1] Create commands/speckit.design.md with header and argument parsing
-- [x] T004 [US1] Implement DISCOVER phase in speckit.design.md (codebase examination, progressive questions)
-- [x] T005 [US1] Implement SPECIFY phase in speckit.design.md (spec.md AND requirements.md creation)
+- [x] T003 [US1] Create commands/specflow.design.md with header and argument parsing
+- [x] T004 [US1] Implement DISCOVER phase in specflow.design.md (codebase examination, progressive questions)
+- [x] T005 [US1] Implement SPECIFY phase in specflow.design.md (spec.md AND requirements.md creation)
 - [x] T006 [US1] Implement inline clarification behavior (questions with context and recommendations)
-- [x] T007 [US1] Implement PLAN phase in speckit.design.md (plan.md, research.md, data-model.md)
-- [x] T008 [US1] Implement TASKS phase in speckit.design.md (tasks.md generation)
-- [x] T009 [US1] Implement CHECKLISTS phase in speckit.design.md (both implementation.md and verification.md)
+- [x] T007 [US1] Implement PLAN phase in specflow.design.md (plan.md, research.md, data-model.md)
+- [x] T008 [US1] Implement TASKS phase in specflow.design.md (tasks.md generation)
+- [x] T009 [US1] Implement CHECKLISTS phase in specflow.design.md (both implementation.md and verification.md)
 - [x] T010 [US1] Add state tracking for resumable flow (design.substep in state) - discovery always re-runs per FR-008a
 ---
 
@@ -51,22 +51,22 @@
 
 ## Phase 2: User Story 1 - Design Command (Priority: P1)
 
-**Goal**: Create `/speckit.design` that produces all design artifacts in one command
+**Goal**: Create `/specflow.design` that produces all design artifacts in one command
 
-**Independent Test**: Run `/speckit.design` on a new phase and verify all artifacts are created
+**Independent Test**: Run `/specflow.design` on a new phase and verify all artifacts are created
 
 ### Implementation
 
-- [x] T003 [US1] Create commands/speckit.design.md with header and argument parsing
-- [x] T004 [US1] Implement DISCOVER phase in speckit.design.md (codebase examination, progressive questions)
-- [x] T005 [US1] Implement SPECIFY phase in speckit.design.md (spec.md AND requirements.md creation)
+- [x] T003 [US1] Create commands/specflow.design.md with header and argument parsing
+- [x] T004 [US1] Implement DISCOVER phase in specflow.design.md (codebase examination, progressive questions)
+- [x] T005 [US1] Implement SPECIFY phase in specflow.design.md (spec.md AND requirements.md creation)
 - [x] T006 [US1] Implement inline clarification behavior (questions with context and recommendations)
-- [x] T007 [US1] Implement PLAN phase in speckit.design.md (plan.md, research.md, data-model.md)
-- [x] T008 [US1] Implement TASKS phase in speckit.design.md (tasks.md generation)
-- [x] T009 [US1] Implement CHECKLISTS phase in speckit.design.md (both implementation.md and verification.md)
+- [x] T007 [US1] Implement PLAN phase in specflow.design.md (plan.md, research.md, data-model.md)
+- [x] T008 [US1] Implement TASKS phase in specflow.design.md (tasks.md generation)
+- [x] T009 [US1] Implement CHECKLISTS phase in specflow.design.md (both implementation.md and verification.md)
 - [x] T010 [US1] Add state tracking for resumable flow (design.substep in state) - discovery always re-runs per FR-008a
 
-**Checkpoint**: `/speckit.design` produces all 5 artifact types
+**Checkpoint**: `/specflow.design` produces all 5 artifact types
 
 ---
 
@@ -74,11 +74,11 @@
 
 **Goal**: Support cascade flags (--spec, --plan, --tasks, --checklist)
 
-**Independent Test**: Run `/speckit.design --plan` and verify plan + tasks + checklists regenerated
+**Independent Test**: Run `/specflow.design --plan` and verify plan + tasks + checklists regenerated
 
 ### Implementation
 
-- [x] T011 [US2] Add flag parsing to speckit.design.md for --spec, --plan, --tasks, --checklist
+- [x] T011 [US2] Add flag parsing to specflow.design.md for --spec, --plan, --tasks, --checklist
 - [x] T012 [US2] Implement cascade logic: --spec → spec + plan + tasks + checklists
 - [x] T013 [US2] Implement cascade logic: --plan → plan + tasks + checklists
 - [x] T014 [US2] Implement cascade logic: --tasks → tasks + checklists, --checklist → checklists only
@@ -91,11 +91,11 @@
 
 **Goal**: Update orchestrate to use 4-step workflow
 
-**Independent Test**: Run `/speckit.orchestrate status` and see 4 steps
+**Independent Test**: Run `/specflow.orchestrate status` and see 4 steps
 
 ### Implementation
 
-- [x] T015 [US3] Update commands/speckit.orchestrate.md workflow steps table (9 → 4 steps)
+- [x] T015 [US3] Update commands/specflow.orchestrate.md workflow steps table (9 → 4 steps)
 - [x] T016 [US3] Update step index mapping (0=design, 1=analyze, 2=implement, 3=verify)
 - [x] T017 [US3] Add state migration logic for old indices (0-8) to new indices (0-3)
 - [x] T018 [US3] Update status display to show 4 steps
@@ -108,17 +108,17 @@
 
 ## Phase 5: User Story 4 - Roadmap Backlog (Priority: P3)
 
-**Goal**: Add `backlog` subcommand to `/speckit.roadmap`
+**Goal**: Add `backlog` subcommand to `/specflow.roadmap`
 
-**Independent Test**: Run `/speckit.roadmap backlog` and see backlog items
+**Independent Test**: Run `/specflow.roadmap backlog` and see backlog items
 
 ### Implementation
 
-- [x] T021 [US4] Add backlog subcommand section to commands/speckit.roadmap.md
-- [x] T022 [US4] Move backlog logic from speckit.backlog.md to roadmap backlog subcommand
+- [x] T021 [US4] Add backlog subcommand section to commands/specflow.roadmap.md
+- [x] T022 [US4] Move backlog logic from specflow.backlog.md to roadmap backlog subcommand
 - [x] T023 [US4] Ensure --auto and --dry-run flags work for roadmap backlog
 
-**Checkpoint**: `/speckit.roadmap backlog` has same functionality as old `/speckit.backlog`
+**Checkpoint**: `/specflow.roadmap backlog` has same functionality as old `/specflow.backlog`
 
 ---
 
@@ -130,12 +130,12 @@
 
 ### Implementation
 
-- [x] T024 [P] [US5] Convert commands/speckit.specify.md to deprecation stub (→ design)
-- [x] T025 [P] [US5] Convert commands/speckit.clarify.md to deprecation stub (→ design)
-- [x] T026 [P] [US5] Convert commands/speckit.plan.md to deprecation stub (→ design --plan)
-- [x] T027 [P] [US5] Convert commands/speckit.tasks.md to deprecation stub (→ design --tasks)
-- [x] T028 [P] [US5] Convert commands/speckit.checklist.md to deprecation stub (→ design --checklist)
-- [x] T029 [P] [US5] Convert commands/speckit.backlog.md to deprecation stub (→ roadmap backlog)
+- [x] T024 [P] [US5] Convert commands/specflow.specify.md to deprecation stub (→ design)
+- [x] T025 [P] [US5] Convert commands/specflow.clarify.md to deprecation stub (→ design)
+- [x] T026 [P] [US5] Convert commands/specflow.plan.md to deprecation stub (→ design --plan)
+- [x] T027 [P] [US5] Convert commands/specflow.tasks.md to deprecation stub (→ design --tasks)
+- [x] T028 [P] [US5] Convert commands/specflow.checklist.md to deprecation stub (→ design --checklist)
+- [x] T029 [P] [US5] Convert commands/specflow.backlog.md to deprecation stub (→ roadmap backlog)
 
 **Checkpoint**: All 6 deprecated commands show helpful migration messages
 

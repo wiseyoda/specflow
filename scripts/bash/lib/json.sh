@@ -9,16 +9,16 @@
 #
 
 # Double-source guard
-[[ -n "${SPECKIT_JSON_LOADED:-}" ]] && return 0
+[[ -n "${SPECFLOW_JSON_LOADED:-}" ]] && return 0
 
 # Source common if not already sourced
 SCRIPT_DIR_JSON="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -z "${SPECKIT_COMMON_LOADED:-}" ]]; then
+if [[ -z "${SPECFLOW_COMMON_LOADED:-}" ]]; then
   source "${SCRIPT_DIR_JSON}/common.sh"
 fi
 
 # Mark as loaded
-SPECKIT_JSON_LOADED=1
+SPECFLOW_JSON_LOADED=1
 
 # =============================================================================
 # JSON File Operations

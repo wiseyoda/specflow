@@ -2,7 +2,7 @@
 #
 # Test Suite: State Management
 #
-# Tests for speckit state commands:
+# Tests for specflow state commands:
 #   - init, get, set, validate, reset, migrate, path
 #
 
@@ -16,7 +16,7 @@ test_state_init() {
   mkdir -p .specify
 
   # Run state init
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" init --force
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" init --force
 
   # Verify state file created
   assert_file_exists ".specify/orchestration-state.json" "State file created"
@@ -35,23 +35,23 @@ test_state_get() {
   # Setup
   git init -q .
   mkdir -p .specify
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" init --force
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" init --force
 
   # Test get full state
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" get)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" get)
   assert_contains "$output" '"version": "2.0"' "Full state contains version"
 
   # Test get specific key
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" get .version)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" get .version)
   assert_equals "2.0" "$output" "Get specific key returns value"
 
   # Test get nested key
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" get .config.roadmap_path)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" get .config.roadmap_path)
   assert_equals "ROADMAP.md" "$output" "Get nested key returns value"
 
   # Test get section
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" get .config)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" get .config)
   assert_contains "$output" "roadmap_path" "Get section returns object"
 }
 
@@ -59,16 +59,16 @@ test_state_set() {
   # Setup
   git init -q .
   mkdir -p .specify
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" init --force
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" init --force
 
   # Set a value
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".project.name=TestProject"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".project.name=TestProject"
 
   # Verify it was set
   assert_json_equals ".specify/orchestration-state.json" ".project.name" "TestProject" "Value was set"
 
   # Set nested value
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.step=plan"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.step=plan"
   assert_json_equals ".specify/orchestration-state.json" ".orchestration.step" "plan" "Nested value was set"
 
   # Verify timestamp was updated
@@ -81,31 +81,31 @@ test_state_validate() {
   # Setup valid state
   git init -q .
   mkdir -p .specify
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" init --force
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" init --force
 
   # Validate should succeed
-  assert_command_succeeds "bash ${PROJECT_ROOT}/scripts/bash/speckit-state.sh validate" "Valid state passes validation"
+  assert_command_succeeds "bash ${PROJECT_ROOT}/scripts/bash/specflow-state.sh validate" "Valid state passes validation"
 
   # Corrupt the state
   echo "not json" > .specify/orchestration-state.json
 
   # Validate should fail
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-state.sh validate" "Invalid JSON fails validation"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-state.sh validate" "Invalid JSON fails validation"
 }
 
 test_state_reset() {
   # Setup
   git init -q .
   mkdir -p .specify
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" init --force
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" init --force
 
   # Set some values
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".project.name=TestProject"
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".interview.status=in_progress"
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" set ".orchestration.step=plan"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".project.name=TestProject"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".interview.status=in_progress"
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" set ".orchestration.step=plan"
 
   # Reset (should preserve config but reset interview/orchestration)
-  echo "y" | bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" reset
+  echo "y" | bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" reset
 
   # Verify interview was reset
   assert_json_equals ".specify/orchestration-state.json" ".interview.status" "not_started" "Interview was reset"
@@ -121,7 +121,7 @@ test_state_path() {
 
   # Get path
   local path
-  path=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" path)
+  path=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" path)
 
   # Should end with the expected filename
   assert_contains "$path" "orchestration-state.json" "Path contains correct filename"
@@ -131,11 +131,11 @@ test_state_json_output() {
   # Setup
   git init -q .
   mkdir -p .specify
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" init --force
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" init --force
 
   # Test JSON output flag
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-state.sh" get --json)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-state.sh" get --json)
 
   # Should be valid JSON
   echo "$output" | jq '.' >/dev/null 2>&1
@@ -148,10 +148,10 @@ test_state_no_file() {
   mkdir -p .specify
 
   # Get should fail gracefully
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-state.sh get" "Get fails without state file"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-state.sh get" "Get fails without state file"
 
   # Set should fail gracefully
-  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/speckit-state.sh set .foo=bar" "Set fails without state file"
+  assert_command_fails "bash ${PROJECT_ROOT}/scripts/bash/specflow-state.sh set .foo=bar" "Set fails without state file"
 }
 
 # =============================================================================

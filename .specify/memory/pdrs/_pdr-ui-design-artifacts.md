@@ -39,7 +39,7 @@
 ## User Stories
 
 ### Story 1: UI Phase Detection
-**As a** SpecKit user starting a UI-heavy phase,
+**As a** SpecFlow user starting a UI-heavy phase,
 **I want** the system to detect that my phase involves visual UI changes,
 **So that** it automatically creates UI design documentation.
 
@@ -89,8 +89,8 @@
 ## Constraints
 
 - **Must**: Auto-detect UI phases (not manual opt-in)
-- **Must**: Create documentation during `/speckit.specify` (early in workflow)
-- **Must**: Verify existence during `/speckit.plan` (safety net)
+- **Must**: Create documentation during `/specflow.specify` (early in workflow)
+- **Must**: Verify existence during `/specflow.plan` (safety net)
 - **Should**: Use mixed format (descriptions + ASCII + Mermaid)
 - **Must Not**: Require external tools (no Figma, no image generation)
 - **Must Not**: Block non-UI phases with unnecessary folders
@@ -110,8 +110,8 @@
 
 | Dependency | Type | Impact | Status |
 |------------|------|--------|--------|
-| `/speckit.specify` command | Blocking | Must modify to detect UI and create folder | Exists |
-| `/speckit.plan` command | Blocking | Must modify to verify UI docs exist | Exists |
+| `/specflow.specify` command | Blocking | Must modify to detect UI and create folder | Exists |
+| `/specflow.plan` command | Blocking | Must modify to verify UI docs exist | Exists |
 | `spec-template.md` | Informational | May need UI section guidance | Exists |
 
 ---
@@ -128,7 +128,7 @@
 
 ### Must Complete
 
-1. [ ] **Detection logic** added to `/speckit.specify`:
+1. [ ] **Detection logic** added to `/specflow.specify`:
    - Scan phase scope/goal for UI keywords
    - Keywords: dashboard, form, button, screen, page, view, component, interface, modal, dialog, panel, widget, layout, navigation, menu, sidebar, header, footer
    - If detected: create `specs/XXXX/ui/` folder
@@ -161,7 +161,7 @@
    - Where requirements mention UI elements, add: `(see [ui/design.md](ui/design.md#section))`
    - Link to specific sections using anchors
 
-4. [ ] **Plan verification** in `/speckit.plan`:
+4. [ ] **Plan verification** in `/specflow.plan`:
    - Check if phase is UI-related (from spec or scope keywords)
    - If yes, verify `ui/design.md` exists
    - If missing, create it (with TODO markers)
@@ -172,7 +172,7 @@
 ### Should Complete
 
 6. [ ] Add to verification checklist: "UI implementation matches design.md"
-7. [ ] Gate check in `/speckit.gate implement` for UI phases
+7. [ ] Gate check in `/specflow.gate implement` for UI phases
 
 ---
 
@@ -205,7 +205,7 @@
 No existing dashboard. Users interact via CLI only.
 
 ## Proposed Design (After)
-A web-based dashboard showing all registered SpecKit projects with:
+A web-based dashboard showing all registered SpecFlow projects with:
 - Project cards in a grid layout
 - Real-time status indicators
 - Quick action buttons
@@ -213,7 +213,7 @@ A web-based dashboard showing all registered SpecKit projects with:
 ### Visual Mockup
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  SpecKit Dashboard                        [Settings] [?]│
+│  SpecFlow Dashboard                        [Settings] [?]│
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │

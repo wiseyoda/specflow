@@ -5,7 +5,7 @@
 
 ## Summary
 
-Add two slash commands (`/speckit.merge`, `/speckit.backlog`) and one CLI subcommand (`speckit roadmap backlog add`) to streamline end-of-phase workflows and continuous backlog management. The merge command automates git operations, state archival, and ROADMAP updates. The backlog commands enable quick capture and intelligent triage of work items.
+Add two slash commands (`/specflow.merge`, `/specflow.backlog`) and one CLI subcommand (`specflow roadmap backlog add`) to streamline end-of-phase workflows and continuous backlog management. The merge command automates git operations, state archival, and ROADMAP updates. The backlog commands enable quick capture and intelligent triage of work items.
 
 ## Technical Context
 
@@ -25,7 +25,7 @@ _GATE: Must pass before implementation._
 |-----------|--------|-------|
 | I. Developer Experience First | ✅ Pass | Commands reduce manual steps from 6+ to 1 |
 | II. POSIX-Compliant Bash | ✅ Pass | All scripts use POSIX syntax |
-| III. CLI Over Direct Edits | ✅ Pass | Uses existing `speckit state archive`, adds new CLI commands |
+| III. CLI Over Direct Edits | ✅ Pass | Uses existing `specflow state archive`, adds new CLI commands |
 | IV. Simplicity Over Cleverness | ✅ Pass | Builds on existing patterns (roadmap.sh, state.sh) |
 | V. Helpful Error Messages | ✅ Pass | All commands include context and next steps |
 | VI. Graceful Degradation | ✅ Pass | Git failures don't corrupt state; partial success allowed |
@@ -46,31 +46,31 @@ specs/0015-workflow-commands/
 
 ```text
 commands/
-├── speckit.merge.md         # NEW: Slash command for phase completion
-└── speckit.backlog.md       # NEW: Slash command for backlog triage
+├── specflow.merge.md         # NEW: Slash command for phase completion
+└── specflow.backlog.md       # NEW: Slash command for backlog triage
 
 scripts/bash/
-├── speckit-roadmap.sh       # MODIFY: Add backlog subcommand
+├── specflow-roadmap.sh       # MODIFY: Add backlog subcommand
 └── lib/common.sh            # No changes needed
 
 ROADMAP.md                   # RUNTIME: Updated by commands
 .specify/orchestration-state.json  # RUNTIME: Updated by commands
 ```
 
-**Structure Decision**: Follows existing SpecKit patterns. Slash commands go in `commands/`, bash logic extends `speckit-roadmap.sh`.
+**Structure Decision**: Follows existing SpecFlow patterns. Slash commands go in `commands/`, bash logic extends `specflow-roadmap.sh`.
 
 ## Implementation Approach
 
-### Component 1: `/speckit.merge` Slash Command
+### Component 1: `/specflow.merge` Slash Command
 
-**File**: `commands/speckit.merge.md`
+**File**: `commands/specflow.merge.md`
 
 A Claude Code slash command that orchestrates end-of-phase workflow:
 
 1. **Pre-flight checks**:
    - Verify on feature branch (not main)
    - Check for uncommitted changes
-   - Verify task completion status via `speckit tasks status`
+   - Verify task completion status via `specflow tasks status`
 
 2. **Git operations**:
    - Push current branch to origin
@@ -81,8 +81,8 @@ A Claude Code slash command that orchestrates end-of-phase workflow:
    - Delete feature branch locally and remote
 
 3. **State operations**:
-   - Run `speckit state archive` to archive phase
-   - Run `speckit roadmap update {phase} complete` to update ROADMAP
+   - Run `specflow state archive` to archive phase
+   - Run `specflow roadmap update {phase} complete` to update ROADMAP
 
 4. **Backlog summary**:
    - Read ROADMAP.md Backlog section
@@ -93,9 +93,9 @@ A Claude Code slash command that orchestrates end-of-phase workflow:
 - `--force`: Skip task completion check
 - `--dry-run`: Show what would happen without executing
 
-### Component 2: `/speckit.backlog` Slash Command
+### Component 2: `/specflow.backlog` Slash Command
 
-**File**: `commands/speckit.backlog.md`
+**File**: `commands/specflow.backlog.md`
 
 A Claude Code slash command that triages backlog items:
 
@@ -115,18 +115,18 @@ A Claude Code slash command that triages backlog items:
 4. **Update ROADMAP**:
    - Add assigned items to phase Scope sections
    - Remove from Backlog section
-   - Create new phases for unassignable items (using `speckit roadmap insert`)
+   - Create new phases for unassignable items (using `specflow roadmap insert`)
 
-### Component 3: `speckit roadmap backlog add` CLI Subcommand
+### Component 3: `specflow roadmap backlog add` CLI Subcommand
 
-**File**: `scripts/bash/speckit-roadmap.sh` (extend)
+**File**: `scripts/bash/specflow-roadmap.sh` (extend)
 
 Add `backlog` subcommand with `add` action:
 
 ```bash
-speckit roadmap backlog add "My new idea"
-speckit roadmap backlog list
-speckit roadmap backlog clear  # For after triage
+specflow roadmap backlog add "My new idea"
+specflow roadmap backlog list
+specflow roadmap backlog clear  # For after triage
 ```
 
 **Implementation**:
@@ -174,8 +174,8 @@ Test file: `tests/test-roadmap-backlog.sh`
 
 ### Integration Tests
 
-1. Test `/speckit.merge` with mock git commands
-2. Test `/speckit.backlog` with sample ROADMAP
+1. Test `/specflow.merge` with mock git commands
+2. Test `/specflow.backlog` with sample ROADMAP
 3. Test full workflow: add → triage → verify
 
 ## Risk Mitigation
@@ -198,17 +198,17 @@ Test file: `tests/test-roadmap-backlog.sh`
 | jq | Yes | Error with install instructions |
 | gh | No | Manual PR instructions |
 
-### Existing SpecKit Commands Used
+### Existing SpecFlow Commands Used
 
-- `speckit state archive` - Archive completed phase
-- `speckit state get` - Read current state
-- `speckit roadmap update` - Update phase status
-- `speckit roadmap insert` - Create new phases
-- `speckit tasks status` - Check task completion
+- `specflow state archive` - Archive completed phase
+- `specflow state get` - Read current state
+- `specflow roadmap update` - Update phase status
+- `specflow roadmap insert` - Create new phases
+- `specflow tasks status` - Check task completion
 
 ## Implementation Order
 
-1. **Phase 1 - CLI Foundation**: Add `speckit roadmap backlog` subcommand
-2. **Phase 2 - Merge Command**: Create `/speckit.merge` slash command
-3. **Phase 3 - Backlog Triage**: Create `/speckit.backlog` slash command
+1. **Phase 1 - CLI Foundation**: Add `specflow roadmap backlog` subcommand
+2. **Phase 2 - Merge Command**: Create `/specflow.merge` slash command
+3. **Phase 3 - Backlog Triage**: Create `/specflow.backlog` slash command
 4. **Phase 4 - Polish**: Error handling, help text, edge cases

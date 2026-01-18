@@ -1,4 +1,4 @@
-# SpecKit Commands Analysis
+# SpecFlow Commands Analysis
 
 > **Purpose**: Comprehensive analysis of all Claude Code slash commands for cleanup planning.
 > **Created**: 2026-01-17
@@ -8,9 +8,9 @@
 
 ## Overview
 
-SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that guide the spec-driven development workflow. This document catalogs each command with complexity scores, line counts, and improvement notes.
+SpecFlow has **10 active Claude Code commands** (plus 9 deprecated stubs) that guide the spec-driven development workflow. This document catalogs each command with complexity scores, line counts, and improvement notes.
 
-> **v2.3 Update**: Workflow commands consolidated from 9 steps to 4 steps. New `/speckit.design` command replaces specify, clarify, plan, tasks, and checklist. Backlog moved to `/speckit.roadmap backlog` subcommand. See [Main Workflow Commands](#main-workflow-commands-orchestrate-steps) for details.
+> **v2.3 Update**: Workflow commands consolidated from 9 steps to 4 steps. New `/specflow.design` command replaces specify, clarify, plan, tasks, and checklist. Backlog moved to `/specflow.roadmap backlog` subcommand. See [Main Workflow Commands](#main-workflow-commands-orchestrate-steps) for details.
 
 ### Complexity Scale (1-10)
 
@@ -32,20 +32,20 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 
 | # | Command | Complexity | Lines | File |
 |---|---------|:----------:|:-----:|------|
-| 1 | `/speckit.init` | 7/10 | ~600 | `commands/speckit.init.md` |
-| 2 | `/speckit.memory` | 7/10 | ~750 | `commands/speckit.memory.md` |
-| 3 | `/speckit.roadmap` | 6/10 | ~650 | `commands/speckit.roadmap.md` |
+| 1 | `/specflow.init` | 7/10 | ~600 | `commands/specflow.init.md` |
+| 2 | `/specflow.memory` | 7/10 | ~750 | `commands/specflow.memory.md` |
+| 3 | `/specflow.roadmap` | 6/10 | ~650 | `commands/specflow.roadmap.md` |
 
 **Deprecated Commands (3 stubs, ~30-50 lines each):**
 
 | # | Command | Replacement | File |
 |---|---------|-------------|------|
-| D1 | `/speckit.start` | `/speckit.orchestrate` | `commands/speckit.start.md` |
-| D2 | `/speckit.constitution` | `/speckit.init` | `commands/speckit.constitution.md` |
-| D3 | `/speckit.phase` | `/speckit.roadmap add-pdr` | `commands/speckit.phase.md` |
+| D1 | `/specflow.start` | `/specflow.orchestrate` | `commands/specflow.start.md` |
+| D2 | `/specflow.constitution` | `/specflow.init` | `commands/specflow.constitution.md` |
+| D3 | `/specflow.phase` | `/specflow.roadmap add-pdr` | `commands/specflow.phase.md` |
 
 **Deleted (1):**
-- `/speckit.memory-init` - Merged into `/speckit.init`
+- `/specflow.memory-init` - Merged into `/specflow.init`
 
 > **Note**: See also [Main Workflow Deprecated Commands](#main-workflow-deprecated-commands) for 6 additional deprecated stubs added in v2.3.
 
@@ -55,11 +55,11 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 
 | # | Command | Complexity | Lines | File |
 |---|---------|:----------:|:-----:|------|
-| 4 | `/speckit.orchestrate` | 9/10 | ~600 | `commands/speckit.orchestrate.md` |
-| 5 | `/speckit.design` | 8/10 | ~400 | `commands/speckit.design.md` |
-| 6 | `/speckit.analyze` | 4/10 | ~185 | `commands/speckit.analyze.md` |
-| 7 | `/speckit.implement` | 6/10 | ~300 | `commands/speckit.implement.md` |
-| 8 | `/speckit.verify` | 6/10 | ~605 | `commands/speckit.verify.md` |
+| 4 | `/specflow.orchestrate` | 9/10 | ~600 | `commands/specflow.orchestrate.md` |
+| 5 | `/specflow.design` | 8/10 | ~400 | `commands/specflow.design.md` |
+| 6 | `/specflow.analyze` | 4/10 | ~185 | `commands/specflow.analyze.md` |
+| 7 | `/specflow.implement` | 6/10 | ~300 | `commands/specflow.implement.md` |
+| 8 | `/specflow.verify` | 6/10 | ~605 | `commands/specflow.verify.md` |
 
 > **v2.3 Workflow**: 4-step flow: design → analyze → implement → verify
 
@@ -69,32 +69,32 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 
 | # | Command | Replacement | File |
 |---|---------|-------------|------|
-| D4 | `/speckit.specify` | `/speckit.design` | `commands/speckit.specify.md` |
-| D5 | `/speckit.clarify` | `/speckit.design` | `commands/speckit.clarify.md` |
-| D6 | `/speckit.plan` | `/speckit.design --plan` | `commands/speckit.plan.md` |
-| D7 | `/speckit.tasks` | `/speckit.design --tasks` | `commands/speckit.tasks.md` |
-| D8 | `/speckit.checklist` | `/speckit.design --checklist` | `commands/speckit.checklist.md` |
-| D9 | `/speckit.backlog` | `/speckit.roadmap backlog` | `commands/speckit.backlog.md` |
+| D4 | `/specflow.specify` | `/specflow.design` | `commands/specflow.specify.md` |
+| D5 | `/specflow.clarify` | `/specflow.design` | `commands/specflow.clarify.md` |
+| D6 | `/specflow.plan` | `/specflow.design --plan` | `commands/specflow.plan.md` |
+| D7 | `/specflow.tasks` | `/specflow.design --tasks` | `commands/specflow.tasks.md` |
+| D8 | `/specflow.checklist` | `/specflow.design --checklist` | `commands/specflow.checklist.md` |
+| D9 | `/specflow.backlog` | `/specflow.roadmap backlog` | `commands/specflow.backlog.md` |
 
 ### Post-Workflow Commands
 
 | # | Command | Complexity | Lines | File |
 |---|---------|:----------:|:-----:|------|
-| 9 | `/speckit.merge` | 6/10 | ~575 | `commands/speckit.merge.md` |
+| 9 | `/specflow.merge` | 6/10 | ~575 | `commands/specflow.merge.md` |
 
-> **Note**: `/speckit.backlog` has been deprecated. Use `/speckit.roadmap backlog` instead.
+> **Note**: `/specflow.backlog` has been deprecated. Use `/specflow.roadmap backlog` instead.
 
 ### Supplementary Commands
 
 | # | Command | Complexity | Lines | File |
 |---|---------|:----------:|:-----:|------|
-| 10 | `/speckit.review` | 6/10 | ~460 | `commands/speckit.review.md` |
+| 10 | `/specflow.review` | 6/10 | ~460 | `commands/specflow.review.md` |
 
 ### Utility Commands (Non-numbered)
 
 | Command | Complexity | Lines | File |
 |---------|:----------:|:-----:|------|
-| `/speckit.taskstoissues` | 2/10 | ~30 | `commands/utilities/speckit.taskstoissues.md` |
+| `/specflow.taskstoissues` | 2/10 | ~30 | `commands/utilities/specflow.taskstoissues.md` |
 
 ---
 
@@ -117,7 +117,7 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 ├─────────────────────────────────────────────────────────────────┤
 │  design → analyze → implement → verify                           │
 │    │                                                             │
-│    └─ /speckit.design produces: discovery.md, spec.md,          │
+│    └─ /specflow.design produces: discovery.md, spec.md,          │
 │       requirements.md, plan.md, tasks.md, checklists/           │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
@@ -132,7 +132,7 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 
 ## Detailed Command Descriptions
 
-### 1. `/speckit.init` (Complexity: 7/10)
+### 1. `/specflow.init` (Complexity: 7/10)
 
 **Purpose**: One-command project setup with full initialization flow.
 
@@ -149,12 +149,12 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 
 **Notes**:
 - Expanded in v2.2 to include constitution, memory, and roadmap generation
-- Absorbed functionality from deprecated `/speckit.constitution`, `/speckit.memory-init`
+- Absorbed functionality from deprecated `/specflow.constitution`, `/specflow.memory-init`
 - Uses placeholder detection for smart idempotency
 
 ---
 
-### 2. `/speckit.memory` (Complexity: 7/10)
+### 2. `/specflow.memory` (Complexity: 7/10)
 
 **Purpose**: Memory document lifecycle management (verification, reconciliation, promotion).
 
@@ -172,12 +172,12 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 **Flags**: `--dry-run`, `--verbose`, `--fix`, `--reconcile`, `--no-reconcile`, `--promote`, `--deep`
 
 **Notes**:
-- `generate` subcommand removed in v2.2 (use `/speckit.init` instead)
+- `generate` subcommand removed in v2.2 (use `/specflow.init` instead)
 - Focused on verification and reconciliation only
 
 ---
 
-### 3. `/speckit.roadmap` (Complexity: 6/10)
+### 3. `/specflow.roadmap` (Complexity: 6/10)
 
 **Purpose**: Creates/updates ROADMAP.md with logical phases and verification gates.
 
@@ -198,15 +198,15 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 **Dependencies**:
 - Optional: `.specify/discovery/`, `.specify/memory/`
 - PDRs: `.specify/memory/pdrs/` (for add-pdr)
-- CLI: `speckit roadmap`, `speckit pdr` commands
+- CLI: `specflow roadmap`, `specflow pdr` commands
 
 **Notes**:
 - Expanded in v2.2 to include `add-pdr` subcommand
-- Absorbed functionality from deprecated `/speckit.phase`
+- Absorbed functionality from deprecated `/specflow.phase`
 
 ---
 
-### 4. `/speckit.orchestrate` (Complexity: 9/10)
+### 4. `/specflow.orchestrate` (Complexity: 9/10)
 
 **Purpose**: Master orchestrator for the complete development workflow.
 
@@ -219,8 +219,8 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 - State migration for old 9-step indices
 
 **Dependencies**:
-- `/speckit.design`, `/speckit.analyze`, `/speckit.implement`, `/speckit.verify`
-- CLI: `speckit state`, `speckit context`, `speckit roadmap`
+- `/specflow.design`, `/specflow.analyze`, `/specflow.implement`, `/specflow.verify`
+- CLI: `specflow state`, `specflow context`, `specflow roadmap`
 - ROADMAP.md
 
 **Notes**:
@@ -230,7 +230,7 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 
 ---
 
-### 5. `/speckit.design` (Complexity: 8/10)
+### 5. `/specflow.design` (Complexity: 8/10)
 
 **Purpose**: Unified design command that produces all design artifacts in one invocation.
 
@@ -251,7 +251,7 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 **Dependencies**:
 - `.specify/templates/` (spec-template.md, plan-template.md, tasks-template.md)
 - Memory documents (constitution.md, tech-stack.md)
-- CLI: `speckit state`, `speckit context`
+- CLI: `specflow state`, `specflow context`
 
 **Notes**:
 - New in v2.3, replaces 5 separate commands
@@ -260,7 +260,7 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 
 ---
 
-### 6. `/speckit.analyze` (Complexity: 4/10)
+### 6. `/specflow.analyze` (Complexity: 4/10)
 
 **Purpose**: Cross-artifact consistency analysis.
 
@@ -278,27 +278,27 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 
 ---
 
-### 7. `/speckit.implement` (Complexity: 6/10)
+### 7. `/specflow.implement` (Complexity: 6/10)
 
 **Purpose**: Executes all tasks from tasks.md.
 
 **What it does**:
 - Reads tasks.md
 - Executes each task in dependency order
-- Tracks progress via `speckit tasks mark`
+- Tracks progress via `specflow tasks mark`
 - Supports TDD mode
 - Handles blocked tasks
 - Updates state after each task
 
 **Dependencies**:
 - `tasks.md`
-- CLI: `speckit tasks`
+- CLI: `specflow tasks`
 
 **Notes**: Main code-writing step.
 
 ---
 
-### 8. `/speckit.verify` (Complexity: 6/10)
+### 8. `/specflow.verify` (Complexity: 6/10)
 
 **Purpose**: Comprehensive completion verification.
 
@@ -313,7 +313,7 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 
 **Dependencies**:
 - `tasks.md`, checklists, memory docs
-- CLI: `speckit tasks`, `speckit checklist`, `speckit roadmap`
+- CLI: `specflow tasks`, `specflow checklist`, `specflow roadmap`
 
 **Notes**:
 - 605 lines - handles many concerns
@@ -321,7 +321,7 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 
 ---
 
-### 9. `/speckit.merge` (Complexity: 6/10)
+### 9. `/specflow.merge` (Complexity: 6/10)
 
 **Purpose**: Complete phase and merge to main.
 
@@ -340,13 +340,13 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 
 **Dependencies**:
 - Git, `gh` CLI
-- CLI: `speckit state`, `speckit phase`, `speckit roadmap`
+- CLI: `specflow state`, `specflow phase`, `specflow roadmap`
 
 **Notes**: End-of-phase workflow automation.
 
 ---
 
-### 10. `/speckit.review` (Complexity: 6/10)
+### 10. `/specflow.review` (Complexity: 6/10)
 
 **Purpose**: Systematic code review across 7 categories.
 
@@ -372,18 +372,18 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 **Dependencies**:
 - Memory docs (for baseline)
 - ROADMAP.md
-- CLI: `speckit context`
+- CLI: `specflow context`
 
 **Notes**: Refinement workflow, creates hotfix phases.
 
 ---
 
-### Utility: `/speckit.taskstoissues` (Complexity: 2/10)
+### Utility: `/specflow.taskstoissues` (Complexity: 2/10)
 
 **Purpose**: Convert tasks.md to GitHub issues.
 
 **What it does**:
-- Reads tasks.md via `speckit context`
+- Reads tasks.md via `specflow context`
 - Gets git remote URL
 - Creates GitHub issues via MCP server
 - Only works with GitHub remotes
@@ -391,7 +391,7 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 **Dependencies**:
 - `tasks.md`
 - GitHub MCP server
-- CLI: `speckit context`
+- CLI: `specflow context`
 
 **Notes**: Simple utility, GitHub-specific.
 
@@ -426,8 +426,8 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 | Phase creation | ✅ Done (v2.2) | `phase` merged into `roadmap add-pdr` |
 | Memory generation | ✅ Done (v2.2) | `memory-init` merged into `init` |
 | Constitution creation | ✅ Done (v2.2) | `constitution` merged into `init` |
-| Workflow consolidation | ✅ Done (v2.3) | 9 steps → 4 steps, `/speckit.design` |
-| Backlog consolidation | ✅ Done (v2.3) | `/speckit.backlog` → `/speckit.roadmap backlog` |
+| Workflow consolidation | ✅ Done (v2.3) | 9 steps → 4 steps, `/specflow.design` |
+| Backlog consolidation | ✅ Done (v2.3) | `/specflow.backlog` → `/specflow.roadmap backlog` |
 | Verification | Keep separate | `verify` remains standalone |
 
 ---
@@ -447,7 +447,7 @@ SpecKit has **10 active Claude Code commands** (plus 9 deprecated stubs) that gu
 ### Completed (v2.3)
 
 - [x] `orchestrate` simplified from 9 steps to 4
-- [x] `/speckit.design` created (unified design command)
+- [x] `/specflow.design` created (unified design command)
 - [x] `specify` deprecated → use `design`
 - [x] `clarify` deprecated → use `design`
 - [x] `plan` deprecated → use `design --plan`

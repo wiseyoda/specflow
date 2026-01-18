@@ -16,20 +16,20 @@
 
 ## Problem Statement
 
-**The Problem**: Currently, running SpecKit workflows (like `/speckit.orchestrate`) requires using Claude Code CLI directly. The dashboard can only trigger simple CLI commands (`speckit doctor`, `speckit init`), not the AI-powered workflow commands that do the actual development work. Users must context-switch between the dashboard (for visibility) and Claude Code terminal (for execution).
+**The Problem**: Currently, running SpecFlow workflows (like `/specflow.orchestrate`) requires using Claude Code CLI directly. The dashboard can only trigger simple CLI commands (`specflow doctor`, `specflow init`), not the AI-powered workflow commands that do the actual development work. Users must context-switch between the dashboard (for visibility) and Claude Code terminal (for execution).
 
-**Who is affected**: Developers using SpecKit who want a unified interface for both monitoring project status AND executing development workflows.
+**Who is affected**: Developers using SpecFlow who want a unified interface for both monitoring project status AND executing development workflows.
 
-**Current workaround**: Users run `/speckit.orchestrate` manually in Claude Code, watch terminal output, and periodically refresh the dashboard to see state changes. For long-running workflows, this requires constant attention to answer clarifying questions.
+**Current workaround**: Users run `/specflow.orchestrate` manually in Claude Code, watch terminal output, and periodically refresh the dashboard to see state changes. For long-running workflows, this requires constant attention to answer clarifying questions.
 
-**Why now**: The dashboard now has project visibility and simple action execution. The natural next step is enabling full workflow execution, making the dashboard the single interface for SpecKit-powered development.
+**Why now**: The dashboard now has project visibility and simple action execution. The natural next step is enabling full workflow execution, making the dashboard the single interface for SpecFlow-powered development.
 
 ---
 
 ## Desired Outcome
 
 **After this feature ships, users will be able to**:
-- Start, monitor, and control SpecKit workflows entirely from the dashboard
+- Start, monitor, and control SpecFlow workflows entirely from the dashboard
 - Answer Claude's clarifying questions through the dashboard UI when they're ready
 - Run workflows on multiple projects simultaneously
 - See comprehensive progress, outputs, and status for each workflow step
@@ -42,7 +42,7 @@
 ## User Stories
 
 ### Story 1: Start Workflow from Dashboard
-**As a** developer managing multiple SpecKit projects,
+**As a** developer managing multiple SpecFlow projects,
 **I want to** start an orchestration workflow from the dashboard,
 **So that** I don't need to open a terminal and navigate to the project directory.
 
@@ -101,7 +101,7 @@
 ## Constraints
 
 - **Must**: Work with Claude Code CLI (not require API keys or separate agent deployment)
-- **Must**: Maintain compatibility with existing CLI workflow (users can still run `/speckit.orchestrate` directly)
+- **Must**: Maintain compatibility with existing CLI workflow (users can still run `/specflow.orchestrate` directly)
 - **Must**: Keep each Claude session under 200k context to avoid compaction/quality loss
 - **Should**: Show real-time progress during active steps
 - **Should**: Persist state across page refreshes and reconnections
@@ -153,7 +153,7 @@
 8. [ ] User can run workflows on 2+ projects simultaneously
 9. [ ] Failed steps show error context and can be retried
 10. [ ] After workflow completes, user can see summary of changes, decisions, and outputs
-11. [ ] Existing CLI workflow (`/speckit.orchestrate`) continues to work unchanged
+11. [ ] Existing CLI workflow (`/specflow.orchestrate`) continues to work unchanged
 12. [ ] Each workflow step stays under 200k context (no compaction)
 
 ---

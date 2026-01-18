@@ -25,14 +25,14 @@ Address 36 code quality findings from systematic code review (2026-01-11). Findi
 ### C2: Deferred Items
 The following findings are explicitly deferred to future phases:
 - **OE001**: Migrate roadmap phase data to JSON state (architectural change, v3.0 scope)
-- **OE002**: Split speckit-state.sh into state.sh + registry.sh (architectural change, v3.0 scope)
-- **OD006**: Split speckit.memory.md (low impact, current format works)
+- **OE002**: Split specflow-state.sh into state.sh + registry.sh (architectural change, v3.0 scope)
+- **OD006**: Split specflow.memory.md (low impact, current format works)
 
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Reliable Script Execution (Priority: P1)
 
-As a developer using SpecKit CLI, I need scripts to handle errors gracefully without unsafe patterns like eval() so the CLI doesn't fail unexpectedly or create security risks.
+As a developer using SpecFlow CLI, I need scripts to handle errors gracefully without unsafe patterns like eval() so the CLI doesn't fail unexpectedly or create security risks.
 
 **Why this priority**: Security and reliability are foundational. Unsafe patterns like BP001 (eval) and missing error handling can cause data corruption or security vulnerabilities.
 
@@ -48,7 +48,7 @@ As a developer using SpecKit CLI, I need scripts to handle errors gracefully wit
 
 ### User Story 2 - Accurate Documentation (Priority: P2)
 
-As a new SpecKit user, I need documentation that reflects actual commands and paths so I can successfully install and use the tool without confusion.
+As a new SpecFlow user, I need documentation that reflects actual commands and paths so I can successfully install and use the tool without confusion.
 
 **Why this priority**: Documentation mismatches cause user frustration and support burden. Placeholders and stale references make the tool appear unmaintained.
 
@@ -57,7 +57,7 @@ As a new SpecKit user, I need documentation that reflects actual commands and pa
 **Acceptance Scenarios**:
 
 1. **Given** README.md, **When** I read install commands, **Then** no YOUR_USERNAME placeholders exist
-2. **Given** speckit.specify.md, **When** I look for feature creation, **Then** it references `speckit feature create` not `create-new-feature.sh`
+2. **Given** specflow.specify.md, **When** I look for feature creation, **Then** it references `specflow feature create` not `create-new-feature.sh`
 3. **Given** CLAUDE.md, **When** I read architecture diagram, **Then** it includes lib/json.sh and lib/detection.sh
 4. **Given** ROADMAP.md status table, **When** I view phases, **Then** emoji icons match the legend
 
@@ -74,7 +74,7 @@ As a maintainer, I need orphaned code removed and functions appropriately sized 
 **Acceptance Scenarios**:
 
 1. **Given** check-prerequisites.sh legacy scripts, **When** I check file existence, **Then** they are deleted
-2. **Given** speckit-state.sh cmd_migrate() function, **When** I measure it, **Then** it's split into smaller functions under 150 lines
+2. **Given** specflow-state.sh cmd_migrate() function, **When** I measure it, **Then** it's split into smaller functions under 150 lines
 3. **Given** duplicate validation patterns, **When** I search codebase, **Then** they use shared lib functions
 
 ---
@@ -83,15 +83,15 @@ As a maintainer, I need orphaned code removed and functions appropriately sized 
 
 As a developer using different test frameworks, I need the gate command to support pytest, go test, and bats in addition to npm test.
 
-**Why this priority**: Multi-runner support broadens SpecKit's applicability to non-Node.js projects.
+**Why this priority**: Multi-runner support broadens SpecFlow's applicability to non-Node.js projects.
 
-**Independent Test**: Run `speckit gate` on Python, Go, and Bash projects; correct runner is detected.
+**Independent Test**: Run `specflow gate` on Python, Go, and Bash projects; correct runner is detected.
 
 **Acceptance Scenarios**:
 
-1. **Given** a Python project with pytest, **When** I run `speckit gate`, **Then** pytest is used as test runner
-2. **Given** a Go project, **When** I run `speckit gate`, **Then** `go test` is used
-3. **Given** a Bash project with bats tests, **When** I run `speckit gate`, **Then** bats is used
+1. **Given** a Python project with pytest, **When** I run `specflow gate`, **Then** pytest is used as test runner
+2. **Given** a Go project, **When** I run `specflow gate`, **Then** `go test` is used
+3. **Given** a Bash project with bats tests, **When** I run `specflow gate`, **Then** bats is used
 
 ---
 
@@ -141,7 +141,7 @@ As a developer using different test frameworks, I need the gate command to suppo
 
 **Over-Engineering (OE)**:
 - **FR-OE001**: Roadmap phase data SHOULD migrate to JSON state (deferred to future)
-- **FR-OE002**: speckit-state.sh SHOULD be split into state.sh + registry.sh (deferred to future)
+- **FR-OE002**: specflow-state.sh SHOULD be split into state.sh + registry.sh (deferred to future)
 - **FR-OE003**: Status SHOULD store as text, convert to emoji for display only
 - **FR-OE004**: check_sections() SHOULD use validation config file
 
@@ -150,8 +150,8 @@ As a developer using different test frameworks, I need the gate command to suppo
 - **FR-OD002**: Install commands MUST NOT contain YOUR_USERNAME placeholders
 - **FR-OD003**: ROADMAP.md status icons MUST match legend
 - **FR-OD004**: CLAUDE.md architecture diagram MUST include all lib files
-- **FR-OD005**: speckit.specify.md MUST reference current CLI commands
-- **FR-OD006**: speckit.memory.md density is acceptable (defer split)
+- **FR-OD005**: specflow.specify.md MUST reference current CLI commands
+- **FR-OD006**: specflow.memory.md density is acceptable (defer split)
 - **FR-OD007**: README SHOULD add "Customizing Templates" section
 - **FR-OD008**: README memory subcommands MUST match actual CLI syntax
 
@@ -170,7 +170,7 @@ As a developer using different test frameworks, I need the gate command to suppo
 - **SC-003**: All existing tests continue to pass (`./tests/test-runner.sh`)
 - **SC-004**: No YOUR_USERNAME placeholders in any documentation
 - **SC-005**: No references to deleted scripts (check-prerequisites.sh, create-new-feature.sh)
-- **SC-006**: `speckit gate` detects and uses correct test runner for Python/Go/Bash projects
+- **SC-006**: `specflow gate` detects and uses correct test runner for Python/Go/Bash projects
 
 ## Implementation Notes
 
@@ -184,7 +184,7 @@ As a developer using different test frameworks, I need the gate command to suppo
 **Medium Priority (Severity 3)**:
 4. HD001 - Add input validation before jq/grep
 5. BP002 - Upgrade to set -euo pipefail
-6. RF001 - Break up large functions in speckit-state.sh
+6. RF001 - Break up large functions in specflow-state.sh
 7. MF001 - Validate placeholder goals before write
 
 **Lower Priority (Code Hygiene)**:
@@ -195,5 +195,5 @@ As a developer using different test frameworks, I need the gate command to suppo
 ### Deferred Items (Future Phases)
 
 - OE001: Full roadmap JSON migration (architectural change, high effort)
-- OE002: Split speckit-state.sh (architectural change, high effort)
-- OD006: Split speckit.memory.md (low impact, works as-is)
+- OE002: Split specflow-state.sh (architectural change, high effort)
+- OD006: Split specflow.memory.md (low impact, works as-is)

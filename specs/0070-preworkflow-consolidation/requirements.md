@@ -10,31 +10,31 @@
 
 ### FR-100: Init Command Expansion
 
-- [ ] FR-101: `/speckit.init` runs complete setup flow: interview → constitution → memory docs → roadmap
-- [ ] FR-102: `/speckit.init` is idempotent - detects completed steps and skips them
-- [ ] FR-103: `/speckit.init` detects template placeholders vs completed content
-- [ ] FR-104: `/speckit.init` preserves existing completed artifacts
-- [ ] FR-105: `/speckit.init` provides `--force` flag to regenerate all artifacts
+- [ ] FR-101: `/specflow.init` runs complete setup flow: interview → constitution → memory docs → roadmap
+- [ ] FR-102: `/specflow.init` is idempotent - detects completed steps and skips them
+- [ ] FR-103: `/specflow.init` detects template placeholders vs completed content
+- [ ] FR-104: `/specflow.init` preserves existing completed artifacts
+- [ ] FR-105: `/specflow.init` provides `--force` flag to regenerate all artifacts
 
 ### FR-200: Deprecation Stubs
 
-- [ ] FR-201: `/speckit.start` displays deprecation notice → `/speckit.orchestrate`
-- [ ] FR-202: `/speckit.constitution` displays deprecation notice → `/speckit.init`
-- [ ] FR-203: `/speckit.phase` displays deprecation notice → `/speckit.roadmap add-pdr`
-- [ ] FR-204: `/speckit.memory-init` file deleted
+- [ ] FR-201: `/specflow.start` displays deprecation notice → `/specflow.orchestrate`
+- [ ] FR-202: `/specflow.constitution` displays deprecation notice → `/specflow.init`
+- [ ] FR-203: `/specflow.phase` displays deprecation notice → `/specflow.roadmap add-pdr`
+- [ ] FR-204: `/specflow.memory-init` file deleted
 - [ ] FR-205: All deprecation stubs are minimal (<50 lines)
 
 ### FR-300: Memory Command Reduction
 
-- [ ] FR-301: `/speckit.memory` supports `verify` functionality
-- [ ] FR-302: `/speckit.memory` supports `reconcile` functionality
-- [ ] FR-303: `/speckit.memory` supports `promote` functionality
-- [ ] FR-304: `/speckit.memory` does NOT include `generate` subcommand
-- [ ] FR-305: Attempting `generate` shows helpful message about `/speckit.init`
+- [ ] FR-301: `/specflow.memory` supports `verify` functionality
+- [ ] FR-302: `/specflow.memory` supports `reconcile` functionality
+- [ ] FR-303: `/specflow.memory` supports `promote` functionality
+- [ ] FR-304: `/specflow.memory` does NOT include `generate` subcommand
+- [ ] FR-305: Attempting `generate` shows helpful message about `/specflow.init`
 
 ### FR-400: Roadmap Command Expansion
 
-- [ ] FR-401: `/speckit.roadmap` supports `add-pdr` as subcommand (first positional arg)
+- [ ] FR-401: `/specflow.roadmap` supports `add-pdr` as subcommand (first positional arg)
 - [ ] FR-402: `add-pdr` lists available PDRs when none specified
 - [ ] FR-403: `add-pdr` accepts PDR filename as second positional argument
 - [ ] FR-404: `add-pdr` marks PDRs as processed after conversion
@@ -53,7 +53,7 @@
 ## Success Criteria
 
 - [ ] SC-001: Pre-workflow command count = 3 active + 3 deprecation stubs
-- [ ] SC-002: `/speckit.init` sets up project from zero to ready-for-orchestrate
+- [ ] SC-002: `/specflow.init` sets up project from zero to ready-for-orchestrate
 - [ ] SC-003: All deprecated commands show helpful redirect messages
 - [ ] SC-004: Existing projects continue to work without changes
 - [ ] SC-005: No functionality lost in consolidation

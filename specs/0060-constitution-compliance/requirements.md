@@ -18,7 +18,7 @@
 - [ ] REQ-US2.3: Deprecated script references removed
 
 ### US3: Working CLI Commands
-- [ ] REQ-US3.1: speckit phase command works without errors
+- [ ] REQ-US3.1: specflow phase command works without errors
 - [ ] REQ-US3.2: LIB008 bug fixed
 - [ ] REQ-US3.3: All CLI commands have accurate help text
 
@@ -32,36 +32,36 @@
 ## Functional Requirements
 
 ### Critical Fixes (P1)
-- [ ] REQ-FR1.1: bin/speckit 'phase' removed from slash-command warning
+- [ ] REQ-FR1.1: bin/specflow 'phase' removed from slash-command warning
 - [ ] REQ-FR1.2: Duplicate template directory removed
 
 ### Hardcoded Paths
-- [ ] REQ-FR2.1: SPECKIT_SYSTEM_DIR centralized in common.sh
-- [ ] REQ-FR2.2: SPECKIT_REGISTRY centralized in common.sh
-- [ ] REQ-FR2.3: speckit-doctor.sh uses centralized paths
-- [ ] REQ-FR2.4: speckit-detect.sh uses centralized paths
-- [ ] REQ-FR2.5: speckit-state.sh uses centralized paths
-- [ ] REQ-FR2.6: speckit-templates.sh uses centralized paths
-- [ ] REQ-FR2.7: speckit-scaffold.sh uses centralized paths
+- [ ] REQ-FR2.1: SPECFLOW_SYSTEM_DIR centralized in common.sh
+- [ ] REQ-FR2.2: SPECFLOW_REGISTRY centralized in common.sh
+- [ ] REQ-FR2.3: specflow-doctor.sh uses centralized paths
+- [ ] REQ-FR2.4: specflow-detect.sh uses centralized paths
+- [ ] REQ-FR2.5: specflow-state.sh uses centralized paths
+- [ ] REQ-FR2.6: specflow-templates.sh uses centralized paths
+- [ ] REQ-FR2.7: specflow-scaffold.sh uses centralized paths
 
 ### Three-Line Output Rule
 - [ ] REQ-FR3.1: print_summary() helper function created
-- [ ] REQ-FR3.2: speckit-detect.sh three-line compliant
-- [ ] REQ-FR3.3: speckit-gate.sh three-line compliant
-- [ ] REQ-FR3.4: speckit-lessons.sh three-line compliant
-- [ ] REQ-FR3.5: speckit-import.sh three-line compliant
-- [ ] REQ-FR3.6: speckit-context.sh three-line compliant
-- [ ] REQ-FR3.7: speckit-git.sh three-line compliant
-- [ ] REQ-FR3.8: speckit-manifest.sh three-line compliant
-- [ ] REQ-FR3.9: speckit-reconcile.sh three-line compliant
-- [ ] REQ-FR3.10: speckit-templates.sh three-line compliant
-- [ ] REQ-FR3.11: speckit-phase.sh three-line compliant
-- [ ] REQ-FR3.12: speckit-roadmap.sh three-line compliant
-- [ ] REQ-FR3.13: speckit-memory.sh three-line compliant
-- [ ] REQ-FR3.14: speckit-migrate.sh three-line compliant
-- [ ] REQ-FR3.15: speckit-pdr.sh three-line compliant
-- [ ] REQ-FR3.16: speckit-scaffold.sh three-line compliant
-- [ ] REQ-FR3.17: speckit-state.sh three-line compliant
+- [ ] REQ-FR3.2: specflow-detect.sh three-line compliant
+- [ ] REQ-FR3.3: specflow-gate.sh three-line compliant
+- [ ] REQ-FR3.4: specflow-lessons.sh three-line compliant
+- [ ] REQ-FR3.5: specflow-import.sh three-line compliant
+- [ ] REQ-FR3.6: specflow-context.sh three-line compliant
+- [ ] REQ-FR3.7: specflow-git.sh three-line compliant
+- [ ] REQ-FR3.8: specflow-manifest.sh three-line compliant
+- [ ] REQ-FR3.9: specflow-reconcile.sh three-line compliant
+- [ ] REQ-FR3.10: specflow-templates.sh three-line compliant
+- [ ] REQ-FR3.11: specflow-phase.sh three-line compliant
+- [ ] REQ-FR3.12: specflow-roadmap.sh three-line compliant
+- [ ] REQ-FR3.13: specflow-memory.sh three-line compliant
+- [ ] REQ-FR3.14: specflow-migrate.sh three-line compliant
+- [ ] REQ-FR3.15: specflow-pdr.sh three-line compliant
+- [ ] REQ-FR3.16: specflow-scaffold.sh three-line compliant
+- [ ] REQ-FR3.17: specflow-state.sh three-line compliant
 
 ### POSIX Compliance
 - [ ] REQ-FR4.1: Platform detection for sed -i implemented
@@ -71,16 +71,16 @@
 - [ ] REQ-FR5.1: json.sh double-source guard added
 - [ ] REQ-FR5.2: json.sh jq interpolation fixed (line 84)
 - [ ] REQ-FR5.3: json.sh json_array_append fixed (line 217)
-- [ ] REQ-FR5.4: speckit-issue.sh arithmetic fixed
+- [ ] REQ-FR5.4: specflow-issue.sh arithmetic fixed
 
 ### Slash Command Updates
-- [ ] REQ-FR6.1: speckit.specify.md uses CLI commands
-- [ ] REQ-FR6.2: speckit.plan.md uses CLI commands
+- [ ] REQ-FR6.1: specflow.specify.md uses CLI commands
+- [ ] REQ-FR6.2: specflow.plan.md uses CLI commands
 - [ ] REQ-FR6.3: Deprecated script references removed
-- [ ] REQ-FR6.4: speckit.verify.md uses speckit tasks mark
-- [ ] REQ-FR6.5: speckit.backlog.md uses proper CLIs
-- [ ] REQ-FR6.6: speckit.phase.md uses speckit pdr commands
-- [ ] REQ-FR6.7: speckit.init.md uses speckit state set
+- [ ] REQ-FR6.4: specflow.verify.md uses specflow tasks mark
+- [ ] REQ-FR6.5: specflow.backlog.md uses proper CLIs
+- [ ] REQ-FR6.6: specflow.phase.md uses specflow pdr commands
+- [ ] REQ-FR6.7: specflow.init.md uses specflow state set
 
 ### Template Standardization
 - [ ] REQ-FR7.1: backlog-template.md 4-digit format
@@ -107,7 +107,7 @@
 
 ## Verification Gate Requirements
 
-- [ ] VG1: speckit phase command works without errors
+- [ ] VG1: specflow phase command works without errors
 - [ ] VG2: All CLI commands show status in first 3 lines
 - [ ] VG3: Single template directory (templates/ only)
 - [ ] VG4: All slash commands reference valid CLI commands

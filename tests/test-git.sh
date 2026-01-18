@@ -2,7 +2,7 @@
 #
 # Test Suite: Git Operations
 #
-# Tests for speckit git command:
+# Tests for specflow git command:
 #   - branch operations (create, checkout, current, list)
 #   - commit
 #   - status
@@ -25,7 +25,7 @@ test_git_branch_current() {
 
   # Get current branch
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-git.sh" branch current 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-git.sh" branch current 2>&1)
 
   # Should be main or master
   assert_matches "$output" "main|master" "Returns current branch"
@@ -41,7 +41,7 @@ test_git_branch_list() {
 
   # List branches
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-git.sh" branch list 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-git.sh" branch list 2>&1)
 
   # Should show main/master
   assert_matches "$output" "main|master" "Lists branches"
@@ -56,7 +56,7 @@ test_git_branch_create() {
   git commit -q -m "Initial"
 
   # Create new branch
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-git.sh" branch create test-branch 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-git.sh" branch create test-branch 2>&1
 
   # Verify we're on the new branch
   local current
@@ -75,8 +75,8 @@ test_git_branch_checkout() {
   # Create a branch to checkout
   git branch other-branch
 
-  # Checkout using speckit
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-git.sh" branch checkout other-branch 2>&1
+  # Checkout using specflow
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-git.sh" branch checkout other-branch 2>&1
 
   # Verify we're on the branch
   local current
@@ -92,7 +92,7 @@ test_git_status() {
 
   # Get status
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-git.sh" status 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-git.sh" status 2>&1)
 
   # Should show untracked file
   assert_matches "$output" "test.txt|untracked|Untracked" "Shows untracked files"
@@ -109,7 +109,7 @@ test_git_commit() {
   echo "test" > test.txt
 
   # Commit
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-git.sh" commit "Test commit" 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-git.sh" commit "Test commit" 2>&1
 
   # Verify commit was made
   local log
@@ -131,7 +131,7 @@ test_git_commit_empty() {
 
   # Try to commit with no changes
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-git.sh" commit "Empty commit" 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-git.sh" commit "Empty commit" 2>&1)
 
   # Should report nothing to commit or succeed with empty
   assert_matches "$output" "nothing|Nothing|clean|no changes|No changes" "Handles no changes"
@@ -142,7 +142,7 @@ test_git_sync() {
 
   # Sync (fetch all, status)
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-git.sh" sync 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-git.sh" sync 2>&1)
 
   # Should show some status info
   # (might fail on no remote, but should handle gracefully)
@@ -155,7 +155,7 @@ test_git_not_repo() {
 
   # Commands should fail gracefully
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-git.sh" branch current 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-git.sh" branch current 2>&1)
 
   # Should report error
   local exit_code=$?
@@ -171,7 +171,7 @@ test_git_branch_with_number() {
   git commit -q -m "Initial"
 
   # Create branch with number prefix (common pattern)
-  bash "${PROJECT_ROOT}/scripts/bash/speckit-git.sh" branch create "feat/001-test-feature" 2>&1
+  bash "${PROJECT_ROOT}/scripts/bash/specflow-git.sh" branch create "feat/001-test-feature" 2>&1
 
   # Verify we're on the new branch
   local current
@@ -191,7 +191,7 @@ test_git_json_output() {
 
   # Get status with JSON
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-git.sh" status --json 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-git.sh" status --json 2>&1)
 
   # Should contain JSON-like output
   if echo "$output" | grep -qE '^\{'; then
@@ -206,7 +206,7 @@ test_git_json_output() {
 test_git_help() {
   # Get help
   local output
-  output=$(bash "${PROJECT_ROOT}/scripts/bash/speckit-git.sh" --help 2>&1)
+  output=$(bash "${PROJECT_ROOT}/scripts/bash/specflow-git.sh" --help 2>&1)
 
   # Should show usage info
   assert_matches "$output" "branch|commit|USAGE|Usage" "Shows help"

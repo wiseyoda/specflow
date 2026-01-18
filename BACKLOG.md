@@ -42,11 +42,16 @@
 | [OE012] Over-Engineering: formatHumanReadable single call site (status.ts) | Phase 1049 | Deferred | - |
 | [OE013] Over-Engineering: Unused registry feature infrastructure (registry.ts) | Phase 1049 | Deferred | - |
 | [OE014] Over-Engineering: Over-engineered history archiving (history.ts) | Phase 1049 | Deferred | - |
+| [0042-T041] Document `.specify/scripts/` vs `scripts/bash/` purpose | Phase 0042 | Archive scan | Clarify script directory structure |
+| [1010-T034] Create useKeyboard hook for global shortcuts | Phase 1010 | Archive scan | Dashboard keyboard navigation |
 
 ### P3 - Low Priority
 
 | Item | Source | Reason Deferred | Notes |
 |------|--------|-----------------|-------|
+| [0042-T029] Search scripts for `mktemp` usage without EXIT trap | Phase 0042 | Archive scan (P3) | Temp file cleanup |
+| [0042-T030] Add cleanup traps where missing | Phase 0042 | Archive scan (P3) | Temp file cleanup |
+| [0042-T031] Verify no temp file leakage | Phase 0042 | Archive scan (P3) | Temp file cleanup |
 
 ---
 

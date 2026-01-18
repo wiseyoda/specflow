@@ -12,7 +12,7 @@
 |------|------------|
 | **SDD** | Spec-Driven Development - methodology prioritizing specification before implementation |
 | **Phase** | A discrete feature/deliverable in the roadmap, numbered using ABBC format (0010, 0020, 0021) |
-| **Orchestration** | Automated execution of the full SpecFlow workflow (discover → verify, 9 steps) |
+| **Orchestration** | Automated execution of the full SpecFlow workflow (design → verify, 4 steps) |
 | **Memory Documents** | Project-level docs capturing decisions and principles in `.specify/memory/` |
 | **Discovery** | Codebase examination and clarifying questions BEFORE writing specs |
 | **PDR** | Product Decision Record - documents WHAT to build and WHY, not HOW |

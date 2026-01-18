@@ -1,15 +1,24 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { output } from '../../lib/output.js';
 import { readState, writeState, setStateValue } from '../../lib/state.js';
 import { readRoadmap, updatePhaseStatus } from '../../lib/roadmap.js';
 import { archivePhase } from '../../lib/history.js';
-import { scanDeferredItems, addToBacklog, type DeferredSummary } from '../../lib/backlog.js';
-import { findProjectRoot } from '../../lib/paths.js';
+import {
+  scanDeferredItems,
+  addToBacklog,
+  type DeferredSummary,
+  type DeferredItem,
+} from '../../lib/backlog.js';
+import { findProjectRoot, getSpecsDir, pathExists } from '../../lib/paths.js';
 import { handleError, NotFoundError, ValidationError } from '../../lib/errors.js';
 import {
   cleanupPhaseSpecs,
   getSpecsCleanupPreview,
+  findPhaseSpecsDir,
   type SpecCleanupResult,
 } from '../../lib/specs.js';
+import { readTasks } from '../../lib/tasks.js';
 
 /**
  * Phase close output
@@ -27,11 +36,18 @@ export interface PhaseCloseOutput {
     archivePath: string | null;
     skipped: boolean;
   };
+  tasks: {
+    total: number;
+    completed: number;
+    incomplete: number;
+    promotedToBacklog: number;
+  };
   deferredItems: {
     count: number;
     withTarget: number;
     toBacklog: number;
   };
+  memoryPrompts: string[];
   nextPhase: {
     number: string;
     name: string;
@@ -42,6 +58,90 @@ export interface PhaseCloseOutput {
 interface CloseOptions {
   dryRun?: boolean;
   keepSpecs?: boolean;
+}
+
+/**
+ * Get incomplete tasks from a phase's tasks.md
+ */
+async function getIncompleteTasks(
+  phaseNumber: string,
+  projectRoot: string,
+): Promise<{ total: number; completed: number; incomplete: DeferredItem[] }> {
+  const phaseSpecsDir = await findPhaseSpecsDir(phaseNumber, projectRoot);
+  if (!phaseSpecsDir) {
+    return { total: 0, completed: 0, incomplete: [] };
+  }
+
+  const tasksPath = join(phaseSpecsDir, 'tasks.md');
+  if (!pathExists(tasksPath)) {
+    return { total: 0, completed: 0, incomplete: [] };
+  }
+
+  try {
+    const tasksData = await readTasks(tasksPath);
+    const incomplete: DeferredItem[] = tasksData.tasks
+      .filter(t => t.status === 'todo' || t.status === 'blocked')
+      .map(t => ({
+        description: `[${t.id || '?'}] Verify: ${t.description.slice(0, 80)}${t.description.length > 80 ? '...' : ''}`,
+        source: `Phase ${phaseNumber}`,
+        reason: t.status === 'blocked' ? 'Blocked' : 'Incomplete at close',
+      }));
+
+    return {
+      total: tasksData.progress.total,
+      completed: tasksData.progress.completed,
+      incomplete,
+    };
+  } catch {
+    return { total: 0, completed: 0, incomplete: [] };
+  }
+}
+
+/**
+ * Extract memory promotion suggestions from spec.md
+ * Looks for sections that might contain learnings worth promoting
+ */
+async function getMemoryPrompts(
+  phaseNumber: string,
+  projectRoot: string,
+): Promise<string[]> {
+  const phaseSpecsDir = await findPhaseSpecsDir(phaseNumber, projectRoot);
+  if (!phaseSpecsDir) {
+    return [];
+  }
+
+  const prompts: string[] = [];
+  const specPath = join(phaseSpecsDir, 'spec.md');
+
+  if (pathExists(specPath)) {
+    try {
+      const content = await readFile(specPath, 'utf-8');
+
+      // Look for sections that might have memory-worthy content
+      const memoryPatterns = [
+        { pattern: /## (?:Key )?Decisions?\b/i, prompt: 'Review Key Decisions for architecture/patterns memory' },
+        { pattern: /## (?:Technical )?Approach/i, prompt: 'Review Technical Approach for coding-standards memory' },
+        { pattern: /## (?:Lessons? Learned|Retrospective)/i, prompt: 'Review Lessons Learned for memory promotion' },
+        { pattern: /## (?:API|Interface) Design/i, prompt: 'Review API Design for tech-stack memory' },
+        { pattern: /## (?:Testing|Test) Strategy/i, prompt: 'Review Testing Strategy for testing-strategy memory' },
+      ];
+
+      for (const { pattern, prompt } of memoryPatterns) {
+        if (pattern.test(content)) {
+          prompts.push(prompt);
+        }
+      }
+
+      // Check for explicit memory markers
+      if (content.includes('[PROMOTE]') || content.includes('[MEMORY]')) {
+        prompts.push('Content marked [PROMOTE] or [MEMORY] needs review');
+      }
+    } catch {
+      // Ignore read errors
+    }
+  }
+
+  return prompts;
 }
 
 /**
@@ -88,6 +188,12 @@ async function closePhase(options: CloseOptions = {}): Promise<PhaseCloseOutput>
   // Get specs cleanup preview
   const specsPreview = await getSpecsCleanupPreview(phase.number, projectRoot);
 
+  // Get incomplete tasks
+  const taskStatus = await getIncompleteTasks(phase.number, projectRoot);
+
+  // Get memory promotion suggestions
+  const memoryPrompts = await getMemoryPrompts(phase.number, projectRoot);
+
   if (dryRun) {
     return {
       action: 'dry_run',
@@ -102,11 +208,18 @@ async function closePhase(options: CloseOptions = {}): Promise<PhaseCloseOutput>
         archivePath: null,
         skipped: keepSpecs,
       },
+      tasks: {
+        total: taskStatus.total,
+        completed: taskStatus.completed,
+        incomplete: taskStatus.incomplete.length,
+        promotedToBacklog: taskStatus.incomplete.length,
+      },
       deferredItems: {
         count: deferred.count,
         withTarget: deferred.withTarget,
         toBacklog: deferred.toBacklog,
       },
+      memoryPrompts,
       nextPhase: nextPhase
         ? { number: nextPhase.number, name: nextPhase.name }
         : null,
@@ -129,6 +242,11 @@ async function closePhase(options: CloseOptions = {}): Promise<PhaseCloseOutput>
   );
   if (backlogItems.length > 0) {
     await addToBacklog(backlogItems, phase.number, projectRoot);
+  }
+
+  // 3b. Promote incomplete tasks to BACKLOG
+  if (taskStatus.incomplete.length > 0) {
+    await addToBacklog(taskStatus.incomplete, phase.number, projectRoot);
   }
 
   // 4. Clean up specs directory (archive to .specify/archive/, delete from specs/)
@@ -189,11 +307,18 @@ async function closePhase(options: CloseOptions = {}): Promise<PhaseCloseOutput>
       archivePath: specsCleanupResult.archivePath,
       skipped: keepSpecs,
     },
+    tasks: {
+      total: taskStatus.total,
+      completed: taskStatus.completed,
+      incomplete: taskStatus.incomplete.length,
+      promotedToBacklog: taskStatus.incomplete.length,
+    },
     deferredItems: {
       count: deferred.count,
       withTarget: deferred.withTarget,
       toBacklog: deferred.toBacklog,
     },
+    memoryPrompts,
     nextPhase: nextPhase
       ? { number: nextPhase.number, name: nextPhase.name }
       : null,
@@ -214,6 +339,16 @@ function formatHumanReadable(result: PhaseCloseOutput): string {
     lines.push(`  3. Reset orchestration state`);
 
     let stepNum = 4;
+
+    // Task status
+    if (result.tasks.total > 0) {
+      lines.push(`  ${stepNum}. Tasks: ${result.tasks.completed}/${result.tasks.total} complete`);
+      if (result.tasks.incomplete > 0) {
+        lines.push(`     ⚠ ${result.tasks.incomplete} incomplete → promote to BACKLOG.md`);
+      }
+      stepNum++;
+    }
+
     if (result.deferredItems.count > 0) {
       lines.push(`  ${stepNum}. Handle ${result.deferredItems.count} deferred items:`);
       if (result.deferredItems.withTarget > 0) {
@@ -233,6 +368,15 @@ function formatHumanReadable(result: PhaseCloseOutput): string {
       );
     }
 
+    // Memory prompts
+    if (result.memoryPrompts.length > 0) {
+      lines.push('');
+      lines.push('Memory review suggestions:');
+      for (const prompt of result.memoryPrompts) {
+        lines.push(`  → ${prompt}`);
+      }
+    }
+
     lines.push('');
     lines.push('No changes made.');
     return lines.join('\n');
@@ -242,6 +386,16 @@ function formatHumanReadable(result: PhaseCloseOutput): string {
   lines.push('✓ Updated ROADMAP.md');
   lines.push('✓ Archived to HISTORY.md');
   lines.push('✓ Reset orchestration state');
+
+  // Task status
+  if (result.tasks.total > 0) {
+    if (result.tasks.incomplete > 0) {
+      lines.push(`⚠ Tasks: ${result.tasks.completed}/${result.tasks.total} complete`);
+      lines.push(`  → ${result.tasks.promotedToBacklog} incomplete tasks promoted to BACKLOG.md`);
+    } else {
+      lines.push(`✓ Tasks: ${result.tasks.completed}/${result.tasks.total} complete`);
+    }
+  }
 
   // Specs cleanup status
   if (result.specsCleanup.skipped) {
@@ -258,6 +412,15 @@ function formatHumanReadable(result: PhaseCloseOutput): string {
     }
     if (result.deferredItems.toBacklog > 0) {
       lines.push(`  → ${result.deferredItems.toBacklog} added to BACKLOG.md`);
+    }
+  }
+
+  // Memory prompts
+  if (result.memoryPrompts.length > 0) {
+    lines.push('');
+    lines.push('Memory review needed:');
+    for (const prompt of result.memoryPrompts) {
+      lines.push(`  → ${prompt}`);
     }
   }
 

@@ -121,13 +121,24 @@ For each category, scan the relevant files in the codebase.
 | OD | README doesn't match implementation, stale comments, incorrect usage examples |
 
 **For each finding, capture:**
-- File path(s) affected
-- Line number(s) if specific
-- Brief description of the issue
-- Recommended fix
-- Effort estimate (1-5)
-- Impact estimate (1-5)
-- Severity estimate (1-5)
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| File path(s) | Yes | Exact file paths affected |
+| Line number(s) | Yes | Specific line numbers or ranges (e.g., `45-52`) |
+| Problem | Yes | What the issue is (1 sentence) |
+| Context | Yes | Why this matters - the impact or risk (1-2 sentences) |
+| Code snippet | Recommended | Brief example of the problematic pattern (2-5 lines) |
+| Recommendation | Yes | Specific fix approach with concrete details |
+| Fix example | Recommended | Before/after code or pattern to follow |
+| Verification | Yes | How to confirm the fix is correct (test command, manual check) |
+| Related files | If applicable | Other files with same pattern that need similar treatment |
+| Effort/Impact/Severity | Yes | Ratings 1-5 per scale above |
+
+**Finding quality checklist:**
+- [ ] Would a developer unfamiliar with this code understand the problem?
+- [ ] Is the recommendation specific enough to implement without further research?
+- [ ] Are related occurrences grouped or cross-referenced?
 
 **Finding ID format:** `{CATEGORY_CODE}{NNN}` (e.g., BP001, RF003, HD012)
 
@@ -150,22 +161,35 @@ Display summary and skip to Step 5.
 
 For each category with findings, present to user using `AskUserQuestion`:
 
-Display category summary table:
+**Display category summary with context:**
+
 ```
 Category: Best Practices (BP) - 5 findings
 
-| ID    | File(s)              | E | I | S | Finding                     |
-|-------|----------------------|---|---|---|-----------------------------|
-| BP001 | scripts/bash/*.sh    | 2 | 3 | 3 | Inconsistent error handling |
-| BP002 | lib/common.sh        | 1 | 2 | 2 | Missing function docs       |
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ BP001 | phase/add.ts:45-52 | E:2 I:3 S:3                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Problem: Using generic Error instead of typed SpecflowError                 │
+│ Context: Generic errors lose error codes and make debugging harder.         │
+│          Other commands use SpecflowError consistently.                     │
+│ Fix: Replace `throw new Error(msg)` with `throw new ValidationError(msg)`   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ BP002 | lib/common.sh:112 | E:1 I:2 S:2                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Problem: Missing function documentation                                      │
+│ Context: Functions without docs are harder to maintain and often misused.   │
+│ Fix: Add brief comment block describing purpose and parameters              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ...
 
-E=Effort, I=Impact, S=Severity (1-5 scale)
+Summary: 5 findings | Total Effort: 8 | Avg Severity: 2.4
 ```
 
 Ask for approval:
 - **Include ALL** - Add all findings from this category to phase
-- **Include SOME** - Select specific findings to include
+- **Include SOME** - Select specific findings to include (show IDs)
 - **Include NONE** - Defer entire category to backlog
 
 Track decisions: `approved = ["BP001", "BP003", ...]`, `deferred = ["BP002", ...]`
@@ -176,11 +200,118 @@ Track decisions: `approved = ["BP001", "BP003", ...]`, `deferred = ["BP002", ...
 
 Create review file at `.specify/reviews/review-YYYYMMDD-HHMMSS.md`:
 
-1. **Header**: Date, author (Claude), scope (Full codebase), category count
-2. **Summary table**: Count of findings/approved/deferred per category
-3. **Approved Findings table**: Full details of approved items
-4. **Deferred Findings table**: Full details of deferred items
-5. **Cross-references**: Phase number (if created), backlog references
+**Document sections:**
+
+1. **Header**: Date, author (Claude), scope, category count
+2. **Executive Summary**: High-level findings overview, key risks, recommended priorities
+3. **Summary Table**: Count of findings/approved/deferred per category
+4. **Approved Findings** (detailed format below)
+5. **Deferred Findings** (with rationale for deferral)
+6. **Implementation Guidance** (agent-ready reference)
+7. **Cross-references**: Phase number, backlog items, related memory docs
+
+**Approved Finding Format** (use for each finding):
+
+```markdown
+### {ID}: {Brief Title}
+
+**Location**: `{file_path}:{line_numbers}`
+**Ratings**: Effort={E} | Impact={I} | Severity={S}
+
+**Problem**: {What is wrong}
+
+**Context**: {Why this matters - the risk or impact if not fixed}
+
+**Current Code**:
+```{language}
+{2-5 lines showing the problematic pattern}
+```
+
+**Recommendation**: {Specific fix approach}
+
+**Example Fix**:
+```{language}
+{Corrected code or pattern to follow}
+```
+
+**Verification**:
+- {How to confirm the fix works}
+- {Test command or manual check}
+
+**Related Files**: {Other files needing similar treatment, if any}
+```
+
+**Deferred Finding Format** (abbreviated):
+
+```markdown
+### {ID}: {Brief Title}
+
+**Location**: `{file_path}:{line_numbers}`
+**Ratings**: Effort={E} | Impact={I} | Severity={S}
+**Problem**: {What is wrong}
+**Deferral Reason**: {Why this was deferred - user decision, needs research, etc.}
+```
+
+**Implementation Guidance Section** (agent-ready quick reference):
+
+```markdown
+## Implementation Guidance
+
+This section provides consolidated guidance for the implementing agent.
+
+### Files by Priority
+
+Group findings by file, ordered by severity:
+
+| File | Findings | Total Effort | Priority |
+|------|----------|--------------|----------|
+| `{file_path}` | {ID1}, {ID2} | {sum} | {High/Medium/Low} |
+
+### Patterns to Apply
+
+Common patterns that appear across multiple findings:
+
+#### Pattern: {Pattern Name}
+**Applies to**: {ID1}, {ID2}, {ID3}
+**Files**: `{file1}`, `{file2}`
+
+**Before**:
+```{language}
+{problematic pattern}
+```
+
+**After**:
+```{language}
+{corrected pattern}
+```
+
+### Standards Reference
+
+Relevant project standards (from memory docs):
+- {Link to or excerpt from constitution.md if relevant}
+- {Link to or excerpt from coding-standards.md if relevant}
+
+### Verification Commands
+
+```bash
+# Type checking
+pnpm --filter @specflow/cli build
+
+# Run tests
+pnpm --filter @specflow/cli test
+
+# Specific test for {category}
+pnpm --filter @specflow/cli test {test-file}
+```
+
+### Implementation Order
+
+Recommended order based on dependencies and risk:
+
+1. **{ID}** - {reason this should be first, e.g., "foundational change"}
+2. **{ID}** - {reason}
+3. ...
+```
 
 ---
 
@@ -286,10 +417,13 @@ This command **MUST NOT**:
 - Modify any code during the review (read-only analysis)
 
 **Finding Quality**:
-- Each finding must be actionable (clear recommendation)
-- Each finding must reference specific files/locations
-- Group related findings to avoid noise
+- Each finding must be actionable (specific recommendation with example)
+- Each finding must reference exact file paths and line numbers
+- Each finding must explain WHY it's a problem (context/risk)
+- Each finding should include verification steps
+- Group related findings and cross-reference common patterns
 - Prioritize constitution violations (always CRITICAL)
+- The review document must be self-contained for implementation (no re-discovery needed)
 
 ---
 

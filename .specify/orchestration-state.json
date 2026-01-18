@@ -5,7 +5,7 @@
     "name": "specflow",
     "path": "/Users/ppatterson/dev/specflow"
   },
-  "last_updated": "2026-01-18T17:08:46.225Z",
+  "last_updated": "2026-01-18T19:29:08.988Z",
   "orchestration": {
     "phase": {
       "number": "0082",
@@ -236,5 +236,179 @@
   "ui": {
     "last_sync": null,
     "notifications": []
+  },
+  "memory": {
+    "archive_reviews": {
+      "1010": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "tech-in-tech-stack",
+          "standard-nextjs-patterns"
+        ],
+        "result": "no_promotions"
+      },
+      "1030": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "sse-in-tech-stack",
+          "view-patterns-standard"
+        ],
+        "result": "no_promotions"
+      },
+      "1040": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "cli-execution-impl-detail",
+          "security-patterns-standard"
+        ],
+        "result": "no_promotions"
+      },
+      "1045": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "action-patterns-impl-detail"
+        ],
+        "result": "no_promotions"
+      },
+      "0010": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "ABBC-numbering",
+          "exit-codes",
+          "script-naming",
+          "cli-flags",
+          "log-functions"
+        ],
+        "result": "no_promotions"
+      },
+      "0015": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "backlog-format-superseded"
+        ],
+        "result": "no_promotions"
+      },
+      "0020": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "print-summary-exists",
+          "detection-priority-in-code"
+        ],
+        "result": "no_promotions"
+      },
+      "0030": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "P001-posix-sed-pattern"
+        ],
+        "result": "no_promotions"
+      },
+      "0040": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [],
+        "result": "no_promotions"
+      },
+      "0041": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "bash-patterns-already-documented",
+          "superseded-by-typescript"
+        ],
+        "result": "no_promotions"
+      },
+      "0042": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "posix-patterns-documented",
+          "abbc-format-in-glossary",
+          "superseded-by-typescript"
+        ],
+        "result": "no_promotions"
+      },
+      "0050": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "ui-detection-in-commands",
+          "state-derivation-in-cli",
+          "superseded-by-flow-rebrand"
+        ],
+        "result": "no_promotions"
+      },
+      "0060": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "three-line-rule-documented",
+          "print-summary-bash-legacy"
+        ],
+        "result": "no_promotions"
+      },
+      "0070": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "commands-in-glossary",
+          "idempotency-in-flow-init",
+          "deprecation-stubs-superseded"
+        ],
+        "result": "no_promotions"
+      },
+      "0072": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "corrections": [
+          "glossary-orchestration-steps"
+        ],
+        "skipped": [
+          "cascade-flags-in-code",
+          "deprecation-stubs-superseded",
+          "state-migration-historical"
+        ],
+        "result": "glossary_corrected"
+      },
+      "0076": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "naming-in-glossary",
+          "cli-name-documented",
+          "project-dir-documented",
+          "clean-break-process-decision"
+        ],
+        "result": "no_promotions"
+      },
+      "misc": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [],
+        "result": "obsolete_deleted",
+        "notes": "state-hardening-plan.md predates 0070/0072/0076/0080 architectural changes"
+      },
+      "0080": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "commander-in-tech-stack",
+          "vitest-in-testing-strategy",
+          "zod-in-coding-standards",
+          "hybrid-dispatcher-documented",
+          "three-line-rule-in-constitution",
+          "typescript-cli-principle-iia"
+        ],
+        "result": "no_promotions"
+      }
+    }
   }
 }

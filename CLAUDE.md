@@ -82,9 +82,14 @@ specflow phase                  # Show current phase
 specflow phase open 0081        # Start a specific phase
 specflow phase open --hotfix    # Create and start a hotfix phase (auto-number)
 specflow phase open --hotfix "Code Review"  # Hotfix with custom name
-specflow phase close            # Close current phase (archives specs)
+specflow phase close            # Close current phase (archives specs, promotes incomplete tasks)
 specflow phase close --dry-run  # Preview close operations
 specflow phase close --keep-specs  # Keep specs directory instead of archiving
+specflow phase archive 0042     # Retroactively archive a completed phase
+specflow phase archive 0042 --dry-run  # Preview archive operations
+specflow phase scan             # Scan archives for incomplete tasks
+specflow phase scan --verbose   # Show task details
+specflow phase scan --suggest-backlog  # Generate BACKLOG.md entries
 specflow phase defer "item"     # Add item to BACKLOG.md
 specflow phase defer "item1" "item2"  # Add multiple items
 specflow phase add 0010 "core-engine"  # Add phase to ROADMAP
@@ -120,6 +125,29 @@ SpecFlow creates these artifacts in target projects:
 | `ROADMAP.md` | Phase overview table | Updated on `phase close` |
 | `BACKLOG.md` | Deferred items | Accumulated during verify |
 | `.specify/memory/` | Evergreen project knowledge | Continuously updated |
+
+## Claude Code Slash Commands
+
+The `/flow.*` commands are Claude-side workflows that leverage AI judgment:
+
+| Command | Purpose |
+|---------|---------|
+| `/flow.orchestrate` | End-to-end phase execution with self-healing |
+| `/flow.design` | Create all design artifacts (discovery, spec, plan, tasks) |
+| `/flow.implement` | Execute tasks with TDD |
+| `/flow.verify` | Verify completion, update ROADMAP |
+| `/flow.merge` | Close phase, push, and merge to main |
+| `/flow.memory` | Verify and optimize memory documents |
+| `/flow.memory --archive <phase\|all>` | Review archived phases for memory promotion |
+| `/flow.analyze` | Cross-artifact consistency analysis |
+| `/flow.review` | Systematic code reviews |
+
+**Memory Archive Review** (`/flow.memory --archive`):
+- Scans archived phase documents for promotable content
+- Detects explicit markers (`[PROMOTE]`, `[MEMORY]`) and implicit signals
+- Assesses codebase relevance before promotion
+- Presents findings interactively for approval
+- Tracks reviewed status in state to prevent re-review
 
 ## Key Files (This Repo)
 

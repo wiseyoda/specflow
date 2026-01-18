@@ -18,6 +18,7 @@ $ARGUMENTS
 | `--no-reconcile` | Skip ROADMAP/codebase checks (faster) |
 | `--promote` | Scan completed specs for decisions to promote |
 | `--deep` | Full codebase pattern scan (slower) |
+| `--archive <phase\|all>` | Review archived phase(s) for memory promotion |
 
 ## Prerequisites
 
@@ -165,7 +166,209 @@ Scan completed `spec.md` and `plan.md` for promotable decisions:
 
 **Detection signals:** grep for "decided", "chose", "adopted", "switched to", "instead of"
 
-### 8. Generate Report
+### 8. Archive Review Mode (if `--archive`)
+
+When `--archive <phase|all>` is specified, perform intelligent review of archived phase documents for memory promotion. This mode replaces the standard verification workflow.
+
+**8.1 Load Archive Inventory**
+
+```bash
+# List archived phases
+ls -1 .specify/archive/ | grep -E '^[0-9]{4}-'
+
+# For specific phase
+ls .specify/archive/NNNN-*/
+```
+
+If `--archive all`: Process all archived phases not yet reviewed.
+If `--archive NNNN`: Process only the specified phase.
+
+**8.2 Check Review Status**
+
+Query state for previously reviewed archives:
+
+```bash
+specflow state get memory.archive_reviews --json
+```
+
+Returns `{ "NNNN": { "reviewed_at": "...", "promotions": [...] } }` or empty.
+
+Skip phases already reviewed unless content has changed (check file mtimes).
+
+**8.3 Scan Each Archive for Promotable Content**
+
+For each archived phase, read and analyze:
+
+| Document | Scan For |
+|----------|----------|
+| `spec.md` | Key Decisions, Technical Approach, Lessons Learned sections |
+| `plan.md` | Architecture decisions, rejected alternatives |
+| `tasks.md` | Patterns in completed tasks (less useful for promotion) |
+| `checklists/*.md` | Security/testing items that should be standard |
+
+**Explicit Markers** (highest priority):
+- `[PROMOTE]` - Author marked for promotion
+- `[MEMORY]` - Author marked for memory
+- `<!-- promote: tech-stack -->` - Targeted promotion
+
+**Implicit Signals** (require judgment):
+| Signal | Example | Likely Target |
+|--------|---------|---------------|
+| "Decided to use X" | "Decided to use Zod for validation" | tech-stack.md |
+| "Chose X over Y because" | "Chose pnpm over npm for speed" | tech-stack.md |
+| "Pattern: ..." | "Pattern: All errors return {code, message}" | coding-standards.md |
+| "Convention: ..." | "Convention: Use kebab-case for URLs" | api-standards.md |
+| "Security: ..." | "Security: Rate limit all public endpoints" | security-checklist.md |
+| "Testing: ..." | "Testing: Mock external APIs in unit tests" | testing-strategy.md |
+| "Term: X means Y" | "Term: 'Phase' means a unit of work" | glossary.md |
+
+**8.4 Assess Codebase Relevance**
+
+For each candidate, verify it's still relevant:
+
+```bash
+# Check if technology is still in use
+grep -r "zod" package.json src/
+
+# Check if pattern is still followed
+grep -r "return.*{.*error" src/
+
+# Check if term is used in codebase
+grep -ri "phase" src/ --include="*.ts"
+```
+
+Discard candidates that reference:
+- Removed dependencies
+- Deprecated patterns
+- Superseded decisions (check for later phases that changed approach)
+
+**8.5 Check for Duplicates**
+
+Before promoting, verify content isn't already in memory:
+
+```bash
+# Search existing memory docs
+grep -l "Zod" .specify/memory/*.md
+grep -l "rate limit" .specify/memory/*.md
+```
+
+If found: Skip or note as "already documented"
+
+**8.6 Present Findings Interactively**
+
+For each promotion candidate, present the analysis then use `AskUserQuestion` tool:
+
+```markdown
+## Promotion Candidate [P001]
+
+**Source**: `.specify/archive/0042-cli-migration/spec.md` (line 145)
+**Target**: `tech-stack.md`
+**Confidence**: HIGH (explicit [PROMOTE] marker)
+
+**Content**:
+> Decided to use Commander.js for CLI parsing. It has better TypeScript
+> support than yargs and simpler API than oclif.
+
+**Codebase Check**: ✓ Commander.js found in package.json
+**Memory Check**: ✗ Not yet documented in tech-stack.md
+```
+
+Then ask user using `AskUserQuestion` tool:
+
+```json
+{
+  "questions": [{
+    "question": "How should this candidate be handled?",
+    "header": "P001 Action",
+    "options": [
+      {"label": "Promote", "description": "Add to target memory document"},
+      {"label": "Skip", "description": "Already documented or not needed"},
+      {"label": "Skip (Superseded)", "description": "Decision was changed in later phase"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+If no candidates found, ask:
+
+```json
+{
+  "questions": [{
+    "question": "No promotable content found. Mark as reviewed?",
+    "header": "Review",
+    "options": [
+      {"label": "Yes", "description": "Mark reviewed, delete archive"},
+      {"label": "No", "description": "Keep archive for manual review"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+Group candidates by target document and present in batches of 5.
+
+**8.7 Apply Promotions**
+
+For approved promotions:
+
+1. Read target memory document
+2. Find appropriate section (or create new subsection)
+3. Add content with attribution:
+
+```markdown
+### CLI Framework
+
+**Choice**: Commander.js
+**Rationale**: Better TypeScript support than yargs, simpler API than oclif.
+**Adopted**: Phase 0042 (CLI Migration)
+```
+
+4. Update `**Last Updated**` date
+
+**8.8 Track Review Status**
+
+After processing each phase, update state:
+
+```bash
+specflow state set memory.archive_reviews.NNNN='{"reviewed_at":"2026-01-18","promotions":["P001","P003"],"skipped":["P002"]}'
+```
+
+This prevents re-reviewing the same archives.
+
+**8.9 Generate Archive Review Report**
+
+```markdown
+## Archive Review Report
+
+**Phases Reviewed**: 3 (0042, 0076, 1010)
+**Candidates Found**: 12
+**Promoted**: 8
+**Skipped**: 3 (already documented)
+**Deferred**: 1 (needs manual review)
+
+| ID | Source Phase | Target | Content Summary | Status |
+|----|--------------|--------|-----------------|--------|
+| P001 | 0042 | tech-stack.md | Commander.js adoption | Promoted |
+| P002 | 0042 | coding-standards.md | Error handling pattern | Skipped (exists) |
+```
+
+**8.10 Delete Reviewed Archives**
+
+After successful review and tracking, delete the archive directory:
+
+```bash
+rm -rf .specify/archive/NNNN-*/
+```
+
+**Safety checks before deletion**:
+- Confirm review status was successfully written to state
+- Verify any promotions were successfully applied to memory docs
+- Log deletion for audit trail in report
+
+This ensures archives don't accumulate after their knowledge has been extracted/reviewed.
+
+### 9. Generate Report (standard mode)
 
 Output findings table:
 
@@ -183,7 +386,7 @@ Output findings table:
 - Promotion candidates: P
 ```
 
-### 9. Apply Fixes (unless `--dry-run`)
+### 10. Apply Fixes (unless `--dry-run`)
 
 For each issue by severity (CRITICAL first):
 
@@ -203,7 +406,7 @@ Prompt for confirmation unless `--fix` flag set.
 - Technology conflicts
 - Pattern violations in code
 
-### 10. Commit Changes
+### 11. Commit Changes
 
 If changes were made:
 ```bash

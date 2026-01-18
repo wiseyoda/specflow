@@ -4,6 +4,8 @@ import { openAction } from './open.js';
 import { closeAction } from './close.js';
 import { deferAction } from './defer.js';
 import { addCommand } from './add.js';
+import { archiveAction } from './archive.js';
+import { scanAction } from './scan.js';
 
 /**
  * Phase command - manage phase lifecycle
@@ -52,5 +54,21 @@ phaseCommand
   .option('-p, --priority <level>', 'Priority level (P1, P2, P3)', 'P2')
   .option('-r, --reason <reason>', 'Reason for deferring')
   .action(deferAction);
+
+phaseCommand
+  .command('archive <number>')
+  .description('Archive a completed phase (retroactive archiving for older phases)')
+  .option('--json', 'Output as JSON')
+  .option('--dry-run', 'Show what would happen without making changes')
+  .option('--force', 'Archive even if phase is not marked complete')
+  .action(archiveAction);
+
+phaseCommand
+  .command('scan')
+  .description('Scan archived phases for incomplete tasks')
+  .option('--json', 'Output as JSON')
+  .option('--verbose', 'Show task details')
+  .option('--suggest-backlog', 'Generate BACKLOG.md entry suggestions')
+  .action(scanAction);
 
 phaseCommand.addCommand(addCommand);

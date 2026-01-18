@@ -4,208 +4,165 @@ This guide explains how to integrate SpecFlow with projects that have existing d
 
 ## Overview
 
-SpecFlow can detect and import existing documentation from your project, preserving your institutional knowledge while adding SpecFlow's structured workflow. This is especially useful for:
+SpecFlow can work with existing documentation from your project, preserving your institutional knowledge while adding SpecFlow's structured workflow. This is especially useful for:
 
 - Projects with existing Architecture Decision Records (ADRs)
 - Established codebases with existing documentation
 - Teams migrating from other documentation systems
 
-## Detection
+## Integrating with Existing Projects
 
-### Detecting Existing Documentation
+### Using /flow.init
 
-Use the detect command to scan for existing documentation:
+The `/flow.init` command is the primary way to integrate SpecFlow with an existing project:
 
-```bash
-specflow detect --docs
+```
+/flow.init
 ```
 
-This scans for:
+During initialization, the discovery interview will:
+1. Examine your existing codebase structure
+2. Detect existing documentation and ADRs
+3. Capture project context and decisions
+4. Generate memory documents that complement existing docs
+
+### Existing ADRs
+
+If your project has existing Architecture Decision Records, `/flow.init` can detect and reference them during the discovery process. Your ADRs remain in their original location, and the generated memory documents will reference them.
+
+**Common ADR locations detected:**
+- `docs/adr/`
+- `docs/decisions/`
+- `adr/`
+- `adrs/`
+
+### Existing Documentation
+
+SpecFlow detects common documentation patterns:
 
 | Pattern | Description |
 |---------|-------------|
 | `docs/`, `doc/` | Documentation directories |
-| `adr/`, `adrs/`, `docs/adr/`, `docs/decisions/` | ADR directories |
-| `ARCHITECTURE.md`, `CONTRIBUTING.md`, `DESIGN.md` | Key architecture documents |
+| `ARCHITECTURE.md` | Architecture documentation |
+| `CONTRIBUTING.md` | Contribution guidelines |
+| `DESIGN.md` | Design documentation |
 | `openapi.yaml`, `swagger.json` | API specifications |
-| `.github/` | GitHub templates and workflows |
 
-### Output
+The discovery interview incorporates this context into generated memory documents.
 
-```
-============================================================
-  Existing Documentation
-============================================================
+## Memory Document Integration
 
-ADR Directories Found:
-  docs/adr/ (5 ADRs)
+### Approach
 
-Suggested next step:
-  specflow import adrs docs/adr
-```
+Rather than importing or duplicating existing docs, SpecFlow:
 
-### JSON Output
+1. **References** existing documentation in memory documents
+2. **Extracts** key decisions and principles during discovery
+3. **Complements** existing docs with SpecFlow-specific artifacts
 
-For programmatic use:
+### constitution.md
 
-```bash
-specflow detect --docs --json
-```
+The constitution captures core principles extracted from your existing documentation and discovery interview:
 
-## Importing ADRs
-
-### Basic Import
-
-Import Architecture Decision Records into SpecFlow's memory structure:
-
-```bash
-specflow import adrs <path>
-```
-
-Example:
-```bash
-specflow import adrs docs/adr
-```
-
-This will:
-1. Create `.specify/memory/adrs/` directory
-2. Copy all ADR files preserving original names
-3. Generate `.specify/memory/adr-index.md` with titles and statuses
-
-### Preview Changes
-
-Use dry-run mode to see what would happen without making changes:
-
-```bash
-specflow import adrs docs/adr --dry-run
-```
-
-### Force Overwrite
-
-If you've already imported ADRs and want to reimport:
-
-```bash
-specflow import adrs docs/adr --force
-```
-
-### Supported ADR Patterns
-
-The import command recognizes these filename patterns:
-
-- `001-decision-name.md` (3-digit numbered)
-- `0001-decision-name.md` (4-digit numbered)
-- `ADR-001-decision-name.md` (ADR prefix)
-- `adr-001-decision-name.md` (lowercase ADR prefix)
-
-### What Gets Imported
-
-| Source | Destination |
-|--------|-------------|
-| `docs/adr/001-use-react.md` | `.specify/memory/adrs/001-use-react.md` |
-| `docs/adr/002-database.md` | `.specify/memory/adrs/002-database.md` |
-| (generated) | `.specify/memory/adr-index.md` |
-
-### ADR Index
-
-The generated `adr-index.md` includes:
-
-- Table of all ADRs with ID, title, and status
-- Import metadata (source path, date, count)
-- Links to each imported ADR
-
-Example:
 ```markdown
-# Architecture Decision Records
+# Project Constitution
 
-**Imported from**: `docs/adr`
-**Import date**: 2024-01-15
-**Total ADRs**: 5
+## Core Principles
+<!-- Extracted from existing docs and discovery -->
+1. User privacy is paramount
+2. Performance over features
 
-## Index
-
-| ID | Title | Status |
-|----|-------|--------|
-| 001 | [Use React for Frontend](./adrs/001-use-react.md) | Accepted |
-| 002 | [PostgreSQL Database](./adrs/002-postgresql.md) | Accepted |
+## References
+- See `docs/ARCHITECTURE.md` for detailed architecture
+- See `docs/adr/` for historical decisions
 ```
 
-## Important Notes
+### tech-stack.md
 
-### Original Files Are Preserved
+Generated from existing `package.json`, `Cargo.toml`, or similar, plus discovery answers:
 
-**Import never modifies or deletes your original files.**
+```markdown
+# Tech Stack
 
-The import command copies files to the SpecFlow structure. Your original ADR files in `docs/adr/` (or wherever they are) remain untouched.
+## Languages
+- TypeScript (primary)
+- Python (scripts)
 
-### Status Extraction
+## Frameworks
+- Next.js 14 (from package.json)
 
-The import command attempts to extract status from your ADR files by looking for:
-
-- `Status: Accepted` lines
-- `**Status**: Accepted` markdown patterns
-
-If no status is found, it will show "Unknown".
-
-### Re-importing
-
-If your original ADRs change, you can re-import with `--force` to update the SpecFlow copies. This will overwrite the files in `.specify/memory/adrs/`.
+## References
+- See `docs/tech-decisions.md` for rationale
+```
 
 ## Common Workflows
 
-### New Project with Existing ADRs
+### New SpecFlow on Existing Codebase
 
-```bash
+```
 # 1. Initialize SpecFlow
-specflow scaffold
+/flow.init
 
-# 2. Detect existing docs
-specflow detect --docs
+# 2. Answer discovery questions (references existing docs)
 
-# 3. Import ADRs
-specflow import adrs docs/adr
+# 3. Review generated memory documents
 
-# 4. Verify import
-ls .specify/memory/adrs/
-cat .specify/memory/adr-index.md
+# 4. Create first roadmap
+/flow.roadmap
 ```
 
-### Checking Before Import
+### Keeping Docs in Sync
 
-```bash
-# See what would be imported
-specflow import adrs docs/adr --dry-run
+Use `/flow.memory` to detect drift between memory documents and codebase:
 
-# If satisfied, run actual import
-specflow import adrs docs/adr
+```
+/flow.memory              # Full reconciliation
+/flow.memory --promote    # Promote learnings from completed specs
 ```
 
-### After Import
+## What SpecFlow Creates vs. Uses
 
-Once ADRs are imported, SpecFlow's AI workflows can reference them:
+### SpecFlow Creates
 
-- The `/specflow.start` command auto-detects your project state and routes to the right workflow
-- The `/specflow.specify` command can consider existing decisions
-- The `/specflow.plan` command can reference ADRs for context
-- Memory documents can link to relevant ADRs
+| Artifact | Location | Purpose |
+|----------|----------|---------|
+| `orchestration-state.json` | `.specify/` | Workflow state |
+| `constitution.md` | `.specify/memory/` | Core principles |
+| `tech-stack.md` | `.specify/memory/` | Technology choices |
+| Phase specs | `specs/NNNN-*/` | Feature specifications |
+| `ROADMAP.md` | Project root | Development phases |
+| `BACKLOG.md` | Project root | Deferred items |
 
-**Recommended**: Use `/specflow.start` to begin any workflow - it will detect your imported ADRs and current project state automatically.
+### SpecFlow Uses (Read-Only)
+
+| Artifact | Purpose |
+|----------|---------|
+| Existing ADRs | Context for decisions |
+| `package.json` / `Cargo.toml` | Tech stack detection |
+| Existing docs | Reference during discovery |
+| `.git` | Branch management |
+
+## Best Practices
+
+1. **Don't duplicate** - Reference existing docs rather than copying content
+2. **Keep ADRs where they are** - SpecFlow works with ADRs in any location
+3. **Use discovery** - Let `/flow.init` examine your codebase naturally
+4. **Run memory checks** - Use `/flow.memory` periodically to detect drift
+5. **Update constitution** - Keep core principles current as project evolves
 
 ## Troubleshooting
 
-### "No ADR files found"
+### "Missing constitution.md"
 
-The import command looks for specific file patterns. Ensure your ADRs match one of:
+Run `/flow.init` to generate memory documents from your project context.
+
+### ADRs Not Detected
+
+Ensure ADRs follow standard naming patterns:
 - `NNN-*.md` (3-digit number prefix)
 - `NNNN-*.md` (4-digit number prefix)
 - `ADR-NNN-*.md` (ADR prefix with number)
 
-### "Target directory already contains files"
+### Memory Docs Outdated
 
-Use `--force` to overwrite existing imports:
-```bash
-specflow import adrs docs/adr --force
-```
-
-### ADR Status Shows "Unknown"
-
-The status extractor looks for `Status:` lines. If your ADRs use a different format, the status will show as "Unknown". This doesn't affect the import - you can manually update the index if needed.
+Run `/flow.memory --reconcile` to detect and fix drift between memory documents and your codebase.

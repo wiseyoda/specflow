@@ -10,6 +10,7 @@
 #   mark        Mark task(s) complete/incomplete
 #   check       Deep validation with auto-fix
 #   state       Manage orchestration state
+#   phase       Manage phase lifecycle (open/close/status)
 #   help        Show this help message
 #   version     Show version
 #
@@ -67,6 +68,13 @@ COMMANDS:
                   set <key>=<value>   Set state value
                   init                Initialize new state
                   reset               Reset to defaults
+
+    phase       Manage phase lifecycle
+                  status              Show current phase info
+                  open [number]       Start a phase (creates branch, updates state)
+                  close               Close current phase (archives, updates ROADMAP)
+                  [--json]            JSON output
+                  [--dry-run]         Show what would happen (close only)
 
     help        Show this help message
     version     Show version
@@ -146,6 +154,9 @@ main() {
     state)
       run_ts_cli "state" "$@"
       ;;
+    phase)
+      run_ts_cli "phase" "$@"
+      ;;
     help|--help|-h)
       show_help
       exit 0
@@ -157,7 +168,7 @@ main() {
     # Deprecated bash commands - fail with helpful message
     scaffold|context|ctx|feature|feat|git|roadmap|claude-md|claudemd|\
     checklist|tasks|templates|doctor|detect|reconcile|memory|mem|\
-    lessons|gate|migrate|manifest|import|pdr|phase|issue|dashboard)
+    lessons|gate|migrate|manifest|import|pdr|issue|dashboard)
       deprecated_command "${command}"
       ;;
     # Slash commands - these are Claude Code prompts, not CLI commands

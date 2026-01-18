@@ -11,7 +11,6 @@
   <a href="https://github.com/wiseyoda/claude-specflow-orchestration/actions/workflows/test.yml"><img src="https://github.com/wiseyoda/claude-specflow-orchestration/actions/workflows/test.yml/badge.svg" alt="Test Suite"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
   <a href="#requirements"><img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg" alt="Platform"></a>
-  <a href="#requirements"><img src="https://img.shields.io/badge/bash-3.2%2B-green.svg" alt="Bash"></a>
 </p>
 
 ---
@@ -58,27 +57,33 @@ export PATH="$HOME/.claude/specflow-system/bin:$PATH"
 Verify:
 
 ```bash
-specflow doctor
+specflow --version
+specflow status
 ```
 
 ---
 
 ## Quick Start
 
-**1. Initialize your project:**
-
-```bash
-cd your-project
-specflow scaffold
-```
-
-**2. Start in Claude Code:**
+**1. Initialize your project in Claude Code:**
 
 ```
-/specflow.start
+/flow.init
 ```
 
-That's it. SpecFlow detects your project state and guides you to the next step.
+**2. Create your roadmap:**
+
+```
+/flow.roadmap
+```
+
+**3. Start development:**
+
+```
+/flow.orchestrate
+```
+
+SpecFlow guides you through design → analyze → implement → verify.
 
 ---
 
@@ -86,22 +91,21 @@ That's it. SpecFlow detects your project state and guides you to the next step.
 
 ```mermaid
 flowchart TD
-    A["/specflow.start"] --> B["/specflow.init"]
-    B --> C["/specflow.roadmap"]
-    C --> D["/specflow.orchestrate"]
-    D --> E["discover → specify → clarify → plan → tasks → analyze → checklist → implement → verify"]
-    E --> F["/specflow.merge"]
-    F --> G["Next Phase"]
-    G --> D
+    A["/flow.init"] --> B["/flow.roadmap"]
+    B --> C["/flow.orchestrate"]
+    C --> D["design → analyze → implement → verify"]
+    D --> E["/flow.merge"]
+    E --> F["Next Phase"]
+    F --> C
 ```
 
 SpecFlow manages the full development lifecycle:
 
 | Stage | What Happens |
 |-------|--------------|
-| **Init** | Interactive interview captures requirements and decisions |
+| **Init** | Discovery interview captures requirements and decisions |
 | **Roadmap** | Break work into phased milestones |
-| **Orchestrate** | Automated workflow: discover → specify → clarify → plan → tasks → analyze → checklist → implement → verify |
+| **Orchestrate** | Automated workflow: design → analyze → implement → verify |
 | **Merge** | Push, create PR, merge, cleanup branches |
 
 ---
@@ -112,37 +116,39 @@ SpecFlow has two interfaces:
 
 | Interface | Syntax | Purpose |
 |-----------|--------|---------|
-| **CLI** | `specflow <cmd>` | Setup, diagnostics, state management |
-| **Slash** | `/specflow.<cmd>` | AI-assisted development workflows |
+| **CLI** | `specflow <cmd>` | State management, task tracking, phase lifecycle |
+| **Slash** | `/flow.<cmd>` | AI-assisted development workflows |
 
-### Essential Commands
+### CLI Commands
+
+```bash
+specflow status              # Complete project status
+specflow next                # Next actionable task
+specflow mark T007           # Mark task complete
+specflow check --fix         # Validation with auto-fix
+specflow phase open 0020     # Start a phase
+specflow phase close         # Close current phase
+specflow phase defer "item"  # Defer to backlog
+```
+
+### Slash Commands
 
 | Command | Description |
 |---------|-------------|
-| `specflow scaffold` | Create `.specify/` project structure |
-| `specflow doctor` | Verify installation and project health |
-| `specflow dashboard` | Start web dashboard for project management |
-| `/specflow.start` | Smart entry point—detects state, suggests next step |
-| `/specflow.orchestrate` | Full automated workflow with state persistence |
-| `/specflow.merge` | Complete phase: push, PR, merge, cleanup |
+| `/flow.init` | Initialize project with discovery interview |
+| `/flow.orchestrate` | Full automated workflow |
+| `/flow.design` | Create all design artifacts |
+| `/flow.implement` | Execute tasks with TDD |
+| `/flow.verify` | Verify completion |
+| `/flow.merge` | Push, PR, merge to main |
+| `/flow.roadmap` | Create/update ROADMAP |
+| `/flow.memory` | Manage memory documents |
+| `/flow.review` | Systematic code review |
 
-### All Commands
+### Full References
 
-See the full reference guides:
-- **[CLI Reference](docs/cli-reference.md)** - 30+ CLI commands
-- **[Slash Commands](docs/slash-commands.md)** - 20 slash commands
-
-### Web Dashboard
-
-SpecFlow includes a web dashboard for visual project management:
-
-```bash
-specflow dashboard          # Start on port 3000
-specflow dashboard --dev    # Development mode with hot reload
-specflow dashboard --port 8080  # Custom port
-```
-
-The dashboard shows all registered SpecFlow projects, with dark mode support and keyboard navigation (⌘K for command palette).
+- **[CLI Reference](docs/cli-reference.md)** - 6 smart CLI commands
+- **[Slash Commands](docs/slash-commands.md)** - 10 slash commands
 
 ---
 
@@ -156,7 +162,7 @@ The dashboard shows all registered SpecFlow projects, with dark mode support and
 | [Templates](docs/templates.md) | Customizing document templates |
 | [Configuration](docs/configuration.md) | State files and settings |
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
-| [Integration Guide](docs/integration-guide.md) | Importing existing documentation |
+| [Integration Guide](docs/integration-guide.md) | Working with existing documentation |
 
 ---
 
@@ -165,9 +171,27 @@ The dashboard shows all registered SpecFlow projects, with dark mode support and
 | Dependency | Version | Install |
 |------------|---------|---------|
 | [Claude Code](https://claude.ai/code) | Latest | [Download](https://claude.ai/code) |
-| jq | 1.5+ | `brew install jq` / `apt install jq` |
+| Node.js | 18+ | Required for TypeScript CLI |
+| pnpm | 8+ | `npm install -g pnpm` |
 | git | 2.0+ | Usually pre-installed |
-| Bash | 3.2+ | macOS default works |
+
+---
+
+## Development
+
+```bash
+# Install dependencies
+pnpm install
+
+# Build CLI
+pnpm --filter @specflow/cli build
+
+# Run tests
+pnpm --filter @specflow/cli test
+
+# Run CLI
+specflow status
+```
 
 ---
 
@@ -177,6 +201,7 @@ The dashboard shows all registered SpecFlow projects, with dark mode support and
 cd claude-specflow-orchestration
 git pull
 ./install.sh --upgrade
+pnpm --filter @specflow/cli build
 ```
 
 ---
@@ -188,7 +213,7 @@ Contributions are welcome! See [ROADMAP.md](ROADMAP.md) for current development 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. Verify installation (`./install.sh --check`)
+4. Run tests (`pnpm --filter @specflow/cli test`)
 5. Submit a Pull Request
 
 ---

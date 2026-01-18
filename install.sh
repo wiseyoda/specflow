@@ -154,6 +154,7 @@ install_specflow() {
     # Backup existing commands to ~/.specflow/backups/ (NOT ~/.claude/ to avoid import)
     local backup_dir="${HOME}/.specflow/backups/commands-$(date +%Y%m%d%H%M%S)"
     mkdir -p "$backup_dir"
+    cp "${SPECFLOW_COMMANDS}/flow."*.md "$backup_dir/" 2>/dev/null || true
     cp "${SPECFLOW_COMMANDS}/specflow."*.md "$backup_dir/" 2>/dev/null || true
     log_info "Backed up existing commands to $backup_dir"
 
@@ -170,16 +171,16 @@ install_specflow() {
     fi
   fi
 
-  # Build list of valid command files from source
+  # Build list of valid command files from source (flow.*.md naming)
   local valid_commands=()
-  for cmd in "${REPO_DIR}/commands/"specflow.*.md "${REPO_DIR}/commands/utilities/"specflow.*.md; do
+  for cmd in "${REPO_DIR}/commands/"flow.*.md "${REPO_DIR}/commands/utilities/"flow.*.md; do
     if [[ -f "$cmd" ]]; then
       valid_commands+=("$(basename "$cmd")")
     fi
   done
 
   # Copy commands from main commands directory
-  for cmd in "${REPO_DIR}/commands/"specflow.*.md; do
+  for cmd in "${REPO_DIR}/commands/"flow.*.md; do
     if [[ -f "$cmd" ]]; then
       local filename=$(basename "$cmd")
       cp "$cmd" "${SPECFLOW_COMMANDS}/${filename}"
@@ -187,17 +188,25 @@ install_specflow() {
   done
 
   # Copy utility commands
-  for cmd in "${REPO_DIR}/commands/utilities/"specflow.*.md; do
+  for cmd in "${REPO_DIR}/commands/utilities/"flow.*.md; do
     if [[ -f "$cmd" ]]; then
       local filename=$(basename "$cmd")
       cp "$cmd" "${SPECFLOW_COMMANDS}/${filename}"
     fi
   done
 
-  # Clean up stale commands (those not in source anymore)
+  # Clean up stale commands (old specflow.*.md and old flow.*.md not in source)
   if [[ "$upgrade" == "true" ]]; then
     local stale_count=0
+    # Remove old specflow.*.md commands
     for installed in "${SPECFLOW_COMMANDS}/"specflow.*.md; do
+      if [[ -f "$installed" ]]; then
+        rm -f "$installed"
+        ((stale_count++)) || true
+      fi
+    done
+    # Remove stale flow.*.md commands
+    for installed in "${SPECFLOW_COMMANDS}/"flow.*.md; do
       if [[ -f "$installed" ]]; then
         local filename=$(basename "$installed")
         local is_valid=false
@@ -272,8 +281,9 @@ uninstall_specflow() {
   fi
 
   # Remove commands (but keep backup)
-  local backup_dir="${SPECFLOW_COMMANDS}/.specflow-uninstall-backup"
+  local backup_dir="${HOME}/.specflow/backups/uninstall-$(date +%Y%m%d%H%M%S)"
   mkdir -p "$backup_dir"
+  mv "${SPECFLOW_COMMANDS}/flow."*.md "$backup_dir/" 2>/dev/null || true
   mv "${SPECFLOW_COMMANDS}/specflow."*.md "$backup_dir/" 2>/dev/null || true
   log_success "Moved commands to $backup_dir"
 
@@ -299,7 +309,7 @@ check_status() {
     [[ -d "${SPECFLOW_HOME}/packages/dashboard" ]] && log_success "  Dashboard: installed" || log_warn "  Dashboard: missing"
 
     # Count commands
-    local cmd_count=$(ls "${SPECFLOW_COMMANDS}/specflow."*.md 2>/dev/null | wc -l | tr -d ' ')
+    local cmd_count=$(ls "${SPECFLOW_COMMANDS}/flow."*.md 2>/dev/null | wc -l | tr -d ' ')
     log_success "  Commands: $cmd_count installed"
 
     # Check PATH

@@ -2,19 +2,33 @@ import { Command } from 'commander';
 import { readFile, writeFile } from 'node:fs/promises';
 import { output } from '../lib/output.js';
 import { readTasks, findNextTask, getTaskById, type TasksData } from '../lib/tasks.js';
+import {
+  readFeatureChecklists,
+  getChecklistItemById,
+  findNextChecklistItem,
+  areAllChecklistsComplete,
+  type ChecklistData,
+  type FeatureChecklists,
+} from '../lib/checklist.js';
 import { resolveFeatureDir } from '../lib/context.js';
 import { findProjectRoot } from '../lib/paths.js';
 import { handleError, NotFoundError, ValidationError } from '../lib/errors.js';
+
+/**
+ * Item type discriminator
+ */
+export type ItemType = 'task' | 'checklist';
 
 /**
  * Mark result output
  */
 export interface MarkOutput {
   marked: string[];
+  itemType: ItemType;
   newStatus: 'complete' | 'incomplete' | 'blocked';
   progress: {
-    tasksCompleted: number;
-    tasksTotal: number;
+    completed: number;
+    total: number;
     percentage: number;
   };
   sectionStatus?: {
@@ -26,11 +40,35 @@ export interface MarkOutput {
   next?: {
     id: string;
     description: string;
-    dependenciesMet: boolean;
+    dependenciesMet?: boolean;
   };
   stepComplete: boolean;
   nextAction?: string;
   message?: string;
+}
+
+/**
+ * Checklist item ID pattern: V-001, I-001, C-001, D-001
+ */
+const CHECKLIST_ID_PATTERN = /^[VICD]-\d{3}$/;
+
+/**
+ * Task ID pattern: T001, T001a
+ */
+const TASK_ID_PATTERN = /^T\d{3}[a-z]?$/;
+
+/**
+ * Determine if ID is a checklist item
+ */
+function isChecklistId(id: string): boolean {
+  return CHECKLIST_ID_PATTERN.test(id);
+}
+
+/**
+ * Determine if ID is a task
+ */
+function isTaskId(id: string): boolean {
+  return TASK_ID_PATTERN.test(id);
 }
 
 /**
@@ -56,25 +94,37 @@ function parseTaskRange(range: string): string[] {
 }
 
 /**
- * Parse task IDs from arguments
+ * Parsed IDs with type information
  */
-function parseTaskIds(args: string[]): string[] {
+interface ParsedIds {
+  taskIds: string[];
+  checklistIds: string[];
+}
+
+/**
+ * Parse IDs from arguments, separating tasks from checklist items
+ */
+function parseIds(args: string[]): ParsedIds {
   const taskIds: string[] = [];
+  const checklistIds: string[] = [];
 
   for (const arg of args) {
     if (arg.includes('..')) {
-      // Range: T001..T005
+      // Range: T001..T005 (only for tasks)
       taskIds.push(...parseTaskRange(arg));
-    } else if (arg.match(/^T\d{3}[a-z]?$/)) {
+    } else if (isTaskId(arg)) {
       // Single task: T001
       taskIds.push(arg);
-    } else if (arg.match(/^V-\d{3}$/)) {
-      // Verification item: V-001
-      taskIds.push(arg);
+    } else if (isChecklistId(arg)) {
+      // Checklist item: V-001, I-001, C-001, D-001
+      checklistIds.push(arg);
     }
   }
 
-  return [...new Set(taskIds)];
+  return {
+    taskIds: [...new Set(taskIds)],
+    checklistIds: [...new Set(checklistIds)],
+  };
 }
 
 /**
@@ -178,10 +228,11 @@ async function markTasks(
 
   const result: MarkOutput = {
     marked: taskIds,
+    itemType: 'task',
     newStatus: complete ? 'complete' : 'incomplete',
     progress: {
-      tasksCompleted: updatedTasks.progress.completed,
-      tasksTotal: updatedTasks.progress.total,
+      completed: updatedTasks.progress.completed,
+      total: updatedTasks.progress.total,
       percentage: updatedTasks.progress.percentage,
     },
     sectionStatus,
@@ -211,12 +262,153 @@ async function markTasks(
 }
 
 /**
+ * Find checklist item across all checklists
+ */
+function findChecklistItem(
+  checklists: FeatureChecklists,
+  itemId: string,
+): { checklist: ChecklistData; item: ReturnType<typeof getChecklistItemById> } | null {
+  const allChecklists = [
+    checklists.verification,
+    checklists.implementation,
+    checklists.deferred,
+    ...checklists.other,
+  ].filter(Boolean) as ChecklistData[];
+
+  for (const checklist of allChecklists) {
+    const item = getChecklistItemById(checklist, itemId);
+    if (item) {
+      return { checklist, item };
+    }
+  }
+  return null;
+}
+
+/**
+ * Mark checklist items complete or incomplete
+ */
+async function markChecklistItems(
+  itemIds: string[],
+  options: { incomplete?: boolean },
+): Promise<MarkOutput> {
+  const projectRoot = findProjectRoot();
+  if (!projectRoot) {
+    throw new NotFoundError('SpecFlow project', 'Not in a SpecFlow project directory');
+  }
+
+  const featureDir = await resolveFeatureDir(undefined, projectRoot);
+  if (!featureDir) {
+    throw new NotFoundError('Feature', 'No active feature found');
+  }
+
+  // Read all checklists
+  const checklists = await readFeatureChecklists(featureDir);
+
+  // Validate all item IDs exist and group by file
+  const invalidIds: string[] = [];
+  const fileUpdates = new Map<string, { content: string; ids: string[] }>();
+
+  for (const itemId of itemIds) {
+    const found = findChecklistItem(checklists, itemId);
+    if (!found) {
+      invalidIds.push(itemId);
+    } else {
+      if (!fileUpdates.has(found.checklist.filePath)) {
+        const content = await readFile(found.checklist.filePath, 'utf-8');
+        fileUpdates.set(found.checklist.filePath, { content, ids: [] });
+      }
+      fileUpdates.get(found.checklist.filePath)!.ids.push(itemId);
+    }
+  }
+
+  if (invalidIds.length > 0) {
+    throw new ValidationError(
+      `Unknown checklist item IDs: ${invalidIds.join(', ')}`,
+      'Valid IDs are in format: V-001, I-001, C-001, D-001',
+    );
+  }
+
+  // Update each file
+  const complete = !options.incomplete;
+  for (const [filePath, { content, ids }] of fileUpdates) {
+    let updatedContent = content;
+    for (const itemId of ids) {
+      updatedContent = updateTaskCheckbox(updatedContent, itemId, complete);
+    }
+    await writeFile(filePath, updatedContent);
+  }
+
+  // Re-read checklists to get updated state
+  const updatedChecklists = await readFeatureChecklists(featureDir);
+  const allComplete = areAllChecklistsComplete(updatedChecklists);
+
+  // Calculate total progress across all checklists
+  const allChecklistsList = [
+    updatedChecklists.verification,
+    updatedChecklists.implementation,
+    ...updatedChecklists.other,
+  ].filter(Boolean) as ChecklistData[];
+
+  const totalItems = allChecklistsList.reduce((sum, c) => sum + c.progress.total, 0);
+  const completedItems = allChecklistsList.reduce((sum, c) => sum + c.progress.completed, 0);
+
+  // Get section status for first marked item
+  let sectionStatus: MarkOutput['sectionStatus'];
+  const firstFound = findChecklistItem(updatedChecklists, itemIds[0]);
+  if (firstFound?.item?.section) {
+    const sectionItems = firstFound.checklist.items.filter(i => i.section === firstFound.item!.section);
+    const sectionCompleted = sectionItems.filter(i => i.status === 'done').length;
+    sectionStatus = {
+      name: firstFound.item.section,
+      completed: sectionCompleted,
+      total: sectionItems.length,
+      isComplete: sectionCompleted === sectionItems.length,
+    };
+  }
+
+  // Find next incomplete item
+  let next: MarkOutput['next'];
+  for (const checklist of allChecklistsList) {
+    const nextItem = findNextChecklistItem(checklist);
+    if (nextItem) {
+      next = {
+        id: nextItem.id,
+        description: nextItem.description,
+      };
+      break;
+    }
+  }
+
+  const result: MarkOutput = {
+    marked: itemIds,
+    itemType: 'checklist',
+    newStatus: complete ? 'complete' : 'incomplete',
+    progress: {
+      completed: completedItems,
+      total: totalItems,
+      percentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
+    },
+    sectionStatus,
+    next,
+    stepComplete: allComplete,
+  };
+
+  if (allComplete) {
+    result.nextAction = 'ready_to_close';
+    result.message = 'All checklists complete! Ready to close phase.';
+  }
+
+  return result;
+}
+
+/**
  * Format human-readable mark output
  */
 function formatHumanReadable(result: MarkOutput): string {
+  const typeLabel = result.itemType === 'task' ? 'tasks' : 'checklist items';
   const lines = [
     `Marked ${result.marked.join(', ')} as ${result.newStatus}`,
-    `Progress: ${result.progress.tasksCompleted}/${result.progress.tasksTotal} (${result.progress.percentage}%)`,
+    `Progress: ${result.progress.completed}/${result.progress.total} ${typeLabel} (${result.progress.percentage}%)`,
   ];
 
   if (result.sectionStatus?.isComplete) {
@@ -238,23 +430,38 @@ function formatHumanReadable(result: MarkOutput): string {
  * Mark command
  */
 export const markCommand = new Command('mark')
-  .description('Mark task(s) complete and return updated state')
-  .argument('<tasks...>', 'Task ID(s) to mark (T001, T001..T005, V-001)')
+  .description('Mark task(s) or checklist item(s) complete')
+  .argument('<items...>', 'Item ID(s) to mark (T001, T001..T005, V-001, I-001)')
   .option('--json', 'Output as JSON')
   .option('--incomplete', 'Mark as incomplete instead of complete')
   .option('--blocked <reason>', 'Mark as blocked with reason')
-  .action(async (tasks: string[], options) => {
+  .action(async (items: string[], options) => {
     try {
-      const taskIds = parseTaskIds(tasks);
+      const parsed = parseIds(items);
 
-      if (taskIds.length === 0) {
+      // Validate we have some IDs
+      if (parsed.taskIds.length === 0 && parsed.checklistIds.length === 0) {
         throw new ValidationError(
-          'No valid task IDs provided',
-          'Use format: T001, T001..T005, or V-001',
+          'No valid item IDs provided',
+          'Use format: T001, T001..T005, V-001, I-001, C-001, D-001',
         );
       }
 
-      const result = await markTasks(taskIds, options);
+      // Cannot mix task and checklist IDs
+      if (parsed.taskIds.length > 0 && parsed.checklistIds.length > 0) {
+        throw new ValidationError(
+          'Cannot mix task and checklist IDs in one command',
+          'Mark tasks and checklist items separately',
+        );
+      }
+
+      // Route to appropriate handler
+      let result: MarkOutput;
+      if (parsed.taskIds.length > 0) {
+        result = await markTasks(parsed.taskIds, options);
+      } else {
+        result = await markChecklistItems(parsed.checklistIds, options);
+      }
 
       if (options.json) {
         output(result);

@@ -15,14 +15,15 @@ handoffs:
 
 # SpecFlow Project Initialization
 
-This command runs the complete project initialization flow:
+Initialize a project with SpecFlow by running a structured discovery interview, then generating governance documents.
 
+**Steps**:
 1. **Discovery Interview** - Collect project context and decisions
 2. **Constitution Generation** - Create governance document from decisions
 3. **Memory Documents** - Generate tech-stack, coding-standards, etc.
 4. **Roadmap Creation** - Create initial ROADMAP.md
 
-Each step is idempotent - if artifacts already exist and appear complete, that step is skipped.
+Each step is idempotent - if artifacts exist and appear complete, that step is skipped.
 
 ## User Input
 
@@ -30,116 +31,150 @@ Each step is idempotent - if artifacts already exist and appear complete, that s
 $ARGUMENTS
 ```
 
-## Argument Routing
-
-**IMPORTANT**: Check the user input above and route to the appropriate action:
+## Arguments
 
 | Argument | Action |
 |----------|--------|
-| (empty) | Run full initialization flow |
-| `status` | Show current progress → [Status Action](#status-action) |
-| `pause` | Save and pause → [Pause Action](#pause-action) |
-| `skip` | Skip current phase → [Skip Action](#skip-action) |
-| `revisit N` | Return to phase N → [Revisit Action](#revisit-action) |
-| `validate` | Check for issues → [Validate Action](#validate-action) |
-| `export [format]` | Generate memory docs → [Export Action](#export-action) |
-| `faster` | Switch to fast mode → [Mode Action](#mode-action) |
-| `deeper` | Switch to deep mode → [Mode Action](#mode-action) |
-| `focus TOPIC` | Focus on topic → [Focus Action](#focus-action) |
-| `research TOPIC` | Research topic → [Research Action](#research-action) |
-| `compare A vs B` | Compare options → [Compare Action](#compare-action) |
+| (empty) | Run full initialization flow (or resume) |
+| `status` | Show current progress |
 | `--force` | Regenerate all artifacts even if complete |
+| `faster` | Fast mode: 4 questions/round, skip optional phases |
+| `deeper` | Deep mode: 2 questions/round, apply 5 Whys technique |
+| `compare A vs B` | Compare two options side-by-side |
+| `research TOPIC` | Research a topic before deciding |
 | Other text | Use as project description, start interview |
 
 ---
 
-## Pre-Flight Checks
+## Pre-Flight
 
-Before running the initialization flow:
-
-### 1. Check for Active Orchestration
-
+**Get project status:**
 ```bash
-# Check if a phase is in progress
-specflow state get orchestration.phase.status 2>/dev/null
+specflow status --json
 ```
 
-**If orchestration is in progress**:
+This tells us:
+- Whether a phase is in progress (`phase.status`)
+- What artifacts exist (`artifacts`)
+- Project structure status
 
+**If orchestration is in progress** (and not `--force`):
 ```
-⚠️ Active Phase Detected
+Active Phase Detected
 
-An orchestration phase is currently in progress:
-  Phase: [phase_number] - [phase_name]
-  Status: [status]
-  Step: [step]
-
-Running /specflow.init during active development is not recommended.
-It could overwrite project context while work is in progress.
+Phase [number] is currently in progress.
+Running /flow.init during active development is not recommended.
 
 Options:
-1. Complete the current phase with /specflow.orchestrate
-2. Run /specflow.init --force to reinitialize anyway (use with caution)
+1. Complete the current phase with /flow.orchestrate
+2. Run /flow.init --force to reinitialize anyway
 ```
 
-**If `--force` flag is set**: Continue with warning that artifacts will be regenerated.
+**Create project structure** if `.specify/` doesn't exist:
+- `.specify/discovery/` - context.md, state.md, decisions.md
+- `.specify/memory/`
+- `.specify/templates/`
+- `.specify/phases/`
+- `specs/`
 
-### 2. Check Project Structure
+---
 
-```bash
-specflow scaffold --status
+## Argument Routing
+
+### Status Action
+
+Show current initialization progress.
+
+Read from `.specify/discovery/`:
+- `state.md` for phase progress
+- `decisions.md` for decision count
+- `context.md` for project info
+
+Output:
+```
+SpecFlow Initialization Status
+
+Project: [Name]
+Type: [Type] | Stage: [Stage] | Criticality: [Level]
+
+Phase Progress: X/11 phases | Y decisions captured
+
+Memory Document Readiness:
+| Document | Decisions | Status |
+|----------|-----------|--------|
+| constitution.md | N | Ready/Partial/Missing |
+| tech-stack.md | N | Ready/Partial/Missing |
+| coding-standards.md | N | Ready/Partial/Missing |
+
+Next: Phase N, Question X
 ```
 
-If `.specify/` doesn't exist, it will be created.
+**Stop and wait for user input.**
+
+---
+
+### Compare Action
+
+Argument: `compare A vs B`
+
+Create comparison table:
+```
+## Comparison: A vs B
+
+| Aspect | A | B |
+|--------|---|---|
+| Pros | ... | ... |
+| Cons | ... | ... |
+| Best for | ... | ... |
+| Team familiarity | ... | ... |
+| Community/Support | ... | ... |
+
+**Recommendation**: [Based on project context]
+
+Which would you like to proceed with?
+```
+
+---
+
+### Research Action
+
+Argument: `research TOPIC`
+
+1. Use web search or codebase exploration to gather information
+2. Present findings with sources
+3. Ask follow-up decision question based on research
 
 ---
 
 ## Full Initialization Flow
 
-When running without special arguments (or resuming), execute these steps in order:
-
 ### Step 1: Discovery Interview
 
-**Check completion**:
+**Check completion:**
+- `.specify/discovery/state.md` shows all phases complete
+- `.specify/discovery/decisions.md` has decisions
 
-```bash
-# Check if interview is complete
-specflow state get interview.status 2>/dev/null
-```
+**If complete (and not --force):**
+Output: "Discovery complete (X decisions). Skipping..."
+Proceed to Step 2.
 
-**Completion criteria**:
-- `.specify/discovery/state.md` exists AND shows all phases complete
-- `.specify/discovery/decisions.md` exists AND has decisions
-
-**If complete (and not --force)**:
-- Output: "✓ Discovery complete (X decisions captured). Skipping..."
-- Proceed to Step 2
-
-**If not complete**:
-- Run the interview process (see [Main Interview Process](#main-interview-process) below)
-- After interview completes, proceed to Step 2
+**If not complete:**
+Run the interview process (see [Interview Process](#interview-process) below).
 
 ---
 
 ### Step 2: Constitution Generation
 
-**Check completion**:
-
-```bash
-# Check if constitution exists
-ls .specify/memory/constitution.md 2>/dev/null
-```
-
-**Completion criteria** (smart detection):
-- File exists AND
-- Does NOT contain placeholder patterns: `[PROJECT_NAME]`, `[PRINCIPLE_`, `[RATIONALE]`
+**Check completion:**
+- `.specify/memory/constitution.md` exists
 - Has at least 2 `## Principle` sections with content
+- No placeholder patterns like `[PROJECT_NAME]`
 
-**If complete (and not --force)**:
-- Output: "✓ Constitution exists (X principles). Skipping..."
-- Proceed to Step 3
+**If complete (and not --force):**
+Output: "Constitution exists (X principles). Skipping..."
+Proceed to Step 3.
 
-**If incomplete or missing**:
+**If incomplete:**
 
 1. Load decisions from `.specify/discovery/decisions.md`
 2. Map decisions to constitution principles:
@@ -153,36 +188,26 @@ ls .specify/memory/constitution.md 2>/dev/null
 | Performance targets | Performance principle |
 | UX priorities | UX principle |
 
-3. Generate constitution using template from `.specify/templates/constitution-template.md`
+3. Generate using template: `.specify/templates/constitution-template.md`
 4. Write to `.specify/memory/constitution.md`
-5. Output: "✓ Constitution generated (X principles)"
-6. Proceed to Step 3
 
 ---
 
 ### Step 3: Memory Document Generation
 
-**Check completion**:
+**Check completion:**
+- `tech-stack.md` exists with actual technology entries
+- No placeholder patterns like `[TECHNOLOGY]`, `[VERSION]`
 
-```bash
-# Check for memory documents
-ls .specify/memory/tech-stack.md .specify/memory/coding-standards.md 2>/dev/null
-```
+**If complete (and not --force):**
+Output: "Memory documents exist. Skipping..."
+Proceed to Step 4.
 
-**Completion criteria** (smart detection):
-- At least `tech-stack.md` exists AND
-- Does NOT contain placeholder patterns: `[TECHNOLOGY]`, `[VERSION]`, `[REASON]`
-- Has actual technology entries
-
-**If complete (and not --force)**:
-- Output: "✓ Memory documents exist. Skipping..."
-- Proceed to Step 4
-
-**If incomplete or missing**:
+**If incomplete:**
 
 1. Load decisions from `.specify/discovery/decisions.md`
 2. Load constitution from `.specify/memory/constitution.md`
-3. Generate memory documents:
+3. Generate documents:
 
 | Document | Source Decisions |
 |----------|------------------|
@@ -193,365 +218,138 @@ ls .specify/memory/tech-stack.md .specify/memory/coding-standards.md 2>/dev/null
 | `security-checklist.md` | Security requirements (if applicable) |
 | `glossary.md` | Domain terms discovered during interview |
 
-4. Write documents to `.specify/memory/`
-5. Output: "✓ Memory documents generated (X documents)"
-6. Proceed to Step 4
+4. Write to `.specify/memory/`
 
 ---
 
 ### Step 4: Roadmap Creation
 
-**Check completion**:
+**Check completion:**
+- `ROADMAP.md` exists with at least 1 phase defined
 
-```bash
-# Check if roadmap exists
-ls ROADMAP.md 2>/dev/null
-specflow roadmap validate 2>/dev/null
-```
+**If complete (and not --force):**
+Output: "ROADMAP.md exists (X phases). Skipping..."
+Proceed to completion.
 
-**Completion criteria**:
-- `ROADMAP.md` exists AND
-- Has at least 1 phase defined
-- Passes validation
+**If incomplete:**
 
-**If complete (and not --force)**:
-- Output: "✓ ROADMAP.md exists (X phases). Skipping..."
-- Proceed to Completion Summary
-
-**If incomplete or missing**:
-
-1. Load project context from:
+1. Load context from:
    - `.specify/discovery/context.md`
    - `.specify/memory/constitution.md`
    - `.specify/memory/tech-stack.md`
 
-2. Apply roadmap generation principles:
+2. Apply roadmap principles:
    - Build core business logic first
    - Create POC checkpoints
    - Size phases for agentic sessions (~200k tokens)
    - Place USER GATES at key verification points
 
-3. Generate phases based on project type and scope
-
-4. Create `ROADMAP.md` at project root
-
-5. Create phase detail files in `.specify/phases/`
-
-6. Output: "✓ ROADMAP.md created (X phases)"
+3. Create `ROADMAP.md` at project root
+4. Create phase detail files in `.specify/phases/`
 
 ---
 
 ### Initialization Complete
 
-After all steps complete, display summary:
-
-```markdown
-## Project Initialization Complete!
-
-### Artifacts Created/Verified
+```
+Project Initialization Complete!
 
 | Step | Status | Details |
 |------|--------|---------|
-| Discovery | ✓ Complete | X decisions captured |
-| Constitution | ✓ Complete | X principles |
-| Memory Docs | ✓ Complete | X documents |
-| Roadmap | ✓ Complete | X phases |
+| Discovery | Complete | X decisions captured |
+| Constitution | Complete | X principles |
+| Memory Docs | Complete | X documents |
+| Roadmap | Complete | X phases |
 
-### Project Ready
-
-Your project is now ready for development!
-
-**Next Step**: Run `/specflow.orchestrate` to begin the first phase.
-
-### Quick Commands
-
-- `/specflow.orchestrate` - Start development workflow
-- `/specflow.memory` - Check memory document health
-- `/specflow.roadmap` - Update roadmap
+Next: Run /flow.orchestrate to begin the first phase.
 ```
 
 ---
 
-## Interview Actions
+## Interview Process
 
-### Status Action
+### Interview Modes
 
-Show current progress in the interview.
+**Normal mode** (default): 3 questions per round, balanced depth.
 
-1. Read `.specify/discovery/state.md` for phase progress
-2. Read `.specify/discovery/decisions.md` for decision count
-3. Read `.specify/discovery/context.md` for project info
+**Fast mode** (`faster`): 4 questions per round, skip optional phases, brief decisions.
 
-Output:
+**Deep mode** (`deeper`): 2 questions per round, apply 5 Whys technique, detailed decisions with alternatives.
 
-```markdown
-## SpecFlow Initialization Status
+### Inline Controls
 
-### Project: [Name]
-**Type**: [Type] | **Stage**: [Stage] | **Criticality**: [Level]
+During any question, the user can say:
+- **"skip"** - Skip current phase, move to next
+- **"pause"** - Save state and stop (resume with `/flow.init`)
+- **"go back to phase N"** - Revisit a previous phase
+- **"focus on X"** - Prioritize remaining questions about topic X
+- **"research X"** or **"compare A vs B"** - Pause for research/comparison
 
-### Phase Progress
-| Phase | Status | Decisions |
-|-------|--------|-----------|
-| 0: Discovery | complete | 8 |
-| 1: Problem & Vision | in_progress | 3 |
-| ... | ... | ... |
-
-**Overall**: X/12 phases | Y decisions captured
-
-### Memory Document Coverage
-| Document | Decisions | Status |
-|----------|-----------|--------|
-| constitution.md | N | Ready/Partial/Empty |
-| tech-stack.md | N | Ready/Partial/Empty |
-| ... | ... | ... |
-
-### Next: Phase N, Question X
-```
-
-**After showing status, stop and wait for user input.**
+Handle these contextually and continue.
 
 ---
-
-### Pause Action
-
-Save state and pause the interview.
-
-1. Update `.specify/discovery/state.md` with pause timestamp
-2. Summarize progress
-
-Output:
-
-```markdown
-## Interview Paused
-
-**Paused at**: [timestamp]
-**Current Phase**: N: [Name]
-**Progress**: X/12 phases | Y decisions
-
-State saved to `.specify/discovery/`. Run `/specflow.init` to resume.
-```
-
-**Stop and wait for user input.**
-
----
-
-### Skip Action
-
-Skip the current phase.
-
-1. Read current phase from state.md
-2. Mark current phase as "skipped"
-3. Move to next phase
-4. Continue interview
-
----
-
-### Revisit Action
-
-Return to a previous phase.
-
-Argument: `revisit N` where N is the phase number.
-
-1. Update state to phase N
-2. Summarize decisions from that phase
-3. Ask if user wants to modify or add decisions
-4. Continue from there
-
----
-
-### Validate Action
-
-Check decisions for contradictions and gaps.
-
-1. Read all decisions from `.specify/discovery/decisions.md`
-2. Check for contradictions (conflicting decisions)
-3. Check coverage gaps (phases with no decisions)
-4. Check memory document readiness
-
-Output validation report:
-
-```markdown
-## Interview Validation Report
-
-### Contradictions: N
-| Decisions | Conflict | Suggested Resolution |
-|-----------|----------|----------------------|
-
-### Coverage Gaps: N
-| Phase | Gap | Impact |
-|-------|-----|--------|
-
-### Memory Document Readiness
-| Document | Decisions | Ready? |
-|----------|-----------|--------|
-
-### Quality Score: X/10
-
-### Recommendations
-1. [Priority action]
-2. [Secondary action]
-```
-
----
-
-### Export Action
-
-Generate memory documents from decisions.
-
-Argument: `export [format]` where format is:
-- `summary` - One-page project overview
-- `constitution` - Draft constitution
-- `tech-stack` - Technology decisions
-- `all` - Generate all memory documents
-
-1. Read all decisions from `.specify/discovery/decisions.md`
-2. Group by target memory document
-3. Generate requested format(s)
-4. Write to `.specify/memory/`
-
-After export, continue to constitution step (Step 2).
-
----
-
-### Mode Action
-
-Switch interview mode.
-
-**`faster`**: Fast mode
-- 4 questions per round
-- Skip optional phases
-- Brief decisions
-
-**`deeper`**: Deep mode
-- 2 questions per round
-- Apply 5 Whys technique
-- Detailed decisions with alternatives explored
-
-Update mode in state.md and continue interview in new mode.
-
----
-
-### Focus Action
-
-Focus remaining questions on a specific topic.
-
-Argument: `focus TOPIC`
-
-1. Read remaining phases
-2. Filter/prioritize questions related to TOPIC
-3. Update state with focus
-4. Continue with focused questions
-
----
-
-### Research Action
-
-Research a topic before deciding.
-
-Argument: `research TOPIC`
-
-1. Use web search or codebase exploration to gather information
-2. Present findings to user
-3. Ask follow-up decision question based on research
-
----
-
-### Compare Action
-
-Compare options side-by-side.
-
-Argument: `compare A vs B`
-
-Create a comparison table:
-
-```markdown
-## Comparison: A vs B
-
-| Aspect | A | B |
-|--------|---|---|
-| Pros | ... | ... |
-| Cons | ... | ... |
-| Best for | ... | ... |
-| Team familiarity | ... | ... |
-| Community/Support | ... | ... |
-
-**Recommendation**: [Based on project context from decisions]
-
-Which would you like to proceed with?
-```
-
----
-
-## Main Interview Process
-
-If no special argument, run the interview.
-
-### Setup: Create Project Structure
-
-Use the SpecFlow CLI:
-
-```bash
-# Check and create project structure
-specflow scaffold
-
-# Or check status first
-specflow scaffold --status
-```
-
-This creates:
-- `.specify/discovery/` - context.md, state.md, decisions.md
-- `.specify/memory/adrs/`
-- `.specify/templates/`
-- `.specify/scripts/bash/`
-- `.specify/archive/`
-- `specs/`
-
-### Check for Existing Interview
-
-```bash
-# Check if resuming
-specflow state get interview.status 2>/dev/null || echo "new"
-```
-
-If resuming:
-1. Read state.md for current phase/question
-2. Summarize recent decisions
-3. Continue from where we left off
 
 ### Phase 0: Discovery (Always First)
 
-Ask 4 questions using AskUserQuestion:
-1. What is this project? (one sentence description)
+Ask using `AskUserQuestion`:
+
+**Round 1 - Project Identity:**
+1. What is this project? (one sentence)
 2. What type of software? (CLI, API, web app, library, mobile, etc.)
 3. Who is it for? (developers, end users, machines)
 4. What stage? (greenfield, brownfield, prototype, rewrite)
 
-Then 4 more about context:
+**Round 2 - Context:**
 5. What already exists? (code, prototypes, docs)
 6. What's already decided? (tech constraints, timeline)
 7. Team size and composition?
-8. Criticality level?
+8. Criticality level? (hobby, internal, production, mission-critical)
 
 After Phase 0:
 1. Update `.specify/discovery/context.md`
 2. Set relevance filters for remaining phases
-3. Create TodoWrite checklist for phases
-4. If reference materials mentioned, use Explore agent
+3. If reference materials mentioned, explore them
 
-### Subsequent Phases
+---
 
-For each phase (1-10):
+### Phases 1-10: Domain Questions
+
+For each phase:
 1. Announce phase and relevance level
-2. Ask 4 questions using AskUserQuestion
-3. Update decisions.md and state.md
+2. Ask questions using `AskUserQuestion`
+3. Update `decisions.md` and `state.md` after each answer
 4. Track memory document impacts
-5. Check for contradictions
-6. Move to next phase
+5. Move to next phase
 
 **Questions must build on previous answers:**
 - Bad: "What's your testing strategy?"
 - Good: "You said this is a CLI for developers (D-2) running overnight (D-5). How should test failures be surfaced?"
+
+**Phase topics:**
+1. Problem & Vision
+2. Users & Personas
+3. Core Features
+4. Technical Architecture
+5. Data & Storage
+6. Security & Compliance
+7. Performance & Scale
+8. Testing Strategy
+9. Deployment & Operations
+10. Future & Extensibility
+
+---
+
+### Phase 11: Memory Bootstrap
+
+Final interview phase:
+1. Review all captured decisions
+2. Generate draft memory documents
+3. Write to `.specify/memory/`
+4. Create gap analysis
+5. Mark interview complete
+6. Continue to Step 2 (Constitution Generation)
+
+---
 
 ### Decision Format
 
@@ -567,27 +365,19 @@ For each phase (1-10):
 - **Memory Doc Impact**: [constitution.md, tech-stack.md, etc.]
 ```
 
-### Phase 11: Memory Bootstrap
-
-Final interview phase - generate draft memory documents:
-1. Review all captured decisions
-2. For each memory document, gather relevant decisions and generate draft
-3. Write to `.specify/memory/[doc].md`
-4. Create gap analysis report
-5. Mark interview as complete
-6. Continue to Step 2 (Constitution Generation)
-
 ---
 
-## CLI Dependencies
+## Error Handling
 
+| Error | Response |
+|-------|----------|
+| No project structure | Create `.specify/` directories |
+| Active phase in progress | Warn user, suggest `/flow.orchestrate` |
+| Interview incomplete | Resume from saved state |
+
+**On any error:**
 ```bash
-specflow scaffold          # Create project structure
-specflow scaffold --status # Check project structure
-specflow state get         # Read state
-specflow state set         # Update state
-specflow doctor            # Check project health
-specflow roadmap validate  # Validate roadmap
+specflow state set "interview.status=error"
 ```
 
 ---

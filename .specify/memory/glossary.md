@@ -2,7 +2,7 @@
 
 > Domain terminology, artifact types, and SpecFlow-specific concepts.
 
-**Last Updated**: 2026-01-11
+**Last Updated**: 2026-01-18
 
 ---
 
@@ -76,36 +76,44 @@
 ## Commands
 
 ### Slash Commands (Claude Code)
+
 | Command | Purpose |
 |---------|---------|
-| `/specflow.start` | Smart entry point |
-| `/specflow.init` | Requirements interview |
-| `/specflow.orchestrate` | Full automated workflow (9 steps, `--no-discovery` to skip) |
-| `/specflow.specify` | Create specification |
-| `/specflow.clarify` | Resolve spec ambiguities |
-| `/specflow.plan` | Create technical plan |
-| `/specflow.tasks` | Generate task list |
-| `/specflow.analyze` | Cross-artifact consistency |
-| `/specflow.checklist` | Create verification checklist |
-| `/specflow.implement` | Execute tasks |
-| `/specflow.verify` | Verify completion |
-| `/specflow.merge` | Complete phase (push, PR, merge) |
-| `/specflow.backlog` | Triage backlog items |
-| `/specflow.memory` | Verify/reconcile memory docs |
-| `/specflow.memory-init` | Generate memory docs from codebase |
+| `/flow.init` | Project initialization with discovery interview |
+| `/flow.orchestrate` | Full automated workflow with state persistence |
+| `/flow.design` | Create all design artifacts (spec, plan, tasks, checklists) |
+| `/flow.analyze` | Cross-artifact consistency validation |
+| `/flow.implement` | Execute tasks with TDD workflow |
+| `/flow.verify` | Verify completion and compliance |
+| `/flow.merge` | Complete phase (push, PR, merge) |
+| `/flow.memory` | Verify and reconcile memory documents |
+| `/flow.roadmap` | Create or update ROADMAP.md |
+| `/flow.review` | Systematic code review with phase creation |
 
 ### CLI Commands (Terminal)
+
 | Command | Purpose |
 |---------|---------|
-| `specflow scaffold` | Create project structure |
-| `specflow state` | State management |
-| `specflow roadmap` | ROADMAP operations (status, insert, defer, restore) |
-| `specflow tasks` | Task operations (mark, status) |
-| `specflow context` | Show project context |
-| `specflow doctor` | Run diagnostics (shows suggested fix commands) |
-| `specflow gate` | Validation gates (specify, plan, tasks, implement) |
-| `specflow lessons` | Lessons learned tracking |
-| `specflow memory` | Memory document operations |
+| `specflow status` | Complete project status in single call |
+| `specflow next` | Next actionable task with full context |
+| `specflow mark <id>` | Mark task(s) or checklist item(s) complete |
+| `specflow check` | Deep validation with auto-fix support |
+| `specflow state` | Low-level state access (get/set/show/init/sync) |
+| `specflow phase` | Phase lifecycle (open/close/status/defer/add) |
+
+### CLI Options
+
+All CLI commands support:
+- `--json` - Machine-readable JSON output
+- `--help` - Command help
+
+Common patterns:
+- `specflow mark T001 T002 T003` - Mark multiple items
+- `specflow mark T001..T005` - Mark range of tasks
+- `specflow mark V-001` - Mark verification checklist item
+- `specflow phase open --hotfix` - Create hotfix phase
+- `specflow check --fix` - Auto-fix detected issues
+- `specflow check --gate design` - Check specific gate
 
 ---
 

@@ -1,4 +1,6 @@
 import { Command } from 'commander';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { output } from '../lib/output.js';
 import { readState, writeState, setStateValue } from '../lib/state.js';
 import { readTasks, detectCircularDependencies } from '../lib/tasks.js';
@@ -6,14 +8,14 @@ import { readRoadmap, getPhaseByNumber } from '../lib/roadmap.js';
 import { readFeatureChecklists, areAllChecklistsComplete } from '../lib/checklist.js';
 import { getProjectContext, resolveFeatureDir, getMissingArtifacts } from '../lib/context.js';
 import { runHealthCheck, type HealthIssue } from '../lib/health.js';
-import { findProjectRoot, pathExists, getStatePath } from '../lib/paths.js';
+import { findProjectRoot, pathExists, getStatePath, getMemoryDir } from '../lib/paths.js';
 import { handleError, NotFoundError } from '../lib/errors.js';
 import type { OrchestrationState } from '@specflow/shared';
 
 /**
  * Gate types
  */
-export type GateType = 'design' | 'implement' | 'verify';
+export type GateType = 'design' | 'implement' | 'verify' | 'memory';
 
 /**
  * Check result for a single gate
@@ -57,6 +59,7 @@ export interface CheckOutput {
     design: GateResult;
     implement: GateResult;
     verify: GateResult;
+    memory: GateResult;
   };
   issues: CheckIssue[];
   autoFixableCount: number;
@@ -173,6 +176,65 @@ async function checkVerifyGate(
   return {
     passed,
     reason: passed ? undefined : 'Verification requirements not met',
+    checks,
+  };
+}
+
+/**
+ * Check memory gate - validates memory documents are healthy
+ */
+async function checkMemoryGate(projectRoot: string): Promise<GateResult> {
+  const memoryDir = getMemoryDir(projectRoot);
+
+  if (!pathExists(memoryDir)) {
+    return {
+      passed: false,
+      reason: 'No memory directory',
+      checks: { memory_dir_exists: false },
+    };
+  }
+
+  const checks: Record<string, boolean> = {
+    memory_dir_exists: true,
+  };
+
+  // Check constitution.md exists (required)
+  const constitutionPath = join(memoryDir, 'constitution.md');
+  checks.constitution_exists = pathExists(constitutionPath);
+
+  // Check for placeholder content in constitution
+  if (checks.constitution_exists) {
+    try {
+      const content = await readFile(constitutionPath, 'utf-8');
+      const hasPlaceholders = /\b(TODO|TBD|TKTK|\?\?\?|<placeholder>)\b/i.test(content);
+      checks.no_placeholders = !hasPlaceholders;
+
+      // Check for agent directive header
+      const hasAgentDirective = /^>\s*\*\*Agents?\*\*:/m.test(content);
+      checks.has_agent_directive = hasAgentDirective;
+    } catch {
+      checks.constitution_readable = false;
+    }
+  }
+
+  // Check recommended memory docs (warn if missing but don't fail)
+  const recommendedDocs = ['tech-stack.md', 'coding-standards.md'];
+  let recommendedCount = 0;
+  for (const doc of recommendedDocs) {
+    if (pathExists(join(memoryDir, doc))) {
+      recommendedCount++;
+    }
+  }
+  checks.has_recommended_docs = recommendedCount > 0;
+
+  // Gate passes if constitution exists and has no placeholders
+  const passed = checks.constitution_exists &&
+    checks.no_placeholders !== false &&
+    checks.has_agent_directive !== false;
+
+  return {
+    passed,
+    reason: passed ? undefined : 'Memory documents need attention',
     checks,
   };
 }
@@ -340,6 +402,7 @@ async function runCheck(options: {
         design: { passed: false, reason: 'No project', checks: {} },
         implement: { passed: false, reason: 'No project', checks: {} },
         verify: { passed: false, reason: 'No project', checks: {} },
+        memory: { passed: false, reason: 'No project', checks: {} },
       },
       issues: [{
         severity: 'error',
@@ -365,16 +428,18 @@ async function runCheck(options: {
   const designGate = await checkDesignGate(featureDir);
   const implementGate = await checkImplementGate(featureDir);
   const verifyGate = await checkVerifyGate(featureDir, implementGate);
+  const memoryGate = await checkMemoryGate(projectRoot);
 
   // If specific gate requested, only check that
   if (options.gate) {
     const gateResult = options.gate === 'design' ? designGate :
-                       options.gate === 'implement' ? implementGate : verifyGate;
+                       options.gate === 'implement' ? implementGate :
+                       options.gate === 'memory' ? memoryGate : verifyGate;
 
     return {
       passed: gateResult.passed,
       summary: { errors: gateResult.passed ? 0 : 1, warnings: 0, info: 0 },
-      gates: { design: designGate, implement: implementGate, verify: verifyGate },
+      gates: { design: designGate, implement: implementGate, verify: verifyGate, memory: memoryGate },
       issues: gateResult.passed ? [] : [{
         severity: 'error',
         code: `${options.gate.toUpperCase()}_GATE_FAILED`,
@@ -414,10 +479,11 @@ async function runCheck(options: {
       design: designGate,
       implement: implementGate,
       verify: verifyGate,
+      memory: memoryGate,
     },
     issues,
     autoFixableCount: issues.filter(i => i.autoFixable).length,
-    suggestedAction: determineSuggestedAction(issues, { design: designGate, implement: implementGate, verify: verifyGate }),
+    suggestedAction: determineSuggestedAction(issues, { design: designGate, implement: implementGate, verify: verifyGate, memory: memoryGate }),
   };
 
   if (fixed && fixed.length > 0) {
@@ -443,7 +509,7 @@ function formatHumanReadable(result: CheckOutput): string {
 
   // Gates
   const gateStatus = (g: GateResult) => g.passed ? '✓' : '✗';
-  lines.push(`Gates: Design ${gateStatus(result.gates.design)} | Implement ${gateStatus(result.gates.implement)} | Verify ${gateStatus(result.gates.verify)}`);
+  lines.push(`Gates: Design ${gateStatus(result.gates.design)} | Implement ${gateStatus(result.gates.implement)} | Verify ${gateStatus(result.gates.verify)} | Memory ${gateStatus(result.gates.memory)}`);
 
   // Issues
   if (result.issues.length > 0) {
@@ -482,7 +548,7 @@ export const checkCommand = new Command('check')
   .description('Deep validation with auto-fix support')
   .option('--json', 'Output as JSON')
   .option('--fix', 'Auto-fix fixable issues')
-  .option('--gate <gate>', 'Check specific gate: design, implement, verify')
+  .option('--gate <gate>', 'Check specific gate: design, implement, verify, memory')
   .action(async (options) => {
     try {
       const result = await runCheck({

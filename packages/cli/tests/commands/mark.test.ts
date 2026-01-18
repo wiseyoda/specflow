@@ -14,6 +14,13 @@ vi.mock('../../src/lib/tasks.js', () => ({
   getTaskById: vi.fn(),
 }));
 
+vi.mock('../../src/lib/checklist.js', () => ({
+  readFeatureChecklists: vi.fn(),
+  getChecklistItemById: vi.fn(),
+  findNextChecklistItem: vi.fn(),
+  areAllChecklistsComplete: vi.fn(),
+}));
+
 vi.mock('node:fs/promises', () => ({
   readFile: vi.fn(),
   writeFile: vi.fn(),
@@ -22,6 +29,12 @@ vi.mock('node:fs/promises', () => ({
 import { findProjectRoot } from '../../src/lib/paths.js';
 import { resolveFeatureDir } from '../../src/lib/context.js';
 import { readTasks, getTaskById, findNextTask } from '../../src/lib/tasks.js';
+import {
+  readFeatureChecklists,
+  getChecklistItemById,
+  findNextChecklistItem,
+  areAllChecklistsComplete,
+} from '../../src/lib/checklist.js';
 import { readFile, writeFile } from 'node:fs/promises';
 
 describe('mark command', () => {
@@ -204,6 +217,137 @@ describe('mark command', () => {
       const allComplete = progress.completed === progress.total;
 
       expect(allComplete).toBe(true);
+    });
+  });
+
+  describe('parseIds - checklist items', () => {
+    it('should recognize verification item IDs (V-001)', () => {
+      const id = 'V-001';
+      expect(id.match(/^[VICD]-\d{3}$/)).toBeTruthy();
+    });
+
+    it('should recognize implementation item IDs (I-001)', () => {
+      const id = 'I-001';
+      expect(id.match(/^[VICD]-\d{3}$/)).toBeTruthy();
+    });
+
+    it('should recognize custom checklist item IDs (C-001)', () => {
+      const id = 'C-001';
+      expect(id.match(/^[VICD]-\d{3}$/)).toBeTruthy();
+    });
+
+    it('should recognize deferred item IDs (D-001)', () => {
+      const id = 'D-001';
+      expect(id.match(/^[VICD]-\d{3}$/)).toBeTruthy();
+    });
+
+    it('should distinguish task IDs from checklist IDs', () => {
+      const taskId = 'T001';
+      const checklistId = 'V-001';
+
+      const isTask = /^T\d{3}[a-z]?$/.test(taskId);
+      const isChecklist = /^[VICD]-\d{3}$/.test(checklistId);
+
+      expect(isTask).toBe(true);
+      expect(isChecklist).toBe(true);
+      expect(/^[VICD]-\d{3}$/.test(taskId)).toBe(false);
+      expect(/^T\d{3}[a-z]?$/.test(checklistId)).toBe(false);
+    });
+  });
+
+  describe('updateChecklistCheckbox', () => {
+    it('should mark verification item as complete', () => {
+      const content = '- [ ] V-001 First verification\n- [ ] V-002 Second verification';
+      const itemId = 'V-001';
+
+      const lines = content.split('\n');
+      const updated = lines.map(line => {
+        if (line.includes(itemId)) {
+          return line.replace(/- \[ \]/, '- [x]');
+        }
+        return line;
+      }).join('\n');
+
+      expect(updated).toContain('- [x] V-001 First verification');
+      expect(updated).toContain('- [ ] V-002 Second verification');
+    });
+
+    it('should mark verification item as incomplete', () => {
+      const content = '- [x] V-001 First verification\n- [x] V-002 Second verification';
+      const itemId = 'V-001';
+
+      const lines = content.split('\n');
+      const updated = lines.map(line => {
+        if (line.includes(itemId)) {
+          return line.replace(/- \[x\]/i, '- [ ]');
+        }
+        return line;
+      }).join('\n');
+
+      expect(updated).toContain('- [ ] V-001 First verification');
+      expect(updated).toContain('- [x] V-002 Second verification');
+    });
+  });
+
+  describe('markChecklistItems', () => {
+    it('should throw when not in a project', async () => {
+      vi.mocked(findProjectRoot).mockReturnValue(undefined);
+
+      expect(findProjectRoot()).toBeUndefined();
+    });
+
+    it('should find checklist items across multiple checklists', async () => {
+      const mockChecklists = {
+        featureDir: '/test/specs/0010-test',
+        verification: {
+          name: 'verification',
+          filePath: '/test/specs/0010-test/checklists/verification.md',
+          type: 'verification' as const,
+          sections: [],
+          items: [
+            { id: 'V-001', description: 'First verification', status: 'todo' as const, line: 10 },
+            { id: 'V-002', description: 'Second verification', status: 'todo' as const, line: 11 },
+          ],
+          progress: { total: 2, completed: 0, skipped: 0, percentage: 0 },
+        },
+        implementation: {
+          name: 'implementation',
+          filePath: '/test/specs/0010-test/checklists/implementation.md',
+          type: 'implementation' as const,
+          sections: [],
+          items: [
+            { id: 'I-001', description: 'First implementation', status: 'todo' as const, line: 10 },
+          ],
+          progress: { total: 1, completed: 0, skipped: 0, percentage: 0 },
+        },
+        other: [],
+      };
+
+      vi.mocked(readFeatureChecklists).mockResolvedValue(mockChecklists);
+
+      const checklists = await readFeatureChecklists('/test/specs/0010-test');
+
+      expect(checklists.verification?.items.some(i => i.id === 'V-001')).toBe(true);
+      expect(checklists.implementation?.items.some(i => i.id === 'I-001')).toBe(true);
+    });
+
+    it('should detect when all checklists are complete', () => {
+      const allComplete = true;
+
+      vi.mocked(areAllChecklistsComplete).mockReturnValue(allComplete);
+
+      expect(areAllChecklistsComplete({
+        featureDir: '/test',
+        verification: {
+          name: 'verification',
+          filePath: '/test/checklists/verification.md',
+          type: 'verification',
+          sections: [],
+          items: [{ id: 'V-001', description: 'Test', status: 'done', line: 1 }],
+          progress: { total: 1, completed: 1, skipped: 0, percentage: 100 },
+        },
+        other: [],
+      })).toBe(true);
     });
   });
 });

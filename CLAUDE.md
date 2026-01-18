@@ -15,6 +15,7 @@ specflow next                # Next actionable task with context
 specflow mark T007           # Mark task complete
 specflow check --fix         # Validation with auto-fix
 specflow state get <key>     # State operations
+specflow phase close         # Close current phase (update ROADMAP, archive)
 
 # All commands support --json for machine-readable output
 specflow status --json
@@ -35,7 +36,8 @@ packages/cli/                → TypeScript CLI implementation
 │   │   ├── next.ts         → Next task command
 │   │   ├── mark.ts         → Mark task command
 │   │   ├── check.ts        → Validation command
-│   │   └── state/          → State subcommands
+│   │   ├── state/          → State subcommands
+│   │   └── phase/          → Phase lifecycle (open/close/status)
 │   └── lib/                → Shared libraries
 │       ├── tasks.ts        → Parse tasks.md
 │       ├── roadmap.ts      → Parse ROADMAP.md
@@ -59,14 +61,32 @@ commands/flow.*.md          → Claude Code slash commands (/flow.*)
 specflow state get orchestration.phase.number
 specflow state set orchestration.step.current=verify
 
-# Mark tasks
+# Mark tasks or checklist items
 specflow mark T007              # Single task
 specflow mark T007 T008 T009    # Multiple tasks
 specflow mark T007..T010        # Range
+specflow mark V-001             # Single verification item
+specflow mark V-001 V-002       # Multiple checklist items
+specflow mark I-001             # Implementation checklist item
 
-# Validation
-specflow check --gate design    # Check specific gate
+# Validation gates
+specflow check --gate design    # Verify design artifacts exist
+specflow check --gate implement # Verify all tasks complete
+specflow check --gate verify    # Verify checklists complete
+specflow check --gate memory    # Verify memory docs healthy
 specflow check --fix            # Auto-fix issues
+
+# Phase lifecycle
+specflow phase                  # Show current phase
+specflow phase open 0081        # Start a specific phase
+specflow phase open --hotfix    # Create and start a hotfix phase (auto-number)
+specflow phase open --hotfix "Code Review"  # Hotfix with custom name
+specflow phase close            # Close current phase
+specflow phase close --dry-run  # Preview close operations
+specflow phase defer "item"     # Add item to BACKLOG.md
+specflow phase defer "item1" "item2"  # Add multiple items
+specflow phase add 0010 "core-engine"  # Add phase to ROADMAP
+specflow phase add 0020 "api-poc" --user-gate --gate "API works"  # With USER GATE
 ```
 
 ## Code Style

@@ -30,95 +30,79 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Goal
 
-Produce all design artifacts for the current phase in one command:
-- `discovery.md` - Codebase examination and clarified user intent
-- `spec.md` - Feature specification with requirements
-- `requirements.md` - Requirements checklist
-- `plan.md` - Technical implementation plan
-- `tasks.md` - Actionable task list
-- `checklists/implementation.md` - Implementation guidance checklist
-- `checklists/verification.md` - Verification checklist for completion
+Produce all design artifacts for the current phase:
+
+| Artifact | Purpose |
+|----------|---------|
+| `discovery.md` | Codebase examination and clarified user intent |
+| `spec.md` | Feature specification with requirements |
+| `requirements.md` | Requirements quality checklist |
+| `plan.md` | Technical implementation plan |
+| `tasks.md` | Actionable task list |
+| `checklists/implementation.md` | Implementation guidance |
+| `checklists/verification.md` | Verification checklist |
+
+---
 
 ## Execution Flow
 
-### 0. Setup & Cascade Detection
+### 0. Setup
 
-**0a. Parse cascade flags:**
+**Get project context:**
 ```bash
-# Determine starting phase based on flags
-if [[ "$ARGUMENTS" == *"--checklist"* ]]; then
-  START_PHASE="checklists"
-elif [[ "$ARGUMENTS" == *"--tasks"* ]]; then
-  START_PHASE="tasks"
-elif [[ "$ARGUMENTS" == *"--plan"* ]]; then
-  START_PHASE="plan"
-elif [[ "$ARGUMENTS" == *"--spec"* ]]; then
-  START_PHASE="spec"
-else
-  START_PHASE="discover"
-fi
+specflow status --json
 ```
 
-**0b. Get context:**
-```bash
-specflow context --json
-```
-Parse: FEATURE_DIR, PHASE_NUMBER, BRANCH_NAME, SPEC_FILE
+Parse: `phase.number`, `phase.dir`, `branch`, `artifacts` (to check what exists).
 
-**0c. Update state:**
+**Determine starting phase** from cascade flags or artifact existence:
+- If `--checklist` → start at CHECKLISTS
+- If `--tasks` → start at TASKS
+- If `--plan` → start at PLAN
+- If `--spec` → start at SPECIFY
+- Otherwise, check existing artifacts to auto-resume:
+  - `tasks.md` exists, no `checklists/` → start at CHECKLISTS
+  - `plan.md` exists, no `tasks.md` → start at TASKS
+  - `spec.md` exists, no `plan.md` → start at PLAN
+  - `discovery.md` exists, no `spec.md` → start at SPECIFY
+  - Otherwise → start at DISCOVER
+
+**Update state:**
 ```bash
 specflow state set "orchestration.step.current=design" "orchestration.step.status=in_progress"
 ```
-
-**0d. Check for resumable state:**
-```bash
-# Read substep from state if exists
-SUBSTEP=$(specflow state get orchestration.design.substep 2>/dev/null || echo "discover")
-```
-
-If resuming and no cascade flag specified, continue from saved substep. However, per FR-008a, **DISCOVER always re-runs** on resume (codebase examination and clarifying questions).
 
 ---
 
 ### 1. DISCOVER Phase
 
-**Skip if**: `START_PHASE` is not "discover" (cascade flag used)
+**Skip if**: Starting from spec, plan, tasks, or checklists.
 
 **1a. Load phase context:**
 ```bash
-specflow phase show {PHASE_NUMBER}    # Get Goal, Scope, Deliverables from phase file
+specflow phase
 ```
 
 **1b. Examine codebase:**
-1. Search for files, functions, and patterns related to this change
-2. Look for existing implementations in the same area
-3. Identify dependencies and integration points
-4. Note patterns and conventions already established
+- Search for files, functions, and patterns related to this change
+- Look for existing implementations in the same area
+- Identify dependencies and integration points
+- Note patterns and conventions already established
 
 **1c. Read memory documents:**
-```bash
-cat .specify/memory/constitution.md   # Required
-cat .specify/memory/tech-stack.md     # If exists
-cat .specify/memory/coding-standards.md  # If exists
-```
+Read from `.specify/memory/`:
+- `constitution.md` (required)
+- `tech-stack.md` (if exists)
+- `coding-standards.md` (if exists)
 
 **1d. Progressive clarifying questions:**
 
-Ask up to 5 rounds of 1-2 questions each to understand user intent:
+Ask up to 5 rounds of 1-2 questions each to understand user intent.
 
 For each question, use `AskUserQuestion`:
 - **Always provide context**: What you found, why it matters, pros/cons
-- **Recommend an option**: Mark with "(Recommended)"
-- **Format**:
-  ```
-  Header: "[Topic]"
-  Question: "[Specific question based on codebase examination]"
-  Options:
-    - Label: "[Option A] (Recommended)"
-      Description: "Aligns with existing pattern in [file]. Pros: X. Cons: Y."
-    - Label: "[Option B]"
-      Description: "Would require changes to [file]. Pros: X. Cons: Y."
-  ```
+- **Recommend an option**: Mark first option with "(Recommended)"
+- Include what you discovered in codebase that informed the question
 
 Between question rounds:
 - Research based on answers (examine new code areas, web search if needed)
@@ -126,73 +110,38 @@ Between question rounds:
 - Ask follow-ups only if new areas emerge
 
 **1e. Document findings:**
-Create `{FEATURE_DIR}/discovery.md`:
-```markdown
-# Discovery: {PHASE_NAME}
 
-**Date**: {TODAY}
-**Phase**: {PHASE_NUMBER}
-
-## Codebase Examination
-
-### Relevant Code Locations
-- [List files/functions found]
-
-### Existing Patterns
-- [List patterns discovered]
-
-### Integration Points
-- [List dependencies]
-
-## Clarified Understanding
-
-### User Intent
-[Summary of what user wants based on Q&A]
-
-### Key Decisions
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| ... | ... | ... |
-
-### Constraints Discovered
-- [List constraints from codebase/discussion]
-```
+Write `{PHASE_DIR}/discovery.md` using template: `.specify/templates/discovery-template.md`
 
 **1f. Verify understanding:**
+
 Summarize understanding and ask user to confirm: "Does this accurately capture your intent?"
 - If yes → proceed to SPECIFY
 - If no → ask what was misunderstood, update discovery.md
-
-**1g. Update substep:**
-```bash
-specflow state set "orchestration.design.substep=specify"
-```
 
 ---
 
 ### 2. SPECIFY Phase
 
-**Skip if**: `START_PHASE` is "plan", "tasks", or "checklists"
+**Skip if**: Starting from plan, tasks, or checklists.
 
 **2a. Load context:**
-- Read `discovery.md` if exists (for confirmed understanding)
-- Load `.specify/templates/spec-template.md`
-- Get phase Goal/Scope from `specflow phase show {PHASE_NUMBER}`
+- Read `discovery.md` (for confirmed understanding)
+- Read template: `.specify/templates/spec-template.md`
+- Get phase Goal/Scope from `specflow phase`
 
 **2b. Check for deferred items:**
-```bash
-ls .specify/phases/*-handoff.md 2>/dev/null   # Handoff files from previous phases
-grep -l "Deferred" specs/*/tasks.md 2>/dev/null  # Deferred sections
-```
 
-If handoff files found:
-- Display prominent notice about inherited requirements
+Look for handoff files in `.specify/phases/*-handoff.md` and deferred sections in previous `specs/*/tasks.md`.
+
+If found:
+- Display notice about inherited requirements
 - Ask user which items to include (A: all, B: select, C: defer)
-- Add confirmed items to spec under "## Inherited Requirements"
+- Add confirmed items under "## Inherited Requirements"
 
 **2c. Generate spec:**
 
-Parse phase file and discovery findings. For each unclear aspect:
+Parse phase file and discovery findings. For unclear aspects:
 - Make informed guesses based on context
 - Only use `[NEEDS CLARIFICATION: question]` if:
   - Significantly impacts scope or UX
@@ -200,58 +149,43 @@ Parse phase file and discovery findings. For each unclear aspect:
   - No reasonable default exists
 - **LIMIT: Maximum 3 markers**
 
-Write `{FEATURE_DIR}/spec.md` with template structure.
+Write `{PHASE_DIR}/spec.md` using template structure.
 
 **2d. Create requirements checklist:**
-Write `{FEATURE_DIR}/requirements.md` validating spec quality.
+
+Write `{PHASE_DIR}/requirements.md` using template: `.specify/templates/checklist-template.md`
 
 **2e. Handle inline clarifications:**
 
 If `[NEEDS CLARIFICATION]` markers exist (max 3):
 1. Extract all markers
-2. Present each as a question with options table:
-
-```markdown
-## Question [N]: [Topic]
-
-**Context**: [Quote relevant spec section]
-**What we need**: [Specific question]
-
-| Option | Answer | Implications |
-|--------|--------|--------------|
-| A | [First suggested] | [What this means] |
-| B | [Second suggested] | [What this means] |
-| C | [Third suggested] | [What this means] |
-
-**Recommended**: Option [X] - [reasoning]
-```
-
+2. Present each as `AskUserQuestion` with options and recommendation
 3. Wait for user response
 4. Update spec, removing markers
 
 **2f. Validate spec quality:**
-Check against requirements.md checklist. Fix issues (max 3 iterations).
-
-**2g. Update substep:**
 ```bash
-specflow state set "orchestration.design.substep=plan"
+specflow check --gate design
 ```
+
+Fix any reported issues (max 3 iterations).
 
 ---
 
 ### 3. PLAN Phase
 
-**Skip if**: `START_PHASE` is "tasks" or "checklists"
+**Skip if**: Starting from tasks or checklists.
 
 **3a. Load context:**
-- Read spec.md, discovery.md, requirements.md
-- Load constitution.md (required)
-- Load `.specify/templates/plan-template.md`
+- Read `spec.md`, `discovery.md`, `requirements.md`
+- Read `.specify/memory/constitution.md` (required)
+- Read template: `.specify/templates/plan-template.md`
 
 **3b. Constitution check:**
-Verify planned approach doesn't violate principles. If violations:
-- Block on principle violations
-- Warn on guideline violations
+
+Verify planned approach doesn't violate principles:
+- **Block** on principle violations
+- **Warn** on guideline violations
 
 **3c. Fill technical context:**
 - Language/Version
@@ -263,6 +197,7 @@ Verify planned approach doesn't violate principles. If violations:
 Mark unknowns as "NEEDS RESEARCH".
 
 **3d. Generate research.md (if unknowns exist):**
+
 For each unknown:
 - Research using web search or codebase examination
 - Document decision, rationale, alternatives considered
@@ -272,23 +207,20 @@ For each unknown:
 - `contracts/` if API endpoints involved
 
 **3f. Write plan.md:**
-Use template structure with filled context.
 
-**3g. Update substep:**
-```bash
-specflow state set "orchestration.design.substep=tasks"
-```
+Write `{PHASE_DIR}/plan.md` using template structure.
 
 ---
 
 ### 4. TASKS Phase
 
-**Skip if**: `START_PHASE` is "checklists"
+**Skip if**: Starting from checklists.
 
 **4a. Load context:**
-- Read plan.md (required)
-- Read spec.md (for user story priorities)
-- Read data-model.md, contracts/ (if exist)
+- Read `plan.md` (required)
+- Read `spec.md` (for user story priorities)
+- Read `data-model.md`, `contracts/` (if exist)
+- Read template: `.specify/templates/tasks-template.md`
 
 **4b. Generate tasks:**
 
@@ -310,38 +242,26 @@ Components:
 4. `[US#]`: Only for user story phase tasks
 5. Description with file path
 
-**4c. Generate dependency graph:**
-Show user story completion order.
-
-**4d. Validate:**
+**4c. Validate tasks:**
 - Every task has ID, description, file path
 - User story tasks have `[US#]` label
 - Dependencies are clear
 
-**4e. Write tasks.md:**
-Use template structure with Progress Dashboard.
+**4d. Write tasks.md:**
 
-**4f. Update substep:**
-```bash
-specflow state set "orchestration.design.substep=checklists"
-```
+Write `{PHASE_DIR}/tasks.md` using template with Progress Dashboard.
 
 ---
 
 ### 5. CHECKLISTS Phase
 
 **5a. Load context:**
-- Read spec.md, plan.md, tasks.md
-- Understand feature domain
+- Read `spec.md`, `plan.md`, `tasks.md`
+- Read template: `.specify/templates/checklist-template.md`
 
-**5b. Create checklists directory:**
-```bash
-mkdir -p {FEATURE_DIR}/checklists
-```
+**5b. Generate implementation.md:**
 
-**5c. Generate implementation.md:**
-
-Create checklist testing REQUIREMENTS QUALITY for implementation guidance.
+Create `{PHASE_DIR}/checklists/implementation.md` testing REQUIREMENTS QUALITY.
 
 Focus areas:
 - **Requirement Completeness**: Are all necessary requirements present?
@@ -349,42 +269,25 @@ Focus areas:
 - **Scenario Coverage**: Are all flows/cases addressed?
 - **Edge Case Coverage**: Are boundary conditions defined?
 
-Item format:
-```
-- [ ] CHK### - Are [requirement type] defined for [scenario]? [Quality Dimension, Spec §X.Y]
-```
+**5c. Generate verification.md:**
 
-**5d. Generate verification.md:**
-
-Create checklist for post-implementation verification.
+Create `{PHASE_DIR}/checklists/verification.md` for post-implementation verification.
 
 Focus areas:
 - **Acceptance Criteria Quality**: Are success criteria measurable?
 - **Non-Functional Requirements**: Performance, security, accessibility specified?
 - **Dependencies & Assumptions**: Documented and validated?
 
-Item format:
-```
-- [ ] CHK### - Is [requirement] quantified with specific criteria? [Quality Dimension]
-```
-
-**5e. Update substep:**
-```bash
-specflow state set "orchestration.design.substep=complete"
-```
-
 ---
 
 ### 6. Completion
 
-**6a. Update state:**
+**Update state:**
 ```bash
 specflow state set "orchestration.step.status=complete"
-specflow state set "orchestration.design.substep=complete"
 ```
 
-**6b. Report completion:**
-
+**Report completion:**
 ```
 Design artifacts created:
 ├── discovery.md     - Codebase findings and decisions
@@ -396,7 +299,7 @@ Design artifacts created:
     ├── implementation.md - Implementation guidance
     └── verification.md   - Verification checklist
 
-Next: Run /specflow.analyze or /specflow.orchestrate
+Next: Run /flow.analyze or /flow.orchestrate
 ```
 
 ---
@@ -405,50 +308,13 @@ Next: Run /specflow.analyze or /specflow.orchestrate
 
 | Error | Response |
 |-------|----------|
-| No phase context | "Run from feature branch or specify phase number" |
-| Missing templates | Run `specflow templates sync` |
+| No phase context | "Run `specflow phase open <number>` first" |
 | Constitution violation | Block and report specific violation |
-| Spec validation fails after 3 iterations | Report remaining issues, ask user to fix |
+| Validation fails after 3 iterations | Report remaining issues, ask user to fix |
 
 **On any error:**
 ```bash
 specflow state set "orchestration.step.status=failed"
-```
-
----
-
-## Three-Line Output Rule (Constitution VII)
-
-During execution, keep status updates brief:
-```
-DISCOVER: Examining codebase...
-DISCOVER: Found 3 integration points, asking 2 clarifying questions
-SPECIFY: Creating spec.md with 5 user stories...
-```
-
-Only show detailed output when:
-- Asking clarification questions (full context needed)
-- Reporting completion (summary table)
-- Errors (full details for debugging)
-
----
-
-## Resumability (FR-008)
-
-Design command is resumable if interrupted:
-1. State tracks current substep
-2. **DISCOVER always re-runs** on resume (FR-008a) to ensure fresh codebase context
-3. Completed artifacts are preserved unless cascade flag regenerates them
-
-Resume logic:
-```
-if resuming:
-  if substep == "specify" and no --spec flag:
-    # Re-run discover per FR-008a, then continue from specify
-    START_PHASE = "discover"
-  else:
-    # Continue from saved substep
-    START_PHASE = substep
 ```
 
 ---

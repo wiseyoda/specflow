@@ -19,563 +19,263 @@ handoffs:
 $ARGUMENTS
 ```
 
-You **MUST** consider the user input before proceeding (if not empty). The user may specify a specific feature branch/directory to verify.
+Arguments:
+- Empty: Run full verification (tasks, checklists, memory, user gate)
+- `--dry-run`: Verify without closing phase (preview mode)
+- `--skip-memory`: Skip memory document compliance check
+
+You **MUST** consider the user input before proceeding (if not empty).
 
 ## Goal
 
-Perform comprehensive verification of a completed feature phase to confirm:
+Verify a completed feature phase is ready to close:
 
-1. All tasks are complete
-2. Implementation complies with project memory documents (constitution, tech-stack, coding-standards, etc.)
-3. All checklists are satisfied
-4. Any deferred items are documented
-5. Feature is ready for user verification gate (if applicable)
+1. All tasks complete (or explicitly deferred)
+2. All checklists pass
+3. Implementation complies with memory documents
+4. User gate satisfied (if applicable)
 
-This command produces a detailed verification report and updates ROADMAP.md status.
+Then close the phase via `specflow phase close`.
 
-## Execution Steps
+---
 
-### 1. Initialize Verification Context
-
-Run `specflow context --json --require-tasks --include-tasks` from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS.
-
-If the script doesn't exist or fails, manually determine feature directory:
-
-- Check for `specs/` directory in repo root
-- List available feature directories (e.g., `specs/000-*`, `specs/001-*`)
-- Use user input to identify target feature, or use most recent if not specified
-
-For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
-
-Derive absolute paths:
-
-- FEATURE_DIR = identified feature directory
-- SPEC = FEATURE_DIR/spec.md
-- PLAN = FEATURE_DIR/plan.md
-- TASKS = FEATURE_DIR/tasks.md
-- CHECKLISTS_DIR = FEATURE_DIR/checklists/
-
-**Update State**: Mark step as in-progress:
-```bash
-specflow state set "orchestration.step.current=verify" "orchestration.step.status=in_progress"
-```
-
-### 2. Task Completion Verification
-
-Use the SpecFlow CLI for task verification:
-
-**2a. Get task completion status:**
+## Step 1: Get Project Context
 
 ```bash
-# Get overall task status
-specflow tasks status
-
-# Get detailed status by phase
-specflow tasks phase-status
-
-# Get JSON output for parsing
-specflow tasks status --json
+specflow status --json
 ```
 
-The output includes:
-- Completed tasks (marked `[X]` or `[x]`)
-- Incomplete tasks (marked `[ ]`)
-- Completion percentage
+Parse the JSON to understand:
+- Current phase number and name
+- Active feature directory
+- Task completion status
+- Checklist status
+- Whether phase has USER GATE marker
 
-**2b. If any tasks are incomplete:**
+If no active phase, stop: "No active phase. Use `specflow phase open` first."
+
+---
+
+## Step 2: Check Implementation Gate
 
 ```bash
-# List incomplete tasks
-specflow tasks incomplete
+specflow check --gate implement --json
 ```
 
-**CRITICAL**: A phase cannot be marked complete with incomplete tasks. For each incomplete task:
+This verifies all tasks are complete.
 
-1. **Complete it now** - If feasible, finish the task and mark it done:
+**If gate fails** (incomplete tasks exist):
+
+Run `specflow next --json` to see what's remaining.
+
+For each incomplete task, offer choices:
+1. **Complete it now** - If feasible, finish the task
+2. **Defer to backlog** - `specflow phase defer "T###: Description - reason"`
+3. **Block verification** - Cannot proceed until resolved
+
+After resolving, re-run `specflow check --gate implement` until it passes.
+
+---
+
+## Step 3: Check Verification Gate
+
+```bash
+specflow check --gate verify --json
+```
+
+This verifies all checklists are complete.
+
+**If gate fails** (incomplete checklist items):
+
+For each incomplete item, you MUST **actively verify** it:
+
+1. **Read the verification criteria** from the checklist
+2. **Execute the verification** - Run commands, check code, verify behavior
+3. **Mark complete if it passes**:
    ```bash
-   specflow tasks mark T###
+   specflow mark V-001   # Verification checklist item
+   specflow mark I-001   # Implementation checklist item
    ```
+4. **Document failures** - If item cannot pass, note why and ask user
 
-2. **Move to backlog** - If task should be deferred, add to ROADMAP.md backlog:
-   ```bash
-   specflow roadmap backlog add "[Deferred from PHASE] T###: Task description - REASON"
-   ```
-   Then mark the task complete with a note in tasks.md:
-   ```bash
-   # Edit tasks.md to mark as complete with deferral note
-   # Change: - [ ] T### Description
-   # To:     - [x] T### Description *(deferred to backlog)*
-   ```
+**Checklist ID Prefixes:**
+- `V-###` - Verification checklist items
+- `I-###` - Implementation checklist items
+- `C-###` - Custom/other checklist items
+- `D-###` - Deferred items
 
-3. **Block verification** - If task cannot be completed or deferred, verification FAILS
+After resolving, re-run `specflow check --gate verify` until it passes.
 
-**All tasks must be either completed OR explicitly deferred to backlog before verification can pass.**
+---
 
-### 3. Memory Document Compliance Check
+## Step 4: Memory Document Compliance
 
-Load and verify compliance with each memory document in `.specify/memory/`:
+Check implementation against memory documents in `.specify/memory/`:
 
-**3a. Constitution Compliance (`constitution.md`):**
+### 4a. Constitution Compliance (constitution.md)
 
-- Check all MUST requirements are satisfied
-- Verify no violations of core principles
-- Flag any deviations that weren't documented in plan.md
+**CRITICAL** - Constitution violations block verification.
 
-**3b. Tech Stack Compliance (`tech-stack.md`):**
+| Check | How to Verify |
+|-------|---------------|
+| MUST requirements | Search code for each MUST item, confirm implementation |
+| Core principles | Review changes don't violate stated principles |
+| Documented deviations | Any deviation from constitution should be in plan.md |
 
-- Verify any code/dependencies added match approved technologies
-- Check version constraints are respected
-- Flag any undeclared dependencies
+### 4b. Tech Stack Compliance (tech-stack.md)
 
-**3c. Coding Standards Compliance (`coding-standards.md`):**
+| Check | How to Verify |
+|-------|---------------|
+| Approved technologies | Any new dependencies match approved list |
+| Version constraints | Check package.json/lockfile for version compliance |
+| Undeclared dependencies | Search for imports not in approved stack |
 
-- Verify file naming conventions followed
-- Check code organization patterns
-- Verify TypeScript conventions (if applicable)
+### 4c. Coding Standards (coding-standards.md)
 
-**3d. API Standards Compliance (`api-standards.md`):**
+| Check | How to Verify |
+|-------|---------------|
+| Naming conventions | Spot-check new files/functions for naming patterns |
+| Code organization | Verify files are in correct directories |
+| TypeScript conventions | Check for any type violations (run `tsc --noEmit`) |
 
-- If feature includes API changes, verify response formats
-- Check error handling patterns
-- Verify pagination/filtering patterns (if applicable)
+### 4d. Testing Strategy (testing-strategy.md)
 
-**3e. Security Checklist (`security-checklist.md`):**
+| Check | How to Verify |
+|-------|---------------|
+| Test coverage | Run tests, verify critical paths covered |
+| Test patterns | Check tests follow project patterns |
+| Missing tests | Any new functionality without tests |
 
-- Run through applicable security requirements
-- Flag any potential security concerns
+### 4e. Security Checklist (security-checklist.md)
 
-**3f. Testing Strategy Compliance (`testing-strategy.md`):**
+| Check | How to Verify |
+|-------|---------------|
+| Input validation | User inputs validated at boundaries |
+| Error handling | No sensitive info in error messages |
+| Authentication | Auth checks on sensitive operations |
 
-- Verify test coverage for critical paths
-- Check test patterns followed
-
-Produce compliance summary:
+**Produce compliance summary:**
 
 ```text
 | Memory Document | Status | Issues |
 |-----------------|--------|--------|
-| constitution.md | ✅ COMPLIANT | - |
-| tech-stack.md | ✅ COMPLIANT | - |
-| coding-standards.md | ⚠️ MINOR ISSUES | 2 naming deviations |
-| api-standards.md | N/A | No API changes |
-| security-checklist.md | ✅ COMPLIANT | - |
-| testing-strategy.md | ✅ COMPLIANT | - |
+| constitution.md | PASS | - |
+| tech-stack.md | PASS | - |
+| coding-standards.md | WARN | 2 minor naming deviations |
+| testing-strategy.md | PASS | - |
+| security-checklist.md | N/A | No security changes |
 ```
 
-### 4. Checklist Verification and Completion
+If any FAIL status, address issues before proceeding.
 
-**CRITICAL**: This step requires ACTIVELY RUNNING verification items, not just checking status.
+---
 
-Use the SpecFlow CLI for checklist verification:
+## Step 5: User Gate Check
 
-**4a. Get checklist status:**
+From status output, check if phase has USER GATE marker.
 
-```bash
-# Get overall checklist status
-specflow checklist status
+**If USER GATE exists:**
 
-# List all checklists with status
-specflow checklist list
+Use `AskUserQuestion` to confirm with user:
 
-# Get JSON output for parsing
-specflow checklist status --json
+```
+Phase {number} requires user verification before closing.
+
+Verification Criteria:
+- [List criteria from ROADMAP.md or phase detail]
+
+Verification Artifacts:
+- [List paths to POC pages, test pages, etc.]
+
+Has the user verified this phase works correctly?
 ```
 
-**4b. The CLI produces checklist summary with:**
-- Each checklist file with completed/total counts
-- Completion percentage
-- Pass/Fail status indicators
+Options:
+- **Yes, verified** - Proceed to close
+- **No, needs work** - Stop verification, list what needs fixing
+- **Skip gate** - Close without user verification (document why)
 
-**4c. For any incomplete checklist items - ACTIVELY VERIFY EACH ONE:**
+**If no USER GATE**: Proceed directly to close.
 
-```bash
-# List incomplete items across all checklists
-specflow checklist incomplete
+---
 
-# Show specific checklist details
-specflow checklist show requirements.md
-specflow checklist show verification.md
-```
+## Step 6: Close Phase
 
-**For each incomplete item, you MUST:**
-
-1. **Read the verification item** - Understand what needs to be tested
-2. **Execute the verification** - Run commands, check code, verify behavior
-3. **Mark the item complete** - Use the CLI command:
-   ```bash
-   # Mark item V-001 complete (auto-finds file)
-   specflow checklist mark V-001
-
-   # Or specify file explicitly
-   specflow checklist mark CHK005 specs/0010-example/checklists/requirements.md
-   ```
-4. **Document failures** - If item cannot pass, add a note explaining why
-
-**Verification Execution Process:**
-
-For **verification.md** (post-implementation checks):
-- These are functional tests - actually run the commands and verify they work
-- Example: If item says "specflow roadmap insert creates phase 0021", RUN that command and verify
-- Mark `[x]` only if the verification passes
-
-For **requirements.md** (requirements quality checks):
-- These validate requirements completeness/clarity
-- Review spec.md against each item
-- Mark `[x]` if the requirement is properly documented
-
-**4d. Check for inline Verification Checklist in tasks.md:**
-
-Some tasks.md files include an inline "Verification Checklist" section at the bottom. If present:
-
-1. **Locate the section** - Look for `## Verification Checklist` heading in TASKS file
-2. **Process each item** - Same process as checklists/verification.md:
-   - Read the verification command/criteria
-   - **Actually execute** the command and verify it works correctly
-   - Mark complete with sed (inline items don't use standard IDs):
-     ```bash
-     # macOS (note the '' after -i)
-     sed -i '' 's/- \[ \] `specflow roadmap insert --after 0020/- [x] `specflow roadmap insert --after 0020/' "$TASKS"
-
-     # Linux
-     sed -i 's/- \[ \] `specflow roadmap insert --after 0020/- [x] `specflow roadmap insert --after 0020/' "$TASKS"
-     ```
-3. **All items must pass** before proceeding
-
-**NOTE**: The inline Verification Checklist in tasks.md contains functional tests that should be RUN, not just reviewed. For example, if an item says `specflow roadmap insert --after 0020 "Test"` creates phase 0021, you must actually RUN that command and verify it creates the expected phase.
-
-**4e. After completing items, re-verify all checklists pass:**
-
-```bash
-specflow checklist status
-```
-
-Also manually verify the inline tasks.md Verification Checklist (if present) shows all items marked `[x]`.
-
-All checklists should show 100% completion before proceeding.
-
-### 5. Deferred Items Identification and Documentation
-
-**5a. Scan for deferred/future work indicators:**
-
-- Search spec.md Non-Goals section for explicitly deferred features
-- Search tasks.md for incomplete items marked as deferred
-- Search plan.md for "future", "later phase", "out of scope"
-- Search spec.md for "deferred", "P3", "nice to have", "not in scope"
-- Check for TODO comments in any created/modified files
-
-**5b. For each deferred item, determine target phase:**
-
-- If deferred to specific phase → Use that phase number
-- If deferred to "later" or "future" → Assign to next logical phase or "Backlog"
-- If unclear → Mark as "Backlog" for project-level tracking
-
-**5c. Create/update deferred items file:**
-
-If ANY deferred items are found, create `CHECKLISTS_DIR/deferred.md`:
-
-```bash
-# Check if deferred.md already exists
-ls -la "$CHECKLISTS_DIR/deferred.md"
-```
-
-Load template from `.specify/templates/deferred-template.md` and populate with:
-- Summary table of all deferred items
-- Detailed rationale for each item
-- Target phase assignments
-- Prerequisites for future implementation
-
-Write the file to `CHECKLISTS_DIR/deferred.md`.
-
-**5d. Produce deferred items table for report:**
+If `--dry-run` was specified, show what would happen and stop:
 
 ```text
-## Deferred Items
+DRY RUN - Would perform:
+1. Update ROADMAP.md: Phase {number} → Complete
+2. Archive phase to HISTORY.md
+3. Handle deferred items
+4. Reset orchestration state
 
-| Item | Source | Reason | Target Phase |
-|------|--------|--------|--------------|
-| Dark mode support | spec.md:Non-Goals | P3 priority, not MVP | Phase 015 |
-| Analytics dashboard | plan.md:L234 | Out of scope for foundation | Phase 016 |
-| Multi-language support | tasks.md:T099 | Deferred to post-launch | Backlog |
-
-**Documented in**: `specs/[phase]/checklists/deferred.md`
+No changes made.
 ```
 
-**5e. If no deferred items found:**
-- State "No deferred items identified."
-- Do NOT create deferred.md file
-
-**5f. For Backlog items, also update project BACKLOG.md:**
-
-If any items are marked "Backlog" (not assigned to a specific phase):
-- Check if `BACKLOG.md` exists in repo root
-- If exists, append new backlog items
-- If not exists, create it using `.specify/templates/backlog-template.md`
-
-### 6. User Verification Gate Check
-
-Use the SpecFlow CLI to check ROADMAP status:
-
-**6a. Determine if this phase has a USER GATE:**
+Otherwise, close the phase:
 
 ```bash
-# Get current phase info
-specflow roadmap current --json
-
-# Check ROADMAP status
-specflow roadmap status
+specflow phase close --json
 ```
 
-From the output, check if the current phase has a "USER GATE" or "USER VERIFICATION" marker
+This automatically:
+- Updates ROADMAP.md status to complete
+- Archives phase to HISTORY.md
+- Scans for deferred items and adds to BACKLOG.md
+- Resets orchestration state for next phase
 
-**6b. If USER GATE exists:**
+---
 
-- List the specific verification criteria from ROADMAP.md
-- Check if verification artifacts exist (POC pages, test pages, etc.)
-- Confirm feature is ready for user testing
+## Step 7: Verification Report
 
-**6c. Produce gate readiness assessment:**
-
-```text
-## User Verification Gate Status
-
-**Phase**: 003 - Flow Engine POC
-**Gate Type**: USER VERIFICATION REQUIRED
-
-### Verification Criteria:
-- [x] User can navigate through entire flow
-- [x] User can make choices at branch points
-- [x] User can go back and change choices
-- [x] Flow completes at terminal step
-- [x] Debug panel shows correct state
-
-### Verification Artifacts:
-- POC Page: src/app/poc/flow-engine/page.tsx ✅ EXISTS
-- Sample Flow: src/data/sample-flows/career-explorer.ts ✅ EXISTS
-
-**Status**: ✅ READY FOR USER VERIFICATION
-```
-
-### 7. Update ROADMAP.md
-
-Use the SpecFlow CLI for ROADMAP updates:
-
-**7a. Get current phase info:**
-
-```bash
-# Get current phase from ROADMAP
-specflow roadmap current
-
-# Validate ROADMAP structure
-specflow roadmap validate
-```
-
-**7b. Update status using CLI:**
-
-If all checks pass:
-```bash
-# Mark phase as complete
-specflow roadmap update {phase_number} complete
-
-# Update CLAUDE.md with completion info
-specflow claude-md update "{phase_number}: {phase_name}" "Verified and completed"
-```
-
-**7c. If USER GATE phase:**
-
-```bash
-# Mark as awaiting user verification
-specflow roadmap update {phase_number} awaiting
-```
-
-User must explicitly confirm before marking complete
-
-**7d. Verify the update:**
-
-```bash
-specflow roadmap status
-```
-
-**7e. Update State**: Mark step as complete (or failed):
-```bash
-# On success (all checks pass):
-specflow state set "orchestration.step.status=complete"
-specflow state set "orchestration.phase.status=ready_to_merge"
-
-# On verification failure (tasks incomplete, checklists failing):
-specflow state set "orchestration.step.status=failed"
-```
-
-**Error Handling**: If verification fails (incomplete tasks, failing checklists, missing compliance), mark step as `failed`. See section 9 "Handle Failures" for recovery procedures.
-
-**7f. If deferred items exist, create handoff file for NEXT phase:**
-
-If the phase has deferred items (deferred.md was created), create a handoff file for the NEXT phase:
-
-1. Identify the next phase number (current + 10, e.g., 0090 → 0100)
-2. Get next phase details: `specflow phase show {next_phase_number}`
-3. Create handoff file at `.specify/phases/{current_phase}-handoff.md`:
+Display summary:
 
 ```markdown
----
-source_phase: {current_phase_number}
-target_phase: {next_phase_number}
-status: pending
-created: {date}
----
+# Verification Complete
 
-# Handoff: Deferred Items from Phase {current_phase_number}
+**Phase**: {number} - {name}
+**Status**: COMPLETE
 
-The following items were deferred from Phase {current_phase_number} - {current_phase_name}.
+## Summary
 
-See full details: `specs/{current_phase}/checklists/deferred.md`
+| Check | Status |
+|-------|--------|
+| Tasks | {completed}/{total} |
+| Checklists | PASS |
+| Memory Compliance | PASS |
+| User Gate | PASS / N/A |
 
-## Deferred Items
+## ROADMAP Updated
 
-- [Item 1 brief description]
-- [Item 2 brief description]
-- [Item 3 brief description]
+Phase {number} marked complete.
 
-## Backlog Items (if any)
+## Next Phase
 
-Some items were added to project BACKLOG.md - see `BACKLOG.md`
-```
-
-4. The handoff file will be read by `/specflow.design` when starting the next phase.
-
-This ensures the next phase's spec will automatically reference inherited deferred items.
-
-### 8. Generate Verification Report
-
-Produce comprehensive summary report:
-
-```markdown
-# Feature Verification Report
-
-**Feature**: [Feature Name]
-**Phase**: [Phase Number]
-**Verified**: [Date]
-**Status**: [PASS / PASS WITH WARNINGS / FAIL]
-
----
-
-## Executive Summary
-
-[2-3 sentence summary of verification results]
-
----
-
-## Task Completion
-
-| Metric          | Value |
-| --------------- | ----- |
-| Total Tasks     | 53    |
-| Completed       | 53    |
-| Incomplete      | 0     |
-| Completion Rate | 100%  |
-
-**Status**: ✅ ALL TASKS COMPLETE
-
----
-
-## Memory Document Compliance
-
-| Document              | Status |
-| --------------------- | ------ |
-| constitution.md       | ✅     |
-| tech-stack.md         | ✅     |
-| coding-standards.md   | ✅     |
-| api-standards.md      | N/A    |
-| security-checklist.md | ✅     |
-| testing-strategy.md   | ✅     |
-
-**Status**: ✅ FULLY COMPLIANT
-
----
-
-## Checklist Status
-
-| Checklist       | Status   |
-| --------------- | -------- |
-| requirements.md | ✅ 16/16 |
-| consistency.md  | ✅ 15/15 |
-
-**Status**: ✅ ALL CHECKLISTS PASS
-
----
+Phase {next_number}: {next_name}
+Run `/flow.orchestrate` to continue.
 
 ## Deferred Items
 
-[Table of deferred items or "None identified"]
-
----
-
-## User Verification Gate
-
-[Gate status and readiness or "No USER GATE for this phase"]
-
----
-
-## Issues & Recommendations
-
-### Critical Issues (blocking)
-
-[List or "None"]
-
-### Warnings (non-blocking)
-
-[List or "None"]
-
-### Recommendations
-
-[List of suggestions for improvement]
-
----
-
-## ROADMAP.md Update
-
-- Previous Status: ⬜ Not Started
-- New Status: ✅ Complete
-- [Link to updated ROADMAP.md]
-
----
-
-## Next Steps
-
-1. [If USER GATE] Request user verification of POC/test page
-2. [If complete] Proceed to next phase: [Phase Name]
-3. [If issues] Address listed issues before proceeding
+{count} items added to BACKLOG.md
 ```
 
-### 9. Handle Failures
+---
 
-**If verification fails:**
+## Handle Failures
 
-- Do NOT update ROADMAP.md status to complete
-- Clearly list all failing items
-- Provide remediation steps for each failure
-- Ask user: "Would you like me to attempt to fix the failing items?"
+If verification cannot complete:
 
-**If user approves fixes:**
+1. Do NOT close the phase
+2. List all failing items with remediation steps
+3. Ask: "Would you like me to attempt fixes?"
 
-- Attempt to complete incomplete tasks
-- Update failing checklist items
+If user approves:
+- Complete incomplete tasks
+- Mark checklist items after verification
 - Re-run verification after fixes
 
-## CLI Dependencies
-
-This command uses the SpecFlow CLI (`specflow`) for verification operations:
-
-```bash
-# Verify CLI is available
-specflow --help
-```
-
-Key CLI commands used:
-- `specflow tasks` - Task completion verification (status, incomplete, phase-status)
-- `specflow checklist` - Checklist verification and completion (status, list, incomplete, show, **mark**)
-- `specflow roadmap` - ROADMAP.md operations (status, current, update, validate)
-- `specflow claude-md` - CLAUDE.md updates (update)
-- `specflow doctor` - Diagnostics if verification finds issues
+---
 
 ## Operating Principles
 
@@ -583,20 +283,20 @@ Key CLI commands used:
 
 - **Be thorough**: Check everything, assume nothing
 - **Be specific**: Cite exact files, line numbers, task IDs
-- **Be actionable**: Every issue should have a clear remediation path
+- **Be actionable**: Every issue should have clear remediation
 - **Be honest**: Don't mark things complete that aren't
 
-### ROADMAP.md Integrity
+### ROADMAP Integrity
 
-- **Only mark complete** if ALL verification checks pass
-- **USER GATE phases** require explicit user confirmation before final completion
-- **Preserve history**: Add dates/notes, don't just change status symbols
+- Only mark complete if ALL verification checks pass
+- USER GATE phases require explicit user confirmation
+- Use `specflow phase close` for all status updates
 
 ### Context Efficiency
 
+- Use CLI commands for status checks (faster than reading files)
 - Load only necessary sections of large files
 - Aggregate similar issues rather than listing each individually
-- Focus on actionable findings, not exhaustive documentation
 
 ## Context
 

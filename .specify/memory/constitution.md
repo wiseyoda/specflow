@@ -99,6 +99,6 @@ To amend this constitution:
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 1.2.0 | 2025-01-18 | Added Principle IIa: TypeScript for CLI Packages; clarified II scope |
+| 1.2.0 | 2026-01-18 | Added Principle IIa: TypeScript for CLI Packages; clarified II scope |
 | 1.1.0 | 2026-01-10 | Added Principle VII: Three-Line Output Rule |
 | 1.0.0 | 2026-01-10 | Initial constitution for SpecFlow |

@@ -19,7 +19,6 @@ templates/
 ├── checklist-template.md     # Verification checklist
 ├── roadmap-template.md       # Project roadmap
 ├── review-template.md        # Code review
-├── ui-design-template.md     # UI/UX design documentation (auto-created for UI phases)
 └── memory/                   # Memory document templates
     ├── constitution.md
     ├── tech-stack.md
@@ -30,57 +29,26 @@ templates/
 
 ## Managing Templates
 
-### List Available Templates
+### Project-Level Customization
+
+To customize templates for your project, copy the system template to your project's `.specify/templates/` directory:
 
 ```bash
-specflow templates list
+# Copy a system template to your project
+cp ~/.claude/specflow-system/templates/spec-template.md .specify/templates/
 ```
 
-### Copy Template to Project
+Then edit the copied template. Your project template will override the system default.
 
-Copy a system template to your project for customization:
+### Creating Custom Templates
+
+Create `.specify/templates/` in your project and add custom templates:
 
 ```bash
-specflow templates copy spec-template.md
+mkdir -p .specify/templates
 ```
 
-This creates `.specify/templates/spec-template.md` which overrides the system default.
-
-### Check for Updates
-
-See if your project templates differ from upstream:
-
-```bash
-specflow templates check
-```
-
-### View Differences
-
-```bash
-specflow templates diff spec-template.md
-```
-
-### Update Templates
-
-```bash
-specflow templates update spec-template.md    # Update specific
-specflow templates update-all                  # Update all outdated
-specflow templates sync                        # Update outdated + copy new templates
-```
-
-### Sync Templates (Recommended)
-
-The `sync` command is the recommended way to keep templates current:
-
-```bash
-specflow templates sync
-```
-
-This command:
-1. Updates any outdated project templates to match system versions
-2. Copies any new system templates missing from your project
-
-**Note:** `specflow doctor` flags missing templates as **errors** (not warnings) since they can cause workflow failures. Doctor will suggest running `specflow templates sync` when templates need attention.
+Templates in this directory will be used instead of system templates.
 
 ## Template Variables
 
@@ -169,4 +137,13 @@ The project type affects:
 2. **Customize gradually** - Only copy templates you need to modify
 3. **Keep templates minimal** - Don't over-engineer
 4. **Version control** - Commit `.specify/templates/` to your repo
-5. **Check updates** - Periodically run `specflow templates check`
+5. **Document changes** - Note why you customized a template
+
+## Template Updates
+
+When SpecFlow is updated, system templates may change. Your project templates remain unchanged, preserving your customizations.
+
+To incorporate updates:
+1. Review the updated system template
+2. Manually merge changes into your project template
+3. Test that your workflow still works correctly

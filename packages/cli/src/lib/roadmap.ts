@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { getRoadmapPath, pathExists, findProjectRoot } from './paths.js';
 import { NotFoundError } from './errors.js';
 
@@ -244,4 +244,200 @@ export function hasPendingUserGates(roadmap: RoadmapData): boolean {
   return roadmap.phases.some(
     p => p.hasUserGate && (p.status === 'in_progress' || p.status === 'awaiting_user'),
   );
+}
+
+/**
+ * Status text mapping for ROADMAP.md updates
+ */
+const STATUS_TEXT: Record<PhaseStatus, string> = {
+  not_started: 'Not Started',
+  in_progress: 'In Progress',
+  complete: 'Complete',
+  awaiting_user: 'Awaiting User',
+  blocked: 'Blocked',
+};
+
+/**
+ * Update a phase's status in ROADMAP.md
+ */
+export async function updatePhaseStatus(
+  phaseNumber: string,
+  newStatus: PhaseStatus,
+  projectPath?: string,
+): Promise<{ updated: boolean; filePath: string }> {
+  const root = projectPath || findProjectRoot();
+  if (!root) {
+    throw new NotFoundError(
+      'SpecFlow project',
+      'Ensure you are in a SpecFlow project directory',
+    );
+  }
+
+  const roadmapPath = getRoadmapPath(root);
+
+  if (!pathExists(roadmapPath)) {
+    throw new NotFoundError(
+      'ROADMAP.md',
+      `No roadmap file found at ${roadmapPath}`,
+    );
+  }
+
+  const content = await readFile(roadmapPath, 'utf-8');
+  const lines = content.split('\n');
+  let updated = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Check if this line is a table row containing our phase number
+    if (line.startsWith('|') && line.includes(phaseNumber)) {
+      // Parse the cells
+      const cells = line
+        .replace(/^\|/, '')
+        .replace(/\|$/, '')
+        .split('|')
+        .map(c => c.trim());
+
+      // Verify this is the correct phase (first cell should contain the number)
+      if (cells.length >= 3 && cells[0].includes(phaseNumber)) {
+        // Update the status cell (index 2)
+        cells[2] = STATUS_TEXT[newStatus];
+
+        // Reconstruct the line with proper spacing
+        lines[i] = '| ' + cells.join(' | ') + ' |';
+        updated = true;
+        break;
+      }
+    }
+  }
+
+  if (updated) {
+    await writeFile(roadmapPath, lines.join('\n'));
+  }
+
+  return { updated, filePath: roadmapPath };
+}
+
+/**
+ * Calculate the next available hotfix phase number
+ * ABBC format: A=milestone, BB=phase, C=hotfix (0=main, 1-9=hotfixes)
+ *
+ * @param roadmap - Parsed roadmap data
+ * @returns Next available hotfix number (e.g., "0081" if 0080 is in progress)
+ */
+export function calculateNextHotfix(roadmap: RoadmapData): string | null {
+  // Find current in-progress phase or most recently completed
+  const activePhase = roadmap.activePhase;
+  const completedPhases = roadmap.phases.filter(p => p.status === 'complete');
+  const lastCompleted = completedPhases[completedPhases.length - 1];
+
+  const basePhase = activePhase || lastCompleted;
+  if (!basePhase) {
+    return null;
+  }
+
+  const baseNumber = basePhase.number;
+  // Extract base (first 3 digits) and current hotfix slot (last digit)
+  const base = baseNumber.slice(0, 3);
+  const currentSlot = parseInt(baseNumber.slice(3), 10);
+
+  // Find all existing phases with this base
+  const existingSlots = roadmap.phases
+    .filter(p => p.number.startsWith(base))
+    .map(p => parseInt(p.number.slice(3), 10));
+
+  // Find next available slot (1-9 for hotfixes)
+  for (let slot = currentSlot + 1; slot <= 9; slot++) {
+    if (!existingSlots.includes(slot)) {
+      return `${base}${slot}`;
+    }
+  }
+
+  // All slots used (shouldn't happen often)
+  return null;
+}
+
+/**
+ * Insert a new phase row into ROADMAP.md table
+ */
+export async function insertPhaseRow(
+  phaseNumber: string,
+  phaseName: string,
+  status: PhaseStatus = 'not_started',
+  verificationGate?: string,
+  projectPath?: string,
+): Promise<{ inserted: boolean; filePath: string; line: number }> {
+  const root = projectPath || findProjectRoot();
+  if (!root) {
+    throw new NotFoundError(
+      'SpecFlow project',
+      'Ensure you are in a SpecFlow project directory',
+    );
+  }
+
+  const roadmapPath = getRoadmapPath(root);
+
+  if (!pathExists(roadmapPath)) {
+    throw new NotFoundError(
+      'ROADMAP.md',
+      `No roadmap file found at ${roadmapPath}`,
+    );
+  }
+
+  const content = await readFile(roadmapPath, 'utf-8');
+  const lines = content.split('\n');
+
+  // Find the Phase Overview table
+  let tableStartLine = -1;
+  let tableEndLine = -1;
+  let insertAfterLine = -1;
+  const phaseBase = phaseNumber.slice(0, 3);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Find table header
+    if (line.includes('| Phase |') && line.includes('| Status |')) {
+      tableStartLine = i;
+      continue;
+    }
+
+    // Track end of table (Legend line or empty section)
+    if (tableStartLine !== -1 && line.startsWith('**Legend**')) {
+      tableEndLine = i;
+      break;
+    }
+
+    // Find where to insert (after the base phase or at end of table)
+    if (tableStartLine !== -1 && line.startsWith('|') && line.includes(phaseBase)) {
+      insertAfterLine = i;
+    }
+  }
+
+  // Default to end of table if no matching base found
+  if (insertAfterLine === -1 && tableEndLine !== -1) {
+    // Insert before Legend line, find last table row
+    for (let i = tableEndLine - 1; i >= tableStartLine; i--) {
+      if (lines[i].startsWith('|') && lines[i].includes('|')) {
+        insertAfterLine = i;
+        break;
+      }
+    }
+  }
+
+  if (insertAfterLine === -1) {
+    return { inserted: false, filePath: roadmapPath, line: -1 };
+  }
+
+  // Build the new row
+  const statusText = STATUS_TEXT[status];
+  const gateText = verificationGate || '';
+  const newRow = `| ${phaseNumber} | ${phaseName} | ${statusText} | ${gateText} |`;
+
+  // Insert the new row
+  lines.splice(insertAfterLine + 1, 0, newRow);
+
+  await writeFile(roadmapPath, lines.join('\n'));
+
+  return { inserted: true, filePath: roadmapPath, line: insertAfterLine + 2 };
 }

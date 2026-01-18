@@ -1,6 +1,6 @@
 # Project Structure
 
-After running `specflow scaffold`, your project will have the following structure.
+After running `/flow.init`, your project will have the following structure.
 
 ## Directory Layout
 
@@ -27,11 +27,6 @@ your-project/
 │   │   ├── 0020-another-feature.md
 │   │   └── ...
 │   │
-│   ├── issues/                  # Local issue tracking
-│   │   ├── 001.md
-│   │   ├── 002.md
-│   │   └── ...
-│   │
 │   ├── history/                 # Completed phase archives
 │   │   └── HISTORY.md           # Archived phase details
 │   │
@@ -44,15 +39,19 @@ your-project/
 │
 ├── specs/                       # Feature specifications
 │   └── 0010-feature-name/       # One directory per phase
+│       ├── discovery.md         # Codebase examination
 │       ├── spec.md              # Feature specification
+│       ├── requirements.md      # Requirements checklist
 │       ├── plan.md              # Implementation plan
 │       ├── tasks.md             # Task breakdown
 │       └── checklists/          # Verification checklists
-│           └── checklist.md
+│           ├── implementation.md
+│           └── verification.md
 │
 ├── ROADMAP.md                   # Development phases (lightweight index)
+├── BACKLOG.md                   # Deferred items
 ├── CLAUDE.md                    # Agent instructions (minimal SpecFlow section)
-└── .specify/USAGE.md            # Full CLI and command reference
+└── README.md                    # Project documentation
 ```
 
 ## Key Files
@@ -111,6 +110,25 @@ Lightweight index of development phases:
 
 Detailed phase information is stored in `.specify/phases/0010-*.md` files.
 
+### BACKLOG.md
+
+Deferred items from phase closures:
+
+```markdown
+# Backlog
+
+## P1 - High Priority
+- [ ] Handle edge case X (from Phase 0010)
+
+## P2 - Medium Priority
+- [ ] Optimize query performance
+
+## P3 - Low Priority
+- [ ] Add optional analytics
+```
+
+Use `specflow phase defer "item"` to add items.
+
 ### constitution.md (Required)
 
 The only required memory document. Defines core project principles:
@@ -139,7 +157,7 @@ Phases use 4-digit numbers with 10-increment gaps:
 | 0020 | Second feature |
 | 0015 | Inserted between (if needed) |
 
-Use `specflow roadmap renumber` to clean up gaps.
+Hotfix phases use numbers like 0011, 0012, etc.
 
 ## Specs Directory
 
@@ -147,11 +165,14 @@ Each phase gets its own directory under `specs/`:
 
 ```
 specs/0010-user-auth/
-├── spec.md          # What to build (requirements)
-├── plan.md          # How to build it (architecture)
-├── tasks.md         # Step-by-step implementation tasks
+├── discovery.md      # Codebase examination
+├── spec.md           # What to build (requirements)
+├── requirements.md   # Requirements quality checklist
+├── plan.md           # How to build it (architecture)
+├── tasks.md          # Step-by-step implementation tasks
 └── checklists/
-    └── checklist.md # Verification items
+    ├── implementation.md  # Implementation guidance
+    └── verification.md    # Verification items
 ```
 
 ## Memory Documents
@@ -166,31 +187,7 @@ specs/0010-user-auth/
 | `lessons-learned.md` | Accumulated learnings | Optional |
 | `adrs/*.md` | Architecture decisions | Optional |
 
-Generate recommended documents:
-```bash
-specflow memory init recommended
-```
-
-## Issue Files
-
-Local issues use frontmatter-based markdown:
-
-```markdown
----
-id: 001
-title: Fix login timeout
-status: open
-priority: high
-labels: [bug, auth]
-created: 2026-01-11
----
-
-## Description
-Login times out after 30 seconds...
-
-## Steps to Reproduce
-1. ...
-```
+Generate memory documents via `/flow.init` or `/flow.memory`.
 
 ## What Gets Committed
 

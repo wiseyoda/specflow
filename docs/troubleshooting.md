@@ -4,15 +4,16 @@ Common issues and solutions for SpecFlow.
 
 ## Quick Diagnostics
 
-Run the doctor command first:
+Run the check command first:
 
 ```bash
-specflow doctor                    # Check everything
-specflow doctor --fix              # Auto-fix common issues
-specflow doctor --check <area>     # Check specific area
+specflow check                    # Check everything
+specflow check --fix              # Auto-fix common issues
+specflow check --gate design      # Check specific gate
+specflow check --gate implement   # Check implementation gate
+specflow check --gate verify      # Check verification gate
+specflow check --gate memory      # Check memory documents
 ```
-
-**Valid check areas:** `system`, `project`, `state`, `manifest`, `paths`, `git`, `templates`, `version`, `roadmap`, `reality`, `all`
 
 ---
 
@@ -34,28 +35,22 @@ Then reload:
 source ~/.bashrc  # or source ~/.zshrc
 ```
 
-### Missing jq
+### TypeScript CLI Not Built
 
-**Symptom:** `jq: command not found` or JSON parsing errors
+**Symptom:** `TypeScript CLI not built` error
 
 **Solution:**
 
 ```bash
-# macOS
-brew install jq
-
-# Ubuntu/Debian
-sudo apt install jq
-
-# Fedora/RHEL
-sudo dnf install jq
+cd /path/to/specflow
+pnpm --filter @specflow/cli build
 ```
 
 ### Installation Verification
 
 ```bash
-./install.sh --check
-specflow doctor --check system
+specflow --version
+specflow status
 ```
 
 ---
@@ -69,27 +64,15 @@ specflow doctor --check system
 **Solutions:**
 
 ```bash
-# Validate current state
-specflow state validate
+# Show current state
+specflow state show
 
-# Reset to defaults (loses current progress)
-specflow state reset
+# Initialize new state
+specflow state init
 
 # Or manually inspect
 cat .specify/orchestration-state.json | jq .
 ```
-
-### State Schema Mismatch
-
-**Symptom:** Missing fields or version warnings
-
-**Solution:** Migrate to v3.0:
-
-```bash
-specflow state migrate
-```
-
-This preserves your progress and upgrades the schema.
 
 ### State Out of Sync
 
@@ -97,20 +80,11 @@ This preserves your progress and upgrades the schema.
 
 **Solution:**
 
-```bash
-# Preview what would change
-specflow reconcile --dry-run
-
-# Trust file system
-specflow reconcile --trust-files
-
-# Trust state file
-specflow reconcile --trust-state
-```
-
-**Note:** `specflow status` automatically derives progress from filesystem artifacts. If your state file is outdated, the correct step and task counts will be detected from:
+The `specflow status` command automatically derives progress from filesystem artifacts. If your state file is outdated, the correct step and task counts will be detected from:
 - Existing files: spec.md → plan.md → tasks.md → checklists/
 - Task checkboxes in tasks.md
+
+Run `specflow check --fix` to auto-correct state issues.
 
 ---
 
@@ -122,25 +96,19 @@ specflow reconcile --trust-state
 
 **Solution:**
 
-```bash
-specflow scaffold --safe    # Preview
-specflow scaffold           # Create structure
-```
+Run `/flow.init` in Claude Code to initialize the project structure.
 
-### Corrupted Structure
+### Missing constitution.md
 
-**Solution:**
-
-```bash
-specflow scaffold --force   # Recreate (preserves custom files)
-```
-
-### Wrong Project Type Detected
+**Symptom:** Warnings about missing constitution.md
 
 **Solution:**
 
+Run `/flow.init` to create memory documents, or manually create:
+
 ```bash
-specflow scaffold --type python  # Force specific type
+mkdir -p .specify/memory
+touch .specify/memory/constitution.md
 ```
 
 ---
@@ -151,32 +119,56 @@ specflow scaffold --type python  # Force specific type
 
 **Symptom:** `Error: Could not parse ROADMAP.md`
 
-**Solution:**
-
-```bash
-specflow roadmap validate
-```
-
-Common issues:
+**Common issues:**
 - Missing phase headers (`### Phase NNNN:`)
 - Invalid status values
 - Duplicate phase numbers
 
-### Phase Number Gaps
+**Solution:**
+
+Check ROADMAP.md format. Each phase should look like:
+
+```markdown
+### Phase 0010: Feature Name
+**Status:** pending
+**Branch:** `0010-feature-name`
+```
+
+Valid status values: `pending`, `in_progress`, `complete`
+
+### Phase Not Found
+
+**Symptom:** `specflow phase open` fails with phase not found
 
 **Solution:**
 
-```bash
-specflow roadmap renumber
-```
+1. Check that the phase exists in ROADMAP.md
+2. Use the correct 4-digit phase number (e.g., `0010` not `10`)
+3. Or add the phase first: `specflow phase add 0010 "feature-name"`
 
-### 3-Digit to 4-Digit Migration
+---
 
-**Solution:**
+## Task Issues
 
-```bash
-specflow migrate roadmap
-```
+### Task Not Found
+
+**Symptom:** `specflow mark T001` fails
+
+**Solutions:**
+
+1. Check tasks.md exists in the current phase directory
+2. Verify task ID format (T001, T002, etc.)
+3. Run `specflow next` to see available tasks
+
+### Checklist Item Not Found
+
+**Symptom:** `specflow mark V-001` fails
+
+**Solutions:**
+
+1. Check checklists exist in `specs/NNNN-feature/checklists/`
+2. Use correct prefix: `V-` for verification, `I-` for implementation
+3. Check that the checklist file contains the item
 
 ---
 
@@ -184,7 +176,7 @@ specflow migrate roadmap
 
 ### Not a Git Repository
 
-**Symptom:** Git commands fail
+**Symptom:** Git-related commands fail
 
 **Solution:**
 
@@ -196,74 +188,19 @@ git commit -m "Initial commit"
 
 ### Branch Conflicts
 
-**Symptom:** Can't create feature branch
+**Symptom:** `specflow phase open` can't create branch
 
 **Solutions:**
 
 ```bash
 # Check current branches
-specflow git branch list
+git branch -a
 
-# Sync with remote
-specflow git sync
+# Ensure you're on main/master
+git checkout main
 
-# Force checkout (loses local changes)
-git checkout -f main
-```
-
----
-
-## Template Issues
-
-### Templates Not Found
-
-**Note:** Missing templates are flagged as **errors** by `specflow doctor` since they can cause workflow failures.
-
-**Solution:**
-
-```bash
-specflow templates check           # See what's missing
-specflow templates sync            # Update outdated + copy missing (recommended)
-specflow doctor --check templates  # Full template check
-```
-
-### Template Out of Date
-
-**Solution:**
-
-```bash
-specflow templates diff <file>     # See changes
-specflow templates update <file>   # Update specific
-specflow templates update-all      # Update all outdated
-specflow templates sync            # Update all + copy new templates
-```
-
-**Tip:** `specflow doctor` suggests `specflow templates sync` when templates need attention.
-
----
-
-## Memory Document Issues
-
-### Missing Constitution
-
-**Symptom:** Warnings about missing constitution.md
-
-**Solution:**
-
-```bash
-specflow memory init constitution
-# or
-/specflow.constitution
-```
-
-### Drift Detection
-
-**Symptom:** Memory docs don't match codebase
-
-**Solution:**
-
-```bash
-/specflow.memory --reconcile
+# Delete conflicting branch if needed
+git branch -D 0010-feature-name
 ```
 
 ---
@@ -280,26 +217,50 @@ specflow memory init constitution
 # Check current state
 specflow status
 
-# Force specific phase
-/specflow.orchestrate --phase 0020
+# Reset orchestration step
+specflow state set "orchestration.step.current=design"
 
-# Reset orchestration state
-specflow state set "orchestration.step.current=specify"
+# Or skip to specific step
+/flow.orchestrate skip-to implement
 ```
 
 ### Gate Failures
 
-**Symptom:** `Gate failed: <gate-name>`
+**Symptom:** Validation gate fails
 
 **Solution:**
 
 ```bash
 # Check what's failing
-specflow gate status
-specflow gate <gate-name>
+specflow check --gate design
+specflow check --gate implement
+specflow check --gate verify
 
-# Skip gates (not recommended)
-/specflow.orchestrate --skip-gates
+# Auto-fix issues
+specflow check --fix
+```
+
+---
+
+## Memory Document Issues
+
+### Missing Memory Documents
+
+**Symptom:** `/flow.memory` reports missing documents
+
+**Solution:**
+
+Run `/flow.init` to generate memory documents from your project context.
+
+### Drift Detection
+
+**Symptom:** Memory docs don't match codebase
+
+**Solution:**
+
+```
+/flow.memory              # Full reconciliation
+/flow.memory --fix        # Auto-fix without confirmation
 ```
 
 ---
@@ -316,17 +277,28 @@ specflow gate <gate-name>
 # Quick status (skips deep validation)
 specflow status --quick
 
-# Skip reconciliation
-/specflow.memory --no-reconcile
+# Skip reconciliation for memory checks
+/flow.memory --no-reconcile
 ```
+
+---
+
+## Common Error Messages
+
+| Error | Solution |
+|-------|----------|
+| `Command 'X' is deprecated` | Use the new TypeScript CLI commands (see [CLI Reference](cli-reference.md)) |
+| `Not a SpecFlow project` | Run `/flow.init` to initialize |
+| `Phase not found` | Check ROADMAP.md or run `specflow phase add` |
+| `Tasks file not found` | Run `/flow.design` to create design artifacts |
+| `Invalid state file` | Run `specflow state init` to reinitialize |
 
 ---
 
 ## Getting Help
 
-1. **Smart entry point:** `/specflow.start` - auto-detects project state and routes to the right command
-2. **Run diagnostics:** `specflow doctor`
-3. **Check specific area:** `specflow doctor --check <area>`
-4. **Verbose output:** Add `--verbose` to most commands
-5. **JSON output:** Add `--json` for machine-readable errors
-6. **File an issue:** https://github.com/wiseyoda/claude-specflow-orchestration/issues
+1. **Run diagnostics:** `specflow check --fix`
+2. **Check status:** `specflow status --json`
+3. **Verbose output:** Most slash commands support `--verbose`
+4. **JSON output:** Add `--json` for machine-readable errors
+5. **File an issue:** https://github.com/wiseyoda/claude-specflow-orchestration/issues

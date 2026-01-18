@@ -46,6 +46,11 @@ export function getTemplatesDir(projectPath: string = process.cwd()): string {
   return join(getSpecifyDir(projectPath), 'templates');
 }
 
+/** Get the phases directory for a project */
+export function getPhasesDir(projectPath: string = process.cwd()): string {
+  return join(getSpecifyDir(projectPath), 'phases');
+}
+
 /** Check if a path exists */
 export function pathExists(path: string): boolean {
   return existsSync(path);

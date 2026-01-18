@@ -1,5 +1,5 @@
 ---
-description: Clean up, optimize, and verify memory documents in .specify/memory/. Reconciles against ROADMAP.md and codebase to detect drift. Promotes learnings from completed specs.
+description: Verify and optimize memory documents. Reconciles against ROADMAP.md and codebase to detect drift. Promotes learnings from completed specs.
 ---
 
 ## User Input
@@ -8,779 +8,227 @@ description: Clean up, optimize, and verify memory documents in .specify/memory/
 $ARGUMENTS
 ```
 
-You **MUST** consider the user input before proceeding (if not empty). User may specify:
+## Arguments
 
-**Deprecated Subcommands:**
-- `generate [doc]`: ⚠️ **DEPRECATED** - Use `/specflow.init` instead. Memory document generation is now part of the unified project initialization flow.
+| Argument | Description |
+|----------|-------------|
+| (empty) | Run full verification with reconciliation |
+| `--dry-run` | Analyze only, no changes |
+| `--fix` | Auto-fix issues without confirmation |
+| `--no-reconcile` | Skip ROADMAP/codebase checks (faster) |
+| `--promote` | Scan completed specs for decisions to promote |
+| `--deep` | Full codebase pattern scan (slower) |
 
-**Flags:**
-- `--dry-run`: Analyze only, do not make changes
-- `--verbose`: Show detailed analysis for each document
-- `--fix`: Auto-fix issues without confirmation (default prompts before fixes)
-- `--reconcile`: Include ROADMAP and codebase drift detection (default: on)
-- `--no-reconcile`: Skip ROADMAP and codebase checks (faster, memory-only)
-- `--promote`: Scan completed specs for decisions to promote to memory
-- `--deep`: Full codebase scan (slower, more thorough dependency analysis)
+## Prerequisites
 
-## Goal
+**Must be on clean main branch:**
+```bash
+# Verify: on main, no uncommitted changes, synced with origin
+git rev-parse --abbrev-ref HEAD  # must be "main"
+git diff --quiet && git diff --cached --quiet  # must be clean
+git fetch origin main && [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]
+```
 
-Maintain the health and quality of project memory documents (`.specify/memory/`) by:
+Abort with specific error if any check fails.
 
-1. Verifying documents are well-formed and follow conventions
-2. Identifying inconsistencies, gaps, conflicts, and over-explaining
-3. Checking for constitution compliance
-4. Finding errant markdown files outside expected locations
-5. Cleaning up and optimizing memory for agent consumption
-6. **Reconciling memory against ROADMAP.md** (detect planning drift)
-7. **Reconciling memory against actual codebase** (detect implementation drift)
-8. **Promoting learnings from completed specs** (capture implementation decisions)
+## Execution
 
-This command ensures memory documents remain evergreen, concise, accurate, and valuable for all agents.
-
-## Prerequisites Check
-
-**CRITICAL**: This command MUST only run on a clean `origin/main` branch.
-
-### 1. Verify Git State
-
-Run these checks and **ABORT** if any fail:
+### 1. Initialize
 
 ```bash
-# Check current branch
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-if [ "$CURRENT_BRANCH" != "main" ]; then
-  echo "ERROR: Must be on 'main' branch. Current: $CURRENT_BRANCH"
-  exit 1
-fi
-
-# Check for uncommitted changes
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "ERROR: Uncommitted changes detected. Commit or stash before running."
-  exit 1
-fi
-
-# Check for untracked files (excluding expected ones)
-UNTRACKED=$(git status --porcelain | grep "^??" | grep -v "node_modules" | grep -v ".env")
-if [ -n "$UNTRACKED" ]; then
-  echo "WARNING: Untracked files detected. Review before proceeding."
-fi
-
-# Sync with origin
-git fetch origin main
-LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/main)
-if [ "$LOCAL" != "$REMOTE" ]; then
-  echo "ERROR: Local main is not in sync with origin/main. Pull or push first."
-  exit 1
-fi
+specflow status --json
+specflow check --gate memory
 ```
 
-If checks fail, display the specific error and instruct the user to resolve before retrying.
+Parse status for:
+- `context.hasMemory` → must be true (abort if false)
+- `context.hasRoadmap` → needed for reconciliation
 
-## Argument Routing
-
-**IMPORTANT**: Check the user input and route to the appropriate action:
-
-| Argument | Action |
-|----------|--------|
-| (empty) | Run full verification flow → [Execution Steps](#execution-steps) |
-| `generate` or `generate [doc]` | Show deprecation notice → [Generate Deprecation](#generate-deprecation) |
-| `--reconcile` | Run verification with ROADMAP/codebase reconciliation (default) |
-| `--no-reconcile` | Run verification without reconciliation (faster) |
-| `--promote` | Scan completed specs for decisions to promote |
-| `--dry-run` | Analyze only, do not make changes |
-| `--fix` | Auto-fix issues without confirmation |
-
----
-
-### Generate Deprecation
-
-If the user invoked `/specflow.memory generate` or any `generate` variant:
-
-```
-⚠️ DEPRECATED: The 'generate' subcommand has been moved
-
-Memory document generation is now part of the unified project initialization flow.
-
-**Migration**:
-
-  # OLD (deprecated)
-  /specflow.memory generate
-  /specflow.memory generate all
-  /specflow.memory generate tech-stack
-
-  # NEW (use this instead)
-  /specflow.init
-
-The /specflow.init command runs a complete project initialization flow that includes:
-  1. Discovery interview (captures project decisions)
-  2. Constitution generation
-  3. Memory document generation (tech-stack, coding-standards, etc.)
-  4. Roadmap creation
-
-This consolidation ensures memory documents are generated with proper context
-from the discovery interview, leading to higher quality artifacts.
-
-If you need to regenerate memory documents for an existing project:
-  /specflow.init --force
-```
-
-**Stop and wait for user input after displaying this message.**
-
----
-
-## Execution Steps
+If memory gate fails, report specific issues from the check output.
 
 ### 2. Inventory Memory Documents
 
-Scan `.specify/memory/` for all markdown files:
+Scan `.specify/memory/`:
 
-```text
-.specify/memory/
-├── constitution.md        (REQUIRED - project governance, principles, constraints)
-├── tech-stack.md          (RECOMMENDED - approved technologies)
-├── coding-standards.md    (RECOMMENDED - code conventions)
-├── api-standards.md       (RECOMMENDED - API patterns)
-├── security-checklist.md  (RECOMMENDED - security requirements)
-├── testing-strategy.md    (RECOMMENDED - test patterns)
-├── design-system.md       (OPTIONAL - visual standards)
-├── glossary.md            (OPTIONAL - domain terms)
-├── performance-budgets.md (OPTIONAL - performance targets)
-├── ux-patterns.md         (OPTIONAL - UX conventions)
-└── adrs/                  (OPTIONAL - architecture decisions)
-    └── *.md
-```
+| Document | Status | Purpose |
+|----------|--------|---------|
+| `constitution.md` | REQUIRED | Project principles |
+| `tech-stack.md` | Recommended | Approved technologies |
+| `coding-standards.md` | Recommended | Code conventions |
+| `api-standards.md` | Recommended | API patterns |
+| `security-checklist.md` | Recommended | Security requirements |
+| `testing-strategy.md` | Recommended | Test patterns |
+| `glossary.md` | Optional | Domain terms |
 
-Report if `constitution.md` is missing (required). For RECOMMENDED documents, report if they don't exist but suggest creation rather than erroring.
+Report missing REQUIRED documents as errors, missing Recommended as warnings.
 
-> **Note**: Only `constitution.md` is strictly required. It should contain project principles that guide all other decisions. Other documents can be generated on-demand with `specflow memory init [document]`.
+### 3. Detect Errant Files
 
-### 3. Detect Errant Markdown Files
+Find `.md` files outside expected locations:
 
-Find all `.md` files outside expected locations. Use a strict allowlist approach.
+**Expected locations** (do not flag):
+- `.specify/memory/`, `.specify/templates/`, `.specify/archive/`
+- `specs/*/`, `commands/`, `docs/`, `templates/`
 
-**Expected directory locations (do not flag files within):**
-- `.specify/memory/` - Memory documents
-- `.specify/templates/` - State templates
-- `.specify/archive/` - Archived documents
-- `.specify/discovery/` - Discovery state files
-- `specs/*/` - Feature specifications
-- `commands/` - Skill files (including `archive/` and `utilities/`)
-- `.claude/commands/` - Alternative skill location
-- `templates/` - Document templates
-- `docs/` - Documentation
-- `tests/` - Test fixtures
+**Root allowlist** (only these allowed at root):
+- `README.md`, `CLAUDE.md`, `ROADMAP.md`, `CONTRIBUTING.md`, `LICENSE.md`, `CHANGELOG.md`
 
-**Root level allowlist (ONLY these files are allowed at project root):**
-| File | Purpose |
-|------|---------|
-| `README.md` | Project readme |
-| `CLAUDE.md` | Claude Code instructions |
-| `ROADMAP.md` | Project roadmap |
-| `CONTRIBUTING.md` | Contribution guidelines |
-| `LICENSE.md` or `LICENSE` | License file |
-| `CHANGELOG.md` | Version changelog |
-| `CODE_OF_CONDUCT.md` | Community standards |
-| `SECURITY.md` | Security policy |
+**Any other root `.md` is errant** → Archive to `.specify/archive/`
 
-**Any other `.md` file at root is ERRANT** - including tracking files, analysis docs, handoff notes, plans, etc.
+### 4. Analyze Document Quality
 
-**Errant file detection:**
-```bash
-# Step 1: Find all .md files not in expected directories
-ERRANT_FILES=$(find . -maxdepth 1 -name "*.md" -type f \
-  ! -name "README.md" \
-  ! -name "CLAUDE.md" \
-  ! -name "ROADMAP.md" \
-  ! -name "CONTRIBUTING.md" \
-  ! -name "LICENSE.md" \
-  ! -name "CHANGELOG.md" \
-  ! -name "CODE_OF_CONDUCT.md" \
-  ! -name "SECURITY.md" \
-  2>/dev/null | sort)
+For each memory document, check:
 
-# Step 2: Also check for errant .md files in unexpected subdirectories
-# (files in random folders that aren't in the allowlist above)
-ERRANT_SUBDIRS=$(find . -name "*.md" -type f \
-  -not -path "./.specify/memory/*" \
-  -not -path "./.specify/templates/*" \
-  -not -path "./.specify/archive/*" \
-  -not -path "./.specify/discovery/*" \
-  -not -path "./specs/*" \
-  -not -path "./commands/*" \
-  -not -path "./.claude/commands/*" \
-  -not -path "./templates/*" \
-  -not -path "./docs/*" \
-  -not -path "./tests/*" \
-  -not -path "./node_modules/*" \
-  -not -path "./.git/*" \
-  -maxdepth 1 -prune \
-  2>/dev/null | sort)
-```
+**A. Structure**
+| Check | Severity |
+|-------|----------|
+| Has `> **Agents**: ...` directive | HIGH |
+| Has `**Last Updated**: YYYY-MM-DD` | MEDIUM |
+| Consistent heading levels | LOW |
 
-**For each errant file found:**
+**B. Content**
+| Check | Severity |
+|-------|----------|
+| No placeholders (TODO, TBD, ???) | HIGH |
+| No duplicate content from other docs | HIGH |
+| No vague terms without criteria | MEDIUM |
 
-1. **Read the file** to understand its content
-2. **Determine disposition**:
-   - **Archive**: Move to `.specify/archive/` (default for tracking/analysis/handoff files)
-   - **Incorporate**: Extract key decisions into memory documents, then archive
-   - **Delete**: Only if content is obsolete, duplicate, or fully incorporated
+**C. Constitution Compliance**
+Cross-check each document against `constitution.md` principles. Flag conflicts as CRITICAL.
 
-**Common errant file patterns and recommended dispositions:**
-
-| Pattern | Examples | Disposition |
-|---------|----------|-------------|
-| Analysis/tracking | `*-ANALYSIS.md`, `*-TRACKING.md` | Archive |
-| Planning docs | `*-PLAN.md`, `*-PLANNING.md` | Archive (promote decisions to memory first) |
-| Handoff notes | `HANDOFF.md`, `CONTEXT.md` | Archive |
-| Session notes | `NOTES.md`, `SESSION-*.md` | Archive or delete |
-| Old specs | `SPEC-*.md` at root | Move to `specs/` or archive |
-| Question lists | `QUESTIONS*.md` | Incorporate into spec or archive |
-
-### 4. Analyze Memory Document Quality
-
-For each memory document, perform these checks:
-
-#### A. Structure & Formatting
-
-| Check | Criteria | Severity |
-|-------|----------|----------|
-| Agent Directive | Has `> **Agents**: ...` header block | HIGH |
-| Last Updated | Has `**Last Updated**: YYYY-MM-DD` | MEDIUM |
-| Sections | Uses `##` and `###` consistently | LOW |
-| Tables | Tables have headers and alignment | LOW |
-| Links | Internal links are valid (relative paths) | MEDIUM |
-| Code Blocks | Code blocks have language identifiers | LOW |
-
-#### B. Content Quality
-
-| Check | Criteria | Severity |
-|-------|----------|----------|
-| Verbosity | No unnecessary code examples (prefer tables) | MEDIUM |
-| Duplication | No content duplicated from other memory docs | HIGH |
-| Cross-References | Duplicated concepts link to authoritative source | MEDIUM |
-| Placeholders | No TODO, TBD, TKTK, ???, `<placeholder>` | HIGH |
-| Vague Terms | No unmeasurable adjectives without criteria | MEDIUM |
-
-#### C. Constitution Compliance
-
-Cross-check each memory document against `constitution.md`:
-
-| Document | Must Align With |
-|----------|-----------------|
-| `tech-stack.md` | Principle II (TypeScript), VIII (Simplicity) |
-| `coding-standards.md` | Principle II (TypeScript), VIII (Simplicity) |
-| `api-standards.md` | Principle I (API-First), VI (Security) |
-| `security-checklist.md` | Principle VI (Security), X (Child-Safe) |
-| `testing-strategy.md` | Principle IV (Test-First), VII (Accessibility) |
-| `design-system.md` | Principle VII (Accessibility), V (PWA) |
-| `performance-budgets.md` | Principle VIII (Simplicity), V (PWA) |
-
-Flag any conflicts where a memory document contradicts constitution principles.
-
-#### D. Consistency Checks
-
-| Check | Description |
-|-------|-------------|
-| Terminology | Terms match `glossary.md` definitions |
-| Versions | Tech versions match `tech-stack.md` |
-| Principles | No contradictions between documents |
-| Date Formats | All dates use YYYY-MM-DD |
-| Agent Directives | Consistent format across all docs |
-
-#### E. Gap Analysis
-
-| Document | Status | Expected Content |
-|----------|--------|------------------|
-| `constitution.md` | REQUIRED | Project principles with rationales |
-| `tech-stack.md` | RECOMMENDED | Approved packages with versions (if exists) |
-| `coding-standards.md` | RECOMMENDED | Code conventions (if exists) |
-| `api-standards.md` | RECOMMENDED | Request/response formats (if exists) |
-| `security-checklist.md` | RECOMMENDED | Security requirements (if exists) |
-| `testing-strategy.md` | RECOMMENDED | Test patterns (if exists) |
-
-> **Minimal Viable Memory**: A project can function with only `constitution.md`. Other documents should be added as the project grows and decisions are made.
-
----
+**D. Consistency**
+| Check |
+|-------|
+| Terms match `glossary.md` |
+| Versions match `tech-stack.md` |
+| No contradictions between documents |
 
 ### 5. ROADMAP Reconciliation (unless `--no-reconcile`)
 
-**Purpose**: Detect drift between ROADMAP.md planning and memory document standards.
-
-#### 5a. Load ROADMAP.md
-
 ```bash
-# Check ROADMAP exists
-if [ -f "ROADMAP.md" ]; then
-  # Parse phases and extract technology/pattern references
-  specflow roadmap status --json
-fi
+specflow phase status --json
 ```
 
-#### 5b. Cross-Reference ROADMAP Against Memory
+Compare ROADMAP phase references against memory:
+- Technologies in phases exist in `tech-stack.md`?
+- Patterns align with `coding-standards.md`?
+- Security gates match `security-checklist.md`?
 
-| Check | Description | Severity |
-|-------|-------------|----------|
-| Tech References | Technologies mentioned in ROADMAP phases exist in `tech-stack.md` | HIGH |
-| Pattern References | Patterns mentioned align with `coding-standards.md` | MEDIUM |
-| API References | API patterns match `api-standards.md` | MEDIUM |
-| Security Gates | Security requirements in gates match `security-checklist.md` | HIGH |
-| Testing Gates | Test requirements align with `testing-strategy.md` | MEDIUM |
+**Drift types:**
+| Type | Example | Severity |
+|------|---------|----------|
+| Technology mismatch | ROADMAP: Prisma, memory: Drizzle | CRITICAL |
+| Pattern drift | ROADMAP: REST, memory: GraphQL preferred | HIGH |
+| Tool mismatch | ROADMAP: Jest, memory: Vitest | MEDIUM |
 
-**Detection Examples:**
-
-```markdown
-## ROADMAP ↔ Memory Drift Report
-
-| Phase | ROADMAP Says | Memory Says | Drift Type | Severity |
-|-------|--------------|-------------|------------|----------|
-| 003 | "Use Prisma ORM" | tech-stack.md: Drizzle | Technology Mismatch | CRITICAL |
-| 007 | "REST endpoints" | api-standards.md: GraphQL preferred | Pattern Drift | HIGH |
-| 012 | "Jest tests" | testing-strategy.md: Vitest | Tool Mismatch | MEDIUM |
-```
-
-#### 5c. Determine Resolution Direction
-
-For each drift:
-1. **ROADMAP is outdated** → Flag for ROADMAP update
-2. **Memory is outdated** → Flag for memory update
-3. **Intentional deviation** → Require ADR in `.specify/memory/adrs/`
-
-Ask user: "For each drift, which is the source of truth?"
-
----
+For each drift, determine: Is ROADMAP outdated, or memory outdated?
 
 ### 6. Codebase Reconciliation (unless `--no-reconcile`)
 
-**Purpose**: Detect drift between memory documents and actual implementation.
-
-#### 6a. Scan Actual Dependencies
+Compare actual dependencies against `tech-stack.md`:
 
 ```bash
-# Node.js projects
-if [ -f "package.json" ]; then
-  cat package.json | jq '.dependencies, .devDependencies'
-fi
+# Node.js
+cat package.json | jq '.dependencies, .devDependencies'
 
-# Python projects
-if [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
-  # Extract dependencies
-fi
+# Python
+cat pyproject.toml  # or requirements.txt
 
-# Go projects
-if [ -f "go.mod" ]; then
-  cat go.mod
-fi
+# Go
+cat go.mod
 ```
 
-#### 6b. Compare Against tech-stack.md
+**Drift types:**
+| Type | Action |
+|------|--------|
+| Undocumented deps | Add to tech-stack.md |
+| Phantom deps | Remove from tech-stack.md |
+| Version mismatch | Update to match |
+| Banned package in use | Flag for removal |
 
-| Check | Method | Severity |
-|-------|--------|----------|
-| Undocumented Dependencies | Deps in package.json not in tech-stack.md | HIGH |
-| Phantom Dependencies | Deps in tech-stack.md not in package.json | MEDIUM |
-| Version Mismatches | Version in code differs from tech-stack.md | LOW |
-| Deprecated Packages | Using packages marked deprecated in tech-stack.md | HIGH |
+If `--deep`: Also scan code patterns against `coding-standards.md` and `api-standards.md`.
 
-#### 6c. Scan Code Patterns (if `--deep`)
+### 7. Promote from Completed Specs (if `--promote`)
 
 ```bash
-# Detect actual patterns in use
-grep -r "import.*from" src/ --include="*.ts" --include="*.tsx" | head -100
-
-# Detect API patterns
-grep -r "@(Get|Post|Put|Delete|Patch)" src/ --include="*.ts" | head -50
-
-# Detect test patterns
-grep -r "(describe|it|test)\(" --include="*.test.ts" --include="*.spec.ts" | head -50
+specflow phase status --json  # get completed phases
 ```
 
-Compare patterns found against:
-- `coding-standards.md` - Import patterns, file structure
-- `api-standards.md` - API decorators, response patterns
-- `testing-strategy.md` - Test patterns, coverage expectations
+Scan completed `spec.md` and `plan.md` for promotable decisions:
 
-#### 6d. Produce Codebase Drift Report
+| Pattern | Promote To |
+|---------|------------|
+| "Chose X over Y because..." | `tech-stack.md` |
+| "Implemented Result type for..." | `coding-standards.md` |
+| "All endpoints return {data, error}" | `api-standards.md` |
+| "Added rate limiting to..." | `security-checklist.md` |
+
+**Detection signals:** grep for "decided", "chose", "adopted", "switched to", "instead of"
+
+### 8. Generate Report
+
+Output findings table:
 
 ```markdown
-## Codebase ↔ Memory Drift Report
+## Memory Analysis Report
 
-### Dependency Drift
+| ID | File | Category | Severity | Issue | Fix |
+|----|------|----------|----------|-------|-----|
+| M001 | tech-stack.md | Duplication | HIGH | Duplicates constitution | Remove, cross-reference |
+| R001 | ROADMAP.md | Drift | CRITICAL | References Prisma, code uses Drizzle | Update ROADMAP |
 
-| Package | In Code | In tech-stack.md | Status |
-|---------|---------|------------------|--------|
-| drizzle-orm | 0.29.0 | Not listed | ⚠️ UNDOCUMENTED |
-| prisma | Not found | 5.0.0 | ⚠️ PHANTOM |
-| react | 18.2.0 | ^18.0.0 | ✅ OK |
-| lodash | 4.17.21 | Banned | ❌ VIOLATION |
-
-### Pattern Drift
-
-| Pattern | Expected (memory) | Found (code) | Files Affected |
-|---------|-------------------|--------------|----------------|
-| Imports | Absolute paths | Relative paths in 12 files | src/utils/*.ts |
-| Error handling | Result type | try/catch in 8 files | src/api/*.ts |
-| Tests | Vitest + describe | Jest syntax in 3 files | tests/*.test.ts |
-
-### Drift Summary
-
-- **Undocumented deps**: 3
-- **Phantom deps**: 1
-- **Pattern violations**: 23
-- **Recommended action**: Update memory OR fix code
+**Metrics:**
+- Documents: N | Issues: M | Critical: X | High: Y
+- ROADMAP drift: N issues | Codebase drift: M issues
+- Promotion candidates: P
 ```
 
----
-
-### 7. Spec Artifact Promotion (if `--promote` or completed phases exist)
-
-**Purpose**: Surface implementation decisions from completed specs that should become memory.
-
-#### 7a. Identify Completed Phases
-
-```bash
-# Find completed phases from ROADMAP
-specflow roadmap status --json | jq '.phases[] | select(.status == "complete")'
-
-# Or scan specs/ for completed features
-find specs/ -name "spec.md" -exec grep -l "Status.*Complete" {} \;
-```
-
-#### 7b. Scan Completed Specs for Promotable Decisions
-
-For each completed spec, scan `spec.md`, `plan.md`, and any ADRs for:
-
-| Pattern | Example | Promote To |
-|---------|---------|------------|
-| Technology decisions | "Chose Drizzle over Prisma for..." | `tech-stack.md` |
-| New patterns | "Implemented Result type for errors" | `coding-standards.md` |
-| API conventions | "All endpoints return {data, error}" | `api-standards.md` |
-| Security measures | "Added rate limiting to auth" | `security-checklist.md` |
-| Test patterns | "Using factories for test data" | `testing-strategy.md` |
-| New terms | "Flow = sequence of choice cards" | `glossary.md` |
-| Performance decisions | "Lazy load images > 100KB" | `performance-budgets.md` |
-
-**Detection Signals:**
-
-```bash
-# Decision keywords in completed specs
-grep -i "decided\|chose\|selected\|adopted\|switched to\|instead of\|better than" specs/*/plan.md
-
-# Pattern introductions
-grep -i "new pattern\|introduced\|convention\|standard\|always use\|never use" specs/*/spec.md
-
-# ADR references
-find specs/*/adrs/ -name "*.md" 2>/dev/null
-```
-
-#### 7c. Produce Promotion Candidates Report
-
-```markdown
-## Memory Promotion Candidates
-
-Decisions found in completed specs that may warrant memory updates:
-
-### From Phase 003 - Flow Engine Core
-
-| Decision | Source | Suggested Target | Confidence |
-|----------|--------|------------------|------------|
-| "Using Zod for runtime validation" | plan.md:L45 | tech-stack.md | HIGH |
-| "Result<T,E> pattern for all services" | plan.md:L89 | coding-standards.md | HIGH |
-| "Flow = directed graph of steps" | spec.md:L23 | glossary.md | MEDIUM |
-
-### From Phase 005 - API Layer
-
-| Decision | Source | Suggested Target | Confidence |
-|----------|--------|------------------|------------|
-| "All mutations return updated entity" | plan.md:L67 | api-standards.md | HIGH |
-| "Rate limit: 100 req/min for auth" | spec.md:L112 | security-checklist.md | HIGH |
-
-### Promotion Actions
-
-For each candidate, choose:
-1. **Promote**: Add to memory document
-2. **Skip**: Phase-specific, not universal
-3. **ADR**: Too significant, needs formal ADR first
-```
-
-#### 7d. Apply Promotions (if approved)
-
-For each approved promotion:
-1. Add content to appropriate memory document
-2. Add cross-reference back to original spec
-3. Update `Last Updated` date
-4. Log in `.specify/memory/adrs/` if significant
-
----
-
-### 8. Generate Analysis Report
-
-Output a comprehensive analysis table:
-
-```markdown
-## Memory Document Analysis Report
-
-**Generated**: [Date]
-**Branch**: main (clean)
-**Total Documents**: [count]
-**Issues Found**: [count]
-**Reconciliation**: [Enabled/Disabled]
-
----
-
-### Issue Summary
-
-| ID | File | Category | Severity | Description | Remediation |
-|----|------|----------|----------|-------------|-------------|
-| M001 | tech-stack.md | Duplication | HIGH | AI config duplicated from constitution | Remove, add cross-reference |
-| M002 | glossary.md | Inconsistency | MEDIUM | "Choice" undefined vs Choice Card | Add disambiguation note |
-| R001 | ROADMAP.md | Drift | CRITICAL | Phase 003 references Prisma, code uses Drizzle | Update ROADMAP or memory |
-| C001 | tech-stack.md | Codebase Drift | HIGH | lodash in code but banned in memory | Remove from code or update policy |
-| P001 | - | Promotion | MEDIUM | Result pattern in phase 003 not in coding-standards | Promote to memory |
-| ... | ... | ... | ... | ... | ... |
-
----
-
-### Errant Files Detected
-
-| File | Location | Disposition | Reason |
-|------|----------|-------------|--------|
-| MEMORY_FIXES_TRACKING.md | / (root) | Archive | Temporary tracking file |
-| ... | ... | ... | ... |
-
----
-
-### Reconciliation Summary
-
-#### ROADMAP ↔ Memory
-
-| Status | Count |
-|--------|-------|
-| ✅ Aligned | 12 phases |
-| ⚠️ Drift detected | 2 phases |
-| ❌ Conflict | 1 phase |
-
-#### Codebase ↔ Memory
-
-| Status | Count |
-|--------|-------|
-| ✅ Documented | 45 dependencies |
-| ⚠️ Undocumented | 3 dependencies |
-| ⚠️ Phantom | 1 dependency |
-| ❌ Violations | 2 dependencies |
-
-#### Promotion Candidates
-
-| Source | Candidates | High Confidence |
-|--------|------------|-----------------|
-| Phase 003 | 4 | 2 |
-| Phase 005 | 3 | 2 |
-
----
-
-### Coverage Summary
-
-| Document | Status | Issues | Last Updated |
-|----------|--------|--------|--------------|
-| constitution.md | ✅ PASS | 0 | 2026-01-10 |
-| tech-stack.md | ⚠️ WARN | 2 | 2026-01-10 |
-| ... | ... | ... | ... |
-
----
-
-### Metrics
-
-- **Total Issues**: [count]
-- **Critical**: [count]
-- **High**: [count]
-- **Medium**: [count]
-- **Low**: [count]
-- **Errant Files**: [count]
-- **Constitution Violations**: [count]
-- **ROADMAP Drift Issues**: [count]
-- **Codebase Drift Issues**: [count]
-- **Promotion Candidates**: [count]
-```
-
-### 9. Apply Fixes
-
-If `--dry-run` was NOT specified, proceed with fixes:
-
-#### 9a. Handle Errant Files
-
-For each errant file:
-
-1. **Archive** (default): Move to `.specify/archive/` with timestamp prefix if needed
-   ```bash
-   mv ./ERRANT_FILE.md ./.specify/archive/ERRANT_FILE.md
-   ```
-
-2. **Incorporate**: If content belongs in memory, merge into appropriate document
-
-3. **Delete**: If content is obsolete or duplicate
-   ```bash
-   rm ./ERRANT_FILE.md
-   ```
-
-Prompt user for disposition unless `--fix` flag is set.
-
-#### 9b. Fix Document Issues
-
-For each issue by severity (CRITICAL first, then HIGH, MEDIUM, LOW):
-
-| Issue Type | Auto-Fix Action |
-|------------|-----------------|
-| Missing agent directive | Add standard `> **Agents**: ...` header |
-| Missing last updated | Add `**Last Updated**: [today]` |
-| Broken internal links | Fix relative path |
-| Duplicate content | Remove duplicate, add cross-reference |
-| Placeholder text | Flag for manual resolution (cannot auto-fix) |
-| Vague terms | Flag for manual resolution |
-| Version mismatch | Update to match tech-stack.md |
-| Date format | Convert to YYYY-MM-DD |
-
-For each fix:
-1. Show the proposed change
-2. Apply if `--fix` flag set, otherwise prompt for confirmation
-3. Track all changes made
-
-#### 9c. Handle Reconciliation Drift
-
-For ROADMAP drift:
-1. Ask user which is authoritative (ROADMAP or memory)
-2. Update the non-authoritative source
-3. If neither is correct, flag for manual resolution
-
-For codebase drift:
-1. **Undocumented deps**: Add to tech-stack.md with "Added [date]" note
-2. **Phantom deps**: Remove from tech-stack.md or mark as "Planned"
-3. **Violations**: Flag for manual resolution (code change or policy change)
-
-#### 9d. Apply Promotions
-
-For approved promotion candidates:
-1. Insert content into target memory document
-2. Add source reference: `<!-- Promoted from specs/NNN-phase/plan.md:L45 -->`
-3. Update `Last Updated` date
-
-#### 9e. Regenerate CLAUDE.md
-
-After memory document changes, regenerate project CLAUDE.md:
-
-1. Read `.specify/templates/` for CLAUDE.md generation rules (if exists)
-2. Aggregate key information from memory documents
-3. Update `CLAUDE.md` at project root
+### 9. Apply Fixes (unless `--dry-run`)
+
+For each issue by severity (CRITICAL first):
+
+| Issue Type | Auto-Fix |
+|------------|----------|
+| Missing agent directive | Add standard header |
+| Missing last updated | Add today's date |
+| Errant files | Move to `.specify/archive/` |
+| Undocumented deps | Add to tech-stack.md |
+| Phantom deps | Remove from tech-stack.md |
+
+Prompt for confirmation unless `--fix` flag set.
+
+**Cannot auto-fix** (flag for manual):
+- Placeholder content
+- Vague terms
+- Technology conflicts
+- Pattern violations in code
 
 ### 10. Commit Changes
 
 If changes were made:
-
 ```bash
 git add .specify/memory/ .specify/archive/ CLAUDE.md
-git commit -m "docs: optimize memory documents and reconcile drift
+git commit -m "docs: optimize memory documents
 
-- Fixed [N] issues across [M] memory documents
-- Archived [X] errant markdown files
-- Resolved [Y] ROADMAP drift issues
-- Resolved [Z] codebase drift issues
-- Promoted [P] decisions from completed specs
-- Regenerated CLAUDE.md from updated memory
+- Fixed N issues across M documents
+- Archived X errant files
+- Resolved Y drift issues
 
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### 11. Final Report
+## Constraints
 
-Output summary of actions taken:
+- **NEVER modify `specs/`** - those are feature artifacts
+- **NEVER delete memory docs** without user confirmation
+- **ALWAYS archive** before deleting errant files
+- **ALWAYS verify git state** before and after operations
+- **ALWAYS prompt** for CRITICAL drift resolution
 
-```markdown
-## Memory Cleanup Complete
+## Deprecation Notice
 
-**Actions Taken**:
-- ✅ Analyzed [N] memory documents
-- ✅ Fixed [M] issues
-- ✅ Archived [X] errant files
-- ✅ Reconciled ROADMAP.md ([Y] drift issues resolved)
-- ✅ Reconciled codebase ([Z] drift issues resolved)
-- ✅ Promoted [P] decisions from completed specs
-- ✅ Regenerated CLAUDE.md
-- ✅ Committed changes to main
-
-**Remaining Manual Actions**:
-- [ ] Review archived files for permanent deletion
-- [ ] Address [N] issues requiring manual resolution
-- [ ] Review [M] low-confidence promotion candidates
-
-**Health Score**: [0-100] (based on issues remaining)
-
-**Next Run**: Recommend running monthly, after major spec changes, or after completing phases.
+If user runs `/flow.memory generate`:
 ```
-
----
-
-## Operating Principles
-
-### Memory Document Standards
-
-Memory documents exist to provide agents with consistent, authoritative context. They must be:
-
-- **Evergreen**: No time-sensitive content that becomes stale
-- **Concise**: Prefer tables over prose, references over duplication
-- **Authoritative**: Single source of truth for each concept
-- **Cross-Referenced**: Link to authoritative source, don't duplicate
-- **Agent-Optimized**: Start with agent directive, structure for scanning
-- **Reality-Grounded**: Reflect actual implementation, not aspirational goals
-
-### Reconciliation Philosophy
-
-Memory documents are only valuable if they reflect reality:
-
-| Principle | Implication |
-|-----------|-------------|
-| **Code is truth** | If code differs from memory, one must change |
-| **Decisions evolve** | Implementation learnings should flow back to memory |
-| **ROADMAP is a plan** | Plans change; memory must track what actually happened |
-| **Drift is debt** | Unreconciled drift compounds confusion |
-
-### Drift Resolution Hierarchy
-
-When drift is detected, resolve using this priority:
-
-1. **Code + Memory agree, ROADMAP differs** → Update ROADMAP
-2. **Code + ROADMAP agree, Memory differs** → Update Memory
-3. **Memory + ROADMAP agree, Code differs** → Investigate (bug or undocumented decision?)
-4. **All three differ** → Escalate to user, require ADR
-
-### Verbosity Guidelines
-
-| Content Type | Guideline |
-|--------------|-----------|
-| Code examples | 1-5 lines max, or reference file path |
-| Configuration | Table format preferred over JSON blocks |
-| Rationales | 1-2 sentences, not paragraphs |
-| Lists | Bullet points, not numbered unless order matters |
-| Tables | Use for structured data (versions, mappings, checklists) |
-
-### File Disposition Rules
-
-| File Type | Location | Action |
-|-----------|----------|--------|
-| Temporary tracking | Root or random | Archive to `.specify/archive/` |
-| Meeting notes | Anywhere | Archive or delete |
-| Draft specs | Outside `specs/` | Move to correct `specs/` folder or archive |
-| Old documentation | Anywhere | Archive or incorporate |
-| Duplicate content | Anywhere | Delete, keep authoritative version |
-
-### Safety Constraints
-
-- **NEVER** modify files in `specs/` (those are feature artifacts)
-- **NEVER** delete memory documents without user confirmation
-- **ALWAYS** create backup (archive) before destructive operations
-- **ALWAYS** verify git state before and after operations
-- **ALWAYS** ask before resolving CRITICAL drift issues
-
----
-
-## Context
-
-$ARGUMENTS
+DEPRECATED: Use /flow.init instead.
+Memory document generation is now part of unified project initialization.
+```

@@ -4,325 +4,247 @@ Complete reference for SpecFlow slash commands used in Claude Code.
 
 ## Overview
 
-Slash commands are invoked in Claude Code with `/specflow.<command>`. They orchestrate AI-assisted development workflows.
+Slash commands are invoked in Claude Code with `/flow.<command>`. They orchestrate AI-assisted development workflows.
 
-**Syntax:** `/specflow.<command> [arguments]`
+**Syntax:** `/flow.<command> [arguments]`
 
 ---
 
 ## Core Workflow Commands
 
-### /specflow.start
-
-**Smart entry point** - Auto-detects project state and routes to the appropriate workflow.
-
-```
-/specflow.start
-/specflow.start --skip-detections
-/specflow.start --verbose
-```
-
-This is the recommended way to begin any SpecFlow session. It analyzes your project and suggests the next logical step.
-
-### /specflow.init
-
-**Project initialization interview** - Guided discovery process that captures requirements, decisions, and project context.
-
-```
-/specflow.init                    # Start or resume interview
-/specflow.init status             # Show interview progress
-/specflow.init pause              # Pause for later
-/specflow.init deeper             # Go deeper on current topic
-/specflow.init faster             # Accelerate interview
-/specflow.init skip               # Skip current phase
-/specflow.init focus <topic>      # Focus on specific topic
-/specflow.init compare            # Compare options
-/specflow.init research <topic>   # Research a topic
-/specflow.init revisit <phase>    # Revisit a phase
-/specflow.init validate           # Validate interview state
-/specflow.init export             # Export to memory documents
-```
-
-### /specflow.orchestrate
+### /flow.orchestrate
 
 **Full workflow automation** - Runs the complete development cycle with state persistence and self-healing.
 
 ```
-/specflow.orchestrate             # Start from beginning or resume
-/specflow.orchestrate --resume    # Resume from last step
-/specflow.orchestrate --phase <N> # Start at specific phase
-/specflow.orchestrate --skip-gates  # Skip validation gates
-/specflow.orchestrate --no-discovery  # Skip codebase examination and questions
+/flow.orchestrate             # Start from beginning or resume
+/flow.orchestrate continue    # Resume from last step
+/flow.orchestrate reset       # Clear state and restart current phase
+/flow.orchestrate status      # Show status only, don't execute
+/flow.orchestrate skip-to implement  # Skip to specific step
 ```
 
-The orchestrator manages 9 steps:
-1. **Discovery** - Examine codebase and ask clarifying questions
-2. **Specification** - Create feature spec from discovery findings
-3. **Clarification** - Resolve remaining ambiguities
-4. **Planning** - Create implementation plan
-5. **Tasks** - Generate task breakdown
-6. **Analysis** - Cross-artifact consistency check
-7. **Checklist** - Create verification checklist
-8. **Implementation** - Execute tasks
-9. **Verification** - Verify completion
+The orchestrator manages 4 steps:
+1. **design** - Create all design artifacts via `/flow.design`
+2. **analyze** - Cross-artifact consistency analysis
+3. **implement** - Execute tasks via `/flow.implement`
+4. **verify** - Verify completion via `/flow.verify`
+
+### /flow.init
+
+**Project initialization** - Guided discovery process that captures requirements, decisions, and project context.
+
+```
+/flow.init                    # Run full initialization or resume
+/flow.init status             # Show interview progress
+/flow.init --force            # Regenerate all artifacts
+/flow.init faster             # Fast mode: 4 questions/round
+/flow.init deeper             # Deep mode: 5 Whys technique
+/flow.init compare A vs B     # Compare options side-by-side
+/flow.init research TOPIC     # Research a topic before deciding
+```
+
+Produces:
+- Discovery interview artifacts
+- Constitution (governance document)
+- Memory documents (tech-stack, coding-standards, etc.)
+- Initial ROADMAP.md
 
 ---
 
-## Specification Commands
+## Design Commands
 
-### /specflow.specify
+### /flow.design
 
-**Create feature specification** from requirements or natural language description.
-
-```
-/specflow.specify
-/specflow.specify "Add user authentication with OAuth"
-```
-
-Creates `spec.md` in the current feature directory.
-
-### /specflow.clarify
-
-**Resolve ambiguities** by asking up to 5 targeted clarification questions. Encodes answers back into the spec.
+**Create all design artifacts** in one command with inline clarifications.
 
 ```
-/specflow.clarify
+/flow.design                  # Full flow: discover → spec → plan → tasks → checklists
+/flow.design --spec           # Cascade from spec: spec → plan → tasks → checklists
+/flow.design --plan           # Cascade from plan: plan → tasks → checklists
+/flow.design --tasks          # Cascade from tasks: tasks → checklists
+/flow.design --checklist      # Regenerate only checklists
 ```
 
-Run this after `/specflow.specify` to improve spec quality.
+Creates these artifacts in the current phase directory:
+| Artifact | Purpose |
+|----------|---------|
+| `discovery.md` | Codebase examination and clarified user intent |
+| `spec.md` | Feature specification with requirements |
+| `requirements.md` | Requirements quality checklist |
+| `plan.md` | Technical implementation plan |
+| `tasks.md` | Actionable task list |
+| `checklists/implementation.md` | Implementation guidance |
+| `checklists/verification.md` | Verification checklist |
 
-### /specflow.plan
-
-**Create implementation plan** using the plan template to generate design artifacts.
-
-```
-/specflow.plan
-```
-
-Creates `plan.md` with architecture decisions, component design, and implementation approach.
-
-### /specflow.tasks
-
-**Generate task breakdown** - Creates actionable, dependency-ordered tasks from the plan.
-
-```
-/specflow.tasks
-```
-
-Creates `tasks.md` with implementation tasks, acceptance criteria, and dependencies.
-
-### /specflow.analyze
+### /flow.analyze
 
 **Cross-artifact consistency analysis** - Non-destructive analysis of spec.md, plan.md, and tasks.md.
 
 ```
-/specflow.analyze
+/flow.analyze                 # Run full analysis
 ```
 
-Identifies inconsistencies, gaps, and potential issues across artifacts.
-
-### /specflow.checklist
-
-**Generate verification checklist** based on feature requirements.
-
-```
-/specflow.checklist
-```
-
-Creates a checklist for verifying the implementation meets all requirements.
+Identifies inconsistencies, gaps, and potential issues across artifacts. Part of the orchestration auto-fix loop.
 
 ---
 
 ## Implementation Commands
 
-### /specflow.implement
+### /flow.implement
 
-**Execute implementation tasks** from tasks.md.
+**Execute implementation tasks** from tasks.md using TDD.
 
 ```
-/specflow.implement               # Start implementation
-/specflow.implement continue      # Resume from last incomplete task
-/specflow.implement phase <N>     # Start at specific phase
-/specflow.implement --tdd         # Enforce test-driven development
+/flow.implement               # Execute all tasks with TDD workflow
+/flow.implement --no-tdd      # Skip test-first approach (not recommended)
+/flow.implement continue      # Resume from last incomplete task
 ```
 
-### /specflow.verify
+Uses `specflow mark T###` to track task completion.
+
+### /flow.verify
 
 **Verify implementation** against specifications. Updates ROADMAP.md with completion status.
 
 ```
-/specflow.verify
+/flow.verify                  # Run full verification
+/flow.verify --dry-run        # Preview without closing phase
+/flow.verify --skip-memory    # Skip memory document compliance check
 ```
 
-Checks:
+Verifies:
 - All tasks completed
-- Checklists satisfied
-- Spec requirements met
-- Tests passing
+- All checklists pass
+- Implementation complies with memory documents
+- User gate satisfied (if applicable)
 
-### /specflow.merge
+Then closes the phase via `specflow phase close`.
 
-**Complete a phase** - Push, create PR, merge to main, cleanup branches, archive state.
+### /flow.merge
+
+**Complete a phase** - Push, create PR, merge to main, cleanup branches.
 
 ```
-/specflow.merge                   # Full merge workflow
-/specflow.merge --pr-only         # Create PR but don't merge
-/specflow.merge --dry-run         # Preview what would happen
-/specflow.merge --force           # Skip task completion check
-/specflow.merge --next-phase      # Auto-start next phase after merge
+/flow.merge                   # Full merge workflow (default)
+/flow.merge --pr-only         # Create PR but don't merge
 ```
+
+Workflow:
+1. Close the phase (update ROADMAP, archive, reset state)
+2. Commit the phase closure changes
+3. Push and merge to main
+4. Switch to main with clean state
 
 ---
 
 ## Project Management Commands
 
-### /specflow.roadmap
+### /flow.roadmap
 
 **Create or update ROADMAP.md** with development phases and verification gates.
 
 ```
-/specflow.roadmap
+/flow.roadmap                 # Generate or update ROADMAP.md
+/flow.roadmap add-pdr         # Convert PDRs to phases
+/flow.roadmap add-pdr --all   # Convert all approved PDRs
+/flow.roadmap backlog         # Interactive backlog triage
+/flow.roadmap backlog --auto  # Auto-assign high-confidence matches
 ```
 
-### /specflow.backlog
+### /flow.review
 
-**Triage backlog items** - Scan completed phases for orphaned tasks, assign to future phases.
-
-```
-/specflow.backlog                 # Interactive triage
-/specflow.backlog --auto          # Auto-assign high-confidence matches
-/specflow.backlog --dry-run       # Preview assignments
-```
-
-### /specflow.phase
-
-**Create ROADMAP phases from PDRs** - Converts Product Design Requirements into implementation-ready phases.
+**Systematic code review** - Generate categorized findings that can be triaged into implementation phases.
 
 ```
-/specflow.phase
-/specflow.phase <pdr-file>
+/flow.review                  # Full interactive review
+/flow.review --dry-run        # Preview findings without creating phase
+/flow.review --categories BP,RF,HD  # Review specific categories
+/flow.review --fix            # Auto-approve effort ≤4, defer effort=5
 ```
 
-### /specflow.constitution
-
-**Create or update project constitution** from interactive or provided principle inputs.
-
-```
-/specflow.constitution
-```
+Categories:
+- **BP** - Best Practices
+- **RF** - Refactoring
+- **HD** - Hardening
+- **MF** - Missing Features
+- **OC** - Orphaned Code
+- **OE** - Over-Engineering
+- **OD** - Outdated Documentation
 
 ---
 
 ## Memory Document Commands
 
-### /specflow.memory
+### /flow.memory
 
-**Verify and reconcile memory documents** - Clean up, optimize, and detect drift.
-
-```
-/specflow.memory                  # Full analysis and reconciliation
-/specflow.memory --dry-run        # Analyze only, no changes
-/specflow.memory --verbose        # Detailed analysis output
-/specflow.memory --fix            # Auto-fix without confirmation
-/specflow.memory --no-reconcile   # Skip drift detection (faster)
-/specflow.memory --promote        # Scan completed specs for decisions to promote
-/specflow.memory --deep           # Full codebase scan
-```
-
-### /specflow.memory-init
-
-**Generate memory docs from codebase** - Analyzes existing code to create memory documents.
+**Verify and optimize memory documents** - Clean up, reconcile against codebase, detect drift.
 
 ```
-/specflow.memory-init all              # Generate all documents
-/specflow.memory-init recommended      # Generate recommended set
-/specflow.memory-init coding-standards # Generate specific document
-/specflow.memory-init tech-stack       # Generate tech stack doc
-/specflow.memory-init glossary         # Generate glossary
-/specflow.memory-init --force          # Overwrite existing
-/specflow.memory-init --dry-run        # Preview without writing
+/flow.memory                  # Full verification with reconciliation
+/flow.memory --dry-run        # Analyze only, no changes
+/flow.memory --fix            # Auto-fix without confirmation
+/flow.memory --no-reconcile   # Skip ROADMAP/codebase checks (faster)
+/flow.memory --promote        # Scan completed specs for decisions to promote
+/flow.memory --deep           # Full codebase pattern scan (slower)
 ```
-
----
-
-## Quality & Review Commands
-
-### /specflow.review
-
-**Systematic code review** - Generate categorized findings that can be triaged into implementation phases.
-
-```
-/specflow.review
-/specflow.review <path>
-```
-
----
-
-## Utility Commands
-
-### /specflow.taskstoissues
-
-**Convert tasks to GitHub issues** - Export tasks.md items as GitHub issues.
-
-```
-/specflow.taskstoissues
-```
-
-Located in `commands/utilities/`.
 
 ---
 
 ## Command Flow
 
 ```
-/specflow.start              # Entry point
+/flow.init                   # Entry point for new projects
     │
     ▼
-/specflow.init               # Requirements interview
+/flow.roadmap                # Create development phases
     │
     ▼
-/specflow.roadmap            # Create development phases
+/flow.orchestrate            # Automated workflow (4 steps)
+    │
+    ├── /flow.design         # Create all design artifacts
+    ├── ANALYZE              # Cross-artifact consistency
+    ├── /flow.implement      # Execute tasks with TDD
+    └── /flow.verify         # Verify completion
     │
     ▼
-/specflow.orchestrate        # Automated workflow (9 steps)
-    │
-    ├── DISCOVER            # Examine codebase, ask questions
-    ├── /specflow.specify    # Feature specification
-    ├── /specflow.clarify    # Resolve ambiguities
-    ├── /specflow.plan       # Implementation plan
-    ├── /specflow.tasks      # Task breakdown
-    ├── /specflow.analyze    # Consistency check
-    ├── /specflow.checklist  # Verification checklist
-    ├── /specflow.implement  # Execute tasks
-    └── /specflow.verify     # Verify completion
+/flow.merge                  # Complete phase, merge PR
     │
     ▼
-/specflow.merge              # Complete phase
-    │
-    ▼
-/specflow.backlog            # Triage remaining items
-    │
-    └── (next phase)
+(next phase) ──────────────► /flow.orchestrate
 ```
 
 ---
 
 ## Quick Reference
 
-**Recommended Entry Point**: `/specflow.start` - Routes you to the right command automatically.
-
 | Command | Purpose |
 |---------|---------|
-| `/specflow.start` | **Primary entry point** - Auto-detect state, route to next step |
-| `/specflow.init` | Requirements interview |
-| `/specflow.orchestrate` | Full automated workflow |
-| `/specflow.specify` | Create feature spec |
-| `/specflow.plan` | Create implementation plan |
-| `/specflow.tasks` | Generate task breakdown |
-| `/specflow.implement` | Execute tasks |
-| `/specflow.verify` | Verify completion |
-| `/specflow.merge` | Complete phase, merge PR |
-| `/specflow.memory` | Manage memory documents (incl. generate) |
-| `/specflow.review` | Code review |
+| `/flow.init` | Initialize project with discovery interview |
+| `/flow.orchestrate` | **Main workflow** - design → analyze → implement → verify |
+| `/flow.design` | Create all design artifacts |
+| `/flow.analyze` | Cross-artifact consistency check |
+| `/flow.implement` | Execute tasks with TDD |
+| `/flow.verify` | Verify completion, close phase |
+| `/flow.merge` | Push, PR, merge to main |
+| `/flow.roadmap` | Create/update ROADMAP, backlog triage |
+| `/flow.memory` | Verify/optimize memory documents |
+| `/flow.review` | Systematic code review |
 
-**Note**: For issue management, use the CLI directly: `specflow issue list`, `specflow issue create`, etc.
+---
+
+## CLI Commands
+
+For state and task management, use the CLI directly:
+
+```bash
+specflow status              # Project status
+specflow next                # Next task
+specflow mark T007           # Mark task complete
+specflow check --fix         # Validation with auto-fix
+specflow phase open 0020     # Open a phase
+specflow phase close         # Close current phase
+specflow phase defer "item"  # Defer to backlog
+```
+
+See [CLI Reference](cli-reference.md) for the complete CLI documentation.

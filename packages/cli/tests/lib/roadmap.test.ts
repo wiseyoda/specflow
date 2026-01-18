@@ -7,12 +7,14 @@ import {
   getPhaseByNumber,
   getPhasesByStatus,
   hasPendingUserGates,
+  calculateNextHotfix,
 } from '../../src/lib/roadmap.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, '../fixtures');
 
 describe('roadmap.ts', () => {
+
   describe('parseRoadmapContent - sample-roadmap.md', () => {
     it('should parse roadmap from markdown content', async () => {
       const content = await readFile(join(FIXTURES_DIR, 'sample-roadmap.md'), 'utf-8');
@@ -235,6 +237,96 @@ describe('roadmap.ts', () => {
       };
 
       expect(hasPendingUserGates(roadmap)).toBe(false);
+    });
+  });
+
+  describe('calculateNextHotfix', () => {
+    it('should return next hotfix number for active phase', () => {
+      const roadmap = {
+        filePath: 'test',
+        phases: [
+          { number: '0010', name: 'Phase 1', status: 'complete' as const, hasUserGate: false, line: 1 },
+          { number: '0020', name: 'Phase 2', status: 'in_progress' as const, hasUserGate: false, line: 2 },
+        ],
+        activePhase: { number: '0020', name: 'Phase 2', status: 'in_progress' as const, hasUserGate: false, line: 2 },
+        progress: { total: 2, completed: 1, percentage: 50 },
+      };
+
+      const result = calculateNextHotfix(roadmap);
+      expect(result).toBe('0021');
+    });
+
+    it('should skip existing hotfix slots', () => {
+      const roadmap = {
+        filePath: 'test',
+        phases: [
+          { number: '0020', name: 'Phase 2', status: 'in_progress' as const, hasUserGate: false, line: 1 },
+          { number: '0021', name: 'Hotfix 1', status: 'complete' as const, hasUserGate: false, line: 2 },
+          { number: '0022', name: 'Hotfix 2', status: 'complete' as const, hasUserGate: false, line: 3 },
+        ],
+        activePhase: { number: '0020', name: 'Phase 2', status: 'in_progress' as const, hasUserGate: false, line: 1 },
+        progress: { total: 3, completed: 2, percentage: 67 },
+      };
+
+      const result = calculateNextHotfix(roadmap);
+      expect(result).toBe('0023');
+    });
+
+    it('should use last completed phase if no active phase', () => {
+      const roadmap = {
+        filePath: 'test',
+        phases: [
+          { number: '0010', name: 'Phase 1', status: 'complete' as const, hasUserGate: false, line: 1 },
+          { number: '0020', name: 'Phase 2', status: 'complete' as const, hasUserGate: false, line: 2 },
+        ],
+        progress: { total: 2, completed: 2, percentage: 100 },
+      };
+
+      const result = calculateNextHotfix(roadmap);
+      expect(result).toBe('0021');
+    });
+
+    it('should return null when no phases exist', () => {
+      const roadmap = {
+        filePath: 'test',
+        phases: [],
+        progress: { total: 0, completed: 0, percentage: 0 },
+      };
+
+      const result = calculateNextHotfix(roadmap);
+      expect(result).toBeNull();
+    });
+
+    it('should return null when all hotfix slots are used (0-9)', () => {
+      const roadmap = {
+        filePath: 'test',
+        phases: [
+          { number: '0020', name: 'Phase', status: 'in_progress' as const, hasUserGate: false, line: 1 },
+          { number: '0021', name: 'Hotfix 1', status: 'complete' as const, hasUserGate: false, line: 2 },
+          { number: '0022', name: 'Hotfix 2', status: 'complete' as const, hasUserGate: false, line: 3 },
+          { number: '0023', name: 'Hotfix 3', status: 'complete' as const, hasUserGate: false, line: 4 },
+          { number: '0024', name: 'Hotfix 4', status: 'complete' as const, hasUserGate: false, line: 5 },
+          { number: '0025', name: 'Hotfix 5', status: 'complete' as const, hasUserGate: false, line: 6 },
+          { number: '0026', name: 'Hotfix 6', status: 'complete' as const, hasUserGate: false, line: 7 },
+          { number: '0027', name: 'Hotfix 7', status: 'complete' as const, hasUserGate: false, line: 8 },
+          { number: '0028', name: 'Hotfix 8', status: 'complete' as const, hasUserGate: false, line: 9 },
+          { number: '0029', name: 'Hotfix 9', status: 'complete' as const, hasUserGate: false, line: 10 },
+        ],
+        activePhase: { number: '0020', name: 'Phase', status: 'in_progress' as const, hasUserGate: false, line: 1 },
+        progress: { total: 10, completed: 9, percentage: 90 },
+      };
+
+      const result = calculateNextHotfix(roadmap);
+      expect(result).toBeNull();
+    });
+
+    it('should work with sample roadmap fixture', async () => {
+      const content = await readFile(join(FIXTURES_DIR, 'sample-roadmap.md'), 'utf-8');
+      const roadmap = parseRoadmapContent(content, 'test/ROADMAP.md');
+
+      // Active phase is 0020, and 0021 already exists
+      const result = calculateNextHotfix(roadmap);
+      expect(result).toBe('0022');
     });
   });
 });

@@ -4,6 +4,7 @@
  */
 export const ALLOWED_COMMANDS = new Set([
   'help',
+  'init',
   'issue',
   'tasks',
   'phase',

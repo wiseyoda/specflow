@@ -98,6 +98,47 @@ export const CommandHistoryEntrySchema = z.object({
   startedAt: z.string(),
 });
 
+/**
+ * Project status for action filtering
+ */
+export const ProjectStatusSchema = z.enum([
+  'not_initialized',
+  'initializing',
+  'needs_setup',
+  'ready',
+  'error',
+  'warning',
+]);
+
+/**
+ * Action group for menu organization
+ */
+export const ActionGroupSchema = z.enum(['setup', 'maintenance', 'advanced']);
+
+/**
+ * Button variant for action styling
+ */
+export const ButtonVariantSchema = z.enum(['default', 'destructive', 'outline', 'secondary']);
+
+/**
+ * Schema for project action definitions
+ */
+export const ProjectActionSchema = z.object({
+  id: z.string().describe('Unique action identifier'),
+  label: z.string().describe('Display label'),
+  description: z.string().describe('Short description for tooltips'),
+  command: z.string().describe('CLI command to execute'),
+  args: z.array(z.string()).describe('Default command arguments'),
+  requiresConfirmation: z.boolean().describe('Whether confirmation is required'),
+  confirmationTitle: z.string().optional().describe('Confirmation dialog title'),
+  confirmationDescription: z.string().optional().describe('Confirmation dialog description'),
+  confirmationItems: z.array(z.string()).optional().describe('Bullet list for confirmation'),
+  applicableStatuses: z.array(ProjectStatusSchema).describe('Statuses where action applies'),
+  variant: ButtonVariantSchema.describe('Button styling variant'),
+  group: ActionGroupSchema.describe('Menu group'),
+  showOnCard: z.boolean().optional().describe('Show as primary action on card'),
+});
+
 // Type exports
 export type SpeckitSubcommand = z.infer<typeof SpeckitSubcommandSchema>;
 export type SpeckitCommand = z.infer<typeof SpeckitCommandSchema>;
@@ -108,3 +149,7 @@ export type CommandExecuteResponse = z.infer<typeof CommandExecuteResponseSchema
 export type CommandOutputEvent = z.infer<typeof CommandOutputEventSchema>;
 export type CommandExecution = z.infer<typeof CommandExecutionSchema>;
 export type CommandHistoryEntry = z.infer<typeof CommandHistoryEntrySchema>;
+export type ProjectStatus = z.infer<typeof ProjectStatusSchema>;
+export type ActionGroup = z.infer<typeof ActionGroupSchema>;
+export type ButtonVariant = z.infer<typeof ButtonVariantSchema>;
+export type ProjectAction = z.infer<typeof ProjectActionSchema>;

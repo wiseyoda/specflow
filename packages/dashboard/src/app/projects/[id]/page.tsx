@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { MainLayout } from "@/components/layout/main-layout"
 import { ProjectDetailHeader } from "@/components/projects/project-detail-header"
@@ -12,6 +12,20 @@ import { useConnection } from "@/contexts/connection-context"
 import { useProjects } from "@/hooks/use-projects"
 import { useViewPreference } from "@/hooks/use-view-preference"
 import { AlertCircle } from "lucide-react"
+import type { ProjectStatus } from "@/lib/action-definitions"
+import type { OrchestrationState } from "@speckit/shared"
+
+/**
+ * Determine project status from orchestration state
+ */
+function getProjectStatus(state: OrchestrationState | null | undefined): ProjectStatus {
+  if (!state) return "not_initialized"
+  if (state.health?.status === "error") return "error"
+  if (state.health?.status === "warning") return "warning"
+  if (state.health?.status === "initializing") return "initializing"
+  if (state.orchestration) return "ready"
+  return "needs_setup"
+}
 
 export default function ProjectDetailPage() {
   const params = useParams()
@@ -100,10 +114,18 @@ export default function ProjectDetailPage() {
     )
   }
 
+  // Derive project status for actions menu
+  const projectStatus = useMemo(() => getProjectStatus(state), [state])
+
   return (
     <MainLayout>
       <div className="flex flex-col h-full">
-        <ProjectDetailHeader project={project} />
+        <ProjectDetailHeader
+          project={project}
+          projectStatus={projectStatus}
+          schemaVersion={state?.schema_version}
+          isAvailable={!project.isUnavailable}
+        />
 
         <ViewTabs activeView={activeView} onViewChange={setActiveView} />
 

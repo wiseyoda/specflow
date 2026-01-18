@@ -14,8 +14,10 @@ import {
   GitMerge
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+import { ActionButton } from "@/components/projects/action-button"
 import { cn } from "@/lib/utils"
 import type { OrchestrationState, TasksData } from "@speckit/shared"
+import type { ProjectStatus as ActionProjectStatus } from "@/lib/action-definitions"
 
 /**
  * Project initialization status
@@ -393,6 +395,13 @@ export function ProjectCard({ project, state, tasks, isUnavailable = false }: Pr
                   </span>
                 </div>
               )}
+              <ActionButton
+                projectId={project.id}
+                projectPath={project.path}
+                projectStatus={projectStatus as ActionProjectStatus}
+                isAvailable={!isUnavailable}
+                schemaVersion={state?.schema_version}
+              />
               <ChevronRight className="h-5 w-5 text-neutral-400" />
             </div>
           </div>

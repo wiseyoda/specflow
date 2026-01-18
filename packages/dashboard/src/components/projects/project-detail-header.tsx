@@ -2,6 +2,8 @@
 
 import Link from "next/link"
 import { ArrowLeft, FolderGit2 } from "lucide-react"
+import { ActionsMenu } from "@/components/projects/actions-menu"
+import type { ProjectStatus } from "@/lib/action-definitions"
 
 interface Project {
   id: string
@@ -11,9 +13,17 @@ interface Project {
 
 interface ProjectDetailHeaderProps {
   project: Project
+  projectStatus?: ProjectStatus
+  schemaVersion?: string
+  isAvailable?: boolean
 }
 
-export function ProjectDetailHeader({ project }: ProjectDetailHeaderProps) {
+export function ProjectDetailHeader({
+  project,
+  projectStatus = "ready",
+  schemaVersion,
+  isAvailable = true,
+}: ProjectDetailHeaderProps) {
   return (
     <div className="border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 px-6 py-4">
       {/* Breadcrumb */}
@@ -30,16 +40,26 @@ export function ProjectDetailHeader({ project }: ProjectDetailHeaderProps) {
       </div>
 
       {/* Project Info */}
-      <div className="flex items-center gap-3">
-        <FolderGit2 className="h-6 w-6 text-neutral-600 dark:text-neutral-400" />
-        <div>
-          <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
-            {project.name}
-          </h1>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 truncate max-w-lg">
-            {project.path}
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <FolderGit2 className="h-6 w-6 text-neutral-600 dark:text-neutral-400" />
+          <div>
+            <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
+              {project.name}
+            </h1>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 truncate max-w-lg">
+              {project.path}
+            </p>
+          </div>
         </div>
+
+        <ActionsMenu
+          projectId={project.id}
+          projectPath={project.path}
+          projectStatus={projectStatus}
+          schemaVersion={schemaVersion}
+          isAvailable={isAvailable}
+        />
       </div>
     </div>
   )

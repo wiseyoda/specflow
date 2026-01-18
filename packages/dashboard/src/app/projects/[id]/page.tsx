@@ -53,6 +53,9 @@ export default function ProjectDetailPage() {
   // Get tasks for this project
   const projectTasks = tasks.get(projectId)
 
+  // Derive project status for actions menu (must be before early returns)
+  const projectStatus = useMemo(() => getProjectStatus(state), [state])
+
   // Loading state
   if (projectsLoading) {
     return (
@@ -113,9 +116,6 @@ export default function ProjectDetailPage() {
       </MainLayout>
     )
   }
-
-  // Derive project status for actions menu
-  const projectStatus = useMemo(() => getProjectStatus(state), [state])
 
   return (
     <MainLayout>

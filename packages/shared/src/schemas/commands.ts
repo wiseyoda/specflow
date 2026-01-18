@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 /**
- * Schema for a speckit subcommand
+ * Schema for a specflow subcommand
  */
-export const SpeckitSubcommandSchema = z.object({
+export const SpecflowSubcommandSchema = z.object({
   name: z.string().describe('Subcommand name (e.g., "create", "list")'),
   description: z.string().describe('Brief description of what the subcommand does'),
   requiresArgs: z.boolean().describe('Whether the subcommand requires arguments'),
@@ -11,19 +11,19 @@ export const SpeckitSubcommandSchema = z.object({
 });
 
 /**
- * Schema for a speckit command
+ * Schema for a specflow command
  */
-export const SpeckitCommandSchema = z.object({
+export const SpecflowCommandSchema = z.object({
   name: z.string().describe('Command name (e.g., "issue", "tasks")'),
   description: z.string().describe('Brief description of what the command does'),
-  subcommands: z.array(SpeckitSubcommandSchema).describe('Available subcommands'),
+  subcommands: z.array(SpecflowSubcommandSchema).describe('Available subcommands'),
 });
 
 /**
  * Schema for the command list response
  */
 export const CommandListSchema = z.object({
-  commands: z.array(SpeckitCommandSchema).describe('Available speckit commands'),
+  commands: z.array(SpecflowCommandSchema).describe('Available specflow commands'),
   lastRefreshed: z.string().describe('ISO 8601 timestamp of last refresh'),
 });
 
@@ -140,8 +140,8 @@ export const ProjectActionSchema = z.object({
 });
 
 // Type exports
-export type SpeckitSubcommand = z.infer<typeof SpeckitSubcommandSchema>;
-export type SpeckitCommand = z.infer<typeof SpeckitCommandSchema>;
+export type SpecflowSubcommand = z.infer<typeof SpecflowSubcommandSchema>;
+export type SpecflowCommand = z.infer<typeof SpecflowCommandSchema>;
 export type CommandList = z.infer<typeof CommandListSchema>;
 export type ExecutionStatus = z.infer<typeof ExecutionStatusSchema>;
 export type CommandExecuteRequest = z.infer<typeof CommandExecuteRequestSchema>;

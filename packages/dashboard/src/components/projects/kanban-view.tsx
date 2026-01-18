@@ -2,7 +2,7 @@
 
 import { KanbanColumn } from "./kanban-column"
 import { FileText } from "lucide-react"
-import type { TasksData } from "@speckit/shared"
+import type { TasksData } from "@specflow/shared"
 import { groupTasksByStatus } from "@/lib/task-parser"
 
 interface KanbanViewProps {
@@ -19,7 +19,7 @@ export function KanbanView({ tasksData }: KanbanViewProps) {
         </h3>
         <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-md">
           This project doesn&apos;t have a tasks.md file yet.
-          Run <code className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">/speckit.tasks</code> to generate tasks.
+          Run <code className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">/flow.design</code> to generate tasks.
         </p>
       </div>
     )

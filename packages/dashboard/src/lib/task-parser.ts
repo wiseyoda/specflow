@@ -1,4 +1,4 @@
-import type { Task, TaskStatus, TasksData } from '@speckit/shared';
+import type { Task, TaskStatus, TasksData } from '@specflow/shared';
 
 /**
  * Options for parsing tasks

@@ -4,7 +4,7 @@ import type {
   CommandExecution,
   CommandOutputEvent,
   ExecutionStatus,
-} from '@speckit/shared';
+} from '@specflow/shared';
 import { ALLOWED_COMMANDS } from './allowed-commands';
 
 /**
@@ -38,13 +38,13 @@ function isAllowedCommand(command: string): boolean {
 }
 
 /**
- * CLI Executor - manages speckit command execution
+ * CLI Executor - manages specflow command execution
  */
 class CLIExecutor {
   private executions: Map<string, ExecutionState> = new Map();
 
   /**
-   * Execute a speckit command
+   * Execute a specflow command
    * @param command - Command to execute (e.g., "issue create")
    * @param args - Command arguments
    * @param projectPath - Project directory path
@@ -74,7 +74,7 @@ class CLIExecutor {
       : [command];
 
     // Spawn the process
-    const proc = spawn('speckit', [...fullCommand, ...sanitizedArgs], {
+    const proc = spawn('specflow', [...fullCommand, ...sanitizedArgs], {
       cwd: projectPath,
       env: {
         ...process.env,
@@ -87,7 +87,7 @@ class CLIExecutor {
 
     const execution: ExecutionState = {
       id: executionId,
-      command: `speckit ${command}`,
+      command: `specflow ${command}`,
       args: sanitizedArgs,
       projectPath,
       status: 'running',

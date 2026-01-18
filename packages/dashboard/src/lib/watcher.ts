@@ -9,7 +9,7 @@ import {
   type OrchestrationState,
   type SSEEvent,
   type TasksData,
-} from '@speckit/shared';
+} from '@specflow/shared';
 import { parseTasks, type ParseTasksOptions } from './task-parser';
 
 // Debounce delay in milliseconds
@@ -336,7 +336,7 @@ function getProjectInfoForPath(filePath: string): { projectId: string; fileType:
 export async function initWatcher(): Promise<void> {
   if (watcher) return; // Already initialized
 
-  registryPath = path.join(homedir(), '.speckit', 'registry.json');
+  registryPath = path.join(homedir(), '.specflow', 'registry.json');
   console.log(`[Watcher] Initializing, watching: ${registryPath}`);
 
   // Create watcher for registry

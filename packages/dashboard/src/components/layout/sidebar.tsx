@@ -17,7 +17,7 @@ export function Sidebar({ className }: SidebarProps) {
       <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
         <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
           <FolderGit2 className="h-5 w-5" />
-          SpecKit
+          SpecFlow
         </h1>
       </div>
 
@@ -36,7 +36,7 @@ export function Sidebar({ className }: SidebarProps) {
 
       <div className="p-4 border-t border-neutral-200 dark:border-neutral-800">
         <p className="text-xs text-neutral-500 dark:text-neutral-400">
-          SpecKit Dashboard v0.1.0
+          SpecFlow Dashboard v0.1.0
         </p>
       </div>
     </aside>

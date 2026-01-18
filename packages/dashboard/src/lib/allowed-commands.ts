@@ -1,5 +1,5 @@
 /**
- * Allowed speckit commands (security allowlist)
+ * Allowed specflow commands (security allowlist)
  * Commands not in this list will be hidden from the UI and rejected by the executor
  */
 export const ALLOWED_COMMANDS = new Set([

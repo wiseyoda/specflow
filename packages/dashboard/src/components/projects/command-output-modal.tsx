@@ -17,7 +17,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { CommandOutputEvent } from '@speckit/shared';
+import type { CommandOutputEvent } from '@specflow/shared';
 
 export interface CommandOutputModalProps {
   /** Whether the modal is open */
@@ -196,7 +196,7 @@ export function CommandOutputModal({
           <div className="flex items-center gap-2">
             <Terminal className="h-4 w-4 text-neutral-500" />
             <DialogTitle className="text-base font-medium">
-              {status === 'running' ? 'Running: ' : ''}speckit {command}
+              {status === 'running' ? 'Running: ' : ''}specflow {command}
             </DialogTitle>
           </div>
           <div className="flex items-center gap-2">
@@ -216,7 +216,7 @@ export function CommandOutputModal({
           className="mt-2 h-80 overflow-auto rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-950 p-4 font-mono text-sm"
         >
           <div className="text-neutral-400 mb-2">
-            $ speckit {command}
+            $ specflow {command}
           </div>
           {output.map((line, index) => (
             <div

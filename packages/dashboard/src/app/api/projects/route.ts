@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import path from 'path';
-import { RegistrySchema } from '@speckit/shared';
+import { RegistrySchema } from '@specflow/shared';
 import { NextResponse } from 'next/server';
 
 /**
@@ -26,7 +26,7 @@ function isInDevFolders(projectPath: string, devFolders: string[]): boolean {
 }
 
 export async function GET() {
-  const registryPath = path.join(homedir(), '.speckit', 'registry.json');
+  const registryPath = path.join(homedir(), '.specflow', 'registry.json');
 
   try {
     const content = await fs.readFile(registryPath, 'utf-8');

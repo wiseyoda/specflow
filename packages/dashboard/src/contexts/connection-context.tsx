@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { useSSE, type ConnectionStatus } from '@/hooks/use-sse';
-import type { Registry, OrchestrationState, TasksData, Project } from '@speckit/shared';
+import type { Registry, OrchestrationState, TasksData, Project } from '@specflow/shared';
 
 interface ConnectionContextValue {
   registry: Registry | null;

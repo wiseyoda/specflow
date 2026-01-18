@@ -16,7 +16,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { ActionButton, StatusButton } from "@/components/projects/action-button"
 import { cn } from "@/lib/utils"
-import type { OrchestrationState, TasksData } from "@speckit/shared"
+import type { OrchestrationState, TasksData } from "@specflow/shared"
 import type { ProjectStatus as ActionProjectStatus } from "@/lib/action-definitions"
 
 /**
@@ -184,7 +184,7 @@ function getStatusBadge(status: ProjectStatus): {
         label: "Not Initialized",
         icon: CircleDashed,
         className: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400",
-        description: "Run speckit init to set up"
+        description: "Run specflow init to set up"
       }
     case "initializing":
       return {
@@ -205,7 +205,7 @@ function getStatusBadge(status: ProjectStatus): {
         label: "Error",
         icon: XCircle,
         className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-        description: "Run speckit doctor to diagnose"
+        description: "Run specflow doctor to diagnose"
       }
     case "ready":
     default:

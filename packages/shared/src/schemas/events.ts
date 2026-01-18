@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { RegistrySchema } from './registry';
-import { TasksDataSchema } from './tasks';
+import { RegistrySchema } from './registry.js';
+import { TasksDataSchema } from './tasks.js';
 
 /**
  * Schema for orchestration state (simplified for SSE events)

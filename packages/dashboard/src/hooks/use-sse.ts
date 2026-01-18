@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import type { SSEEvent, Registry, OrchestrationState, TasksData } from '@speckit/shared';
+import type { SSEEvent, Registry, OrchestrationState, TasksData } from '@specflow/shared';
 
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
 

@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import type { SpeckitCommand, SpeckitSubcommand, CommandList } from '@speckit/shared';
+import type { SpecflowCommand, SpecflowSubcommand, CommandList } from '@specflow/shared';
 
 /**
  * Cache for discovered commands
@@ -13,11 +13,11 @@ let cacheRefreshTimeout: NodeJS.Timeout | null = null;
 const CACHE_REFRESH_MS = 5 * 60 * 1000;
 
 /**
- * Execute speckit help and capture output
+ * Execute specflow help and capture output
  */
-async function executeSpeckitHelp(): Promise<string> {
+async function executeSpecflowHelp(): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn('speckit', ['help'], {
+    const proc = spawn('specflow', ['help'], {
       env: { ...process.env, NO_COLOR: '1' },
     });
 
@@ -36,7 +36,7 @@ async function executeSpeckitHelp(): Promise<string> {
       if (code === 0) {
         resolve(stdout);
       } else {
-        reject(new Error(`speckit help failed: ${stderr || 'Unknown error'}`));
+        reject(new Error(`specflow help failed: ${stderr || 'Unknown error'}`));
       }
     });
 
@@ -47,24 +47,24 @@ async function executeSpeckitHelp(): Promise<string> {
     // Timeout after 10 seconds
     setTimeout(() => {
       proc.kill();
-      reject(new Error('speckit help timed out'));
+      reject(new Error('specflow help timed out'));
     }, 10000);
   });
 }
 
 /**
- * Parse speckit help output to extract commands
+ * Parse specflow help output to extract commands
  *
  * Expected format:
- * speckit <command> [options]
+ * specflow <command> [options]
  *
  * COMMANDS:
  *     context          Show project context
  *     doctor           Diagnose project health
  *     ...
  */
-function parseHelpOutput(output: string): SpeckitCommand[] {
-  const commands: SpeckitCommand[] = [];
+function parseHelpOutput(output: string): SpecflowCommand[] {
+  const commands: SpecflowCommand[] = [];
   const lines = output.split('\n');
 
   let inCommandsSection = false;
@@ -102,12 +102,12 @@ function parseHelpOutput(output: string): SpeckitCommand[] {
 }
 
 /**
- * Discover subcommands for a command by running `speckit <cmd> help`
+ * Discover subcommands for a command by running `specflow <cmd> help`
  */
-async function discoverSubcommands(command: string): Promise<SpeckitSubcommand[]> {
+async function discoverSubcommands(command: string): Promise<SpecflowSubcommand[]> {
   try {
     const output = await new Promise<string>((resolve) => {
-      const proc = spawn('speckit', [command, '--help'], {
+      const proc = spawn('specflow', [command, '--help'], {
         env: { ...process.env, NO_COLOR: '1' },
       });
 
@@ -140,8 +140,8 @@ async function discoverSubcommands(command: string): Promise<SpeckitSubcommand[]
 /**
  * Parse subcommands from help output
  */
-function parseSubcommands(output: string, parentCommand: string): SpeckitSubcommand[] {
-  const subcommands: SpeckitSubcommand[] = [];
+function parseSubcommands(output: string, parentCommand: string): SpecflowSubcommand[] {
+  const subcommands: SpecflowSubcommand[] = [];
   const lines = output.split('\n');
 
   let inSubcommandsSection = false;
@@ -216,7 +216,7 @@ function getArgPrompt(command: string, subcommand: string): string {
 }
 
 /**
- * Discover all available speckit commands
+ * Discover all available specflow commands
  */
 export async function discoverCommands(): Promise<CommandList> {
   // Return cached if fresh
@@ -224,7 +224,7 @@ export async function discoverCommands(): Promise<CommandList> {
     return commandCache;
   }
 
-  const helpOutput = await executeSpeckitHelp();
+  const helpOutput = await executeSpecflowHelp();
   const commands = parseHelpOutput(helpOutput);
 
   // Discover subcommands for each command (in parallel)

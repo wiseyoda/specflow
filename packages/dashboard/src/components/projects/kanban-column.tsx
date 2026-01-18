@@ -1,7 +1,7 @@
 "use client"
 
 import { TaskCard } from "./task-card"
-import type { Task } from "@speckit/shared"
+import type { Task } from "@specflow/shared"
 import { cn } from "@/lib/utils"
 
 interface KanbanColumnProps {

@@ -5,7 +5,7 @@ export {
   type Project,
   type Registry,
   type RegistryConfig,
-} from './registry';
+} from './registry.js';
 
 export {
   SSEEventTypeSchema,
@@ -16,6 +16,7 @@ export {
   StateEventSchema,
   TasksEventSchema,
   OrchestrationStateSchema,
+  StepStatusSchema,
   type SSEEventType,
   type SSEEvent,
   type ConnectedEvent,
@@ -24,7 +25,8 @@ export {
   type StateEvent,
   type TasksEvent,
   type OrchestrationState,
-} from './events';
+  type StepStatus,
+} from './events.js';
 
 export {
   TaskStatusSchema,
@@ -33,11 +35,11 @@ export {
   type TaskStatus,
   type Task,
   type TasksData,
-} from './tasks';
+} from './tasks.js';
 
 export {
-  SpeckitSubcommandSchema,
-  SpeckitCommandSchema,
+  SpecflowSubcommandSchema,
+  SpecflowCommandSchema,
   CommandListSchema,
   ExecutionStatusSchema,
   CommandExecuteRequestSchema,
@@ -45,8 +47,8 @@ export {
   CommandOutputEventSchema,
   CommandExecutionSchema,
   CommandHistoryEntrySchema,
-  type SpeckitSubcommand,
-  type SpeckitCommand,
+  type SpecflowSubcommand,
+  type SpecflowCommand,
   type CommandList,
   type ExecutionStatus,
   type CommandExecuteRequest,
@@ -54,4 +56,4 @@ export {
   type CommandOutputEvent,
   type CommandExecution,
   type CommandHistoryEntry,
-} from './commands';
+} from './commands.js';

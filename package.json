@@ -3,11 +3,14 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --filter @specflow/dashboard dev",
-    "build": "pnpm --filter @specflow/dashboard build",
+    "dev:cli": "pnpm --filter @specflow/cli dev",
+    "build": "pnpm --filter @specflow/shared build && pnpm --filter @specflow/cli build && pnpm --filter @specflow/dashboard build",
+    "build:cli": "pnpm --filter @specflow/cli build",
+    "test:cli": "pnpm --filter @specflow/cli test",
     "start": "pnpm --filter @specflow/dashboard start",
     "lint": "pnpm --filter @specflow/dashboard lint"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   }
 }

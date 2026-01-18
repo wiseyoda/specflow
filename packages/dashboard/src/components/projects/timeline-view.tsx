@@ -2,7 +2,7 @@
 
 import { PhaseTimelineItem } from "./phase-timeline-item"
 import { GitBranch, History } from "lucide-react"
-import type { OrchestrationState } from "@speckit/shared"
+import type { OrchestrationState } from "@specflow/shared"
 
 interface TimelineViewProps {
   project: {
@@ -85,7 +85,7 @@ export function TimelineView({ state }: TimelineViewProps) {
         </h3>
         <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-md">
           This project doesn&apos;t have any phase history yet.
-          Complete phases using <code className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">/speckit.merge</code> to see them here.
+          Complete phases using <code className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">/flow.merge</code> to see them here.
         </p>
       </div>
     )

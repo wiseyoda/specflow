@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { discoverCommands, getCachedCommands, refreshCommands } from '@/lib/command-discovery';
 import { ALLOWED_COMMANDS } from '@/lib/allowed-commands';
-import type { CommandList } from '@speckit/shared';
+import type { CommandList } from '@specflow/shared';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,13 +37,13 @@ export async function GET(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
 
-    // Check if speckit is not installed
+    // Check if specflow is not installed
     if (message.includes('ENOENT') || message.includes('not found')) {
       return NextResponse.json(
         {
-          error: 'SpecKit CLI not found',
-          message: 'Please ensure speckit is installed and in your PATH',
-          installInstructions: 'Run: ./install.sh from the SpecKit repository',
+          error: 'SpecFlow CLI not found',
+          message: 'Please ensure specflow is installed and in your PATH',
+          installInstructions: 'Run: ./install.sh from the SpecFlow repository',
         },
         { status: 503 }
       );

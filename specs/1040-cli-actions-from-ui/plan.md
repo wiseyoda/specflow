@@ -147,20 +147,20 @@ class CLIExecutor {
 Parse `specflow help` output to extract available commands.
 
 ```typescript
-interface SpeckitCommand {
+interface SpecflowCommand {
   name: string;
   description: string;
-  subcommands: SpeckitSubcommand[];
+  subcommands: SpecflowSubcommand[];
 }
 
-interface SpeckitSubcommand {
+interface SpecflowSubcommand {
   name: string;
   description: string;
   requiresArgs: boolean;
   argPrompt?: string; // e.g., "Enter issue title"
 }
 
-async function discoverCommands(): Promise<SpeckitCommand[]>;
+async function discoverCommands(): Promise<SpecflowCommand[]>;
 ```
 
 **Caching**: Store in memory, refresh on dashboard startup and every 5 minutes.

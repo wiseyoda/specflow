@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SpecKit Dashboard",
-  description: "Web dashboard for SpecKit project management",
+  title: "SpecFlow Dashboard",
+  description: "Web dashboard for SpecFlow project management",
 };
 
 export default function RootLayout({

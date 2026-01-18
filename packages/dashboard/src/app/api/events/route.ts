@@ -1,5 +1,5 @@
 import { initWatcher, addListener, getCurrentRegistry, getAllStates, getAllTasks, startHeartbeat } from '@/lib/watcher';
-import type { SSEEvent } from '@speckit/shared';
+import type { SSEEvent } from '@specflow/shared';
 
 // Initialize watcher on first request
 let watcherInitialized = false;

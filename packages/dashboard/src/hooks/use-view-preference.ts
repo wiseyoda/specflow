@@ -3,7 +3,7 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import type { ViewType } from '@/components/projects/view-tabs'
 
-const STORAGE_KEY_PREFIX = 'speckit-view-'
+const STORAGE_KEY_PREFIX = 'specflow-view-'
 const DEFAULT_VIEW: ViewType = 'status'
 
 /**

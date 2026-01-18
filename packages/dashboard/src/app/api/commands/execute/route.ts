@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { CommandExecuteRequestSchema } from '@speckit/shared';
+import { CommandExecuteRequestSchema } from '@specflow/shared';
 import { cliExecutor } from '@/lib/cli-executor';
 
 export async function POST(request: Request) {

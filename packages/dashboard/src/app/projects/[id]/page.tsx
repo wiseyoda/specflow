@@ -13,7 +13,7 @@ import { useProjects } from "@/hooks/use-projects"
 import { useViewPreference } from "@/hooks/use-view-preference"
 import { AlertCircle } from "lucide-react"
 import type { ProjectStatus } from "@/lib/action-definitions"
-import type { OrchestrationState } from "@speckit/shared"
+import type { OrchestrationState } from "@specflow/shared"
 
 /**
  * Determine project status from orchestration state

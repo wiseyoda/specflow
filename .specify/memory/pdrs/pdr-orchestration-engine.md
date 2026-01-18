@@ -186,7 +186,7 @@ Based on user input, the workflow should be decomposed into these logical units:
 | Unit | Steps Included | Typical Context | Notes |
 |------|----------------|-----------------|-------|
 | Discover | discover | ~1 window | Explores codebase, asks questions |
-| Speckit | specify, clarify, plan, tasks | ~1 window | Creates all design artifacts |
+| Design | specify, clarify, plan, tasks | ~1 window | Creates all design artifacts |
 | Check | analyze, checklist | ~1 window | Validates artifacts |
 | Implement | implement (N sub-groups) | Multiple windows | Split by task groups from tasks.md |
 | Verify | verify | ~1 window | Confirms completion |

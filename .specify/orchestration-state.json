@@ -2,8 +2,8 @@
   "schema_version": "2.0",
   "project": {
     "id": "d9faf772-66c0-476e-bf4f-c9a33e7b248b",
-    "name": "claude-speckit-orchestration",
-    "path": "/Users/ppatterson/dev/claude-speckit-orchestration",
+    "name": "specflow",
+    "path": "/Users/ppatterson/dev/specflow",
     "description": null,
     "type": null,
     "criticality": null,
@@ -14,7 +14,7 @@
     "roadmap_path": "ROADMAP.md",
     "memory_path": ".specify/memory/",
     "specs_path": "specs/",
-    "scripts_path": "~/.claude/speckit-system/scripts/",
+    "scripts_path": "~/.claude/specflow/scripts/",
     "templates_path": ".specify/templates/"
   },
   "interview": {

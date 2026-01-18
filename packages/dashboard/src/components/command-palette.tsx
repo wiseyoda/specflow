@@ -11,7 +11,7 @@ import {
   Terminal,
   Loader2,
 } from "lucide-react"
-import type { CommandList as CommandListType } from "@speckit/shared"
+import type { CommandList as CommandListType } from "@specflow/shared"
 import { OutputDrawer, type OutputLine } from "@/components/output-drawer"
 import {
   toastCommandStarted,
@@ -308,7 +308,7 @@ export function CommandPalette() {
           {/* Input */}
           <div className="flex items-center border-b border-neutral-200 dark:border-neutral-800 px-3">
             <Terminal className="h-4 w-4 text-neutral-500 mr-2" />
-            <span className="text-sm text-neutral-500 mr-1">speckit</span>
+            <span className="text-sm text-neutral-500 mr-1">specflow</span>
             <Input
               ref={inputRef}
               value={inputValue}
@@ -354,7 +354,7 @@ export function CommandPalette() {
             </div>
           ) : inputValue.trim() ? (
             <div className="p-4 text-center text-neutral-500 text-sm">
-              Press Enter to run: <code className="bg-neutral-100 dark:bg-neutral-800 px-1 rounded">speckit {inputValue}</code>
+              Press Enter to run: <code className="bg-neutral-100 dark:bg-neutral-800 px-1 rounded">specflow {inputValue}</code>
             </div>
           ) : (
             <div className="p-4 text-sm text-neutral-500">

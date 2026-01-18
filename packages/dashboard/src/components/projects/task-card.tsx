@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, Circle, Loader2, FileCode, GitBranch } from "lucide-react"
-import type { Task } from "@speckit/shared"
+import type { Task } from "@specflow/shared"
 import { cn } from "@/lib/utils"
 
 interface TaskCardProps {

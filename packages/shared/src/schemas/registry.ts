@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Schema for a single registered SpecKit project
+ * Schema for a single registered SpecFlow project
  */
 export const ProjectSchema = z.object({
   path: z.string().describe('Absolute path to project directory'),
@@ -22,7 +22,7 @@ export const RegistryConfigSchema = z.object({
 
 /**
  * Schema for the central project registry
- * Location: ~/.speckit/registry.json
+ * Location: ~/.specflow/registry.json
  */
 export const RegistrySchema = z.object({
   projects: z.record(z.string(), ProjectSchema),

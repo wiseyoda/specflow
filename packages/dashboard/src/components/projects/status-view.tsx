@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Activity, CheckCircle2, AlertTriangle, XCircle, Clock, FileText, FolderOpen, AlertCircle, Loader2 } from "lucide-react"
-import type { OrchestrationState, TasksData } from "@speckit/shared"
+import type { OrchestrationState, TasksData } from "@specflow/shared"
 
 // Staleness threshold in minutes
 const STALE_THRESHOLD_MINUTES = 5
@@ -30,7 +30,7 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
         </h3>
         <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-md">
           This project doesn&apos;t have an orchestration state file yet.
-          Run <code className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">speckit init</code> in the project directory.
+          Run <code className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">specflow init</code> in the project directory.
         </p>
       </div>
     )
@@ -91,7 +91,7 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
               Step Failed: {step?.current || 'Unknown'}
             </p>
             <p className="text-sm text-red-600 dark:text-red-300">
-              Run <code className="px-1 py-0.5 bg-red-100 dark:bg-red-900/30 rounded">speckit doctor</code> for recovery options
+              Run <code className="px-1 py-0.5 bg-red-100 dark:bg-red-900/30 rounded">specflow doctor</code> for recovery options
             </p>
           </div>
         </div>
@@ -105,7 +105,7 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
               Possibly Stale: {step?.current || 'Unknown'}
             </p>
             <p className="text-sm text-amber-600 dark:text-amber-300">
-              Step shows in_progress but hasn&apos;t updated recently. Run <code className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded">speckit doctor --fix</code> to reset.
+              Step shows in_progress but hasn&apos;t updated recently. Run <code className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded">specflow doctor --fix</code> to reset.
             </p>
           </div>
         </div>

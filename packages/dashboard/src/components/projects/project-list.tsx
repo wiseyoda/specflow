@@ -91,7 +91,7 @@ export function ProjectList() {
           {error.message}
         </p>
         <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-          Try running <code className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded text-xs font-mono">speckit doctor</code> to fix issues.
+          Try running <code className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded text-xs font-mono">specflow doctor</code> to fix issues.
         </p>
         <Button
           variant="outline"

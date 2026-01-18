@@ -39,6 +39,9 @@ This allows inserting urgent work without renumbering existing phases.
 | 0042 | Code Review 2026-01-11 | ✅ Complete | 18 findings addressed |
 | 0050 | UX Simplification | ✅ Complete | Single entry point, clean codebase, unified memory |
 | 0060 | Constitution Compliance | ✅ Complete | 95%+ constitution compliance, three-line rule, critical bugs fixed |
+| 0070 | Pre-Workflow Consolidation | ✅ Complete | 7 commands → 3, clear setup vs. utility separation |
+| 0072 | Workflow Consolidation | ⬜ Not Started | 11 commands → 6, single design command, inline clarify |
+| 0076 | Command Rebrand | ⬜ Not Started | Rename all `/speckit.*` → `/flow.*`, update all docs |
 | 1010 | Core UI Scaffold | ✅ Complete | **USER GATE**: Dashboard starts, shows projects, dark mode works |
 | 1020 | Real-Time File Watching | ✅ Complete | **USER GATE**: CLI changes reflect in UI within 2s |
 | 1030 | Project Detail Views | ✅ Complete | **USER GATE**: Kanban and Timeline views work |

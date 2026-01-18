@@ -9,8 +9,8 @@ handoffs:
     prompt: Clarify specification requirements
     send: true
   - label: Continue Later
-    agent: speckit.start
-    prompt: Resume work on this project
+    agent: speckit.orchestrate
+    prompt: Resume development workflow
 ---
 
 ## User Input

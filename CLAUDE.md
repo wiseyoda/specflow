@@ -111,7 +111,7 @@ speckit state get orchestration --json
 - **Init consolidation**: 12 `init-*.md` files deleted (merged into `init.md`)
 - **CLI gaps fixed**: `speckit context`, `speckit feature`, registry commands
 - **Workflow integration**: `speckit gate` (validation gates) and `speckit lessons` (lessons learned) integrated into orchestrate workflow
-- **Memory commands**: `/speckit.memory` (verify/reconcile) and `/speckit.memory-init` (generate from codebase)
+- **Memory commands**: `/speckit.memory` (verify/reconcile)
 - **Phase completion**: `/speckit.merge` and `/speckit.backlog` for end-of-phase workflows
 - **Modular ROADMAP**: `speckit phase` (detail management), `speckit issue` (local tracking), `speckit roadmap renumber`
 - **Auto-archiving**: `/speckit.merge` archives phase details to HISTORY.md automatically
@@ -123,3 +123,13 @@ speckit state get orchestration --json
 - **Template sync**: New `speckit templates sync` command updates outdated templates AND copies new templates missing from project
 - **Template errors**: Missing templates now flagged as errors (not warnings) since they cause workflow failures
 - **Orchestrate workflow**: Now 9 steps: discover → specify → clarify → plan → tasks → analyze → checklist → implement → verify
+
+## v2.2 Key Changes
+
+- **Pre-workflow consolidation**: Reduced 7 pre-workflow commands to 3 active + 3 deprecated stubs
+  - **Active**: `/speckit.init` (expanded), `/speckit.memory`, `/speckit.roadmap` (expanded with `add-pdr`)
+  - **Deprecated**: `/speckit.start` → use `/speckit.orchestrate`, `/speckit.constitution` → use `/speckit.init`, `/speckit.phase` → use `/speckit.roadmap add-pdr`
+  - **Deleted**: `/speckit.memory-init` (merged into `/speckit.init`)
+- **Unified init**: `/speckit.init` now runs complete 4-step flow: discovery → constitution → memory docs → roadmap
+- **Smart idempotency**: Init detects templates vs completed content using placeholder detection
+- **PDR-to-phase**: `/speckit.roadmap add-pdr` converts approved PDRs to ROADMAP phases

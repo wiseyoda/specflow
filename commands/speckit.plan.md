@@ -9,8 +9,8 @@ handoffs:
     agent: speckit.checklist
     prompt: Create a checklist for the following domain...
   - label: Continue Later
-    agent: speckit.start
-    prompt: Resume work on this project
+    agent: speckit.orchestrate
+    prompt: Resume development workflow
 ---
 
 ## User Input

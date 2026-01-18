@@ -9,8 +9,8 @@ handoffs:
     agent: speckit.backlog
     prompt: Triage backlog items
   - label: Continue Later
-    agent: speckit.start
-    prompt: Resume work on this project
+    agent: speckit.orchestrate
+    prompt: Resume development workflow
 ---
 
 ## User Input

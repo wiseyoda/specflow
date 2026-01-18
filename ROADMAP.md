@@ -43,7 +43,7 @@ This allows inserting urgent work without renumbering existing phases.
 | 1020 | Real-Time File Watching | ✅ Complete | **USER GATE**: CLI changes reflect in UI within 2s |
 | 1030 | Project Detail Views | ✅ Complete | **USER GATE**: Kanban and Timeline views work |
 | 1040 | CLI Actions from UI | ✅ Complete | **USER GATE**: Mark tasks, add backlog from UI |
-| 1045 | Project Actions & Health | 🔄 In Progress | **USER GATE**: Initialize, doctor, upgrade from UI |
+| 1045 | Project Actions & Health | ✅ Complete | **USER GATE**: Initialize, doctor, upgrade from UI |
 | 1050 | Agent SDK Integration | ⬜ Not Started | **USER GATE**: Spawn agent, see logs, answer questions |
 | 1060 | Operations Dashboard | ⬜ Not Started | **USER GATE**: Queue view, notifications, resource monitor |
 | 1070 | Cost Analytics | ⬜ Not Started | **USER GATE**: Token costs per session and trends |

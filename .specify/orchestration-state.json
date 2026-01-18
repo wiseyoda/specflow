@@ -5,7 +5,7 @@
     "name": "specflow",
     "path": "/Users/ppatterson/dev/specflow"
   },
-  "last_updated": "2026-01-18T08:54:32.943Z",
+  "last_updated": "2026-01-18T09:37:49.634Z",
   "orchestration": {
     "phase": {
       "number": null,
@@ -14,8 +14,8 @@
       "status": "not_started"
     },
     "next_phase": {
-      "number": "0076",
-      "name": "Command Rebrand"
+      "number": "1046",
+      "name": "Command JSON Output"
     },
     "step": {
       "current": "design",
@@ -176,6 +176,60 @@
         "completed_at": "2026-01-18T04:04:09Z",
         "tasks_completed": 39,
         "tasks_total": 42
+      },
+      {
+        "type": "phase_completed",
+        "phase_number": "0010",
+        "phase_name": "Roadmap Flexibility",
+        "branch": "0010-Roadmap Flexibility",
+        "completed_at": "2026-01-18T09:37:49.628Z",
+        "tasks_completed": 0,
+        "tasks_total": 0
+      },
+      {
+        "type": "phase_completed",
+        "phase_number": "0015",
+        "phase_name": "Workflow Commands",
+        "branch": "0015-Workflow Commands",
+        "completed_at": "2026-01-18T09:37:49.633Z",
+        "tasks_completed": 0,
+        "tasks_total": 0
+      },
+      {
+        "type": "phase_completed",
+        "phase_number": "0020",
+        "phase_name": "Onboarding Polish",
+        "branch": "0020-Onboarding Polish",
+        "completed_at": "2026-01-18T09:37:49.633Z",
+        "tasks_completed": 0,
+        "tasks_total": 0
+      },
+      {
+        "type": "phase_completed",
+        "phase_number": "0042",
+        "phase_name": "Code Review 2026-01-11",
+        "branch": "0042-Code Review 2026-01-11",
+        "completed_at": "2026-01-18T09:37:49.633Z",
+        "tasks_completed": 0,
+        "tasks_total": 0
+      },
+      {
+        "type": "phase_completed",
+        "phase_number": "0076",
+        "phase_name": "Command Rebrand",
+        "branch": "0076-Command Rebrand",
+        "completed_at": "2026-01-18T09:37:49.633Z",
+        "tasks_completed": 0,
+        "tasks_total": 0
+      },
+      {
+        "type": "phase_completed",
+        "phase_number": "0080",
+        "phase_name": "CLI TypeScript Migration",
+        "branch": "0080-CLI TypeScript Migration",
+        "completed_at": "2026-01-18T09:37:49.633Z",
+        "tasks_completed": 0,
+        "tasks_total": 0
       }
     ]
   },

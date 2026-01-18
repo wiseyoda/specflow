@@ -25,6 +25,52 @@ function isInDevFolders(projectPath: string, devFolders: string[]): boolean {
   });
 }
 
+/**
+ * Discover git repositories in dev folders that aren't registered
+ */
+async function discoverGitRepos(
+  devFolders: string[],
+  registeredPaths: Set<string>
+): Promise<string[]> {
+  const discovered: string[] = [];
+
+  for (const folder of devFolders) {
+    const expanded = expandPath(folder);
+    try {
+      const entries = await fs.readdir(expanded, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const repoPath = path.join(expanded, entry.name);
+          // Skip if already registered
+          if (registeredPaths.has(path.normalize(repoPath))) {
+            continue;
+          }
+          // Check if it's a git repo
+          const gitPath = path.join(repoPath, '.git');
+          try {
+            await fs.access(gitPath);
+            discovered.push(repoPath);
+          } catch {
+            // Not a git repo, skip
+          }
+        }
+      }
+    } catch {
+      // Folder not readable, skip
+    }
+  }
+
+  return discovered;
+}
+
+/**
+ * Create a stable ID for discovered projects using base64url encoding
+ */
+function createDiscoveredId(projectPath: string): string {
+  const encoded = Buffer.from(projectPath).toString('base64url');
+  return `discovered-${encoded}`;
+}
+
 export async function GET() {
   const registryPath = path.join(homedir(), '.specflow', 'registry.json');
 
@@ -54,9 +100,29 @@ export async function GET() {
     );
 
     // Filter by dev_folders if configured
-    const projects = hasDevFolderFilter
+    const filteredProjects = hasDevFolderFilter
       ? allProjects.filter((p) => isInDevFolders(p.path, devFolders))
       : allProjects;
+
+    // Discover unregistered git repos in dev_folders
+    let discoveredProjects: typeof filteredProjects = [];
+    if (hasDevFolderFilter) {
+      const registeredPaths = new Set(
+        allProjects.map((p) => path.normalize(p.path))
+      );
+      const discoveredPaths = await discoverGitRepos(devFolders, registeredPaths);
+      discoveredProjects = discoveredPaths.map((repoPath) => ({
+        id: createDiscoveredId(repoPath),
+        name: path.basename(repoPath),
+        path: repoPath,
+        registered_at: new Date().toISOString(),
+        isUnavailable: false,
+        isDiscovered: true,
+      }));
+    }
+
+    // Merge registered and discovered projects
+    const projects = [...filteredProjects, ...discoveredProjects];
 
     return NextResponse.json({ projects, empty: false });
   } catch (error) {

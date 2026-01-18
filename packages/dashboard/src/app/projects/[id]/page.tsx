@@ -134,7 +134,7 @@ export default function ProjectDetailPage() {
             <StatusView project={project} state={state} tasksData={projectTasks} />
           )}
           {activeView === "kanban" && (
-            <KanbanView tasksData={projectTasks} />
+            <KanbanView tasksData={projectTasks} state={state} />
           )}
           {activeView === "timeline" && (
             <TimelineView project={project} state={state} />

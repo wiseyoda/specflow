@@ -19,9 +19,7 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@specflow/shared": ["../shared/src/index.ts"],
-      "@specflow/shared/*": ["../shared/src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": [

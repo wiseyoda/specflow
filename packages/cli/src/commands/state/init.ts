@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { basename, resolve } from 'node:path';
 import { createInitialState, writeState } from '../../lib/state.js';
 import { getStatePath, pathExists } from '../../lib/paths.js';
+import { registerProject } from '../../lib/registry.js';
 import { success, warn } from '../../lib/output.js';
 import { handleError, ValidationError } from '../../lib/errors.js';
 
@@ -40,6 +41,9 @@ export const init = new Command('init')
       // Create and write initial state
       const state = createInitialState(projectName, projectPath);
       await writeState(state, projectPath);
+
+      // Register project in central registry for dashboard
+      registerProject(state.project.id, projectName, projectPath);
 
       success(`Initialized state for "${projectName}"`);
     } catch (err) {

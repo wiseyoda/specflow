@@ -14,18 +14,38 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
       - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
+        run: pnpm install
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run tests
+        run: pnpm test:cli
+
+  shellcheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
 
       - name: Run shellcheck
-        run: |
-          sudo apt-get install -y shellcheck
-          shellcheck --severity=error scripts/bash/*.sh scripts/bash/lib/*.sh
-
-      - name: Run test suite
-        run: ./tests/test-runner.sh
+        run: shellcheck --severity=error scripts/bash/*.sh scripts/bash/lib/*.sh
 
   shellcheck-warnings:
     runs-on: ubuntu-latest
@@ -39,5 +59,4 @@ jobs:
         run: sudo apt-get install -y shellcheck
 
       - name: Run shellcheck with warnings
-        run: |
-          shellcheck --severity=warning scripts/bash/*.sh scripts/bash/lib/*.sh || true
+        run: shellcheck --severity=warning scripts/bash/*.sh scripts/bash/lib/*.sh || true

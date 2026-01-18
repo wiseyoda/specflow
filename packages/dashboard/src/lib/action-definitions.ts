@@ -48,56 +48,41 @@ export interface ActionDefinition {
 
 /**
  * All available project actions
+ *
+ * SpecFlow CLI v3.0 commands:
+ * - status: Get complete project status
+ * - check: Deep validation with auto-fix support
+ * - state init: Initialize a new state file
+ * - phase: Manage phase lifecycle
  */
 export const ACTION_DEFINITIONS: ActionDefinition[] = [
   // Setup actions
   {
     id: 'init',
     label: 'Initialize',
-    description: 'Initialize SpecFlow for this project',
-    command: 'init',
-    args: ['--non-interactive'],
+    description: 'Initialize SpecFlow state for this project',
+    command: 'state',
+    args: ['init'],
     requiresConfirmation: true,
     confirmationTitle: 'Initialize Project',
-    confirmationDescription: 'This will set up SpecFlow for this project.',
+    confirmationDescription: 'This will create a new orchestration state file.',
     confirmationItems: [
       '.specify/ directory',
       'orchestration-state.json',
-      'memory/ subdirectory',
-      'Register with SpecFlow',
+      'Project registration',
     ],
     applicableStatuses: ['not_initialized'],
     variant: 'default',
     group: 'setup',
     showOnCard: true,
   },
-  {
-    id: 'scaffold',
-    label: 'Scaffold',
-    description: 'Create project structure with required directories',
-    command: 'scaffold',
-    args: [],
-    requiresConfirmation: true,
-    confirmationTitle: 'Scaffold Project',
-    confirmationDescription: 'This will create the recommended project structure.',
-    confirmationItems: [
-      '.specify/memory/ directory',
-      '.specify/phases/ directory',
-      'ROADMAP.md (if missing)',
-      'Template files',
-    ],
-    applicableStatuses: ['needs_setup', 'ready', 'warning'],
-    variant: 'outline',
-    group: 'setup',
-    showOnCard: false,
-  },
 
   // Maintenance actions
   {
-    id: 'doctor',
+    id: 'status',
     label: 'Status',
-    description: 'Check project health and configuration',
-    command: 'doctor',
+    description: 'Get complete project status',
+    command: 'status',
     args: [],
     requiresConfirmation: false,
     applicableStatuses: ['not_initialized', 'initializing', 'needs_setup', 'ready', 'warning', 'error'],
@@ -107,18 +92,30 @@ export const ACTION_DEFINITIONS: ActionDefinition[] = [
     isSecondaryCardAction: true,
   },
   {
-    id: 'doctor-fix',
-    label: 'Doctor (Auto-Fix)',
-    description: 'Diagnose and automatically fix issues',
-    command: 'doctor',
+    id: 'check',
+    label: 'Validate',
+    description: 'Run deep validation checks',
+    command: 'check',
+    args: [],
+    requiresConfirmation: false,
+    applicableStatuses: ['ready', 'warning', 'error'],
+    variant: 'outline',
+    group: 'maintenance',
+    showOnCard: false,
+  },
+  {
+    id: 'check-fix',
+    label: 'Auto-Fix Issues',
+    description: 'Validate and automatically fix issues',
+    command: 'check',
     args: ['--fix'],
     requiresConfirmation: true,
     confirmationTitle: 'Auto-Fix Issues',
-    confirmationDescription: 'This will attempt to automatically fix detected issues.',
+    confirmationDescription: 'This will validate and attempt to automatically fix detected issues.',
     confirmationItems: [
-      'Create missing directories',
-      'Fix configuration errors',
-      'Update outdated templates',
+      'Create missing artifacts',
+      'Fix state inconsistencies',
+      'Repair broken references',
     ],
     applicableStatuses: ['warning', 'error'],
     variant: 'default',
@@ -128,21 +125,13 @@ export const ACTION_DEFINITIONS: ActionDefinition[] = [
 
   // Advanced actions
   {
-    id: 'migrate',
-    label: 'Migrate to v2',
-    description: 'Migrate state file from v1 to v2 schema',
+    id: 'state-sync',
+    label: 'Sync State',
+    description: 'Sync state with filesystem',
     command: 'state',
-    args: ['migrate'],
-    requiresConfirmation: true,
-    confirmationTitle: 'Migrate to v2 Schema',
-    confirmationDescription: 'This will upgrade your state file to the v2 schema.',
-    confirmationItems: [
-      'Add project UUID',
-      'Update schema version',
-      'Preserve existing data',
-      'Backup created automatically',
-    ],
-    applicableStatuses: ['ready', 'warning', 'error'],
+    args: ['sync'],
+    requiresConfirmation: false,
+    applicableStatuses: ['ready', 'warning'],
     variant: 'secondary',
     group: 'advanced',
     showOnCard: false,
@@ -209,10 +198,11 @@ export function getActionById(id: string): ActionDefinition | undefined {
 }
 
 /**
- * Check if any action requires schema version check (for migrate)
+ * Check if schema version is outdated (for informational display)
+ * Note: Migration is no longer available in CLI v3.0
  */
-export function shouldShowMigrateAction(schemaVersion?: string): boolean {
+export function isSchemaOutdated(schemaVersion?: string): boolean {
   if (!schemaVersion) return false;
-  // Show migrate if schema version starts with "1."
-  return schemaVersion.startsWith('1.');
+  // Outdated if not starting with "3."
+  return !schemaVersion.startsWith('3.');
 }

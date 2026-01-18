@@ -1,24 +1,24 @@
 /**
  * Allowed specflow commands (security allowlist)
  * Commands not in this list will be hidden from the UI and rejected by the executor
+ *
+ * SpecFlow CLI v3.0 commands:
+ * - status: Get complete project status
+ * - next: Get next actionable task with context
+ * - mark: Mark task(s) complete/incomplete/blocked
+ * - check: Deep validation with auto-fix support
+ * - state: Manage orchestration state (get/set/init/reset)
+ * - phase: Manage phase lifecycle (status/open/close/defer/add)
  */
 export const ALLOWED_COMMANDS = new Set([
   'help',
-  'init',
-  'issue',
-  'tasks',
-  'phase',
-  'state',
+  'version',
   'status',
-  'roadmap',
-  'gate',
-  'doctor',
-  'context',
-  'feature',
-  'scaffold',
-  'lessons',
-  'templates',
-  'reconcile',
+  'next',
+  'mark',
+  'check',
+  'state',
+  'phase',
 ]);
 
 /**
@@ -26,6 +26,7 @@ export const ALLOWED_COMMANDS = new Set([
  */
 export const GLOBAL_COMMANDS = new Set([
   'help',
+  'version',
 ]);
 
 /**

@@ -30,7 +30,7 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
         </h3>
         <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-md">
           This project doesn&apos;t have an orchestration state file yet.
-          Run <code className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">specflow init</code> in the project directory.
+          Run <code className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">specflow state init</code> in the project directory.
         </p>
       </div>
     )
@@ -60,7 +60,10 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
     return diffMinutes > STALE_THRESHOLD_MINUTES
   })()
 
-  // Use tasks data for progress if available, fall back to state file
+  // Check if there's an active phase
+  const hasActivePhase = phase?.number || phase?.name
+
+  // Use tasks data for progress if available, fall back to state file only if there's an active phase
   let progressData: { tasks_completed: number; tasks_total: number; percentage: number } | undefined
   if (tasksData && tasksData.totalCount > 0) {
     progressData = {
@@ -68,14 +71,19 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
       tasks_total: tasksData.totalCount,
       percentage: Math.round((tasksData.completedCount / tasksData.totalCount) * 100),
     }
-  } else {
+  } else if (hasActivePhase) {
+    // Only fall back to state progress data if there's an active phase
+    // (prevents showing stale data when between phases)
     const stateProgress = (state as Record<string, unknown>).orchestration as Record<string, unknown> | undefined
-    const stateProgressData = stateProgress?.progress as { tasks_completed?: number; tasks_total?: number; percentage?: number } | undefined
-    if (stateProgressData && stateProgressData.tasks_total && stateProgressData.tasks_total > 0) {
-      progressData = {
-        tasks_completed: stateProgressData.tasks_completed || 0,
-        tasks_total: stateProgressData.tasks_total,
-        percentage: stateProgressData.percentage || 0,
+    const stateProgressData = stateProgress?.progress as { tasks_completed?: number | string; tasks_total?: number | string; percentage?: number | string } | undefined
+    if (stateProgressData && stateProgressData.tasks_total) {
+      const total = Number(stateProgressData.tasks_total)
+      if (total > 0) {
+        progressData = {
+          tasks_completed: Number(stateProgressData.tasks_completed) || 0,
+          tasks_total: total,
+          percentage: Number(stateProgressData.percentage) || 0,
+        }
       }
     }
   }
@@ -91,7 +99,7 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
               Step Failed: {step?.current || 'Unknown'}
             </p>
             <p className="text-sm text-red-600 dark:text-red-300">
-              Run <code className="px-1 py-0.5 bg-red-100 dark:bg-red-900/30 rounded">specflow doctor</code> for recovery options
+              Run <code className="px-1 py-0.5 bg-red-100 dark:bg-red-900/30 rounded">specflow check --fix</code> for recovery options
             </p>
           </div>
         </div>
@@ -105,7 +113,7 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
               Possibly Stale: {step?.current || 'Unknown'}
             </p>
             <p className="text-sm text-amber-600 dark:text-amber-300">
-              Step shows in_progress but hasn&apos;t updated recently. Run <code className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded">specflow doctor --fix</code> to reset.
+              Step shows in_progress but hasn&apos;t updated recently. Run <code className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded">specflow check --fix</code> to reset.
             </p>
           </div>
         </div>

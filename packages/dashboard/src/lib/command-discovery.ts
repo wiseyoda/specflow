@@ -193,26 +193,27 @@ function parseSubcommands(output: string, parentCommand: string): SpecflowSubcom
  */
 function getArgPrompt(command: string, subcommand: string): string {
   const prompts: Record<string, Record<string, string>> = {
-    issue: {
-      create: 'Enter issue title',
-      show: 'Enter issue ID (e.g., ISSUE-001)',
-      close: 'Enter issue ID to close',
-      update: 'Enter issue ID to update',
-    },
-    tasks: {
-      mark: 'Enter task ID(s) (e.g., T001 or T001..T010)',
+    mark: {
+      default: 'Enter task ID(s) (e.g., T001, T001..T010, V-001)',
     },
     phase: {
-      show: 'Enter phase number (e.g., 1040)',
-      archive: 'Enter phase number to archive',
+      open: 'Enter phase number (e.g., 0081) or leave empty for next',
+      defer: 'Enter item(s) to defer to backlog',
+      add: 'Enter phase number and name (e.g., 0010 core-engine)',
     },
     state: {
-      get: 'Enter state key (e.g., orchestration.phase.status)',
-      set: 'Enter key=value (e.g., orchestration.phase.status=complete)',
+      get: 'Enter state key (e.g., orchestration.phase.number)',
+      set: 'Enter key=value (e.g., orchestration.step.current=verify)',
+    },
+    check: {
+      default: 'Enter gate name: design, implement, verify, or memory',
+    },
+    next: {
+      default: 'Enter section name to filter tasks',
     },
   };
 
-  return prompts[command]?.[subcommand] ?? 'Enter arguments';
+  return prompts[command]?.[subcommand] ?? prompts[command]?.default ?? 'Enter arguments';
 }
 
 /**

@@ -24,7 +24,6 @@ import {
   type ActionDefinition,
   type ProjectStatus,
   getActionsByGroup,
-  shouldShowMigrateAction,
 } from '@/lib/action-definitions';
 
 export interface ActionsMenuProps {
@@ -68,16 +67,10 @@ export function ActionsMenu({
   const [isOpen, setIsOpen] = React.useState(false);
 
   // Get actions grouped by category
-  const actionsByGroup = React.useMemo(() => {
-    const groups = getActionsByGroup(projectStatus);
-
-    // Filter out migrate action if not applicable
-    if (!shouldShowMigrateAction(schemaVersion)) {
-      groups.advanced = groups.advanced.filter((a) => a.id !== 'migrate');
-    }
-
-    return groups;
-  }, [projectStatus, schemaVersion]);
+  const actionsByGroup = React.useMemo(
+    () => getActionsByGroup(projectStatus),
+    [projectStatus],
+  );
 
   // Check if we have any actions to show
   const hasActions = Object.values(actionsByGroup).some(

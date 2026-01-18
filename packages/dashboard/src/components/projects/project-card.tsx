@@ -43,6 +43,7 @@ interface ProjectCardProps {
   state?: OrchestrationState | null
   tasks?: TasksData | null
   isUnavailable?: boolean
+  isDiscovered?: boolean
 }
 
 /**
@@ -184,7 +185,7 @@ function getStatusBadge(status: ProjectStatus): {
         label: "Not Initialized",
         icon: CircleDashed,
         className: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400",
-        description: "Run specflow init to set up"
+        description: "Run specflow state init to set up"
       }
     case "initializing":
       return {
@@ -205,7 +206,7 @@ function getStatusBadge(status: ProjectStatus): {
         label: "Error",
         icon: XCircle,
         className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-        description: "Run specflow doctor to diagnose"
+        description: "Run specflow check --fix to diagnose"
       }
     case "ready":
     default:
@@ -218,7 +219,7 @@ function getStatusBadge(status: ProjectStatus): {
   }
 }
 
-export function ProjectCard({ project, state, tasks, isUnavailable = false }: ProjectCardProps) {
+export function ProjectCard({ project, state, tasks, isUnavailable = false, isDiscovered = false }: ProjectCardProps) {
   const phase = state?.orchestration?.phase
   const nextPhase = state?.orchestration?.next_phase
   const step = state?.orchestration?.step
@@ -255,7 +256,8 @@ export function ProjectCard({ project, state, tasks, isUnavailable = false }: Pr
       <Card
         className={cn(
           "cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900/50",
-          isUnavailable && "opacity-60"
+          isUnavailable && "opacity-60",
+          isDiscovered && "opacity-50 border-dashed"
         )}
       >
         <CardContent className="p-4">

@@ -11,6 +11,7 @@ interface Project {
   registered_at: string;
   last_seen?: string;
   isUnavailable?: boolean;
+  isDiscovered?: boolean;
 }
 
 interface ProjectsResult {

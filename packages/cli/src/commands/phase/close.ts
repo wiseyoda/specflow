@@ -105,8 +105,24 @@ async function closePhase(dryRun: boolean = false): Promise<PhaseCloseOutput> {
     await addToBacklog(backlogItems, phase.number, projectRoot);
   }
 
-  // 4. Reset state for next phase
+  // 4. Add to actions.history in state file
+  const historyEntry = {
+    type: 'phase_completed',
+    phase_number: phase.number,
+    phase_name: phase.name,
+    branch: phase.branch,
+    completed_at: new Date().toISOString(),
+    tasks_completed: state.orchestration.progress?.tasks_completed ?? 0,
+    tasks_total: state.orchestration.progress?.tasks_total ?? 0,
+  };
+
+  // Get existing history or create empty array
+  const existingHistory = (state.actions?.history as unknown[]) ?? [];
+  const updatedHistory = [...existingHistory, historyEntry];
+
+  // 5. Reset state for next phase
   let newState = state;
+  newState = setStateValue(newState, 'actions.history', updatedHistory);
   newState = setStateValue(newState, 'orchestration.phase.number', null);
   newState = setStateValue(newState, 'orchestration.phase.name', null);
   newState = setStateValue(newState, 'orchestration.phase.branch', null);
@@ -115,6 +131,11 @@ async function closePhase(dryRun: boolean = false): Promise<PhaseCloseOutput> {
   newState = setStateValue(newState, 'orchestration.step.index', 0);
   newState = setStateValue(newState, 'orchestration.step.status', 'not_started');
   newState = setStateValue(newState, 'orchestration.implement', null);
+  newState = setStateValue(
+    newState,
+    'orchestration.next_phase',
+    nextPhase ? { number: nextPhase.number, name: nextPhase.name } : null,
+  );
 
   await writeState(newState, projectRoot);
 

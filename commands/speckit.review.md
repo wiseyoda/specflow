@@ -11,8 +11,8 @@ handoffs:
     agent: speckit.roadmap
     prompt: Show roadmap status
   - label: Continue Later
-    agent: speckit.start
-    prompt: Resume work on this project
+    agent: speckit.orchestrate
+    prompt: Resume development workflow
 ---
 
 ## User Input

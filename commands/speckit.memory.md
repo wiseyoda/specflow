@@ -10,8 +10,8 @@ $ARGUMENTS
 
 You **MUST** consider the user input before proceeding (if not empty). User may specify:
 
-**Subcommands:**
-- `generate [doc]`: Generate memory documents from codebase analysis (see Generate Section below)
+**Deprecated Subcommands:**
+- `generate [doc]`: ⚠️ **DEPRECATED** - Use `/speckit.init` instead. Memory document generation is now part of the unified project initialization flow.
 
 **Flags:**
 - `--dry-run`: Analyze only, do not make changes
@@ -21,7 +21,6 @@ You **MUST** consider the user input before proceeding (if not empty). User may 
 - `--no-reconcile`: Skip ROADMAP and codebase checks (faster, memory-only)
 - `--promote`: Scan completed specs for decisions to promote to memory
 - `--deep`: Full codebase scan (slower, more thorough dependency analysis)
-- `--force`: (generate only) Overwrite existing documents
 
 ## Goal
 
@@ -77,6 +76,58 @@ fi
 ```
 
 If checks fail, display the specific error and instruct the user to resolve before retrying.
+
+## Argument Routing
+
+**IMPORTANT**: Check the user input and route to the appropriate action:
+
+| Argument | Action |
+|----------|--------|
+| (empty) | Run full verification flow → [Execution Steps](#execution-steps) |
+| `generate` or `generate [doc]` | Show deprecation notice → [Generate Deprecation](#generate-deprecation) |
+| `--reconcile` | Run verification with ROADMAP/codebase reconciliation (default) |
+| `--no-reconcile` | Run verification without reconciliation (faster) |
+| `--promote` | Scan completed specs for decisions to promote |
+| `--dry-run` | Analyze only, do not make changes |
+| `--fix` | Auto-fix issues without confirmation |
+
+---
+
+### Generate Deprecation
+
+If the user invoked `/speckit.memory generate` or any `generate` variant:
+
+```
+⚠️ DEPRECATED: The 'generate' subcommand has been moved
+
+Memory document generation is now part of the unified project initialization flow.
+
+**Migration**:
+
+  # OLD (deprecated)
+  /speckit.memory generate
+  /speckit.memory generate all
+  /speckit.memory generate tech-stack
+
+  # NEW (use this instead)
+  /speckit.init
+
+The /speckit.init command runs a complete project initialization flow that includes:
+  1. Discovery interview (captures project decisions)
+  2. Constitution generation
+  3. Memory document generation (tech-stack, coding-standards, etc.)
+  4. Roadmap creation
+
+This consolidation ensures memory documents are generated with proper context
+from the discovery interview, leading to higher quality artifacts.
+
+If you need to regenerate memory documents for an existing project:
+  /speckit.init --force
+```
+
+**Stop and wait for user input after displaying this message.**
+
+---
 
 ## Execution Steps
 
@@ -727,57 +778,6 @@ When drift is detected, resolve using this priority:
 - **ALWAYS** create backup (archive) before destructive operations
 - **ALWAYS** verify git state before and after operations
 - **ALWAYS** ask before resolving CRITICAL drift issues
-
----
-
-## Generate Subcommand
-
-When invoked with `generate`, this command analyzes the actual codebase to create memory documents (previously `/speckit.memory-init`).
-
-### Usage
-
-```
-/speckit.memory generate all           # Generate all documents
-/speckit.memory generate recommended   # Generate recommended set
-/speckit.memory generate coding-standards
-/speckit.memory generate tech-stack
-/speckit.memory generate testing-strategy
-/speckit.memory generate glossary
-/speckit.memory generate --dry-run     # Preview without writing
-/speckit.memory generate --force       # Overwrite existing
-```
-
-### Available Documents
-
-| Document | Description |
-|----------|-------------|
-| `coding-standards` | Code conventions extracted from codebase |
-| `testing-strategy` | Test framework and patterns detected |
-| `glossary` | Domain terms and project concepts |
-| `tech-stack` | Technologies and versions detected |
-| `all` | Generate all documents |
-| `recommended` | Generate coding-standards + testing-strategy |
-
-### Generate Process
-
-1. **Detect Project Type**: Scan for package.json, Cargo.toml, go.mod, pyproject.toml, or bash scripts
-2. **Analyze Codebase**: Extract patterns, conventions, terminology
-3. **Cross-reference Constitution**: Ensure alignment with project principles
-4. **Generate Documents**: Create well-structured markdown files
-
-### Example Output
-
-```markdown
-## Memory Documents Generated
-
-| Document | Status | Lines | Notes |
-|----------|--------|-------|-------|
-| coding-standards.md | Created | 150 | Bash conventions extracted |
-| testing-strategy.md | Created | 80 | Custom bash framework |
-| glossary.md | Skipped | - | Already exists |
-```
-
-**Note**: Use `--force` to overwrite existing documents. Without it, existing docs are skipped.
 
 ---
 

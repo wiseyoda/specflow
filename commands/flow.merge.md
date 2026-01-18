@@ -46,12 +46,47 @@ fi
 **Check for uncommitted changes:**
 
 ```bash
-if ! git diff --quiet || ! git diff --staged --quiet; then
-  echo "ERROR: Uncommitted changes detected"
-  echo "Commit changes first: git add . && git commit -m 'message'"
-  exit 1
-fi
+git status --short
+git diff --stat
 ```
+
+If there are uncommitted changes (staged or unstaged), **DO NOT automatically proceed**. These changes may have been made by another agent or process.
+
+**CRITICAL: Present the changes to the user and ask explicitly:**
+
+Show the user:
+1. List of modified/added/deleted files (`git status --short`)
+2. Summary of changes (`git diff --stat`)
+3. For small changes, show the actual diff (`git diff`)
+
+Then use `AskUserQuestion` to ask:
+
+```json
+{
+  "questions": [{
+    "question": "Uncommitted changes detected. How should these be handled?",
+    "header": "Changes",
+    "options": [
+      {"label": "Review first", "description": "Show me the full diff before deciding"},
+      {"label": "Commit with phase", "description": "Include these changes in the phase completion commit"},
+      {"label": "Stash changes", "description": "Stash changes and proceed (can restore later with git stash pop)"},
+      {"label": "Abort", "description": "Stop and let me handle these changes manually"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+**Handle user choice:**
+
+| Choice | Action |
+|--------|--------|
+| Review first | Show full `git diff`, then ask again |
+| Commit with phase | Continue - changes will be included in phase closure commit |
+| Stash changes | Run `git stash push -m "Stashed before phase merge"`, continue |
+| Abort | Exit with message to handle changes manually |
+
+**NEVER silently discard or overwrite uncommitted changes.**
 
 ### 2. Close Phase via CLI
 
@@ -185,7 +220,7 @@ Run /flow.orchestrate to start the next phase
 | Error | Response |
 |-------|----------|
 | Not on feature branch | "Switch to a feature branch first" |
-| Uncommitted changes | "Commit changes first" |
+| Uncommitted changes | **Ask user** - show changes, offer: commit with phase, stash, review, or abort |
 | Phase close fails | Show CLI error message |
 | Merge fails | "Check for merge conflicts or required reviews" |
 | gh not installed | Provide manual PR URL |

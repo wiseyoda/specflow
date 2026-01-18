@@ -14,7 +14,7 @@ import {
   GitMerge
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
-import { ActionButton } from "@/components/projects/action-button"
+import { ActionButton, StatusButton } from "@/components/projects/action-button"
 import { cn } from "@/lib/utils"
 import type { OrchestrationState, TasksData } from "@speckit/shared"
 import type { ProjectStatus as ActionProjectStatus } from "@/lib/action-definitions"
@@ -27,6 +27,7 @@ type ProjectStatus =
   | "initializing"     // Has state but health.status is "initializing"
   | "needs_setup"      // Has state but no orchestration object
   | "ready"            // Has state with orchestration, health is good
+  | "warning"          // Has state but health status is warning
   | "error"            // Has state but health status is error
 
 interface Project {
@@ -139,6 +140,11 @@ function getProjectStatus(state: OrchestrationState | null | undefined): Project
   // Has state but health is error
   if (state.health?.status === "error") {
     return "error"
+  }
+
+  // Has state but health has warnings
+  if (state.health?.status === "warning") {
+    return "warning"
   }
 
   // Has state but still initializing (setup in progress)
@@ -395,6 +401,12 @@ export function ProjectCard({ project, state, tasks, isUnavailable = false }: Pr
                   </span>
                 </div>
               )}
+              <StatusButton
+                projectId={project.id}
+                projectPath={project.path}
+                projectStatus={projectStatus as ActionProjectStatus}
+                isAvailable={!isUnavailable}
+              />
               <ActionButton
                 projectId={project.id}
                 projectPath={project.path}

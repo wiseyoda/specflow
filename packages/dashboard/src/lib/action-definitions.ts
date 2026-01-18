@@ -42,6 +42,8 @@ export interface ActionDefinition {
   group: ActionGroup;
   /** Show as primary action on project card (only one per status) */
   showOnCard?: boolean;
+  /** Show as secondary/always-visible action on card (e.g., Status button) */
+  isSecondaryCardAction?: boolean;
 }
 
 /**
@@ -93,15 +95,16 @@ export const ACTION_DEFINITIONS: ActionDefinition[] = [
   // Maintenance actions
   {
     id: 'doctor',
-    label: 'Doctor',
-    description: 'Diagnose project health and configuration',
+    label: 'Status',
+    description: 'Check project health and configuration',
     command: 'doctor',
     args: [],
     requiresConfirmation: false,
-    applicableStatuses: ['needs_setup', 'ready', 'warning', 'error'],
+    applicableStatuses: ['not_initialized', 'initializing', 'needs_setup', 'ready', 'warning', 'error'],
     variant: 'outline',
     group: 'maintenance',
-    showOnCard: false,
+    showOnCard: true,
+    isSecondaryCardAction: true,
   },
   {
     id: 'doctor-fix',
@@ -162,7 +165,24 @@ export function getCardActionForStatus(
   status: ProjectStatus
 ): ActionDefinition | undefined {
   return ACTION_DEFINITIONS.find(
-    (action) => action.showOnCard && action.applicableStatuses.includes(status)
+    (action) =>
+      action.showOnCard &&
+      !action.isSecondaryCardAction &&
+      action.applicableStatuses.includes(status)
+  );
+}
+
+/**
+ * Get the secondary/always-visible action for card display (e.g., Status button)
+ */
+export function getSecondaryCardAction(
+  status: ProjectStatus
+): ActionDefinition | undefined {
+  return ACTION_DEFINITIONS.find(
+    (action) =>
+      action.showOnCard &&
+      action.isSecondaryCardAction &&
+      action.applicableStatuses.includes(status)
   );
 }
 

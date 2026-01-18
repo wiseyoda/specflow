@@ -9,6 +9,7 @@ import {
   type ActionDefinition,
   type ProjectStatus,
   getCardActionForStatus,
+  getSecondaryCardAction,
 } from '@/lib/action-definitions';
 
 export interface ActionButtonProps {
@@ -22,6 +23,8 @@ export interface ActionButtonProps {
   isAvailable: boolean;
   /** Schema version (for migrate action) */
   schemaVersion?: string;
+  /** Override with a specific action instead of deriving from status */
+  action?: ActionDefinition;
   /** Callback when execution starts */
   onExecutionStart?: () => void;
   /** Callback when execution completes */
@@ -36,6 +39,7 @@ export function ActionButton({
   projectStatus,
   isAvailable,
   schemaVersion,
+  action: actionProp,
   onExecutionStart,
   onExecutionComplete,
   className,
@@ -47,10 +51,10 @@ export function ActionButton({
   const [currentAction, setCurrentAction] =
     React.useState<ActionDefinition | null>(null);
 
-  // Get the primary action for this project status
+  // Get the primary action for this project status (or use provided action)
   const action = React.useMemo(() => {
-    return getCardActionForStatus(projectStatus);
-  }, [projectStatus]);
+    return actionProp ?? getCardActionForStatus(projectStatus);
+  }, [actionProp, projectStatus]);
 
   // Don't render if no action available or project unavailable
   if (!action || !isAvailable) {
@@ -167,5 +171,40 @@ export function ActionButton({
         </>
       )}
     </>
+  );
+}
+
+/**
+ * Status button that appears on all project cards
+ * Runs the doctor command to show project health
+ */
+export function StatusButton({
+  projectId,
+  projectPath,
+  projectStatus,
+  isAvailable,
+  onExecutionStart,
+  onExecutionComplete,
+  className,
+}: Omit<ActionButtonProps, 'schemaVersion' | 'action'>) {
+  const action = React.useMemo(() => {
+    return getSecondaryCardAction(projectStatus);
+  }, [projectStatus]);
+
+  if (!action || !isAvailable) {
+    return null;
+  }
+
+  return (
+    <ActionButton
+      projectId={projectId}
+      projectPath={projectPath}
+      projectStatus={projectStatus}
+      isAvailable={isAvailable}
+      action={action}
+      onExecutionStart={onExecutionStart}
+      onExecutionComplete={onExecutionComplete}
+      className={className}
+    />
   );
 }

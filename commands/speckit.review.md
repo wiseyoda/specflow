@@ -359,7 +359,7 @@ Backlog Updated: 11 items added
 Next Steps:
   1. Run /speckit.orchestrate to build spec/plan/tasks
   2. Review generated tasks before implementation
-  3. Run /speckit.backlog to triage deferred items later
+  3. Run /speckit.roadmap backlog to triage deferred items later
 
 ============================================
 ```

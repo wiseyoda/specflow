@@ -122,7 +122,7 @@ speckit state get orchestration --json
 - **Doctor suggestions**: Doctor now displays actionable fix commands (e.g., `speckit templates sync`, `speckit doctor --fix`) at end of output
 - **Template sync**: New `speckit templates sync` command updates outdated templates AND copies new templates missing from project
 - **Template errors**: Missing templates now flagged as errors (not warnings) since they cause workflow failures
-- **Orchestrate workflow**: Now 9 steps: discover → specify → clarify → plan → tasks → analyze → checklist → implement → verify
+- **Orchestrate workflow**: Was 9 steps (now consolidated to 4 in v2.3)
 
 ## v2.2 Key Changes
 
@@ -133,3 +133,23 @@ speckit state get orchestration --json
 - **Unified init**: `/speckit.init` now runs complete 4-step flow: discovery → constitution → memory docs → roadmap
 - **Smart idempotency**: Init detects templates vs completed content using placeholder detection
 - **PDR-to-phase**: `/speckit.roadmap add-pdr` converts approved PDRs to ROADMAP phases
+
+## v2.3 Key Changes (Workflow Consolidation)
+
+- **4-step orchestrate workflow**: Reduced from 9 steps to 4: design → analyze → implement → verify
+  - Step indices: 0=design, 1=analyze, 2=implement, 3=verify
+  - Auto-migrates old 9-step state to new 4-step indices
+- **New `/speckit.design` command**: Produces ALL design artifacts in one command:
+  - discovery.md, spec.md, requirements.md, plan.md, tasks.md
+  - checklists/implementation.md, checklists/verification.md
+  - Cascade flags: `--spec`, `--plan`, `--tasks`, `--checklist` for partial regeneration
+  - Resumable if interrupted (discovery always re-runs on resume)
+- **Deprecated 6 commands** (with migration stubs):
+  - `/speckit.specify` → use `/speckit.design`
+  - `/speckit.clarify` → use `/speckit.design` (inline clarification)
+  - `/speckit.plan` → use `/speckit.design --plan`
+  - `/speckit.tasks` → use `/speckit.design --tasks`
+  - `/speckit.checklist` → use `/speckit.design --checklist`
+  - `/speckit.backlog` → use `/speckit.roadmap backlog`
+- **Roadmap backlog subcommand**: `/speckit.roadmap backlog` replaces standalone `/speckit.backlog`
+- **Command count**: Reduced from 11 to 6 active workflow commands

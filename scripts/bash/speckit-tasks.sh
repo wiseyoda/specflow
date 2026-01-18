@@ -402,9 +402,11 @@ cmd_mark() {
 
     # Build list of marked task IDs for removal from current_tasks
     local marked_ids_json="[]"
-    for mid in "${marked_ids[@]}"; do
-      marked_ids_json=$(echo "$marked_ids_json" | jq --arg id "$mid" '. + [$id]')
-    done
+    if [[ ${#marked_ids[@]} -gt 0 ]]; then
+      for mid in "${marked_ids[@]}"; do
+        marked_ids_json=$(echo "$marked_ids_json" | jq --arg id "$mid" '. + [$id]')
+      done
+    fi
 
     # Update both implement step and progress in state, removing completed tasks from current_tasks
     local state_temp
@@ -430,13 +432,17 @@ cmd_mark() {
   # Output results
   if is_json_output; then
     local errors_json="[]"
-    for err in "${errors[@]}"; do
-      errors_json=$(echo "$errors_json" | jq --arg e "$err" '. + [$e]')
-    done
+    if [[ ${#errors[@]} -gt 0 ]]; then
+      for err in "${errors[@]}"; do
+        errors_json=$(echo "$errors_json" | jq --arg e "$err" '. + [$e]')
+      done
+    fi
     local marked_json="[]"
-    for mid in "${marked_ids[@]}"; do
-      marked_json=$(echo "$marked_json" | jq --arg id "$mid" '. + [$id]')
-    done
+    if [[ ${#marked_ids[@]} -gt 0 ]]; then
+      for mid in "${marked_ids[@]}"; do
+        marked_json=$(echo "$marked_json" | jq --arg id "$mid" '. + [$id]')
+      done
+    fi
     echo "{\"marked\": $marked, \"marked_ids\": $marked_json, \"skipped\": $skipped, \"not_found\": $not_found, \"errors\": $errors_json}"
   else
     if [[ $marked -gt 0 ]]; then
@@ -447,9 +453,11 @@ cmd_mark() {
     fi
     if [[ $not_found -gt 0 ]]; then
       echo -e "${RED}ERROR${RESET}: $not_found task(s) not found"
-      for err in "${errors[@]}"; do
-        echo "  - $err"
-      done
+      if [[ ${#errors[@]} -gt 0 ]]; then
+        for err in "${errors[@]}"; do
+          echo "  - $err"
+        done
+      fi
     fi
   fi
 

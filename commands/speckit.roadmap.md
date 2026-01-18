@@ -29,6 +29,9 @@ $ARGUMENTS
 | `add-pdr` | List PDRs and convert to phases → [Add PDR Subcommand](#add-pdr-subcommand) |
 | `add-pdr pdr-name.md` | Convert specific PDR to phase → [Add PDR Subcommand](#add-pdr-subcommand) |
 | `add-pdr --all` | Convert all approved PDRs → [Add PDR Subcommand](#add-pdr-subcommand) |
+| `backlog` | Scan and triage backlog items → [Backlog Subcommand](#backlog-subcommand) |
+| `backlog --auto` | Auto-assign high-confidence matches → [Backlog Subcommand](#backlog-subcommand) |
+| `backlog --dry-run` | Preview assignments without changes → [Backlog Subcommand](#backlog-subcommand) |
 | Other text | Use as project description, generate roadmap → [Goal](#goal) |
 
 ---
@@ -322,7 +325,7 @@ If a phase is running long:
 ```
 Or manually:
 ```
-/speckit.specify "Phase NNNN - [Phase Name]"
+/speckit.design
 ```
 
 ### After Completing a Phase
@@ -403,8 +406,9 @@ Key CLI commands used:
 /speckit.init          → Creates discovery artifacts, constitution, memory docs, and ROADMAP
 /speckit.roadmap       → Creates/updates ROADMAP.md (THIS COMMAND)
 /speckit.roadmap add-pdr → Converts PDRs to ROADMAP phases
+/speckit.roadmap backlog → Triages backlog items into phases
 /speckit.orchestrate   → Reads ROADMAP.md, executes phases
-/speckit.specify       → Creates spec for current phase (from ROADMAP.md)
+/speckit.design        → Creates spec, plan, tasks for current phase
 ```
 
 **The roadmap is THE source of truth for:**
@@ -554,7 +558,7 @@ For each phase, generate:
 - [Story 3 title: key deliverable]
 
 **Deliverables**:
-<!-- To be determined during /speckit.specify -->
+<!-- To be determined during /speckit.design -->
 - TBD based on technical design
 
 **Constraints** (from PDR):
@@ -650,8 +654,8 @@ PDRs marked as processed:
 
 Next steps:
   1. Review ROADMAP.md for accuracy
-  2. Run /speckit.specify to create detailed spec for first phase
-  3. Or run /speckit.orchestrate to begin development
+  2. Run /speckit.orchestrate to begin development
+  3. Or run /speckit.design to create detailed spec for first phase
 
 Suggested commit:
   feat(roadmap): add phases 0020, 0030 from PDRs
@@ -717,6 +721,207 @@ speckit roadmap next --json
 speckit roadmap insert --after <phase> "<name>"
 speckit roadmap validate
 ```
+
+---
+
+## Backlog Subcommand
+
+When invoked with `backlog`, this command scans completed phases for orphaned tasks and triages backlog items into appropriate phases.
+
+### Usage
+
+```
+/speckit.roadmap backlog                    # Interactive triage on all backlog items
+/speckit.roadmap backlog --auto             # Auto-assign high-confidence matches
+/speckit.roadmap backlog --dry-run          # Preview assignments without changes
+```
+
+### Goal
+
+Ensure no work is lost by scanning completed phases and triaging backlog items:
+
+1. **Scan for orphaned tasks** - Find incomplete tasks in completed phases
+2. **Parse backlog items** - Read backlog section from ROADMAP.md
+3. **Analyze phases** - Extract Goal and Scope from each phase
+4. **Match items to phases** - Score relevance by keywords and alignment
+5. **Propose assignments** - Present matches with confidence scores
+6. **Update ROADMAP** - Apply assignments and clear processed items
+
+### Execution Steps
+
+#### Step 1: Scan Completed Phases for Orphaned Tasks
+
+**IMPORTANT**: Before triaging existing backlog items, scan previously completed phases for any incomplete tasks left behind.
+
+```bash
+# Get all completed phases from ROADMAP
+speckit roadmap status --json | jq -r '.phases[] | select(.status == "complete") | .number'
+```
+
+For each completed phase, check for incomplete tasks:
+
+```bash
+for phase_dir in specs/*/; do
+  phase_name=$(basename "$phase_dir")
+  tasks_file="$phase_dir/tasks.md"
+
+  if [[ -f "$tasks_file" ]]; then
+    incomplete=$(grep -E '^\s*-\s*\[ \]\s*T[0-9]+' "$tasks_file" || true)
+    if [[ -n "$incomplete" ]]; then
+      echo "Found orphaned incomplete tasks in $phase_name"
+    fi
+  fi
+done
+```
+
+For each orphaned task found:
+1. Add to backlog: `speckit roadmap backlog add "[Orphaned from NNNN] T###: Task description"`
+2. Mark original as deferred: `- [x] T### ... *(deferred to backlog)*`
+
+#### Step 2: Parse Backlog Items
+
+```bash
+BACKLOG_JSON=$(speckit roadmap backlog list --json)
+ITEM_COUNT=$(echo "$BACKLOG_JSON" | jq '.count')
+
+if [[ "$ITEM_COUNT" -eq 0 ]]; then
+  echo "No items in backlog to triage"
+  exit 0
+fi
+```
+
+#### Step 3: Extract Phase Scopes
+
+For each phase in ROADMAP, read phase file to get:
+- Goal (one sentence)
+- Scope keywords
+
+```text
+phases = [
+  {
+    "number": "0020",
+    "name": "Onboarding Polish",
+    "goal": "Make the first-run experience smooth",
+    "scope_keywords": ["templates", "scaffold", "CLI", "output"]
+  },
+  ...
+]
+```
+
+#### Step 4: Match Items to Phases
+
+For each backlog item, calculate match score:
+
+| Score Component | Weight | Description |
+|----------------|--------|-------------|
+| Keyword match | 0.3 per keyword | Item contains phase scope keyword |
+| Goal alignment | 0.2 | Item description aligns with phase goal |
+| Domain match | 0.2 | Item category matches phase category |
+
+Confidence levels:
+| Score | Confidence | Action |
+|-------|------------|--------|
+| 0.7+ | High | Auto-assign (with --auto) |
+| 0.4-0.7 | Medium | Show suggestion, ask user |
+| 0.1-0.4 | Low | Show suggestion, likely new phase |
+| <0.1 | None | Propose new phase |
+
+#### Step 5: Present Assignments
+
+```text
+============================================
+Backlog Triage Results
+============================================
+
+Item: "Add dark mode support"
+  Best match: 0020 - Onboarding Polish (confidence: 0.65)
+  Matched keywords: UI, user experience
+
+  Options:
+  A. Assign to 0020 - Onboarding Polish (Recommended)
+  B. Assign to different phase
+  C. Create new phase
+  D. Skip (keep in backlog)
+```
+
+Use `AskUserQuestion` for each item.
+
+#### Step 6: Update ROADMAP
+
+For assigned items, add to phase scope:
+```markdown
+**Scope**:
+- Existing scope item 1
+- Add dark mode support  ← NEW (from backlog)
+```
+
+For new phases:
+```bash
+speckit roadmap insert --after "$LAST_PHASE" "$NEW_PHASE_NAME" --non-interactive
+```
+
+Clear assigned items from backlog.
+
+### --auto Mode
+
+In `--auto` mode:
+- Auto-assign all high-confidence (0.7+) matches
+- Prompt only for medium/low confidence
+- Skip items with no good match (keep in backlog)
+
+### --dry-run Mode
+
+In `--dry-run` mode:
+- Show all proposed assignments
+- Show what ROADMAP changes would be made
+- Don't actually modify any files
+
+```text
+DRY RUN - Proposed Changes:
+
+Would assign:
+  "Add dark mode support" → 0020 Onboarding Polish
+
+Would create new phase:
+  0051 - Integration Features (after 0050)
+    Items: "Implement webhook integration"
+
+Would remain in backlog:
+  "Parallel phase execution"
+
+No changes made.
+```
+
+### Summary Output
+
+```text
+============================================
+Triage Complete
+============================================
+
+Assigned to existing phases:
+  • "Add dark mode support" → 0020 Onboarding Polish
+  • "Improve error messages" → 0020 Onboarding Polish
+
+New phases created:
+  • 0051 - Integration Features
+    - Implement webhook integration
+    - Add API rate limiting
+
+Remaining in backlog:
+  • "Parallel phase execution" (user skipped)
+
+Run /speckit.orchestrate to continue development
+```
+
+### Error Handling
+
+| Error | Response |
+|-------|----------|
+| Empty backlog | "No items to triage" and exit |
+| ROADMAP parse error | Show line number, suggest manual fix |
+| Phase insert fails | Show error, keep item in backlog |
+| No phases defined | "Create phases first with /speckit.roadmap" |
 
 ---
 

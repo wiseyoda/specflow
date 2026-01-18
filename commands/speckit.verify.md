@@ -440,7 +440,7 @@ See full details: `specs/{current_phase}/checklists/deferred.md`
 Some items were added to project BACKLOG.md - see `BACKLOG.md`
 ```
 
-4. The handoff file will be read by `/speckit.specify` when starting the next phase.
+4. The handoff file will be read by `/speckit.design` when starting the next phase.
 
 This ensures the next phase's spec will automatically reference inherited deferred items.
 

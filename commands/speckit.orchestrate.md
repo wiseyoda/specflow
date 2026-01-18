@@ -8,7 +8,7 @@ description: Orchestrate the complete SpecKit workflow from end to end with stat
 
 1. **NEVER edit `.specify/orchestration-state.json` directly** - Use `speckit state set` commands
 2. **NEVER edit `tasks.md` to mark tasks complete** - Use `speckit tasks mark` commands
-3. **NEVER skip steps** - Execute steps in order: discover → specify → clarify → plan → tasks → analyze → checklist → implement → verify (discover can be skipped with `--no-discovery`)
+3. **NEVER skip steps** - Execute steps in order: design → analyze → implement → verify
 4. **ALWAYS verify step completion** before advancing to next step
 5. **ALWAYS use the SpecKit CLI** for all state and task operations
 
@@ -24,8 +24,7 @@ Arguments:
 - `continue` or empty - Resume from current state
 - `reset` - Clear state and restart current phase
 - `status` - Show status only
-- `skip-to [step]` - Skip to step (discover, specify, clarify, plan, tasks, analyze, checklist, implement, verify)
-- `--no-discovery` - Skip the DISCOVER phase (codebase examination and clarifying questions)
+- `skip-to [step]` - Skip to step (design, analyze, implement, verify)
 
 ## Goal
 
@@ -39,15 +38,12 @@ Execute the complete SpecKit development workflow with:
 
 | Step | Command   | Purpose                              | User Interaction            |
 |------|-----------|--------------------------------------|-----------------------------|
-| 1    | discover  | Examine codebase and clarify scope   | Progressive questions       |
-| 2    | specify   | Create feature specification         | Critical clarifications only |
-| 3    | clarify   | Resolve specification ambiguities    | Questions with recommendations |
-| 4    | plan      | Create technical implementation plan | None (research-based)       |
-| 5    | tasks     | Generate actionable task list        | None                        |
-| 6    | analyze   | Check cross-artifact consistency     | Auto-fix loop until clean   |
-| 7    | checklist | Create verification checklist        | Scope questions             |
-| 8    | implement | Execute all tasks                    | Progress updates only       |
-| 9    | verify    | Verify completion and update ROADMAP | None (or USER GATE prompt)  |
+| 0    | design    | Create all design artifacts          | Progressive questions + inline clarifications |
+| 1    | analyze   | Check cross-artifact consistency     | Auto-fix loop until clean   |
+| 2    | implement | Execute all tasks                    | Progress updates only       |
+| 3    | verify    | Verify completion and update ROADMAP | None (or USER GATE prompt)  |
+
+**Note**: The design step runs `/speckit.design` which produces all design artifacts (discovery, spec, plan, tasks, checklists) in one command. See `/speckit.design` for details.
 
 ## State Management
 
@@ -81,7 +77,7 @@ This single call returns:
 {
   "health": { "ok": true, "issues": [] },
   "phase": { "number": "0170", "name": "...", "branch": "...", "status": "in_progress" },
-  "step": { "current": "implement", "index": 6, "status": "in_progress" },
+  "step": { "current": "implement", "index": 2, "status": "in_progress" },
   "tasks": { "completed": 0, "total": 122, "percentage": 0 },
   "git": { "branch": "...", "matches_state": true, "uncommitted": 3 },
   "artifacts": { "spec": true, "plan": true, "tasks": true, "checklists": true },
@@ -90,6 +86,12 @@ This single call returns:
   "next_action": "continue_implement"
 }
 ```
+
+**Step Index Mapping (4-step workflow):**
+- 0 = design
+- 1 = analyze
+- 2 = implement
+- 3 = verify
 
 **0b. Handle Status Response**
 
@@ -103,10 +105,9 @@ Check `ready`:
 | Argument | Action |
 |----------|--------|
 | `continue`/empty | Resume from `step.current` in status |
-| `reset` | Clear steps, restart from discover |
+| `reset` | Clear steps, restart from design |
 | `status` | Display status and exit |
-| `skip-to [step]` | Update `orchestration.step.current` and `orchestration.step.index` |
-| `--no-discovery` | Skip DISCOVER step, start from specify |
+| `skip-to [step]` | Update `orchestration.step.current` and `orchestration.step.index` (design=0, analyze=1, implement=2, verify=3) |
 
 **0d. Auto-Recovery Based on next_action**
 | next_action | Recovery |
@@ -134,13 +135,34 @@ Actions:
 3. Otherwise: Update ROADMAP to reflect completion, then archive
 
 **Artifact Cross-Check** (use `artifacts` from status):
-- Step > 0: `discovery` should be true (unless --no-discovery)
-- Step > 1: `spec` should be true
-- Step > 3: `plan` should be true
-- Step > 4: `tasks` should be true
-- Step > 6: `checklists` should be true
+- Step >= 1 (analyze or later): All design artifacts should exist (discovery, spec, plan, tasks, checklists)
 
-If mismatch: Run `speckit doctor --fix`, reset affected step.
+If mismatch: Run `speckit doctor --fix`, reset to design step.
+
+**State Migration (Legacy 9-step to 4-step):**
+
+If `step.index` is > 3 (old workflow), auto-migrate:
+
+| Old Index | Old Step | Maps To | New Index |
+|-----------|----------|---------|-----------|
+| 0-4, 6 | discover/specify/clarify/plan/tasks/checklist | design | 0 |
+| 5 | analyze | analyze | 1 |
+| 7 | implement | implement | 2 |
+| 8 | verify | verify | 3 |
+
+Migration command:
+```bash
+# Detect old workflow and migrate
+if [[ $STEP_INDEX -gt 3 ]]; then
+  case $STEP_INDEX in
+    5) NEW_INDEX=1; NEW_STEP="analyze" ;;
+    7) NEW_INDEX=2; NEW_STEP="implement" ;;
+    8) NEW_INDEX=3; NEW_STEP="verify" ;;
+    *) NEW_INDEX=0; NEW_STEP="design" ;;
+  esac
+  speckit state set "orchestration.step.current=$NEW_STEP" "orchestration.step.index=$NEW_INDEX"
+fi
+```
 
 **0f. Failed Step Recovery**
 
@@ -210,7 +232,7 @@ speckit state set "orchestration.phase.number=NNNN"
 speckit state set "orchestration.phase.name=phase-name"
 speckit state set "orchestration.phase.branch=NNNN-phase-name"
 speckit state set "orchestration.phase.status=in_progress"
-speckit state set "orchestration.step.current=discover"
+speckit state set "orchestration.step.current=design"
 speckit state set "orchestration.step.index=0"
 speckit state set "orchestration.step.status=in_progress"
 speckit roadmap update "NNNN" in_progress
@@ -220,232 +242,46 @@ speckit roadmap update "NNNN" in_progress
 
 ---
 
-### 2. DISCOVER
+### 2. DESIGN (Step 0)
 
-**Skip condition**: If `--no-discovery` flag is set → skip to SPECIFY.
+Check: If `orchestration.step.index > 0` and all design artifacts exist → skip to ANALYZE.
 
-Check: If `orchestration.step.index > 0` and discovery.md exists → skip to SPECIFY.
+**Execute `/speckit.design`** which produces ALL design artifacts in one command:
+- discovery.md (codebase examination, clarified intent)
+- spec.md (feature specification)
+- requirements.md (requirements checklist)
+- plan.md (technical implementation plan)
+- tasks.md (actionable task list)
+- checklists/implementation.md (implementation guidance)
+- checklists/verification.md (verification checklist)
 
-**Purpose**: Examine the codebase and clarify scope BEFORE writing specifications. This prevents specs that diverge from existing implementation reality.
+The design command handles:
+- Progressive clarification questions during discovery
+- Inline clarifications during specification
+- Constitution compliance checks during planning
+- Task generation and dependency ordering
 
-**Phase 2a: Codebase Examination**
-
-1. **Load phase context**:
-   ```bash
-   speckit phase show {phase_number}    # Get phase details from .specify/phases/
-   ```
-
-2. **Examine related codebase implementations**:
-   - Search for files, functions, and patterns related to this change
-   - Look for existing implementations that touch the same area
-   - Identify dependencies and integration points
-   - Note any patterns or conventions already established
-
-3. **Read relevant requirements sources**:
-   - ROADMAP.md phase entry
-   - Phase detail file (`.specify/phases/NNNN-*.md`)
-   - Related issues (`speckit issue list --phase {phase_number}`)
-   - Previous phase handoff files (`.specify/phases/*-handoff.md`)
-   - Project memory documents (`constitution.md`, `tech-stack.md`)
-
-4. **Document initial findings**:
-   - Create `specs/{phase}/discovery.md` with findings
-   - Include: existing code locations, patterns found, integration points, constraints discovered
-
-**Phase 2b: Progressive Clarification Questions**
-
-After examining the codebase, ask clarifying questions to understand user intent:
-
-**Question Guidelines**:
-1. **Always provide context** for each question:
-   - What you found in the codebase
-   - Why this question matters for the implementation
-   - Pros/cons of each option
-   - Your recommended approach (mark with "Recommended")
-
-2. **Ask progressively** - don't batch all questions upfront:
-   - Ask 1-2 questions at a time
-   - Wait for answers
-   - Research codebase or web based on answers
-   - Ask follow-up questions informed by new understanding
-   - Maximum 5 rounds of questions total
-
-3. **Do research between questions**:
-   - If answer reveals new area, examine that code
-   - If answer mentions technology/pattern, do web search if needed
-   - Update discovery.md with new findings
-
-4. **Question format** using AskUserQuestion tool:
-   ```
-   Header: "[Topic]"
-   Question: "[Specific question]"
-   Options:
-     - Label: "[Option A] (Recommended)"
-       Description: "Pros: X. Cons: Y. Aligns with existing pattern in [file]."
-     - Label: "[Option B]"
-       Description: "Pros: X. Cons: Y. Would require changes to [file]."
-   ```
-
-**Phase 2c: Verify Understanding**
-
-Before proceeding to SPECIFY:
-1. Summarize your understanding of:
-   - What the user wants to achieve
-   - How it relates to existing code
-   - Key constraints and requirements
-   - Technical approach (if discussed)
-
-2. Ask user to confirm: "Does this accurately capture your intent?"
-   - If yes → proceed to SPECIFY
-   - If no → ask what was misunderstood, update discovery.md
+See `/speckit.design` for full details on the design workflow.
 
 **VERIFY BEFORE ADVANCING:**
 ```bash
-# Verify discovery.md was created
-ls specs/*/discovery.md || { echo "ERROR: discovery.md not created"; exit 1; }
-```
-
-Update state (only after verification passes):
-```bash
-speckit state set "orchestration.step.current=specify"
-speckit state set "orchestration.step.index=1"
-```
-
----
-
-### 3. SPECIFY
-
-**Load discovery context**: If `specs/{phase}/discovery.md` exists, load it for context about existing implementations and user intent.
-
-Check: If `orchestration.step.index > 1` and spec.md exists → skip to CLARIFY.
-
-**Get phase details from modular file:**
-```bash
-speckit phase show {phase_number}    # Returns full phase details from .specify/phases/
-```
-
-Execute `/speckit.specify` logic:
-1. Extract Goal, Scope, Deliverables from phase file (via `speckit phase show`)
-2. Create spec.md using template
-3. Create requirements.md checklist
-4. Validate specification quality
-
-Handle `[NEEDS CLARIFICATION]` markers (max 3):
-- Use `AskUserQuestion` with recommended option first
-- Update spec with answers
-
-**VERIFY BEFORE ADVANCING:**
-```bash
-# Verify spec.md was created
-ls specs/*/spec.md || { echo "ERROR: spec.md not created"; exit 1; }
-
-# Run specification gate check
-speckit gate specify || { echo "WARN: Gate check found issues"; }
-```
-
-Update state (only after verification passes):
-```bash
-speckit state set "orchestration.step.current=clarify"
-speckit state set "orchestration.step.index=2"
-```
-
----
-
-### 4. CLARIFY
-
-**Load discovery context**: Reference `specs/{phase}/discovery.md` for codebase findings and confirmed user intent from DISCOVER phase.
-
-Check: If `orchestration.step.index > 2` and spec.md valid → skip to PLAN.
-
-Execute `/speckit.clarify` logic:
-1. Load spec.md AND discovery.md (if exists)
-2. Perform ambiguity scan informed by discovery findings
-3. Generate max 5 prioritized questions (skip questions already answered in DISCOVER)
-
-For each question, use `AskUserQuestion`:
-- Include recommended option with reasoning
-- Show options table with implications
-- Reference relevant discovery findings when applicable
-- Default behavior if no response
-
-**VERIFY BEFORE ADVANCING:**
-- Confirm clarifications were added to spec.md OR no clarifications were needed
-
-Update state (only after verification passes):
-```bash
-speckit state set "orchestration.step.current=plan"
-speckit state set "orchestration.step.index=3"
-```
-
----
-
-### 5. PLAN
-
-Check: If `orchestration.step.index > 3` and plan.md exists → skip to TASKS.
-
-Load memory documents for compliance:
-- `constitution.md` (REQUIRED)
-- `tech-stack.md`, `coding-standards.md`, `testing-strategy.md` (if exist)
-
-Execute `/speckit.plan` logic:
-1. Initialize plan.md template
-2. Fill Technical Context
-3. Constitution Check - verify no violations
-4. Generate research.md, data-model.md, contracts/, quickstart.md
-
-Cross-check against memory documents:
-- Constitution violations: BLOCK until resolved
-- Other violations: Warn but don't block
-
-**VERIFY BEFORE ADVANCING:**
-```bash
-# Verify plan.md was created
-ls specs/*/plan.md || { echo "ERROR: plan.md not created"; exit 1; }
-
-# Run plan gate check
-speckit gate plan || { echo "WARN: Gate check found issues"; }
-```
-
-Update state (only after verification passes):
-```bash
-speckit state set "orchestration.step.current=tasks"
-speckit state set "orchestration.step.index=4"
-```
-
----
-
-### 6. TASKS
-
-Check: If `orchestration.step.index > 4` and tasks.md exists → skip to ANALYZE.
-
-Execute `/speckit.tasks` logic:
-1. Load plan.md, spec.md, data-model.md, contracts/
-2. Generate tasks organized by user story
-3. Format: `- [ ] T### [P?] [US?] Description with file path`
-4. Generate dependency graph
-
-**VERIFY BEFORE ADVANCING:**
-```bash
-# Verify tasks.md was created
-ls specs/*/tasks.md || { echo "ERROR: tasks.md not created"; exit 1; }
-
-# Run tasks gate check
-speckit gate tasks || { echo "WARN: Gate check found issues"; }
+# Verify all design artifacts exist
+ls specs/*/discovery.md specs/*/spec.md specs/*/plan.md specs/*/tasks.md specs/*/checklists/*.md
 ```
 
 Update state (only after verification passes):
 ```bash
 speckit state set "orchestration.step.current=analyze"
-speckit state set "orchestration.step.index=5"
+speckit state set "orchestration.step.index=1"
 ```
 
 ---
 
-### 7. ANALYZE (Auto-Fix Loop)
+### 3. ANALYZE (Step 1)
 
 **MANDATORY STEP - DO NOT SKIP**
 
-Check: If `orchestration.step.index > 5` → re-run quick analysis, skip if clean.
+Check: If `orchestration.step.index > 1` → re-run quick analysis, skip if clean.
 
 **IMPORTANT**: This step performs analysis INLINE (do NOT run `speckit analyze` as a CLI command - it doesn't exist). Follow the analysis logic below:
 
@@ -480,46 +316,15 @@ Auto-fix strategies:
 
 Update state (only after verification passes):
 ```bash
-speckit state set "orchestration.step.current=checklist"
-speckit state set "orchestration.step.index=6"
-```
-
----
-
-### 8. CHECKLIST
-
-**MANDATORY STEP - DO NOT SKIP**
-
-Check: If `orchestration.step.index > 6` and checklists/ has files → skip to IMPLEMENT.
-
-Use `AskUserQuestion` for scope:
-| Option | Type | Purpose |
-|--------|------|---------|
-| A (Recommended) | Post-completion verification | For /speckit.verify |
-| B | Implementation + Verification | Both guidance and checks |
-| C | Custom focus | Specific areas (security, performance) |
-
-Execute `/speckit.checklist` logic:
-1. Generate checklist testing REQUIREMENTS quality
-2. Create `checklists/verification.md`
-
-**VERIFY BEFORE ADVANCING:**
-```bash
-# Verify checklist was created
-ls specs/*/checklists/verification.md || { echo "ERROR: verification.md not created"; exit 1; }
-```
-
-Update state (only after verification passes):
-```bash
 speckit state set "orchestration.step.current=implement"
-speckit state set "orchestration.step.index=7"
+speckit state set "orchestration.step.index=2"
 ```
 
 ---
 
-### 9. IMPLEMENT
+### 4. IMPLEMENT (Step 2)
 
-Check: If `orchestration.step.index > 7`:
+Check: If `orchestration.step.index > 2`:
 ```bash
 speckit tasks status --json
 ```
@@ -596,12 +401,12 @@ speckit gate implement || { echo "WARN: Gate check found issues"; }
 Update state (only after verification passes):
 ```bash
 speckit state set "orchestration.step.current=verify"
-speckit state set "orchestration.step.index=8"
+speckit state set "orchestration.step.index=3"
 ```
 
 ---
 
-### 10. VERIFY
+### 5. VERIFY (Step 3)
 
 **Capture lessons learned before verification:**
 ```bash
@@ -708,17 +513,12 @@ Always use `AskUserQuestion` with:
 | Status: In Progress                                      |
 | Details: .specify/phases/0010-project-architecture-setup.md |
 +----------------------------------------------------------+
-| Step        | Status     | Artifacts                     |
-+-------------+------------+-------------------------------+
-| 1. discover | Complete   | discovery.md                  |
-| 2. specify  | Complete   | spec.md, requirements.md      |
-| 3. clarify  | Complete   | spec.md (5 clarifications)    |
-| 4. plan     | Complete   | plan.md, research.md          |
-| 5. tasks    | Complete   | tasks.md (47 tasks)           |
-| 6. analyze  | Complete   | Clean (3 iterations)          |
-| 7. checklist| Current    | verification.md               |
-| 8. implement| Pending    | -                             |
-| 9. verify   | Pending    | -                             |
+| Step         | Status     | Artifacts                    |
++--------------+------------+------------------------------+
+| 0. design    | Complete   | discovery, spec, plan, tasks |
+| 1. analyze   | Complete   | Clean (3 iterations)         |
+| 2. implement | Current    | 12/47 tasks (25%)            |
+| 3. verify    | Pending    | -                            |
 +----------------------------------------------------------+
 ```
 

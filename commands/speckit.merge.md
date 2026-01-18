@@ -329,7 +329,7 @@ status: pending
 
 These items were deferred from Phase $PHASE_NUMBER and must be incorporated into Phase $NEXT_PHASE.
 
-**IMPORTANT**: When running \`/speckit.specify\` for Phase $NEXT_PHASE, these items must be:
+**IMPORTANT**: When running \`/speckit.design\` for Phase $NEXT_PHASE, these items must be:
 1. Reviewed and confirmed for inclusion
 2. Added to the spec's Requirements section
 3. Marked as "inherited" in the requirements checklist
@@ -395,7 +395,7 @@ echo ""
 speckit roadmap backlog list
 
 echo ""
-echo "Run /speckit.backlog to triage items into future phases"
+echo "Run /speckit.roadmap backlog to triage items into future phases"
 ```
 
 ### 10. Start Next Phase (if --next-phase)
@@ -518,12 +518,12 @@ Total: 2 item(s)
 ║              Handoff Items Detected                          ║
 ╠══════════════════════════════════════════════════════════════╣
 ║ 3 deferred items extracted for Phase 0020.                   ║
-║ These will be presented when /speckit.specify runs.          ║
+║ These will be presented when /speckit.design runs.           ║
 ║                                                              ║
 ║ Review: .specify/phases/0015-handoff.md                      ║
 ╚══════════════════════════════════════════════════════════════╝
 
-Run /speckit.backlog to triage items
+Run /speckit.roadmap backlog to triage items
 Run /speckit.orchestrate to start next phase
 ```
 

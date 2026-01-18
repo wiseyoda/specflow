@@ -17,36 +17,40 @@ export function setOutputOptions(options: OutputOptions): void {
   globalOptions = { ...globalOptions, ...options };
 }
 
-/** Output JSON if --json flag, otherwise human-readable */
+/** Output JSON if --json flag, otherwise human-readable (respects --quiet) */
 export function output(data: unknown, humanReadable?: string): void {
   if (globalOptions.json) {
     console.log(JSON.stringify(data, null, 2));
-  } else if (humanReadable !== undefined) {
-    console.log(humanReadable);
-  } else if (typeof data === 'string') {
-    console.log(data);
-  } else {
-    console.log(JSON.stringify(data, null, 2));
+  } else if (!globalOptions.quiet) {
+    if (humanReadable !== undefined) {
+      console.log(humanReadable);
+    } else if (typeof data === 'string') {
+      console.log(data);
+    } else {
+      console.log(JSON.stringify(data, null, 2));
+    }
   }
 }
 
-/** Print success message (suppressed in quiet mode) */
+/** Print success message (suppressed in quiet or JSON mode) */
 export function success(message: string): void {
-  if (!globalOptions.quiet) {
+  if (!globalOptions.quiet && !globalOptions.json) {
     console.log(chalk.green('✓'), message);
   }
 }
 
-/** Print info message (suppressed in quiet mode) */
+/** Print info message (suppressed in quiet or JSON mode) */
 export function info(message: string): void {
-  if (!globalOptions.quiet) {
+  if (!globalOptions.quiet && !globalOptions.json) {
     console.log(chalk.blue('ℹ'), message);
   }
 }
 
-/** Print warning message */
+/** Print warning message (suppressed in JSON mode) */
 export function warn(message: string): void {
-  console.log(chalk.yellow('⚠'), message);
+  if (!globalOptions.json) {
+    console.log(chalk.yellow('⚠'), message);
+  }
 }
 
 /** Print error message */

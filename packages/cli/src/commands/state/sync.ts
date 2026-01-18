@@ -3,9 +3,45 @@ import { resolve } from 'node:path';
 import { readState, writeState, setStateValue } from '../../lib/state.js';
 import { registerProject, isRegistered } from '../../lib/registry.js';
 import { readRoadmap } from '../../lib/roadmap.js';
-import { success, info, warn } from '../../lib/output.js';
-import { handleError } from '../../lib/errors.js';
+import { output, info, warn } from '../../lib/output.js';
 import { getRoadmapPath, pathExists, findProjectRoot } from '../../lib/paths.js';
+
+/**
+ * Change entry for state sync output
+ */
+export interface SyncChange {
+  type: 'registered' | 'history_added' | 'phase_synced';
+  description: string;
+  details?: unknown;
+}
+
+/**
+ * Output structure for state sync command with --json flag
+ */
+export interface StateSyncOutput {
+  status: 'success' | 'warning' | 'error';
+  command: 'state sync';
+  dryRun: boolean;
+  changes: SyncChange[];
+  warnings: string[];
+  error?: { message: string; hint: string };
+}
+
+/**
+ * Format human-readable output for state sync command
+ */
+function formatHumanReadable(result: StateSyncOutput): string {
+  if (result.status === 'error' && result.error) {
+    return `Error: ${result.error.message}\nHint: ${result.error.hint}`;
+  }
+  if (result.dryRun) {
+    return 'Dry run - no changes made';
+  }
+  if (result.changes.length === 0) {
+    return 'State is in sync';
+  }
+  return 'State synced with filesystem';
+}
 
 /**
  * Sync state with filesystem (absorbs reconcile.sh functionality)
@@ -22,7 +58,20 @@ export const sync = new Command('sync')
   .option('--trust-files', 'Filesystem wins on conflicts')
   .option('--trust-state', 'State file wins on conflicts')
   .action(
-    async (options: { dryRun?: boolean; trustFiles?: boolean; trustState?: boolean }) => {
+    async (options: {
+      dryRun?: boolean;
+      trustFiles?: boolean;
+      trustState?: boolean;
+    }) => {
+      // Initialize result for JSON output
+      const result: StateSyncOutput = {
+        status: 'success',
+        command: 'state sync',
+        dryRun: options.dryRun ?? false,
+        changes: [],
+        warnings: [],
+      };
+
       try {
         let state = await readState();
         let hasChanges = false;
@@ -30,14 +79,28 @@ export const sync = new Command('sync')
 
         // Ensure project is registered in central registry
         if (!isRegistered(state.project.id)) {
-          registerProject(state.project.id, state.project.name, projectPath);
-          info('Registered project in dashboard');
-          hasChanges = true;
+          if (!options.dryRun) {
+            registerProject(state.project.id, state.project.name, projectPath);
+            hasChanges = true;
+          }
+          result.changes.push({
+            type: 'registered',
+            description: options.dryRun
+              ? 'Would register project in dashboard'
+              : 'Registered project in dashboard',
+          });
+          info(
+            options.dryRun
+              ? 'Would register project in dashboard'
+              : 'Registered project in dashboard',
+          );
         }
 
         // Check ROADMAP exists
         const roadmapPath = getRoadmapPath();
         if (!pathExists(roadmapPath)) {
+          result.warnings.push('ROADMAP.md not found');
+          result.status = 'warning';
           warn('ROADMAP.md not found');
         }
 
@@ -50,7 +113,7 @@ export const sync = new Command('sync')
           // ROADMAP not available - skip history sync
           roadmap = null;
         }
-        const completedPhases = roadmap?.phases.filter(p => p.status === 'complete') ?? [];
+        const completedPhases = roadmap?.phases.filter((p) => p.status === 'complete') ?? [];
 
         // Get existing history phase numbers
         interface HistoryEntry {
@@ -64,15 +127,11 @@ export const sync = new Command('sync')
         }
         const existingHistory = (state.actions?.history as HistoryEntry[]) ?? [];
         const existingPhaseNumbers = new Set(
-          existingHistory
-            .filter((h) => h.type === 'phase_completed')
-            .map((h) => h.phase_number),
+          existingHistory.filter((h) => h.type === 'phase_completed').map((h) => h.phase_number),
         );
 
         // Find missing phases
-        const missingPhases = completedPhases.filter(
-          (p) => !existingPhaseNumbers.has(p.number),
-        );
+        const missingPhases = completedPhases.filter((p) => !existingPhaseNumbers.has(p.number));
 
         if (missingPhases.length > 0) {
           info(`Found ${missingPhases.length} completed phases missing from history`);
@@ -94,28 +153,43 @@ export const sync = new Command('sync')
             hasChanges = true;
 
             for (const p of missingPhases) {
+              result.changes.push({
+                type: 'history_added',
+                description: `Added: ${p.number} - ${p.name}`,
+                details: { phaseNumber: p.number, phaseName: p.name },
+              });
               info(`  Added: ${p.number} - ${p.name}`);
             }
           } else {
             for (const p of missingPhases) {
+              result.changes.push({
+                type: 'history_added',
+                description: `Would add: ${p.number} - ${p.name}`,
+                details: { phaseNumber: p.number, phaseName: p.name },
+              });
               info(`  Would add: ${p.number} - ${p.name}`);
             }
           }
         }
 
         if (options.dryRun) {
-          info('Dry run - no changes made');
+          output(result, formatHumanReadable(result));
           return;
         }
 
         if (hasChanges) {
           await writeState(state, projectRoot);
-          success('State synced with filesystem');
-        } else {
-          info('State is in sync');
         }
+
+        output(result, formatHumanReadable(result));
       } catch (err) {
-        handleError(err);
+        result.status = 'error';
+        result.error = {
+          message: err instanceof Error ? err.message : 'Unknown error',
+          hint: 'Check the error message for details',
+        };
+        output(result, `Error: ${result.error.message}\nHint: ${result.error.hint}`);
+        process.exitCode = 1;
       }
     },
   );

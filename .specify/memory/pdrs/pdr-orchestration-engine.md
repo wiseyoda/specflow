@@ -105,7 +105,10 @@
 - **Must**: Keep each Claude session under 200k context to avoid compaction/quality loss
 - **Should**: Show real-time progress during active steps
 - **Should**: Persist state across page refreshes and reconnections
-- **Must Not**: Require users to keep browser tab open for workflow to progress (questions should queue)
+- **Must Not**: Require users to keep browser tab open for workflow to progress
+- **Must**: Continue executing current step even if browser is closed; queue results for later viewing
+- **Should**: Show toast notification when questions need answers (if dashboard is open)
+- **Should**: Provide clear visual indicator on project cards when questions are pending
 
 ---
 
@@ -130,9 +133,9 @@
 
 ## Open Questions
 
-- [ ] How should we handle browser/tab closure during active step? (Pause workflow? Continue and queue?)
-- [ ] Should implement sub-tasks show individual progress bars or just overall progress?
-- [ ] What's the right UX for reviewing/approving queued questions? (Modal? Dedicated panel? Notification?)
+- [x] How should we handle browser/tab closure during active step? → **Answer**: Continue running on server until step completes, queue results. User can close browser and check status when they return. Server process persists independently of browser connection.
+- [x] Should implement sub-tasks show individual progress bars or just overall progress? → **Answer**: Overall progress only. Users care about total tasks completed, not internal step boundaries. Single progress indicator showing X/Y tasks complete.
+- [x] What's the right UX for reviewing/approving queued questions? → **Answer**: Toast notification when dashboard is open + icon indicator on project list/detail views. Clicking icon opens dedicated drawer/panel for answering questions with context.
 - [x] Should this use Agent SDK or CLI? → **Answer**: CLI with stream-json (local execution, no API key management)
 - [x] How to split implement phase? → **Answer**: By logical task groups as defined in tasks.md phases
 
@@ -141,14 +144,17 @@
 ## Acceptance Criteria
 
 1. [ ] User can start orchestration workflow for any project from dashboard
-2. [ ] Dashboard shows current step, progress within step, and step history
+2. [ ] Dashboard shows current step and overall task progress (X/Y tasks complete)
 3. [ ] When Claude asks a question, it appears in a queue; workflow pauses until answered
-4. [ ] User can answer queued questions through dashboard UI
-5. [ ] User can run workflows on 2+ projects simultaneously
-6. [ ] Failed steps show error context and can be retried
-7. [ ] After workflow completes, user can see summary of changes, decisions, and outputs
-8. [ ] Existing CLI workflow (`/speckit.orchestrate`) continues to work unchanged
-9. [ ] Each workflow step stays under 200k context (no compaction)
+4. [ ] User can answer queued questions through a dedicated drawer/panel UI
+5. [ ] Project cards show visual indicator when questions are pending
+6. [ ] Toast notification appears when new questions arrive (if dashboard is open)
+7. [ ] Workflow continues running if user closes browser; results queue for later viewing
+8. [ ] User can run workflows on 2+ projects simultaneously
+9. [ ] Failed steps show error context and can be retried
+10. [ ] After workflow completes, user can see summary of changes, decisions, and outputs
+11. [ ] Existing CLI workflow (`/speckit.orchestrate`) continues to work unchanged
+12. [ ] Each workflow step stays under 200k context (no compaction)
 
 ---
 

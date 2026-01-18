@@ -1,69 +1,139 @@
 import { Command } from 'commander';
 import { z } from 'zod';
-import { readState, writeState, setStateValue, parseValue } from '../../lib/state.js';
-import { success } from '../../lib/output.js';
+import {
+  readState,
+  writeState,
+  setStateValue,
+  getStateValue,
+  parseValue,
+} from '../../lib/state.js';
+import { output, success } from '../../lib/output.js';
 import { handleError, ValidationError } from '../../lib/errors.js';
 
 /**
+ * Output structure for a single state set operation
+ */
+interface StateSetItem {
+  key: string;
+  value: unknown;
+  previousValue?: unknown;
+}
+
+/**
+ * Output structure for state set command with --json flag
+ */
+export interface StateSetOutput {
+  status: 'success' | 'error';
+  command: 'state set';
+  updates: StateSetItem[];
+  error?: { message: string; hint: string };
+}
+
+/**
  * Zod schema for state key validation
- * Keys must be dot-separated alphanumeric identifiers
+ * Keys must be dot-separated segments where each segment is either:
+ * - An identifier (starts with letter/underscore, followed by alphanumerics)
+ * - A numeric key (e.g., phase numbers like "0082")
  */
 const stateKeySchema = z
   .string()
   .min(1, 'Key cannot be empty')
   .max(256, 'Key too long (max 256 characters)')
   .regex(
-    /^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/,
-    'Key must be dot-separated identifiers (e.g., orchestration.step.current)',
+    /^([a-zA-Z_][a-zA-Z0-9_]*|[0-9]+)(\.([a-zA-Z_][a-zA-Z0-9_]*|[0-9]+))*$/,
+    'Key must be dot-separated identifiers (e.g., orchestration.step.current, memory.archive_reviews.0082)',
   );
 
 /**
- * Set a value in state using key=value format
+ * Set one or more values in state using key=value format
  *
  * Examples:
  *   specflow state set orchestration.step.current=implement
- *   specflow state set orchestration.phase.status=in_progress
- *   specflow state set health.status=ready
+ *   specflow state set orchestration.step.current=analyze orchestration.step.index=1 orchestration.step.status=in_progress
  */
+
+/**
+ * Format human-readable output for state set command
+ */
+function formatHumanReadable(result: StateSetOutput): string {
+  if (result.status === 'error' && result.error) {
+    return `Error: ${result.error.message}\nHint: ${result.error.hint}`;
+  }
+  return result.updates.map((u) => `Set ${u.key} = ${JSON.stringify(u.value)}`).join('\n');
+}
+
 export const set = new Command('set')
-  .description('Set a value in state')
-  .argument('<keyvalue>', 'Key=value pair (e.g., orchestration.step.current=implement)')
-  .option('--quiet', 'Suppress output')
-  .action(async (keyvalue: string, options: { quiet?: boolean }) => {
+  .description('Set one or more values in state')
+  .argument('<keyvalues...>', 'Key=value pairs (e.g., orchestration.step.current=implement)')
+  .action(async (keyvalues: string[]) => {
+    // Initialize result for JSON output
+    const result: StateSetOutput = {
+      status: 'error',
+      command: 'state set',
+      updates: [],
+    };
+
     try {
-      // Parse key=value
-      const eqIndex = keyvalue.indexOf('=');
-      if (eqIndex === -1) {
-        throw new ValidationError(
-          'Invalid format. Expected key=value',
-          'Use format: specflow state set orchestration.step.current=implement',
-        );
+      // Parse and validate all key=value pairs first
+      const parsedPairs: { key: string; value: unknown }[] = [];
+
+      for (const keyvalue of keyvalues) {
+        const eqIndex = keyvalue.indexOf('=');
+        if (eqIndex === -1) {
+          result.error = {
+            message: `Invalid format for "${keyvalue}". Expected key=value`,
+            hint: 'Use format: specflow state set orchestration.step.current=implement',
+          };
+          // output() handles JSON vs text based on global --json flag
+          output(result, `Error: ${result.error.message}\nHint: ${result.error.hint}`);
+          process.exitCode = 1;
+          return;
+        }
+
+        const key = keyvalue.slice(0, eqIndex);
+        const valueStr = keyvalue.slice(eqIndex + 1);
+
+        // Validate key format with Zod
+        const keyResult = stateKeySchema.safeParse(key);
+        if (!keyResult.success) {
+          result.error = {
+            message: keyResult.error.issues[0]?.message ?? `Invalid key format for "${key}"`,
+            hint: 'Use format: orchestration.step.current',
+          };
+          output(result, `Error: ${result.error.message}\nHint: ${result.error.hint}`);
+          process.exitCode = 1;
+          return;
+        }
+
+        // Parse value (handles JSON, numbers, booleans, strings)
+        const value = parseValue(valueStr);
+        parsedPairs.push({ key, value });
       }
 
-      const key = keyvalue.slice(0, eqIndex);
-      const valueStr = keyvalue.slice(eqIndex + 1);
+      // All pairs validated, now read state once and apply all updates
+      let state = await readState();
 
-      // Validate key format with Zod
-      const keyResult = stateKeySchema.safeParse(key);
-      if (!keyResult.success) {
-        throw new ValidationError(
-          keyResult.error.issues[0]?.message ?? 'Invalid key format',
-          'Use format: orchestration.step.current',
-        );
+      for (const { key, value } of parsedPairs) {
+        const previousValue = getStateValue(state, key);
+        result.updates.push({ key, value, previousValue });
+        state = setStateValue(state, key, value);
       }
 
-      // Parse value (handles JSON, numbers, booleans, strings)
-      const value = parseValue(valueStr);
+      // Write state once with all updates
+      await writeState(state);
 
-      // Read, update, write
-      const state = await readState();
-      const updatedState = setStateValue(state, key, value);
-      await writeState(updatedState);
+      // Success
+      result.status = 'success';
 
-      if (!options.quiet) {
-        success(`Set ${key} = ${JSON.stringify(value)}`);
-      }
+      // output() handles JSON vs text based on global --json and --quiet flags
+      output(result, formatHumanReadable(result));
     } catch (err) {
-      handleError(err);
+      // Handle unexpected errors
+      result.error = {
+        message: err instanceof Error ? err.message : 'Unknown error',
+        hint: 'Check the error message for details',
+      };
+      output(result, `Error: ${result.error.message}\nHint: ${result.error.hint}`);
+      process.exitCode = 1;
     }
   });

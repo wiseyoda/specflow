@@ -5,7 +5,7 @@
     "name": "specflow",
     "path": "/Users/ppatterson/dev/specflow"
   },
-  "last_updated": "2026-01-18T22:09:41.871Z",
+  "last_updated": "2026-01-18T23:16:29.542Z",
   "orchestration": {
     "phase": {
       "number": null,
@@ -14,8 +14,8 @@
       "status": "not_started"
     },
     "next_phase": {
-      "number": "1046",
-      "name": "Command JSON Output"
+      "number": "1047",
+      "name": "Workflow Decomposition: Design"
     },
     "step": {
       "current": "design",
@@ -24,16 +24,11 @@
     },
     "implement": null,
     "progress": {
-      "tasks_completed": "11",
-      "tasks_total": "53",
-      "percentage": "21"
+      "tasks_completed": 0,
+      "tasks_total": 13,
+      "percentage": 0
     },
-    "steps": {
-      "implement": {
-        "tasks_completed": 25,
-        "tasks_total": 25
-      }
-    }
+    "steps": {}
   },
   "health": {
     "status": "ready",
@@ -239,6 +234,15 @@
         "completed_at": "2026-01-18T22:09:41.870Z",
         "tasks_completed": "11",
         "tasks_total": "53"
+      },
+      {
+        "type": "phase_completed",
+        "phase_number": "1046",
+        "phase_name": "Command JSON Output",
+        "branch": "1046-command-json-output",
+        "completed_at": "2026-01-18T23:16:29.542Z",
+        "tasks_completed": 0,
+        "tasks_total": 13
       }
     ]
   },
@@ -417,7 +421,18 @@
           "typescript-cli-principle-iia"
         ],
         "result": "no_promotions"
+      },
+      "0082": {
+        "reviewed_at": "2026-01-18",
+        "promotions": [],
+        "skipped": [
+          "operational-phase-no-new-patterns"
+        ],
+        "result": "no_promotions"
       }
     }
-  }
+  },
+  "test": 789,
+  "debug": 999,
+  "foo": "bar"
 }

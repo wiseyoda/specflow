@@ -138,13 +138,44 @@ git branch -d "$CURRENT_BRANCH" 2>/dev/null || true
 
 Working directory is now clean on main.
 
-### 9. Done
+### 9. Archive Memory Integration
+
+Now that we're on main with a clean state, run memory archive review for the just-closed phase:
+
+**Check if archive exists:**
+```bash
+ARCHIVE_DIR=$(ls -d .specify/archive/${PHASE_NUMBER}-* 2>/dev/null | head -1)
+if [[ -n "$ARCHIVE_DIR" ]]; then
+  echo "Processing archive for phase $PHASE_NUMBER..."
+fi
+```
+
+**Run memory archive review:**
+If archive exists, execute `/flow.memory --archive $PHASE_NUMBER` inline. This will:
+- Scan the archived phase for promotable content
+- Present findings for user approval
+- Promote approved content to memory docs
+- Delete the archive after successful review
+
+If no promotable content is found, ask user whether to delete the archive or keep for manual review.
+
+After memory integration completes, commit any changes:
+```bash
+if ! git diff --quiet .specify/memory/ || ! git diff --quiet .specify/; then
+  git add .specify/memory/ .specify/
+  git commit -m "docs: integrate phase $PHASE_NUMBER learnings into memory"
+  git push origin main
+fi
+```
+
+### 10. Done
 
 ```text
 ✓ Closed phase $PHASE_NUMBER
 ✓ Committed changes
 ✓ Pushed and merged PR
 ✓ Switched to main (clean)
+✓ Integrated archive into memory
 
 Run /flow.orchestrate to start the next phase
 ```
@@ -158,6 +189,7 @@ Run /flow.orchestrate to start the next phase
 | Phase close fails | Show CLI error message |
 | Merge fails | "Check for merge conflicts or required reviews" |
 | gh not installed | Provide manual PR URL |
+| Memory integration fails | Log error but don't fail merge; user can run `/flow.memory --archive` manually |
 
 ## Context
 

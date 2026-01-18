@@ -145,6 +145,14 @@ describe('state parity tests', () => {
       const updated = setStateValue(state, 'orchestration.step.status', 'in_progress');
       expect(updated.orchestration.step.status).toBe('in_progress');
     });
+
+    it('should handle numeric keys in path (e.g., phase numbers)', () => {
+      const state = createInitialState('test', tempDir);
+
+      // Numeric keys are used for phase numbers in archive_reviews
+      const updated = setStateValue(state, 'memory.archive_reviews.0082.reviewed_at', '2026-01-18');
+      expect((updated as any).memory.archive_reviews['0082'].reviewed_at).toBe('2026-01-18');
+    });
   });
 
   describe('parseValue', () => {

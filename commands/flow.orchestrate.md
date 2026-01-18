@@ -11,8 +11,11 @@ description: Orchestrate the complete SpecFlow workflow from end to end with sta
 3. **NEVER skip steps** - Execute in order: design → analyze → implement → verify
 4. **ALWAYS verify step completion** before advancing to next step
 5. **ALWAYS use the SpecFlow CLI** for all state and task operations
+6. **NEVER STOP between steps** - This is a CONTINUOUS workflow. After completing each step, immediately continue to the next step. Only stop at USER GATEs or when all steps are complete.
 
 If you find yourself about to use the Edit tool on state files or tasks.md, STOP and use the CLI instead.
+
+**CONTINUOUS EXECUTION**: Orchestration runs design → analyze → implement → verify in ONE session. Do not stop to ask "should I continue?" or report intermediate completion. Keep going until you reach a USER GATE or finish verify.
 
 ## User Input
 
@@ -160,11 +163,14 @@ See `/flow.design` for full details.
 specflow check --gate design
 ```
 
-If gate passes, update state:
+If gate passes:
 
-```bash
-specflow state set orchestration.step.current=analyze orchestration.step.index=1 orchestration.step.status=in_progress
-```
+1. **Update todo list** with ANALYZE tasks (e.g., "Run cross-artifact analysis", "Fix consistency issues")
+2. **Update state**:
+   ```bash
+   specflow state set orchestration.step.current=analyze orchestration.step.index=1 orchestration.step.status=in_progress
+   ```
+3. **IMMEDIATELY continue to Section 3 (ANALYZE)** - DO NOT STOP
 
 ---
 
@@ -203,9 +209,12 @@ IF max iterations reached with issues remaining:
 **Verify before advancing:**
 - Analysis must complete with no critical issues
 
-```bash
-specflow state set orchestration.step.current=implement orchestration.step.index=2 orchestration.step.status=in_progress
-```
+1. **Update todo list** with IMPLEMENT tasks (e.g., "Execute tasks from tasks.md", "Run tests after each task")
+2. **Update state**:
+   ```bash
+   specflow state set orchestration.step.current=implement orchestration.step.index=2 orchestration.step.status=in_progress
+   ```
+3. **IMMEDIATELY continue to Section 4 (IMPLEMENT)** - DO NOT STOP
 
 ---
 
@@ -268,9 +277,12 @@ specflow check --gate implement
 
 If gate passes:
 
-```bash
-specflow state set orchestration.step.current=verify orchestration.step.index=3 orchestration.step.status=in_progress
-```
+1. **Update todo list** with VERIFY tasks (e.g., "Run verification checklists", "Check memory compliance")
+2. **Update state**:
+   ```bash
+   specflow state set orchestration.step.current=verify orchestration.step.index=3 orchestration.step.status=in_progress
+   ```
+3. **IMMEDIATELY continue to Section 5 (VERIFY)** - DO NOT STOP
 
 ---
 
@@ -362,6 +374,7 @@ Or run `/flow.merge --next-phase` to complete and start the next phase.
 2. **Minimal Interaction**: Use recommended options when no response. Batch questions. Auto-fix before asking.
 3. **Memory Compliance**: Pre-check against constitution.md. Auto-correct violations when possible.
 4. **Context Efficiency**: Use `specflow status --json` for all context. Save state after each action.
+5. **Todo List Continuity**: When transitioning between steps, ALWAYS update the TodoWrite list with tasks for the next step BEFORE marking current step complete. Never let the todo list become empty mid-workflow.
 
 ## Status Display
 

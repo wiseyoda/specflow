@@ -143,6 +143,13 @@ async function openExistingPhase(
   state = setStateValue(state, 'orchestration.step.current', 'design');
   state = setStateValue(state, 'orchestration.step.index', 0);
   state = setStateValue(state, 'orchestration.step.status', 'not_started');
+  // Reset step-specific data from previous phase
+  state = setStateValue(state, 'orchestration.steps', {});
+  state = setStateValue(state, 'orchestration.progress', {
+    tasks_completed: 0,
+    tasks_total: 0,
+    percentage: 0,
+  });
 
   await writeState(state, projectRoot);
 
@@ -215,6 +222,13 @@ async function createHotfixPhase(
   state = setStateValue(state, 'orchestration.step.current', 'design');
   state = setStateValue(state, 'orchestration.step.index', 0);
   state = setStateValue(state, 'orchestration.step.status', 'not_started');
+  // Reset step-specific data from previous phase
+  state = setStateValue(state, 'orchestration.steps', {});
+  state = setStateValue(state, 'orchestration.progress', {
+    tasks_completed: 0,
+    tasks_total: 0,
+    percentage: 0,
+  });
 
   await writeState(state, projectRoot);
 

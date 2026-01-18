@@ -3,6 +3,7 @@
 > Bash and TypeScript conventions, patterns, and anti-patterns for SpecFlow.
 
 **Last Updated**: 2026-01-18
+**Archive Review**: PDRs directory (P003 promoted)
 **Constitution Alignment**: Principles II (POSIX-Compliant Bash), IIa (TypeScript for CLI), IV (Simplicity)
 
 ---
@@ -407,3 +408,38 @@ describe('command', () => {
 - [ ] Human output follows Three-Line Rule
 - [ ] Tests use memfs for file system isolation
 - [ ] Zod schemas validate external data
+
+---
+
+## UI Design Documentation
+
+> Pattern for phases involving visual UI changes. Adopted from Phase 0050 (UX Simplification).
+
+### Detection Keywords
+
+Phases containing these keywords trigger automatic UI design artifact creation:
+
+`dashboard`, `form`, `button`, `screen`, `page`, `view`, `component`, `modal`, `dialog`, `panel`, `widget`, `layout`, `navigation`, `menu`, `sidebar`, `header`, `footer`, `table`, `list`, `tab`
+
+### Artifact Location
+
+- **File**: `specs/NNNN-name/ui-design.md`
+- **Created by**: `/flow.design` (step 2.5)
+- **Verified by**: `specflow check --gate implement`
+
+### Required Sections
+
+| Section | Purpose |
+|---------|---------|
+| Current State (Before) | Existing UI or "New feature - no existing UI" |
+| Proposed Design (After) | Description of proposed changes |
+| Visual Mockup | ASCII or Mermaid diagram |
+| Rationale | Why these design decisions were made |
+| Component Inventory | Table of UI elements (name, type, notes) |
+
+### Inline References
+
+When `spec.md` mentions UI elements, add cross-references:
+```markdown
+The dashboard shows project status (see [ui-design.md](ui-design.md#dashboard)).
+```

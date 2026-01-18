@@ -2,7 +2,7 @@
 
 > Core principles and governance for SpecFlow development. All implementation decisions must align with these principles.
 
-**Version**: 1.1.0
+**Version**: 1.2.0
 **Created**: 2026-01-10
 **Status**: ACTIVE
 
@@ -21,10 +21,18 @@ All features prioritize ease of use for developers working with Claude Code.
 - **Rationale**: If it's not easy to use, developers won't use it
 - **Implications**: Clear CLI output, helpful error messages, intuitive command structure
 
-### II. POSIX-Compliant Bash
-All scripts are written in POSIX-compliant bash, validated with shellcheck.
+### II. POSIX-Compliant Bash for Scripts
+Shell scripts in `scripts/bash/` are written in POSIX-compliant bash, validated with shellcheck.
 - **Rationale**: Portability across macOS and Linux, reliability
 - **Implications**: No bash-specific features without fallbacks, shellcheck validation in CI
+- **Scope**: Applies to `scripts/bash/*.sh` and `bin/` dispatcher scripts
+
+### IIa. TypeScript for CLI Packages
+CLI packages in `packages/cli/` are written in TypeScript with strict mode.
+- **Rationale**: Type safety, testability, shared types with dashboard, modern tooling
+- **Implications**: ESM modules, Zod validation, Commander.js patterns
+- **Scope**: Applies to `packages/cli/` and related monorepo packages
+- **Relationship to II**: TypeScript CLI coexists with bash scripts during transition; hybrid dispatcher routes appropriately
 
 ### III. CLI Over Direct Edits
 State and artifact changes go through CLI commands, not direct file edits.
@@ -91,5 +99,6 @@ To amend this constitution:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.2.0 | 2025-01-18 | Added Principle IIa: TypeScript for CLI Packages; clarified II scope |
 | 1.1.0 | 2026-01-10 | Added Principle VII: Three-Line Output Rule |
 | 1.0.0 | 2026-01-10 | Initial constitution for SpecFlow |

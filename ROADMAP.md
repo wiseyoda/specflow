@@ -42,7 +42,7 @@ This allows inserting urgent work without renumbering existing phases.
 | 0070 | Pre-Workflow Consolidation | ✅ Complete | 7 commands → 3, clear setup vs. utility separation |
 | 0072 | Workflow Consolidation | ✅ Complete | 11 commands → 6, single design command, inline clarify |
 | 0076 | Command Rebrand | ✅ Complete | Rename all `/specflow.*` → `/flow.*`, update all docs |
-| 0080 | CLI TypeScript Migration | 🔄 In Progress | 5 smart TypeScript commands, reduce CLI calls 80% |
+| 0080 | CLI TypeScript Migration | Complete | 5 smart TypeScript commands, reduce CLI calls 80% |
 | 1010 | Core UI Scaffold | ✅ Complete | **USER GATE**: Dashboard starts, shows projects, dark mode works |
 | 1020 | Real-Time File Watching | ✅ Complete | **USER GATE**: CLI changes reflect in UI within 2s |
 | 1030 | Project Detail Views | ✅ Complete | **USER GATE**: Kanban and Timeline views work |

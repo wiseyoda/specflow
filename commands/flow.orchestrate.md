@@ -12,6 +12,7 @@ description: Orchestrate the complete SpecFlow workflow from end to end with sta
 4. **ALWAYS verify step completion** before advancing to next step
 5. **ALWAYS use the SpecFlow CLI** for all state and task operations
 6. **NEVER STOP between steps** - This is a CONTINUOUS workflow. After completing each step, immediately continue to the next step. Only stop at USER GATEs or when all steps are complete.
+7. **Use `specflow` directly, NOT `npx specflow`** - The CLI is installed at `~/.claude/specflow-system/bin/specflow`, not an npm package.
 
 If you find yourself about to use the Edit tool on state files or tasks.md, STOP and use the CLI instead.
 

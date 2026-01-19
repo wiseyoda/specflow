@@ -12,6 +12,7 @@ handoffs:
 1. **NEVER edit tasks.md directly** to mark tasks complete - use `specflow mark T###`
 2. **NEVER edit `.specflow/orchestration-state.json` directly** - use `specflow state set`
 3. **TDD by default**: Write tests first, then implement (use `--no-tdd` to skip)
+4. **Use `specflow` directly, NOT `npx specflow`** - It's a local CLI, not an npm package
 
 ## User Input
 

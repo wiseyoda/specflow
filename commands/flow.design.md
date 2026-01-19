@@ -28,6 +28,8 @@ You **MUST** consider the user input before proceeding (if not empty).
 | `--tasks` | Cascade from tasks: tasks → checklists |
 | `--checklist` | Regenerate only checklists |
 
+**Note**: Use `specflow` directly, NOT `npx specflow`. It's a local CLI at `~/.claude/specflow-system/bin/`.
+
 ## Goal
 
 Produce all design artifacts for the current phase:

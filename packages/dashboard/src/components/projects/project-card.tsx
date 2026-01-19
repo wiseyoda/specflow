@@ -14,10 +14,13 @@ import {
   GitMerge
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
-import { ActionButton, StatusButton } from "@/components/projects/action-button"
+import { StatusButton } from "@/components/projects/action-button"
+import { ActionsMenu } from "@/components/projects/actions-menu"
+import { WorkflowStatusBadge, useWorkflowStatusFade } from "@/components/projects/workflow-status-badge"
 import { cn } from "@/lib/utils"
 import type { OrchestrationState, TasksData } from "@specflow/shared"
 import type { ProjectStatus as ActionProjectStatus } from "@/lib/action-definitions"
+import type { WorkflowExecution } from "@/lib/services/workflow-service"
 
 /**
  * Project initialization status
@@ -44,6 +47,10 @@ interface ProjectCardProps {
   tasks?: TasksData | null
   isUnavailable?: boolean
   isDiscovered?: boolean
+  /** Active workflow execution for this project */
+  workflowExecution?: WorkflowExecution | null
+  /** Callback to start a workflow */
+  onWorkflowStart?: (skill: string) => Promise<void>
 }
 
 /**
@@ -231,7 +238,7 @@ function getStatusBadge(status: ProjectStatus): {
   }
 }
 
-export function ProjectCard({ project, state, tasks, isUnavailable = false, isDiscovered = false }: ProjectCardProps) {
+export function ProjectCard({ project, state, tasks, isUnavailable = false, isDiscovered = false, workflowExecution, onWorkflowStart }: ProjectCardProps) {
   const phase = state?.orchestration?.phase
   const nextPhase = state?.orchestration?.next_phase
   const step = state?.orchestration?.step
@@ -243,6 +250,15 @@ export function ProjectCard({ project, state, tasks, isUnavailable = false, isDi
 
   const isActive = isRecentActivity(lastUpdated)
   const phaseComplete = isPhaseComplete(phase?.status)
+
+  // Workflow status handling
+  const workflowStatus = workflowExecution?.status
+  const { isFading, isHidden } = useWorkflowStatusFade(
+    workflowStatus,
+    workflowExecution?.updatedAt
+  )
+  const showWorkflowBadge = workflowStatus && !isHidden
+  const hasActiveWorkflow = workflowStatus === 'running' || workflowStatus === 'waiting_for_input'
 
   // Health status
   const hasHealthWarning = health?.status === "warning"
@@ -289,6 +305,15 @@ export function ProjectCard({ project, state, tasks, isUnavailable = false, isDi
                 <h3 className="font-medium text-neutral-900 dark:text-neutral-100 truncate">
                   {project.name}
                 </h3>
+                {/* Workflow status badge */}
+                {showWorkflowBadge && (
+                  <WorkflowStatusBadge
+                    status={workflowStatus}
+                    showLabel={false}
+                    size="sm"
+                    isFading={isFading}
+                  />
+                )}
                 {isUnavailable && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 rounded">
                     <AlertCircle className="h-3 w-3" />
@@ -425,13 +450,18 @@ export function ProjectCard({ project, state, tasks, isUnavailable = false, isDi
                 projectStatus={projectStatus as ActionProjectStatus}
                 isAvailable={!isUnavailable}
               />
-              <ActionButton
-                projectId={project.id}
-                projectPath={project.path}
-                projectStatus={projectStatus as ActionProjectStatus}
-                isAvailable={!isUnavailable}
-                schemaVersion={state?.schema_version}
-              />
+              <div onClick={(e) => e.preventDefault()}>
+                <ActionsMenu
+                  projectId={project.id}
+                  projectName={project.name}
+                  projectPath={project.path}
+                  projectStatus={projectStatus as ActionProjectStatus}
+                  schemaVersion={state?.schema_version}
+                  isAvailable={!isUnavailable}
+                  hasActiveWorkflow={hasActiveWorkflow}
+                  onWorkflowStart={onWorkflowStart}
+                />
+              </div>
               <ChevronRight className="h-5 w-5 text-neutral-400" />
             </div>
           </div>

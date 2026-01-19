@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { MainLayout } from "@/components/layout/main-layout"
 import { ProjectDetailHeader } from "@/components/projects/project-detail-header"
@@ -11,9 +11,12 @@ import { TimelineView } from "@/components/projects/timeline-view"
 import { useConnection } from "@/contexts/connection-context"
 import { useProjects } from "@/hooks/use-projects"
 import { useViewPreference } from "@/hooks/use-view-preference"
+import { useWorkflowExecution } from "@/hooks/use-workflow-execution"
 import { AlertCircle } from "lucide-react"
+import { toastWorkflowCancelled, toastWorkflowError } from "@/lib/toast-helpers"
 import type { ProjectStatus } from "@/lib/action-definitions"
 import type { OrchestrationState } from "@specflow/shared"
+import type { WorkflowSkill } from "@/lib/workflow-skills"
 
 /**
  * Determine project status from orchestration state
@@ -36,6 +39,15 @@ export default function ProjectDetailPage() {
   const { projects, loading: projectsLoading } = useProjects()
   const [activeView, setActiveView] = useViewPreference(projectId)
 
+  // Workflow execution state
+  const {
+    execution: workflowExecution,
+    start: startWorkflow,
+    cancel: cancelWorkflow,
+  } = useWorkflowExecution(projectId)
+  const [isStartingWorkflow, setIsStartingWorkflow] = useState(false)
+  const [isCancellingWorkflow, setIsCancellingWorkflow] = useState(false)
+
   // Find project in list
   const project = projects.find((p) => p.id === projectId)
 
@@ -55,6 +67,33 @@ export default function ProjectDetailPage() {
 
   // Derive project status for actions menu (must be before early returns)
   const projectStatus = useMemo(() => getProjectStatus(state), [state])
+
+  // Workflow handlers
+  const handleWorkflowStart = useCallback(async (skill: string) => {
+    setIsStartingWorkflow(true)
+    try {
+      await startWorkflow(skill)
+    } finally {
+      setIsStartingWorkflow(false)
+    }
+  }, [startWorkflow])
+
+  const handleWorkflowCancel = useCallback(async () => {
+    setIsCancellingWorkflow(true)
+    try {
+      await cancelWorkflow()
+      toastWorkflowCancelled()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      toastWorkflowError(message)
+    } finally {
+      setIsCancellingWorkflow(false)
+    }
+  }, [cancelWorkflow])
+
+  const handleWorkflowStartFromCard = useCallback((skill: WorkflowSkill) => {
+    handleWorkflowStart(skill.command)
+  }, [handleWorkflowStart])
 
   // Loading state
   if (projectsLoading) {
@@ -125,13 +164,25 @@ export default function ProjectDetailPage() {
           projectStatus={projectStatus}
           schemaVersion={state?.schema_version}
           isAvailable={!project.isUnavailable}
+          workflowExecution={workflowExecution}
+          isStartingWorkflow={isStartingWorkflow}
+          onWorkflowStart={handleWorkflowStart}
         />
 
         <ViewTabs activeView={activeView} onViewChange={setActiveView} />
 
         <div className="flex-1 overflow-auto p-6">
           {activeView === "status" && (
-            <StatusView project={project} state={state} tasksData={projectTasks} />
+            <StatusView
+              project={project}
+              state={state}
+              tasksData={projectTasks}
+              workflowExecution={workflowExecution}
+              isStartingWorkflow={isStartingWorkflow}
+              isCancellingWorkflow={isCancellingWorkflow}
+              onWorkflowStart={handleWorkflowStartFromCard}
+              onWorkflowCancel={handleWorkflowCancel}
+            />
           )}
           {activeView === "kanban" && (
             <KanbanView tasksData={projectTasks} state={state} />

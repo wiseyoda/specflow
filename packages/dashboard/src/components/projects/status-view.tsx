@@ -2,7 +2,10 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Activity, CheckCircle2, AlertTriangle, XCircle, Clock, FileText, FolderOpen, AlertCircle, Loader2 } from "lucide-react"
+import { WorkflowStatusCard } from "@/components/projects/workflow-status-card"
 import type { OrchestrationState, TasksData } from "@specflow/shared"
+import type { WorkflowExecution } from "@/lib/services/workflow-service"
+import type { WorkflowSkill } from "@/lib/workflow-skills"
 
 // Staleness thresholds in minutes
 const STALE_THRESHOLD_MINUTES = 5
@@ -19,9 +22,28 @@ interface StatusViewProps {
   project: Project
   state?: OrchestrationState | null
   tasksData?: TasksData | null
+  /** Active workflow execution */
+  workflowExecution?: WorkflowExecution | null
+  /** Whether a workflow is being started */
+  isStartingWorkflow?: boolean
+  /** Whether a workflow is being cancelled */
+  isCancellingWorkflow?: boolean
+  /** Callback to start a workflow */
+  onWorkflowStart?: (skill: WorkflowSkill) => void
+  /** Callback to cancel the workflow */
+  onWorkflowCancel?: () => void
 }
 
-export function StatusView({ project, state, tasksData }: StatusViewProps) {
+export function StatusView({
+  project,
+  state,
+  tasksData,
+  workflowExecution,
+  isStartingWorkflow,
+  isCancellingWorkflow,
+  onWorkflowStart,
+  onWorkflowCancel,
+}: StatusViewProps) {
   if (!state) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -120,6 +142,15 @@ export function StatusView({ project, state, tasksData }: StatusViewProps) {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Workflow Status Card */}
+      <WorkflowStatusCard
+        execution={workflowExecution ?? null}
+        isStarting={isStartingWorkflow}
+        isCancelling={isCancellingWorkflow}
+        onStart={onWorkflowStart}
+        onCancel={onWorkflowCancel}
+      />
+
       {/* Phase Card */}
       <Card>
         <CardHeader className="pb-2">

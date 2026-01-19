@@ -9,6 +9,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { WorkflowSkillPicker } from '@/components/projects/workflow-skill-picker';
+import { StartWorkflowDialog } from '@/components/projects/start-workflow-dialog';
+import type { WorkflowSkill } from '@/lib/workflow-skills';
 import { Button } from '@/components/ui/button';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { CommandOutputModal } from '@/components/projects/command-output-modal';
@@ -25,10 +28,17 @@ import {
   type ProjectStatus,
   getActionsByGroup,
 } from '@/lib/action-definitions';
+import {
+  toastWorkflowStarted,
+  toastWorkflowError,
+  toastWorkflowAlreadyRunning,
+} from '@/lib/toast-helpers';
 
 export interface ActionsMenuProps {
   /** Project ID (UUID) */
   projectId: string;
+  /** Project display name */
+  projectName: string;
   /** Absolute path to project */
   projectPath: string;
   /** Current project status */
@@ -37,10 +47,14 @@ export interface ActionsMenuProps {
   schemaVersion?: string;
   /** Whether the project path is accessible */
   isAvailable: boolean;
+  /** Whether a workflow is currently running */
+  hasActiveWorkflow?: boolean;
   /** Callback when execution starts */
   onExecutionStart?: () => void;
   /** Callback when execution completes */
   onExecutionComplete?: (success: boolean) => void;
+  /** Callback when workflow is started */
+  onWorkflowStart?: (skill: string) => Promise<void>;
 }
 
 const GROUP_LABELS: Record<string, { label: string; icon: typeof Play }> = {
@@ -51,12 +65,15 @@ const GROUP_LABELS: Record<string, { label: string; icon: typeof Play }> = {
 
 export function ActionsMenu({
   projectId,
+  projectName,
   projectPath,
   projectStatus,
   schemaVersion,
   isAvailable,
+  hasActiveWorkflow = false,
   onExecutionStart,
   onExecutionComplete,
+  onWorkflowStart,
 }: ActionsMenuProps) {
   const [isExecuting, setIsExecuting] = React.useState(false);
   const [executionId, setExecutionId] = React.useState<string | null>(null);
@@ -65,6 +82,11 @@ export function ActionsMenu({
   const [currentAction, setCurrentAction] =
     React.useState<ActionDefinition | null>(null);
   const [isOpen, setIsOpen] = React.useState(false);
+
+  // Workflow state
+  const [selectedSkill, setSelectedSkill] = React.useState<WorkflowSkill | null>(null);
+  const [showWorkflowDialog, setShowWorkflowDialog] = React.useState(false);
+  const [isStartingWorkflow, setIsStartingWorkflow] = React.useState(false);
 
   // Get actions grouped by category
   const actionsByGroup = React.useMemo(
@@ -141,6 +163,42 @@ export function ActionsMenu({
     }
   };
 
+  // Workflow handlers
+  const handleSkillSelect = (skill: WorkflowSkill) => {
+    setSelectedSkill(skill);
+    setIsOpen(false);
+    setShowWorkflowDialog(true);
+  };
+
+  const handleWorkflowConfirm = async () => {
+    if (!selectedSkill || !onWorkflowStart) return;
+
+    setIsStartingWorkflow(true);
+    try {
+      await onWorkflowStart(selectedSkill.command);
+      toastWorkflowStarted(selectedSkill.command);
+      setShowWorkflowDialog(false);
+      setSelectedSkill(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      if (message.includes('already running')) {
+        toastWorkflowAlreadyRunning();
+      } else {
+        toastWorkflowError(message);
+      }
+      console.error('Failed to start workflow:', error);
+    } finally {
+      setIsStartingWorkflow(false);
+    }
+  };
+
+  const handleWorkflowDialogClose = (open: boolean) => {
+    if (!open && !isStartingWorkflow) {
+      setShowWorkflowDialog(false);
+      setSelectedSkill(null);
+    }
+  };
+
   return (
     <>
       <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
@@ -157,6 +215,17 @@ export function ActionsMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
+          {/* Workflow skill picker at top */}
+          {projectStatus === 'ready' && onWorkflowStart && (
+            <>
+              <WorkflowSkillPicker
+                onSelectSkill={handleSkillSelect}
+                disabled={hasActiveWorkflow || isExecuting}
+              />
+              <DropdownMenuSeparator />
+            </>
+          )}
+
           {Object.entries(actionsByGroup).map(([group, actions], groupIndex) => {
             if (actions.length === 0) return null;
 
@@ -216,6 +285,16 @@ export function ActionsMenu({
           />
         </>
       )}
+
+      {/* Workflow start dialog */}
+      <StartWorkflowDialog
+        open={showWorkflowDialog}
+        onOpenChange={handleWorkflowDialogClose}
+        skill={selectedSkill}
+        projectName={projectName}
+        onConfirm={handleWorkflowConfirm}
+        isLoading={isStartingWorkflow}
+      />
     </>
   );
 }

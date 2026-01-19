@@ -4,7 +4,6 @@ handoffs:
   - label: Verify Completion
     agent: flow.verify
     prompt: Verify the implementation is complete and update ROADMAP.md
-    send: true
 ---
 
 ## Critical Rules

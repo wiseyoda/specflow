@@ -4,7 +4,6 @@ handoffs:
   - label: Analyze Artifacts
     agent: specflow.analyze
     prompt: Run consistency analysis on all artifacts
-    send: true
   - label: Continue Development
     agent: specflow.orchestrate
     prompt: Resume development workflow

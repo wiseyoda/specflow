@@ -167,7 +167,7 @@
 - **Confidence**: High
 - **Context**: Rebrand from SpecKit to SpecFlow (Phase 0076)
 - **Decision**: All slash commands use `/flow.*` prefix (e.g., /flow.orchestrate, /flow.design)
-- **Alternatives**: /speckit.* rejected (old brand); no prefix rejected (conflicts with other tools)
+- **Alternatives**: /flow.* rejected (old brand); no prefix rejected (conflicts with other tools)
 - **Consequences**: 10 slash commands total, clean break from old naming, no deprecation stubs
 - **Memory Doc Impact**: glossary.md
 

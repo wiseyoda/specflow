@@ -67,6 +67,15 @@ From FEATURE_DIR read:
 
 Use TodoWrite: mark [IMPL] INITIALIZE complete, mark [IMPL] EXECUTE in_progress.
 
+**Populate todo list from section headers (use TodoWrite):**
+
+Create a todo item for each section header in tasks.md (not individual tasks):
+- Example sections: "## 1. Project Setup", "## 2. Core Implementation", "## 3. API Endpoints"
+- Todo content: "1. Project Setup (T001-T005)" with task range
+- Mark the first section as `in_progress`, others as `pending`
+
+This gives users visibility into progress without overwhelming them with 100+ items.
+
 ### 3. Project Setup
 
 Verify ignore files exist based on stack from plan.md:
@@ -108,11 +117,13 @@ Parse response:
    REFACTOR: Clean up while keeping tests green
    ```
 
-2. **Mark complete and get next:**
+2. **Mark complete:**
    ```bash
    specflow mark T###
    ```
    Response includes updated progress and next task.
+
+   Use TodoWrite: when moving to a new section, mark the previous section `completed` and the new section `in_progress`.
 
 3. **Continue loop** until `action: none`
 

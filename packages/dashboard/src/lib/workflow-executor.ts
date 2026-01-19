@@ -328,8 +328,8 @@ class WorkflowExecutor {
 
     const isTestMode = execution.skill === 'test';
 
-    // Create .specify directory in project
-    const specifyDir = join(execution.projectPath, '.specify');
+    // Create .specflow directory in project for workflow files
+    const specifyDir = join(execution.projectPath, '.specflow');
     mkdirSync(specifyDir, { recursive: true });
 
     const scriptFile = join(specifyDir, 'run-workflow.sh');

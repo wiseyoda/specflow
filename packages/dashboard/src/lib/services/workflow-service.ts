@@ -400,6 +400,76 @@ interface ClaudeCliResult {
 const runningProcesses = new Map<string, ChildProcess>();
 
 // =============================================================================
+// Session Detection from Claude's sessions-index.json
+// =============================================================================
+
+interface SessionIndexEntry {
+  sessionId: string;
+  fullPath: string;
+  fileMtime: number;
+  created: string;
+  modified: string;
+  messageCount: number;
+  projectPath: string;
+}
+
+interface SessionIndex {
+  version: number;
+  entries: SessionIndexEntry[];
+}
+
+/**
+ * Calculate the Claude project directory name (path with slashes replaced by dashes)
+ */
+function calculateProjectHash(projectPath: string): string {
+  return projectPath.replace(/\//g, '-');
+}
+
+/**
+ * Find a session created after the given timestamp from sessions-index.json
+ * Waits 1s initially for CLI to start, then polls up to 10 times with 500ms intervals
+ */
+async function findNewSession(
+  projectPath: string,
+  afterTimestamp: number
+): Promise<string | null> {
+  const homeDir = process.env.HOME || '';
+  const hash = calculateProjectHash(projectPath);
+  const indexPath = join(homeDir, '.claude', 'projects', hash, 'sessions-index.json');
+
+  const initialDelay = 1000; // Wait 1s for CLI to start
+  const maxAttempts = 10;
+  const pollInterval = 500; // ms
+
+  // Initial delay to give CLI time to start and create session
+  await new Promise((resolve) => setTimeout(resolve, initialDelay));
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      if (existsSync(indexPath)) {
+        const content = readFileSync(indexPath, 'utf-8');
+        const index: SessionIndex = JSON.parse(content);
+
+        // Find a session created after our timestamp
+        for (const entry of index.entries) {
+          const createTime = new Date(entry.created).getTime();
+          if (createTime > afterTimestamp) {
+            return entry.sessionId;
+          }
+        }
+      }
+    } catch {
+      // Ignore errors, keep polling
+    }
+
+    // Wait before next attempt
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+
+  return null;
+}
+
+// =============================================================================
 // Workflow Service Class
 // =============================================================================
 
@@ -420,6 +490,7 @@ class WorkflowService {
 
     const id = randomUUID();
     const now = new Date().toISOString();
+    const startTimestamp = Date.now();
 
     const execution: WorkflowExecution = {
       id,
@@ -450,6 +521,19 @@ class WorkflowService {
         exec.updatedAt = new Date().toISOString();
         exec.logs.push(`[ERROR] ${err.message}`);
         saveExecution(exec);
+      }
+    });
+
+    // Detect session ID from sessions-index.json (async, updates execution when found)
+    findNewSession(projectPath, startTimestamp).then((sessionId) => {
+      if (sessionId) {
+        const exec = loadExecution(id);
+        if (exec && !exec.sessionId) {
+          exec.sessionId = sessionId;
+          exec.updatedAt = new Date().toISOString();
+          exec.logs.push(`[SESSION] Detected: ${sessionId}`);
+          saveExecution(exec);
+        }
       }
     });
 

@@ -56,7 +56,8 @@ This allows inserting urgent work without renumbering existing phases.
 | 1048 | Workflow Foundation | ✅ Complete | **USER GATE**: Start workflow for registered project via API |
 | 1050 | Workflow UI | ✅ Complete | **USER GATE**: Start from card/detail, see status badges |
 | 1051 | Questions & Notifications | ✅ Complete | **USER GATE**: Browser notification, question drawer |
-| 1052  | Session Viewer                    | ⬜ Not Started | **USER GATE**: View session JSONL, real-time streaming             |
+| 1052 | Session Viewer | ✅ Complete | **USER GATE**: View session JSONL, real-time streaming |
+| 1053 | Workflow-Session Unification | ⬜ Not Started | **USER GATE**: Session detected immediately on workflow start |
 | 1055  | Smart Batching & Orchestration    | ⬜ Not Started | **USER GATE**: Auto-batch tasks, state machine, auto-healing       |
 | 1060  | Stats & Operations                | ⬜ Not Started | **USER GATE**: Costs on cards, operations page, basic chart        |
 | 1070  | Cost Analytics                    | ⬜ Not Started | **USER GATE**: Advanced charts, projections, export                |
@@ -103,6 +104,7 @@ specflow phase list --complete
 | **Gate 5.5** | 1050  | Start workflow from card/detail, skill picker, status badges update   |
 | **Gate 6**   | 1051  | Browser notification appears, question drawer works, follow-up works  |
 | **Gate 6.5** | 1052  | Session viewer shows JSONL messages, real-time streaming works        |
+| **Gate 6.6** | 1053  | Session detected immediately when workflow starts, history viewable   |
 | **Gate 7**   | 1055  | Auto-batching works, state machine transitions, auto-healing attempts |
 | **Gate 8**   | 1060  | Costs on cards, session history, basic chart, operations page         |
 | **Gate 9**   | 1070  | Advanced charts, projections, CSV/JSON export                         |

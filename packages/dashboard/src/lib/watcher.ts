@@ -11,6 +11,11 @@ import {
   type TasksData,
 } from '@specflow/shared';
 import { parseTasks, type ParseTasksOptions } from './task-parser';
+import {
+  getStateFilePath,
+  getStateFilePathSync,
+  migrateStateFiles,
+} from './state-paths';
 
 // Debounce delay in milliseconds
 const DEBOUNCE_MS = 200;
@@ -180,7 +185,7 @@ async function handleTasksChange(projectId: string, tasksPath: string): Promise<
   if (currentRegistry) {
     const project = currentRegistry.projects[projectId];
     if (project) {
-      const statePath = path.join(project.path, '.specify', 'orchestration-state.json');
+      const statePath = await getStateFilePath(project.path);
       const state = await readState(projectId, statePath);
       currentTasks = state?.orchestration?.implement?.current_tasks as string[] | undefined;
     }
@@ -251,7 +256,10 @@ async function updateWatchedPaths(registry: Registry): Promise<void> {
 
   // Get state and tasks file paths for all projects
   for (const [projectId, project] of Object.entries(registry.projects)) {
-    const statePath = path.join(project.path, '.specify', 'orchestration-state.json');
+    // Auto-migrate state files from .specify/ to .specflow/ if needed
+    await migrateStateFiles(project.path);
+
+    const statePath = await getStateFilePath(project.path);
     newStatePaths.add(statePath);
 
     // Add new state paths to watcher
@@ -332,9 +340,11 @@ function getProjectInfoForPath(filePath: string): { projectId: string; fileType:
   if (!currentRegistry) return null;
 
   for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
-    const statePath = path.join(project.path, '.specify', 'orchestration-state.json');
+    // Check both v3 (.specflow/) and v2 (.specify/) paths for state file
+    const statePathV3 = path.join(project.path, '.specflow', 'orchestration-state.json');
+    const statePathV2 = path.join(project.path, '.specify', 'orchestration-state.json');
 
-    if (filePath === statePath) {
+    if (filePath === statePathV3 || filePath === statePathV2) {
       return { projectId, fileType: 'state' };
     }
 
@@ -440,7 +450,7 @@ export async function getAllStates(): Promise<Map<string, OrchestrationState>> {
   if (!currentRegistry) return states;
 
   for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
-    const statePath = path.join(project.path, '.specify', 'orchestration-state.json');
+    const statePath = await getStateFilePath(project.path);
     const state = await readState(projectId, statePath);
     if (state) {
       states.set(projectId, state);
@@ -460,7 +470,7 @@ export async function getAllTasks(): Promise<Map<string, TasksData>> {
   if (!currentRegistry) return tasks;
 
   for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
-    const statePath = path.join(project.path, '.specify', 'orchestration-state.json');
+    const statePath = await getStateFilePath(project.path);
     const tasksPath = await getTasksPathForProject(project.path, statePath);
     if (tasksPath) {
       // Read state to get current_tasks for in_progress status

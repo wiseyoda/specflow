@@ -67,7 +67,7 @@ export const ACTION_DEFINITIONS: ActionDefinition[] = [
     confirmationTitle: 'Initialize Project',
     confirmationDescription: 'This will create a new orchestration state file.',
     confirmationItems: [
-      '.specify/ directory',
+      '.specflow/ directory',
       'orchestration-state.json',
       'Project registration',
     ],

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowLeft, FolderGit2, Play, Loader2, ChevronDown } from "lucide-react"
+import { ArrowLeft, FolderGit2, Play, Loader2, ChevronDown, Terminal } from "lucide-react"
 import { ActionsMenu } from "@/components/projects/actions-menu"
 import { WorkflowStatusBadge, useWorkflowStatusFade } from "@/components/projects/workflow-status-badge"
 import { QuestionBadge } from "@/components/projects/question-badge"
@@ -44,6 +44,8 @@ interface ProjectDetailHeaderProps {
   onWorkflowStart?: (skill: string) => Promise<void>
   /** Callback when question badge is clicked */
   onQuestionBadgeClick?: () => void
+  /** Callback when session button is clicked */
+  onSessionClick?: () => void
 }
 
 export function ProjectDetailHeader({
@@ -55,6 +57,7 @@ export function ProjectDetailHeader({
   isStartingWorkflow = false,
   onWorkflowStart,
   onQuestionBadgeClick,
+  onSessionClick,
 }: ProjectDetailHeaderProps) {
   // Workflow skills (dynamic)
   const { skills, getSkillsByGroup, isLoading: skillsLoading } = useWorkflowSkills()
@@ -75,6 +78,9 @@ export function ProjectDetailHeader({
   // Question badge for waiting workflows
   const pendingQuestions = workflowExecution?.output?.questions ?? []
   const showQuestionBadge = workflowStatus === 'waiting_for_input' && pendingQuestions.length > 0
+
+  // Session button visibility - show when there's an active workflow (even without session ID yet)
+  const showSessionButton = hasActiveWorkflow || (workflowExecution?.sessionId && !isHidden)
 
   const handleSkillSelect = (skill: WorkflowSkill) => {
     setSelectedSkill(skill)
@@ -147,6 +153,19 @@ export function ProjectDetailHeader({
                   size="sm"
                   onClick={onQuestionBadgeClick}
                 />
+              )}
+              {/* Session viewer button */}
+              {showSessionButton && onSessionClick && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onSessionClick}
+                  className="h-7 px-2 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                  aria-label="View session"
+                >
+                  <Terminal className="h-4 w-4 mr-1.5" />
+                  <span className="text-xs">Session</span>
+                </Button>
               )}
             </div>
             <p className="text-sm text-neutral-500 dark:text-neutral-400 truncate max-w-lg">

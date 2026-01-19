@@ -13,6 +13,7 @@ import { useProjects } from "@/hooks/use-projects"
 import { useViewPreference } from "@/hooks/use-view-preference"
 import { useWorkflowExecution } from "@/hooks/use-workflow-execution"
 import { AlertCircle } from "lucide-react"
+import { SessionViewerDrawer } from "@/components/projects/session-viewer-drawer"
 import {
   toastWorkflowCancelled,
   toastWorkflowError,
@@ -59,6 +60,9 @@ export default function ProjectDetailPage() {
   // Question drawer state
   const [isQuestionDrawerOpen, setIsQuestionDrawerOpen] = useState(false)
   const previousStatusRef = useRef<string | null>(null)
+
+  // Session viewer drawer state
+  const [isSessionViewerOpen, setIsSessionViewerOpen] = useState(false)
 
   // Set selected project for command palette context
   useEffect(() => {
@@ -123,6 +127,11 @@ export default function ProjectDetailPage() {
   // Handle question badge click
   const handleQuestionBadgeClick = useCallback(() => {
     setIsQuestionDrawerOpen(true)
+  }, [])
+
+  // Handle session button click
+  const handleSessionClick = useCallback(() => {
+    setIsSessionViewerOpen(true)
   }, [])
 
   // Handle answer submission
@@ -211,6 +220,7 @@ export default function ProjectDetailPage() {
           isStartingWorkflow={isStartingWorkflow}
           onWorkflowStart={handleWorkflowStart}
           onQuestionBadgeClick={handleQuestionBadgeClick}
+          onSessionClick={handleSessionClick}
         />
 
         <ViewTabs activeView={activeView} onViewChange={setActiveView} />
@@ -238,6 +248,15 @@ export default function ProjectDetailPage() {
             <TimelineView project={project} state={state} />
           )}
         </div>
+
+        {/* Session Viewer Drawer */}
+        <SessionViewerDrawer
+          open={isSessionViewerOpen}
+          onOpenChange={setIsSessionViewerOpen}
+          projectPath={project.path}
+          sessionId={workflowExecution?.sessionId ?? null}
+          isActive={workflowExecution?.status === 'running' || workflowExecution?.status === 'waiting_for_input'}
+        />
       </div>
     </MainLayout>
   )

@@ -27,7 +27,7 @@ import type { WorkflowExecution } from "@/lib/services/workflow-service"
  * Project initialization status
  */
 type ProjectStatus =
-  | "not_initialized"  // No .specify/ or no orchestration-state.json
+  | "not_initialized"  // No .specflow/ or no orchestration-state.json
   | "initializing"     // Has state but health.status is "initializing"
   | "needs_setup"      // Has state but no orchestration object
   | "ready"            // Has state with orchestration, health is good

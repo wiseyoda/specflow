@@ -41,14 +41,16 @@ export async function POST(request: Request) {
 
     const execution = await workflowService.start(projectId, skill, timeoutMs);
 
-    // Return subset of execution for start response
+    // Return execution wrapped in execution property (matches hook expectations)
     return NextResponse.json(
       {
-        id: execution.id,
-        status: execution.status,
-        projectId: execution.projectId,
-        skill: execution.skill,
-        startedAt: execution.startedAt,
+        execution: {
+          id: execution.id,
+          status: execution.status,
+          projectId: execution.projectId,
+          skill: execution.skill,
+          startedAt: execution.startedAt,
+        },
       },
       { status: 201 }
     );

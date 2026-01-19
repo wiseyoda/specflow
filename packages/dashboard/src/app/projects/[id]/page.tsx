@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useCallback } from "react"
+import { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { MainLayout } from "@/components/layout/main-layout"
 import { ProjectDetailHeader } from "@/components/projects/project-detail-header"
@@ -13,7 +13,11 @@ import { useProjects } from "@/hooks/use-projects"
 import { useViewPreference } from "@/hooks/use-view-preference"
 import { useWorkflowExecution } from "@/hooks/use-workflow-execution"
 import { AlertCircle } from "lucide-react"
-import { toastWorkflowCancelled, toastWorkflowError } from "@/lib/toast-helpers"
+import {
+  toastWorkflowCancelled,
+  toastWorkflowError,
+  toastAnswersSubmitted,
+} from "@/lib/toast-helpers"
 import type { ProjectStatus } from "@/lib/action-definitions"
 import type { OrchestrationState } from "@specflow/shared"
 import type { WorkflowSkill } from "@/lib/workflow-skills"
@@ -39,17 +43,22 @@ export default function ProjectDetailPage() {
   const { projects, loading: projectsLoading } = useProjects()
   const [activeView, setActiveView] = useViewPreference(projectId)
 
+  // Find project in list
+  const project = projects.find((p) => p.id === projectId)
+
   // Workflow execution state
   const {
     execution: workflowExecution,
     start: startWorkflow,
     cancel: cancelWorkflow,
-  } = useWorkflowExecution(projectId)
+    submitAnswers,
+  } = useWorkflowExecution(projectId, { projectName: project?.name })
   const [isStartingWorkflow, setIsStartingWorkflow] = useState(false)
   const [isCancellingWorkflow, setIsCancellingWorkflow] = useState(false)
 
-  // Find project in list
-  const project = projects.find((p) => p.id === projectId)
+  // Question drawer state
+  const [isQuestionDrawerOpen, setIsQuestionDrawerOpen] = useState(false)
+  const previousStatusRef = useRef<string | null>(null)
 
   // Set selected project for command palette context
   useEffect(() => {
@@ -94,6 +103,40 @@ export default function ProjectDetailPage() {
   const handleWorkflowStartFromCard = useCallback((skill: WorkflowSkill) => {
     handleWorkflowStart(skill.command)
   }, [handleWorkflowStart])
+
+  // Auto-open question drawer when questions arrive
+  useEffect(() => {
+    const prevStatus = previousStatusRef.current
+    const currentStatus = workflowExecution?.status
+
+    // Detect transition to waiting_for_input
+    if (
+      currentStatus === 'waiting_for_input' &&
+      prevStatus !== 'waiting_for_input'
+    ) {
+      setIsQuestionDrawerOpen(true)
+    }
+
+    previousStatusRef.current = currentStatus ?? null
+  }, [workflowExecution?.status])
+
+  // Handle question badge click
+  const handleQuestionBadgeClick = useCallback(() => {
+    setIsQuestionDrawerOpen(true)
+  }, [])
+
+  // Handle answer submission
+  const handleSubmitAnswers = useCallback(async (answers: Record<string, string>) => {
+    try {
+      await submitAnswers(answers)
+      setIsQuestionDrawerOpen(false)
+      toastAnswersSubmitted()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      toastWorkflowError(message)
+      throw error // Re-throw so drawer stays open
+    }
+  }, [submitAnswers])
 
   // Loading state
   if (projectsLoading) {
@@ -167,6 +210,7 @@ export default function ProjectDetailPage() {
           workflowExecution={workflowExecution}
           isStartingWorkflow={isStartingWorkflow}
           onWorkflowStart={handleWorkflowStart}
+          onQuestionBadgeClick={handleQuestionBadgeClick}
         />
 
         <ViewTabs activeView={activeView} onViewChange={setActiveView} />
@@ -182,6 +226,9 @@ export default function ProjectDetailPage() {
               isCancellingWorkflow={isCancellingWorkflow}
               onWorkflowStart={handleWorkflowStartFromCard}
               onWorkflowCancel={handleWorkflowCancel}
+              onSubmitAnswers={handleSubmitAnswers}
+              isQuestionDrawerOpen={isQuestionDrawerOpen}
+              onQuestionDrawerOpenChange={setIsQuestionDrawerOpen}
             />
           )}
           {activeView === "kanban" && (

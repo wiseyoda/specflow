@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ArrowLeft, FolderGit2, Play, Loader2, ChevronDown } from "lucide-react"
 import { ActionsMenu } from "@/components/projects/actions-menu"
 import { WorkflowStatusBadge, useWorkflowStatusFade } from "@/components/projects/workflow-status-badge"
+import { QuestionBadge } from "@/components/projects/question-badge"
 import { StartWorkflowDialog } from "@/components/projects/start-workflow-dialog"
 import { Button } from "@/components/ui/button"
 import {
@@ -41,6 +42,8 @@ interface ProjectDetailHeaderProps {
   isStartingWorkflow?: boolean
   /** Callback to start a workflow */
   onWorkflowStart?: (skill: string) => Promise<void>
+  /** Callback when question badge is clicked */
+  onQuestionBadgeClick?: () => void
 }
 
 export function ProjectDetailHeader({
@@ -51,6 +54,7 @@ export function ProjectDetailHeader({
   workflowExecution,
   isStartingWorkflow = false,
   onWorkflowStart,
+  onQuestionBadgeClick,
 }: ProjectDetailHeaderProps) {
   // Workflow dialog state
   const [selectedSkill, setSelectedSkill] = React.useState<WorkflowSkill | null>(null)
@@ -64,6 +68,10 @@ export function ProjectDetailHeader({
   )
   const showWorkflowBadge = workflowStatus && !isHidden
   const hasActiveWorkflow = workflowStatus === 'running' || workflowStatus === 'waiting_for_input'
+
+  // Question badge for waiting workflows
+  const pendingQuestions = workflowExecution?.output?.questions ?? []
+  const showQuestionBadge = workflowStatus === 'waiting_for_input' && pendingQuestions.length > 0
 
   const handleSkillSelect = (skill: WorkflowSkill) => {
     setSelectedSkill(skill)
@@ -127,6 +135,14 @@ export function ProjectDetailHeader({
                   showLabel={true}
                   size="sm"
                   isFading={isFading}
+                />
+              )}
+              {/* Question badge when waiting for input */}
+              {showQuestionBadge && (
+                <QuestionBadge
+                  questionCount={pendingQuestions.length}
+                  size="sm"
+                  onClick={onQuestionBadgeClick}
                 />
               )}
             </div>

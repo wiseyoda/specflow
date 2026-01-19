@@ -1,0 +1,12 @@
+# User Answers
+
+The user has answered the questions:
+
+- Changes: Commit with phase
+- _followup: All changes are good, do not lose any changes - you should stage everything.
+
+Continue the workflow using these answers. Remember:
+- You CANNOT use AskUserQuestion tool - it is disabled
+- If you need more input, set status to "needs_input" with questions array
+- If the workflow is complete, set status to "completed"
+- Use the structured_output JSON format

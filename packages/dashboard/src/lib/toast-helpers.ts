@@ -99,3 +99,13 @@ export function toastWorkflowCancelled() {
     duration: 3000,
   })
 }
+
+/**
+ * Show answers submitted toast
+ */
+export function toastAnswersSubmitted() {
+  toast.success("Answers submitted", {
+    description: "The workflow is continuing",
+    duration: 3000,
+  })
+}

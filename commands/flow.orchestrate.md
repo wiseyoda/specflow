@@ -53,6 +53,17 @@ Execute the complete SpecFlow development workflow with:
 
 ### 0. Initialize
 
+**Create the master todo list immediately (use TodoWrite):**
+
+1. [ORCH] INITIALIZE - Get project status
+2. [ORCH] PHASE - Determine/open current phase
+3. [ORCH] DESIGN - Create all design artifacts
+4. [ORCH] ANALYZE - Cross-artifact consistency check
+5. [ORCH] IMPLEMENT - Execute all tasks
+6. [ORCH] VERIFY - Verify completion and close phase
+
+Set item 1 to in_progress, then proceed.
+
 **Get comprehensive status in ONE call:**
 
 ```bash
@@ -165,12 +176,12 @@ specflow check --gate design
 
 If gate passes:
 
-1. **Update todo list** with ANALYZE tasks (e.g., "Run cross-artifact analysis", "Fix consistency issues")
-2. **Update state**:
+1. Use TodoWrite: mark [ORCH] DESIGN complete, mark [ORCH] ANALYZE in_progress
+2. Update state:
    ```bash
    specflow state set orchestration.step.current=analyze orchestration.step.index=1 orchestration.step.status=in_progress
    ```
-3. **IMMEDIATELY continue to Section 3 (ANALYZE)** - DO NOT STOP
+3. **IMMEDIATELY continue to ANALYZE** - DO NOT STOP
 
 ---
 
@@ -209,12 +220,12 @@ IF max iterations reached with issues remaining:
 **Verify before advancing:**
 - Analysis must complete with no critical issues
 
-1. **Update todo list** with IMPLEMENT tasks (e.g., "Execute tasks from tasks.md", "Run tests after each task")
-2. **Update state**:
+1. Use TodoWrite: mark [ORCH] ANALYZE complete, mark [ORCH] IMPLEMENT in_progress
+2. Update state:
    ```bash
    specflow state set orchestration.step.current=implement orchestration.step.index=2 orchestration.step.status=in_progress
    ```
-3. **IMMEDIATELY continue to Section 4 (IMPLEMENT)** - DO NOT STOP
+3. **IMMEDIATELY continue to IMPLEMENT** - DO NOT STOP
 
 ---
 
@@ -277,12 +288,12 @@ specflow check --gate implement
 
 If gate passes:
 
-1. **Update todo list** with VERIFY tasks (e.g., "Run verification checklists", "Check memory compliance")
-2. **Update state**:
+1. Use TodoWrite: mark [ORCH] IMPLEMENT complete, mark [ORCH] VERIFY in_progress
+2. Update state:
    ```bash
    specflow state set orchestration.step.current=verify orchestration.step.index=3 orchestration.step.status=in_progress
    ```
-3. **IMMEDIATELY continue to Section 5 (VERIFY)** - DO NOT STOP
+3. **IMMEDIATELY continue to VERIFY** - DO NOT STOP
 
 ---
 
@@ -374,7 +385,7 @@ Or run `/flow.merge --next-phase` to complete and start the next phase.
 2. **Minimal Interaction**: Use recommended options when no response. Batch questions. Auto-fix before asking.
 3. **Memory Compliance**: Pre-check against constitution.md. Auto-correct violations when possible.
 4. **Context Efficiency**: Use `specflow status --json` for all context. Save state after each action.
-5. **Todo List Continuity**: When transitioning between steps, ALWAYS update the TodoWrite list with tasks for the next step BEFORE marking current step complete. Never let the todo list become empty mid-workflow.
+5. **Master Todo List**: The 6-item [ORCH] todo list keeps workflow moving. Use TodoWrite to mark items complete/in_progress as you transition. Sub-workflows (design, implement, verify) create their own todo lists when called.
 
 ## Status Display
 

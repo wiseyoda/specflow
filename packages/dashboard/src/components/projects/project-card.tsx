@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { StatusButton } from "@/components/projects/action-button"
 import { ActionsMenu } from "@/components/projects/actions-menu"
 import { WorkflowStatusBadge, useWorkflowStatusFade } from "@/components/projects/workflow-status-badge"
+import { QuestionBadge } from "@/components/projects/question-badge"
 import { cn } from "@/lib/utils"
 import type { OrchestrationState, TasksData } from "@specflow/shared"
 import type { ProjectStatus as ActionProjectStatus } from "@/lib/action-definitions"
@@ -260,6 +261,10 @@ export function ProjectCard({ project, state, tasks, isUnavailable = false, isDi
   const showWorkflowBadge = workflowStatus && !isHidden
   const hasActiveWorkflow = workflowStatus === 'running' || workflowStatus === 'waiting_for_input'
 
+  // Question badge for waiting workflows
+  const pendingQuestions = workflowExecution?.output?.questions ?? []
+  const showQuestionBadge = workflowStatus === 'waiting_for_input' && pendingQuestions.length > 0
+
   // Health status
   const hasHealthWarning = health?.status === "warning"
   const healthStatus = health?.status
@@ -312,6 +317,13 @@ export function ProjectCard({ project, state, tasks, isUnavailable = false, isDi
                     showLabel={false}
                     size="sm"
                     isFading={isFading}
+                  />
+                )}
+                {/* Question badge when waiting for input */}
+                {showQuestionBadge && (
+                  <QuestionBadge
+                    questionCount={pendingQuestions.length}
+                    size="sm"
                   />
                 )}
                 {isUnavailable && (

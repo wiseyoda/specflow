@@ -39,6 +39,18 @@ Then close the phase via `specflow phase close`.
 
 ---
 
+## Step 0: Create Todo List
+
+**Create todo list immediately (use TodoWrite):**
+
+1. [VERIFY] CONTEXT - Get project status
+2. [VERIFY] IMPL_GATE - Verify all tasks complete
+3. [VERIFY] VERIFY_GATE - Complete all checklists
+4. [VERIFY] MEMORY - Check against memory docs
+5. [VERIFY] CLOSE - Close phase and report
+
+Set [VERIFY] CONTEXT to in_progress.
+
 ## Step 1: Get Project Context
 
 ```bash
@@ -53,6 +65,8 @@ Parse the JSON to understand:
 - Whether phase has USER GATE marker
 
 If no active phase, stop: "No active phase. Use `specflow phase open` first."
+
+Use TodoWrite: mark [VERIFY] CONTEXT complete, mark [VERIFY] IMPL_GATE in_progress.
 
 ---
 
@@ -74,6 +88,8 @@ For each incomplete task, offer choices:
 3. **Block verification** - Cannot proceed until resolved
 
 After resolving, re-run `specflow check --gate implement` until it passes.
+
+Use TodoWrite: mark [VERIFY] IMPL_GATE complete, mark [VERIFY] VERIFY_GATE in_progress.
 
 ---
 
@@ -105,6 +121,8 @@ For each incomplete item, you MUST **actively verify** it:
 - `D-###` - Deferred items
 
 After resolving, re-run `specflow check --gate verify` until it passes.
+
+Use TodoWrite: mark [VERIFY] VERIFY_GATE complete, mark [VERIFY] MEMORY in_progress.
 
 ---
 
@@ -168,6 +186,8 @@ Check implementation against memory documents in `.specify/memory/`:
 
 If any FAIL status, address issues before proceeding.
 
+Use TodoWrite: mark [VERIFY] MEMORY complete, mark [VERIFY] CLOSE in_progress.
+
 ---
 
 ## Step 5: User Gate Check
@@ -224,6 +244,8 @@ This automatically:
 - Archives phase to HISTORY.md
 - Scans for deferred items and adds to BACKLOG.md
 - Resets orchestration state for next phase
+
+Use TodoWrite: mark [VERIFY] CLOSE complete.
 
 ---
 

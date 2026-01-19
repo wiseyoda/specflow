@@ -31,6 +31,14 @@ $ARGUMENTS
 
 ### 1. Initialize
 
+**Create todo list immediately (use TodoWrite):**
+
+1. [IMPL] INITIALIZE - Verify design gate and load context
+2. [IMPL] EXECUTE - Implement all tasks from tasks.md
+3. [IMPL] COMPLETE - Verify implementation gate
+
+Set [IMPL] INITIALIZE to in_progress.
+
 ```bash
 specflow status --json
 ```
@@ -56,6 +64,8 @@ specflow state set orchestration.step.current=implement orchestration.step.index
 From FEATURE_DIR read:
 - **plan.md** - tech stack, architecture, file structure
 - **tasks.md** - already parsed by `specflow next`
+
+Use TodoWrite: mark [IMPL] INITIALIZE complete, mark [IMPL] EXECUTE in_progress.
 
 ### 3. Project Setup
 
@@ -142,6 +152,8 @@ specflow mark T### --blocked "reason"
 
 When `specflow next` returns `action: none` with `reason: all_tasks_complete`:
 
+Use TodoWrite: mark [IMPL] EXECUTE complete, mark [IMPL] COMPLETE in_progress.
+
 ```bash
 specflow check --gate implement
 ```
@@ -151,7 +163,7 @@ If gate passes:
 specflow state set orchestration.step.current=verify orchestration.step.index=3 orchestration.step.status=in_progress
 ```
 
-Output: "All tasks complete. Ready for verification."
+Use TodoWrite: mark [IMPL] COMPLETE complete. Output: "All tasks complete. Ready for verification."
 
 ## Parallel Tasks
 

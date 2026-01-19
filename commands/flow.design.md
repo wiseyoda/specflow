@@ -49,6 +49,17 @@ Produce all design artifacts for the current phase:
 
 ### 0. Setup
 
+**Create todo list immediately (use TodoWrite):**
+
+1. [DESIGN] SETUP - Get project context
+2. [DESIGN] DISCOVER - Examine codebase and clarify intent
+3. [DESIGN] SPECIFY - Create feature specification
+4. [DESIGN] PLAN - Technical implementation plan
+5. [DESIGN] TASKS - Generate task list
+6. [DESIGN] CHECKLISTS - Create verification checklists
+
+Set [DESIGN] SETUP to in_progress, then proceed.
+
 **Get project context:**
 ```bash
 specflow status --json
@@ -72,6 +83,8 @@ Parse: `phase.number`, `phase.dir`, `branch`, `artifacts` (to check what exists)
 ```bash
 specflow state set "orchestration.step.current=design" "orchestration.step.status=in_progress"
 ```
+
+Use TodoWrite: mark [DESIGN] SETUP complete. As you complete each phase, mark it complete and mark the next in_progress (e.g., mark [DESIGN] DISCOVER complete, mark [DESIGN] SPECIFY in_progress).
 
 ---
 

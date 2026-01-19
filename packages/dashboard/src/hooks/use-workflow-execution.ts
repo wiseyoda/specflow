@@ -12,6 +12,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { WorkflowExecution } from '@/lib/services/workflow-service';
+import {
+  requestNotificationPermission,
+  hasRequestedPermission,
+  showQuestionNotification,
+} from '@/lib/notifications';
 
 const POLL_INTERVAL_MS = 3000; // 3 seconds per PDR
 
@@ -143,10 +148,18 @@ async function answerWorkflow(
   return data.execution as WorkflowExecution;
 }
 
+interface UseWorkflowExecutionOptions {
+  /** Project name for notifications (optional) */
+  projectName?: string;
+}
+
 /**
  * Hook for managing workflow execution for a specific project
  */
-export function useWorkflowExecution(projectId: string): UseWorkflowExecutionResult {
+export function useWorkflowExecution(
+  projectId: string,
+  options?: UseWorkflowExecutionOptions
+): UseWorkflowExecutionResult {
   const [execution, setExecution] = useState<WorkflowExecution | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -154,6 +167,8 @@ export function useWorkflowExecution(projectId: string): UseWorkflowExecutionRes
   // Track current execution ID for polling
   const executionIdRef = useRef<string | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Track previous status to detect transitions
+  const previousStatusRef = useRef<WorkflowStatus | null>(null);
 
   // Derived state
   const isRunning = execution?.status === 'running';
@@ -171,10 +186,23 @@ export function useWorkflowExecution(projectId: string): UseWorkflowExecutionRes
   // Fetch current execution status
   const refresh = useCallback(async () => {
     try {
+      let exec: WorkflowExecution | null = null;
+
       // If we have a known execution ID, fetch it directly
       if (executionIdRef.current) {
-        const exec = await fetchWorkflowById(executionIdRef.current);
+        exec = await fetchWorkflowById(executionIdRef.current);
         if (exec) {
+          // Detect transition to waiting_for_input
+          const prevStatus = previousStatusRef.current;
+          if (
+            exec.status === 'waiting_for_input' &&
+            prevStatus !== 'waiting_for_input' &&
+            options?.projectName
+          ) {
+            showQuestionNotification(options.projectName);
+          }
+          previousStatusRef.current = exec.status;
+
           setExecution(exec);
           // Stop polling if terminal
           if (TERMINAL_STATES.includes(exec.status)) {
@@ -185,7 +213,21 @@ export function useWorkflowExecution(projectId: string): UseWorkflowExecutionRes
       }
 
       // Otherwise fetch the most recent for the project
-      const exec = await fetchWorkflowForProject(projectId);
+      exec = await fetchWorkflowForProject(projectId);
+
+      // Detect transition to waiting_for_input
+      if (exec) {
+        const prevStatus = previousStatusRef.current;
+        if (
+          exec.status === 'waiting_for_input' &&
+          prevStatus !== 'waiting_for_input' &&
+          options?.projectName
+        ) {
+          showQuestionNotification(options.projectName);
+        }
+        previousStatusRef.current = exec.status;
+      }
+
       setExecution(exec);
       executionIdRef.current = exec?.id || null;
 
@@ -198,7 +240,7 @@ export function useWorkflowExecution(projectId: string): UseWorkflowExecutionRes
     } catch (e) {
       setError(e instanceof Error ? e : new Error('Unknown error'));
     }
-  }, [projectId, clearPolling]);
+  }, [projectId, clearPolling, options?.projectName]);
 
   // Start polling for active workflows
   const startPolling = useCallback(() => {
@@ -218,6 +260,11 @@ export function useWorkflowExecution(projectId: string): UseWorkflowExecutionRes
         const err = new Error('A workflow is already running on this project');
         setError(err);
         throw err;
+      }
+
+      // Request notification permission on first workflow start
+      if (!hasRequestedPermission()) {
+        await requestNotificationPermission();
       }
 
       try {

@@ -1,8 +1,10 @@
 "use client"
 
+import * as React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Activity, CheckCircle2, AlertTriangle, XCircle, Clock, FileText, FolderOpen, AlertCircle, Loader2 } from "lucide-react"
 import { WorkflowStatusCard } from "@/components/projects/workflow-status-card"
+import { QuestionDrawer } from "@/components/projects/question-drawer"
 import type { OrchestrationState, TasksData } from "@specflow/shared"
 import type { WorkflowExecution } from "@/lib/services/workflow-service"
 import type { WorkflowSkill } from "@/lib/workflow-skills"
@@ -32,6 +34,12 @@ interface StatusViewProps {
   onWorkflowStart?: (skill: WorkflowSkill) => void
   /** Callback to cancel the workflow */
   onWorkflowCancel?: () => void
+  /** Callback to submit answers */
+  onSubmitAnswers?: (answers: Record<string, string>) => Promise<void>
+  /** Whether the question drawer is open (controlled externally) */
+  isQuestionDrawerOpen?: boolean
+  /** Callback to change drawer open state */
+  onQuestionDrawerOpenChange?: (open: boolean) => void
 }
 
 export function StatusView({
@@ -43,6 +51,9 @@ export function StatusView({
   isCancellingWorkflow,
   onWorkflowStart,
   onWorkflowCancel,
+  onSubmitAnswers,
+  isQuestionDrawerOpen,
+  onQuestionDrawerOpenChange,
 }: StatusViewProps) {
   if (!state) {
     return (
@@ -296,6 +307,16 @@ export function StatusView({
         </CardContent>
       </Card>
       </div>
+
+      {/* Question Drawer */}
+      {onSubmitAnswers && onQuestionDrawerOpenChange && (
+        <QuestionDrawer
+          open={isQuestionDrawerOpen ?? false}
+          onOpenChange={onQuestionDrawerOpenChange}
+          execution={workflowExecution ?? null}
+          onSubmit={onSubmitAnswers}
+        />
+      )}
     </div>
   )
 }

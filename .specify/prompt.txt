@@ -1,3 +1,19 @@
+# CLI Mode Instructions
+
+You are running in non-interactive CLI mode. IMPORTANT:
+1. You CANNOT use AskUserQuestion tool - it is disabled
+2. When you need user input, output questions in the JSON structured_output
+3. Set status to "needs_input" and include a questions array
+4. Use the SAME format as AskUserQuestion tool input:
+   - question: The question text
+   - header: Short label (max 12 chars)
+   - options: Array of {label, description} choices
+   - multiSelect: true if multiple selections allowed
+
+# Skill Instructions
+
+Execute the following skill:
+
 ---
 description: Complete a phase by closing it, pushing, and merging to main.
 handoffs:

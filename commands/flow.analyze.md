@@ -10,7 +10,7 @@ $ARGUMENTS
 
 ## Goal
 
-Analyze spec.md, plan.md, and tasks.md for inconsistencies, gaps, and quality issues. This command runs AFTER `/flow.design` has produced all artifacts. It is **read-only** - findings are output for the next agent to fix.
+Analyze spec.md, plan.md, and tasks.md for inconsistencies, gaps, and quality issues. This command runs AFTER `/flow.design` has produced all artifacts. If it finds any issues, it will report on those issues in a detailed way, fix all issues (no matter how small), and then run `/flow.analyze` again.
 
 ## Execution
 
@@ -21,6 +21,7 @@ specflow status --json
 ```
 
 Parse response:
+
 - `context.featureDir` → FEATURE_DIR (abort if null)
 - `context.hasSpec/hasPlan/hasTasks` → all must be true
 
@@ -31,6 +32,7 @@ specflow check --gate design
 Abort if gate fails - instruct user to run `/flow.design` first.
 
 If `step.current` != "analyze", update state:
+
 ```bash
 specflow state set orchestration.step.current=analyze orchestration.step.index=1 orchestration.step.status=in_progress
 ```
@@ -38,25 +40,27 @@ specflow state set orchestration.step.current=analyze orchestration.step.index=1
 ### 2. Load Artifacts
 
 From FEATURE_DIR:
+
 - `spec.md` - requirements, user stories, edge cases
 - `plan.md` - architecture, phases, constraints
 - `tasks.md` - task IDs, descriptions, dependencies, file paths
 
 From project root:
+
 - `.specify/memory/constitution.md` - principles for compliance check
 
 ### 3. Detection Passes
 
 Analyze for these issue categories (limit 50 findings total):
 
-| Pass | Detects |
-|------|---------|
-| **A. Duplication** | Near-duplicate requirements (mark lower-quality for consolidation) |
-| **B. Ambiguity** | Vague terms without metrics (fast, scalable, robust); unresolved placeholders (TODO, ???, TKTK) |
-| **C. Underspecification** | Missing outcomes, undefined components, user stories without acceptance criteria |
-| **D. Constitution** | MUST principle violations (always CRITICAL), missing mandated sections |
-| **E. Coverage Gaps** | Requirements with zero tasks; tasks with no mapped requirement |
-| **F. Inconsistency** | Terminology drift, conflicting tech choices, ordering contradictions |
+| Pass                      | Detects                                                                                         |
+| ------------------------- | ----------------------------------------------------------------------------------------------- |
+| **A. Duplication**        | Near-duplicate requirements (mark lower-quality for consolidation)                              |
+| **B. Ambiguity**          | Vague terms without metrics (fast, scalable, robust); unresolved placeholders (TODO, ???, TKTK) |
+| **C. Underspecification** | Missing outcomes, undefined components, user stories without acceptance criteria                |
+| **D. Constitution**       | MUST principle violations (always CRITICAL), missing mandated sections                          |
+| **E. Coverage Gaps**      | Requirements with zero tasks; tasks with no mapped requirement                                  |
+| **F. Inconsistency**      | Terminology drift, conflicting tech choices, ordering contradictions                            |
 
 ### 4. Severity
 
@@ -70,15 +74,16 @@ Analyze for these issue categories (limit 50 findings total):
 ```markdown
 ## Analysis Report
 
-| ID | Category | Severity | Location | Summary | Fix |
-|----|----------|----------|----------|---------|-----|
-| A1 | Duplication | HIGH | spec.md:L42-48 | Two similar requirements | Merge, keep clearer version |
+| ID  | Category    | Severity | Location       | Summary                  | Fix                         |
+| --- | ----------- | -------- | -------------- | ------------------------ | --------------------------- |
+| A1  | Duplication | HIGH     | spec.md:L42-48 | Two similar requirements | Merge, keep clearer version |
 
 **Coverage Summary:**
 | Requirement | Has Task? | Task IDs |
 |-------------|-----------|----------|
 
 **Metrics:**
+
 - Requirements: N | Tasks: M | Coverage: X%
 - Critical: N | High: N | Medium: N | Low: N
 
@@ -89,19 +94,23 @@ Analyze for these issue categories (limit 50 findings total):
 ### 6. State Transition
 
 If **zero issues** found:
+
 ```bash
 specflow state set orchestration.step.current=implement orchestration.step.index=2 orchestration.step.status=in_progress
 ```
+
 Output: "Analysis clean. Ready for implementation."
 
 If **issues found** (ANY severity, including LOW):
+
 - Stay in analyze step (do not advance)
 - Output: "Found N issues. ALL must be fixed before proceeding."
 - **Do NOT dismiss issues as "minor" or "not requiring fixes"** - every inconsistency matters and can cause bugs during implementation
+- Fix the issues and run `/flow.analyze` again. Do not stop your workflow unless there is a major issue that requires immediate attention.
 
 ## Constraints
 
-- **Read-only**: Do NOT modify any files
+- **Read-only outside of artifacts**: Do NOT modify any files except project artifacts
 - **Constitution is non-negotiable**: Violations are always CRITICAL
 - **Deterministic**: Re-running produces consistent IDs and counts
 - **All severities block**: LOW/MEDIUM issues are not "minor" - they represent ambiguity that causes implementation bugs

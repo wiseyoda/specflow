@@ -131,11 +131,13 @@ function parseSectionHeader(line: string): { name: string; level: number } | nul
 }
 
 /**
- * Extract existing item ID from description (V-001, I-001, etc.)
+ * Extract existing item ID from description (V-001, I-001, V-UI1, etc.)
+ * Supports: V-001 (standard), V-UI1 (UI items), I-SEC1 (custom prefixes)
  */
 function extractExistingId(description: string): string | null {
-  const match = description.match(/^([A-Z]-\d{3})\b/);
-  return match ? match[1] : null;
+  // Match: letter, hyphen, then alphanumeric (e.g., V-001, V-UI1, I-SEC2)
+  const match = description.match(/^([A-Z]-[A-Z0-9]+)\b/i);
+  return match ? match[1].toUpperCase() : null;
 }
 
 /**

@@ -190,21 +190,31 @@ Fix any reported issues (max 3 iterations).
 
 ### 2.5 UI DESIGN Phase (Conditional)
 
-**Trigger**: Spec.md references visual UI elements.
+**Trigger**: Feature involves user-facing visual interface that would benefit from mockups.
 
 **Skip if**:
 - Starting from plan, tasks, or checklists
-- No visual UI elements detected in spec.md
+- Feature is backend-only, CLI, API, or infrastructure
+- UI changes are trivial (e.g., changing button text, minor styling)
 
-**Detection**: Scan spec.md for visual element keywords:
-- **Layout**: dashboard, screen, page, view, layout, panel, sidebar, header, footer
-- **Components**: form, button, modal, dialog, widget, card, table, list, menu, navigation, tab
-- **Visual actions**: display, render, show, hide, toggle (in UI context)
+**When to create ui-design.md** (use your judgment):
+- New screens, pages, or views being added
+- Significant layout changes or new components
+- Complex user flows that need visual documentation
+- When mockups would help clarify requirements
 
-**2.5a. Detect UI scope:**
-- Parse spec.md for UI keywords
-- If no UI elements found → skip to PLAN phase
-- If UI elements found → continue
+**When to SKIP ui-design.md:**
+- CLI tools or terminal interfaces
+- API endpoints or backend services
+- Database migrations or data processing
+- Simple CRUD without custom UI
+- Bug fixes or refactoring
+- Features where existing UI patterns apply
+
+**2.5a. Decide if UI design is needed:**
+- Review the spec.md scope and requirements
+- Use your judgment - don't rely on keyword scanning
+- If in doubt, skip it - ui-design.md can be added later if needed
 
 **2.5b. Create ui-design.md:**
 - Read template: `.specify/templates/ui-design-template.md`

@@ -48,9 +48,10 @@ export interface MarkOutput {
 }
 
 /**
- * Checklist item ID pattern: V-001, I-001, C-001, D-001
+ * Checklist item ID pattern: V-001, I-001, C-001, D-001, V-UI1, etc.
+ * Supports standard (V-001) and custom prefixes (V-UI1, I-SEC2)
  */
-const CHECKLIST_ID_PATTERN = /^[VICD]-\d{3}$/;
+const CHECKLIST_ID_PATTERN = /^[VICD]-[A-Z0-9]+$/i;
 
 /**
  * Task ID pattern: T001, T001a
@@ -364,7 +365,7 @@ async function markChecklistItems(
   if (invalidIds.length > 0) {
     throw new ValidationError(
       `Unknown checklist item IDs: ${invalidIds.join(', ')}`,
-      'Valid IDs are in format: V-001, I-001, C-001, D-001',
+      'Valid IDs are in format: V-001, I-001, C-001, D-001, V-UI1, etc.',
     );
   }
 
@@ -476,7 +477,7 @@ function formatHumanReadable(result: MarkOutput): string {
  */
 export const markCommand = new Command('mark')
   .description('Mark task(s) or checklist item(s) complete')
-  .argument('<items...>', 'Item ID(s) to mark (T001, T001..T005, V-001, I-001)')
+  .argument('<items...>', 'Item ID(s) to mark (T001, T001..T005, V-001, V-UI1)')
   .option('--json', 'Output as JSON')
   .option('--incomplete', 'Mark as incomplete instead of complete')
   .option('--blocked <reason>', 'Mark as blocked with reason')
@@ -488,7 +489,7 @@ export const markCommand = new Command('mark')
       if (parsed.taskIds.length === 0 && parsed.checklistIds.length === 0) {
         throw new ValidationError(
           'No valid item IDs provided',
-          'Use format: T001, T001..T005, V-001, I-001, C-001, D-001',
+          'Use format: T001, T001..T005, V-001, I-001, V-UI1, etc.',
         );
       }
 

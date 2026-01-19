@@ -59,3 +59,43 @@ export function toastError(title: string, description?: string) {
     duration: 5000,
   })
 }
+
+/**
+ * Show a workflow started toast
+ */
+export function toastWorkflowStarted(skill: string) {
+  toast.success(`Workflow started: ${skill}`, {
+    description: "The workflow is now running",
+    duration: 3000,
+  })
+}
+
+/**
+ * Show a workflow error toast
+ */
+export function toastWorkflowError(error: string) {
+  toast.error("Workflow failed", {
+    description: error.slice(0, 150) + (error.length > 150 ? "..." : ""),
+    duration: 8000,
+  })
+}
+
+/**
+ * Show a workflow already running toast
+ */
+export function toastWorkflowAlreadyRunning() {
+  toast.warning("Workflow already running", {
+    description: "Please wait for the current workflow to complete or cancel it",
+    duration: 5000,
+  })
+}
+
+/**
+ * Show a workflow cancelled toast
+ */
+export function toastWorkflowCancelled() {
+  toast.info("Workflow cancelled", {
+    description: "The workflow has been stopped",
+    duration: 3000,
+  })
+}

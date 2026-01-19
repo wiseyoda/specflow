@@ -30,36 +30,36 @@ This allows inserting urgent work without renumbering existing phases.
 
 ## Phase Overview
 
-| Phase | Name                              | Status         | Verification Gate                                                  |
-| ----- | --------------------------------- | -------------- | ------------------------------------------------------------------ |
-| 0010  | Roadmap Flexibility               | ✅ Complete    | Insert/defer commands work                                         |
-| 0015  | Workflow Commands                 | ✅ Complete    | Merge and backlog commands work                                    |
-| 0020  | Onboarding Polish                 | ✅ Complete    | New user can set up without confusion                              |
-| 0030  | Test Suite Completion             | ✅ Complete    | All tests pass on macOS and Linux                                  |
-| 0040  | Integration Options               | ✅ Complete    | Existing docs imported successfully                                |
-| 0041  | Code Review Findings              | ✅ Complete    | All review findings addressed                                      |
-| 0042  | Code Review 2026-01-11            | ✅ Complete    | 18 findings addressed                                              |
-| 0050  | UX Simplification                 | ✅ Complete    | Single entry point, clean codebase, unified memory                 |
-| 0060  | Constitution Compliance           | ✅ Complete    | 95%+ constitution compliance, three-line rule, critical bugs fixed |
-| 0070  | Pre-Workflow Consolidation        | ✅ Complete    | 7 commands → 3, clear setup vs. utility separation                 |
-| 0072  | Workflow Consolidation            | ✅ Complete    | 11 commands → 6, single design command, inline clarify             |
-| 0076  | Command Rebrand                   | ✅ Complete    | Rename all `/specflow.*` → `/flow.*`, update all docs              |
-| 0080  | CLI TypeScript Migration          | ✅ Complete    | 5 smart TypeScript commands, reduce CLI calls 80%                  |
-| 0082 | Code Review 20260118 | ✅ Complete | RE: .specify/reviews/review-20260118-115354.md |
-| 1010  | Core UI Scaffold                  | ✅ Complete    | **USER GATE**: Dashboard starts, shows projects, dark mode works   |
-| 1020  | Real-Time File Watching           | ✅ Complete    | **USER GATE**: CLI changes reflect in UI within 2s                 |
-| 1030  | Project Detail Views              | ✅ Complete    | **USER GATE**: Kanban and Timeline views work                      |
-| 1040  | CLI Actions from UI               | ✅ Complete    | **USER GATE**: Mark tasks, add backlog from UI                     |
-| 1045  | Project Actions & Health          | ✅ Complete    | **USER GATE**: Initialize, doctor, upgrade from UI                 |
-| 1046 | Command JSON Output | ✅ Complete | All commands support --json flag |
-| 1047 | Workflow Decomposition: Design | ✅ Complete | discover, design, check commands work |
-| 1048 | Workflow Foundation | ✅ Complete | **USER GATE**: Start workflow for registered project via API |
-| 1050  | Workflow UI                       | ⬜ Not Started | **USER GATE**: Start from card/detail, see status badges           |
-| 1051  | Questions & Notifications         | ⬜ Not Started | **USER GATE**: Browser notification, question drawer               |
-| 1052  | Session Viewer                    | ⬜ Not Started | **USER GATE**: View session JSONL, real-time streaming             |
-| 1055  | Smart Batching & Orchestration    | ⬜ Not Started | **USER GATE**: Auto-batch tasks, state machine, auto-healing       |
-| 1060  | Stats & Operations                | ⬜ Not Started | **USER GATE**: Costs on cards, operations page, basic chart        |
-| 1070  | Cost Analytics                    | ⬜ Not Started | **USER GATE**: Advanced charts, projections, export                |
+| Phase | Name                           | Status         | Verification Gate                                                  |
+| ----- | ------------------------------ | -------------- | ------------------------------------------------------------------ |
+| 0010  | Roadmap Flexibility            | ✅ Complete    | Insert/defer commands work                                         |
+| 0015  | Workflow Commands              | ✅ Complete    | Merge and backlog commands work                                    |
+| 0020  | Onboarding Polish              | ✅ Complete    | New user can set up without confusion                              |
+| 0030  | Test Suite Completion          | ✅ Complete    | All tests pass on macOS and Linux                                  |
+| 0040  | Integration Options            | ✅ Complete    | Existing docs imported successfully                                |
+| 0041  | Code Review Findings           | ✅ Complete    | All review findings addressed                                      |
+| 0042  | Code Review 2026-01-11         | ✅ Complete    | 18 findings addressed                                              |
+| 0050  | UX Simplification              | ✅ Complete    | Single entry point, clean codebase, unified memory                 |
+| 0060  | Constitution Compliance        | ✅ Complete    | 95%+ constitution compliance, three-line rule, critical bugs fixed |
+| 0070  | Pre-Workflow Consolidation     | ✅ Complete    | 7 commands → 3, clear setup vs. utility separation                 |
+| 0072  | Workflow Consolidation         | ✅ Complete    | 11 commands → 6, single design command, inline clarify             |
+| 0076  | Command Rebrand                | ✅ Complete    | Rename all `/specflow.*` → `/flow.*`, update all docs              |
+| 0080  | CLI TypeScript Migration       | ✅ Complete    | 5 smart TypeScript commands, reduce CLI calls 80%                  |
+| 0082  | Code Review 20260118           | ✅ Complete    | RE: .specify/reviews/review-20260118-115354.md                     |
+| 1010  | Core UI Scaffold               | ✅ Complete    | **USER GATE**: Dashboard starts, shows projects, dark mode works   |
+| 1020  | Real-Time File Watching        | ✅ Complete    | **USER GATE**: CLI changes reflect in UI within 2s                 |
+| 1030  | Project Detail Views           | ✅ Complete    | **USER GATE**: Kanban and Timeline views work                      |
+| 1040  | CLI Actions from UI            | ✅ Complete    | **USER GATE**: Mark tasks, add backlog from UI                     |
+| 1045  | Project Actions & Health       | ✅ Complete    | **USER GATE**: Initialize, doctor, upgrade from UI                 |
+| 1046  | Command JSON Output            | ✅ Complete    | All commands support --json flag                                   |
+| 1047  | Workflow Decomposition: Design | ✅ Complete    | discover, design, check commands work                              |
+| 1048  | Workflow Foundation            | ✅ Complete    | **USER GATE**: Start workflow for registered project via API       |
+| 1050  | Workflow UI                    | ✅ Complete    | **USER GATE**: Start from card/detail, see status badges           |
+| 1051  | Questions & Notifications      | ⬜ Not Started | **USER GATE**: Browser notification, question drawer               |
+| 1052  | Session Viewer                 | ⬜ Not Started | **USER GATE**: View session JSONL, real-time streaming             |
+| 1055  | Smart Batching & Orchestration | ⬜ Not Started | **USER GATE**: Auto-batch tasks, state machine, auto-healing       |
+| 1060  | Stats & Operations             | ⬜ Not Started | **USER GATE**: Costs on cards, operations page, basic chart        |
+| 1070  | Cost Analytics                 | ⬜ Not Started | **USER GATE**: Advanced charts, projections, export                |
 
 **Legend**: ⬜ Not Started | 🔄 In Progress | ✅ Complete | **USER GATE** = Requires user verification
 

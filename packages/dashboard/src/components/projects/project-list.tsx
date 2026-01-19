@@ -1,12 +1,18 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useCallback } from "react"
 import { useProjects } from "@/hooks/use-projects"
 import { useConnection } from "@/contexts/connection-context"
+import { useWorkflowList } from "@/hooks/use-workflow-list"
 import { ProjectCard } from "./project-card"
 import { EmptyState } from "./empty-state"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  toastWorkflowStarted,
+  toastWorkflowError,
+  toastWorkflowAlreadyRunning,
+} from "@/lib/toast-helpers"
 
 /**
  * Check if activity is recent (within last 15 minutes)
@@ -38,6 +44,41 @@ function getMostRecentTimestamp(...timestamps: (string | null | undefined)[]): D
 export function ProjectList() {
   const { projects, loading, error, refetch } = useProjects()
   const { states, tasks } = useConnection()
+
+  // Get project IDs for workflow list filtering
+  const projectIds = useMemo(() => projects.map(p => p.id), [projects])
+
+  // Fetch active workflows for all projects (with polling)
+  const { executions: workflowExecutions, refresh: refreshWorkflows } = useWorkflowList(projectIds)
+
+  // Create workflow start handler for a specific project
+  const createWorkflowStartHandler = useCallback((projectId: string) => {
+    return async (skill: string) => {
+      try {
+        const res = await fetch('/api/workflow/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId, skill }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          if (data.error?.includes('already running')) {
+            toastWorkflowAlreadyRunning()
+          } else {
+            throw new Error(data.error || `Failed: ${res.status}`)
+          }
+          return
+        }
+        toastWorkflowStarted(skill)
+        // Refresh workflow list to show the new execution
+        refreshWorkflows()
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error'
+        toastWorkflowError(message)
+        throw error
+      }
+    }
+  }, [refreshWorkflows])
 
   // Sort projects: active first, then by most recent activity
   const sortedProjects = useMemo(() => {
@@ -120,6 +161,8 @@ export function ProjectList() {
           tasks={tasks.get(project.id)}
           isUnavailable={project.isUnavailable}
           isDiscovered={project.isDiscovered}
+          workflowExecution={workflowExecutions.get(project.id)}
+          onWorkflowStart={createWorkflowStartHandler(project.id)}
         />
       ))}
     </div>

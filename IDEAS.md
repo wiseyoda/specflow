@@ -1,0 +1,8 @@
+# Ideas for the future (user generated)
+
+## Captured on 2026-01-18
+
+- [ ] Would like the dashboard to be mobile friendly so I can use it on my phone. I'm already running tailscale on both my computer and phone, so I can access the dashboard from my phone. This would enable me to use specflow on the go.
+- [ ] Need a way to turn ideas into new features (both via a claude command and via the dashboard). Just like this document, I have ideas, but there is no real mechanism to turn them into features at the moment. We had that in previous versions of specflow, but it's not there in this version. Ideally, it captures the idea, figures out if it should be 1) added to a current roadmap item that exists, 2) turned into a new roadmap item, [3) captured as a backlog item], [4. fixed immediately (if it's a bug)]. This would turn product management into a feature of specflow itself.
+- [ ] Currently we don't have automatic way to insert backlog items into current implementation / roadmap. When we are working on similar files, it would be nice to grab a backlog items and knock it out. This would require knowledge of what backlog items are relevant to the current files we are working on.
+- [ ] (BUG) Current ui-design.md is being asked for AFTER the tasks complete (was generated after the tasks were completed in one instance.) We need to investigate that ensure we are including it in the design phase (not just the verify phase). Also, there seem to be a lot of false positives on the ui-design based on the words it is looking for, we should make this smarter. I trust claude to know during the design phase if we need to create a ui-design.md or not.

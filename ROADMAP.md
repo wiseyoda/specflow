@@ -53,7 +53,7 @@ This allows inserting urgent work without renumbering existing phases.
 | 1045  | Project Actions & Health          | ✅ Complete    | **USER GATE**: Initialize, doctor, upgrade from UI                 |
 | 1046 | Command JSON Output | ✅ Complete | All commands support --json flag |
 | 1047 | Workflow Decomposition: Design | ✅ Complete | discover, design, check commands work |
-| 1048  | Workflow Foundation               | ⬜ Not Started | **USER GATE**: Start workflow for registered project via API       |
+| 1048 | Workflow Foundation | ✅ Complete | **USER GATE**: Start workflow for registered project via API |
 | 1050  | Workflow UI                       | ⬜ Not Started | **USER GATE**: Start from card/detail, see status badges           |
 | 1051  | Questions & Notifications         | ⬜ Not Started | **USER GATE**: Browser notification, question drawer               |
 | 1052  | Session Viewer                    | ⬜ Not Started | **USER GATE**: View session JSONL, real-time streaming             |

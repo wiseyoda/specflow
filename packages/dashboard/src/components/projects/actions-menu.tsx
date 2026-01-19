@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { WorkflowSkillPicker } from '@/components/projects/workflow-skill-picker';
 import { StartWorkflowDialog } from '@/components/projects/start-workflow-dialog';
-import type { WorkflowSkill } from '@/lib/workflow-skills';
+import type { WorkflowSkill } from '@/hooks/use-workflow-skills';
 import { Button } from '@/components/ui/button';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { CommandOutputModal } from '@/components/projects/command-output-modal';

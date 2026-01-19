@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2, Play } from 'lucide-react';
-import type { WorkflowSkill } from '@/lib/workflow-skills';
+import type { WorkflowSkill } from '@/hooks/use-workflow-skills';
 
 export interface StartWorkflowDialogProps {
   /** Whether the dialog is open */
@@ -93,7 +93,7 @@ export function StartWorkflowDialog({
             </span>
             <span className="font-medium">{skill.command}</span>
             <span className="text-sm text-neutral-600 dark:text-neutral-400">
-              {skill.longDescription}
+              {skill.description}
             </span>
           </div>
 

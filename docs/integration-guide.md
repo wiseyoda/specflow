@@ -126,7 +126,7 @@ Use `/flow.memory` to detect drift between memory documents and codebase:
 
 | Artifact | Location | Purpose |
 |----------|----------|---------|
-| `orchestration-state.json` | `.specify/` | Workflow state |
+| `orchestration-state.json` | `.specflow/` | Workflow state |
 | `constitution.md` | `.specify/memory/` | Core principles |
 | `tech-stack.md` | `.specify/memory/` | Technology choices |
 | Phase specs | `specs/NNNN-*/` | Feature specifications |

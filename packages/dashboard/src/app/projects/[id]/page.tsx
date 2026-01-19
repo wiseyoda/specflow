@@ -20,7 +20,7 @@ import {
 } from "@/lib/toast-helpers"
 import type { ProjectStatus } from "@/lib/action-definitions"
 import type { OrchestrationState } from "@specflow/shared"
-import type { WorkflowSkill } from "@/lib/workflow-skills"
+import type { WorkflowSkill } from "@/hooks/use-workflow-skills"
 
 /**
  * Determine project status from orchestration state

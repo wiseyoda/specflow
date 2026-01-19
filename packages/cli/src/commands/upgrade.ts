@@ -5,7 +5,7 @@ import { createInterface } from 'node:readline';
 import chalk from 'chalk';
 import { output, success, info, warn, error as logError, header } from '../lib/output.js';
 import { handleError } from '../lib/errors.js';
-import { findProjectRoot, getSpecifyDir, pathExists } from '../lib/paths.js';
+import { findProjectRoot, getSpecifyDir, getStatePath, pathExists } from '../lib/paths.js';
 import {
   detectRepoVersion,
   getVersionDescription,
@@ -227,7 +227,7 @@ async function runUpgrade(options: {
   if (detection.version === 'v3.0') {
     // Check if state is missing history
     const { extractHistoryFromRoadmap } = await import('../lib/migrate.js');
-    const statePath = join(getSpecifyDir(projectPath), 'orchestration-state.json');
+    const statePath = getStatePath(projectPath);
     let needsHistoryUpdate = false;
 
     if (pathExists(statePath)) {

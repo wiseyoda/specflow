@@ -89,7 +89,7 @@ specflow check --gate memory          # Check memory document health
 
 ### state - State Operations
 
-Manage the `.specify/orchestration-state.json` file.
+Manage the `.specflow/orchestration-state.json` file.
 
 ```bash
 specflow state                        # Show full state (alias for 'show')

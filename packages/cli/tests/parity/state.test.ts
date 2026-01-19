@@ -24,7 +24,7 @@ describe('state parity tests', () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'specflow-parity-'));
-    stateDir = path.join(tempDir, '.specify');
+    stateDir = path.join(tempDir, '.specflow');
     statePath = path.join(stateDir, 'orchestration-state.json');
     fs.mkdirSync(stateDir, { recursive: true });
   });

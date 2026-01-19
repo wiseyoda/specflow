@@ -55,7 +55,7 @@ packages/cli/                → TypeScript CLI implementation
 commands/flow.*.md          → Claude Code slash commands (/flow.*)
 ```
 
-**State file**: `.specify/orchestration-state.json` in target projects.
+**State file**: `.specflow/orchestration-state.json` in target projects.
 
 ## CLI Syntax Notes
 

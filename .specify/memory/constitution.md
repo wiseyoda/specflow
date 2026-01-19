@@ -2,7 +2,7 @@
 
 > Core principles and governance for SpecFlow development. All implementation decisions must align with these principles.
 
-**Version**: 1.2.0
+**Version**: 1.3.0
 **Created**: 2026-01-10
 **Status**: ACTIVE
 
@@ -70,6 +70,14 @@ CLI output must put user-critical information in the first 3 lines.
     Next: Run /specflow.verify to complete phase
   ```
 
+### VIII. Repo Knowledge vs Operational State
+Project files are separated into repo knowledge (`.specify/`) and operational state (`.specflow/`).
+- **Rationale**: If a user stops using SpecFlow, they can delete `.specflow/` and retain all valuable documentation
+- **Implications**:
+  - **`.specify/`**: Memory docs, phases, templates, discovery, archive, history - survives uninstall
+  - **`.specflow/`**: orchestration-state.json, manifest.json, workflows/ - delete to uninstall
+- **Rule**: Never store valuable repo knowledge in `.specflow/`; never store transient operational data in `.specify/`
+
 ---
 
 ## Governance
@@ -99,6 +107,7 @@ To amend this constitution:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.3.0 | 2026-01-19 | Added Principle VIII: Repo Knowledge vs Operational State (.specify/ vs .specflow/) |
 | 1.2.0 | 2026-01-18 | Added Principle IIa: TypeScript for CLI Packages; clarified II scope |
 | 1.1.0 | 2026-01-10 | Added Principle VII: Three-Line Output Rule |
 | 1.0.0 | 2026-01-10 | Initial constitution for SpecFlow |

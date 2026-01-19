@@ -315,6 +315,26 @@ Continue the workflow using these answers. Remember:
 - Use the structured_output JSON format`;
 }
 
+/**
+ * Ensure a pattern exists in .gitignore, create file if needed
+ */
+function ensureGitignoreEntry(projectPath: string, pattern: string): void {
+  const gitignorePath = join(projectPath, '.gitignore');
+
+  if (existsSync(gitignorePath)) {
+    const content = readFileSync(gitignorePath, 'utf-8');
+    if (content.includes(pattern)) {
+      return; // Already present
+    }
+    // Append with newline safety
+    const separator = content.endsWith('\n') ? '' : '\n';
+    writeFileSync(gitignorePath, `${content}${separator}${pattern}\n`);
+  } else {
+    // Create new .gitignore
+    writeFileSync(gitignorePath, `${pattern}\n`);
+  }
+}
+
 // =============================================================================
 // Registry Validation (T008)
 // =============================================================================
@@ -551,12 +571,15 @@ class WorkflowService {
 
     const isTestMode = execution.skill === 'test';
 
-    // Create .specify directory in project
-    const specifyDir = join(projectPath, '.specify');
-    mkdirSync(specifyDir, { recursive: true });
+    // Create session-specific workflow directory to avoid collisions
+    const workflowDir = join(projectPath, '.specflow', 'workflows', id);
+    mkdirSync(workflowDir, { recursive: true });
 
-    const scriptFile = join(specifyDir, 'run-workflow.sh');
-    const outputFile = join(specifyDir, 'workflow-output.json');
+    // Ensure .gitignore has workflow session files excluded
+    ensureGitignoreEntry(projectPath, '.specflow/workflows/');
+
+    const scriptFile = join(workflowDir, 'run-workflow.sh');
+    const outputFile = join(workflowDir, 'workflow-output.json');
     const claudePath = '$HOME/.local/bin/claude';
 
     let scriptContent: string;
@@ -571,10 +594,10 @@ ${claudePath} -p --output-format json "Say hello" < /dev/null > "${outputFile}" 
     } else if (isResume && execution.sessionId) {
       // Resume existing session with answers
       const resumePrompt = buildResumePrompt(execution.answers);
-      const promptFile = join(specifyDir, 'resume-prompt.txt');
+      const promptFile = join(workflowDir, 'resume-prompt.txt');
       writeFileSync(promptFile, resumePrompt);
 
-      const schemaFile = join(specifyDir, 'schema.json');
+      const schemaFile = join(workflowDir, 'schema.json');
       writeFileSync(schemaFile, JSON.stringify(WORKFLOW_JSON_SCHEMA));
 
       execution.logs.push(`[RESUME] Session: ${execution.sessionId}`);
@@ -596,11 +619,11 @@ ${claudePath} -p --output-format json --resume "${execution.sessionId}" --danger
         return;
       }
 
-      const promptFile = join(specifyDir, 'prompt.txt');
+      const promptFile = join(workflowDir, 'prompt.txt');
       writeFileSync(promptFile, prompt);
       execution.logs.push(`[INFO] Initial prompt (${prompt.length} chars)`);
 
-      const schemaFile = join(specifyDir, 'schema.json');
+      const schemaFile = join(workflowDir, 'schema.json');
       writeFileSync(schemaFile, JSON.stringify(WORKFLOW_JSON_SCHEMA));
 
       scriptContent = `#!/bin/bash

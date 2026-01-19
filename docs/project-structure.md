@@ -6,7 +6,7 @@ After running `/flow.init`, your project will have the following structure.
 
 ```
 your-project/
-├── .specify/                    # SpecFlow working directory
+├── .specify/                    # Repo knowledge (survives SpecFlow uninstall)
 │   ├── discovery/               # Requirements interview artifacts
 │   │   ├── context.md           # Project identity and context
 │   │   ├── decisions.md         # Captured decisions
@@ -33,9 +33,12 @@ your-project/
 │   ├── templates/               # Project-specific templates (optional)
 │   │   └── spec-template.md     # Overrides system template
 │   │
-│   ├── archive/                 # State backups
-│   │
-│   └── orchestration-state.json # Current state (v3.0 schema)
+│   └── archive/                 # Archived phase specs
+│
+├── .specflow/                   # Operational state (delete to uninstall)
+│   ├── orchestration-state.json # Current workflow state
+│   ├── manifest.json            # Project metadata
+│   └── workflows/               # Active workflow sessions (gitignored)
 │
 ├── specs/                       # Feature specifications
 │   └── 0010-feature-name/       # One directory per phase
@@ -58,7 +61,7 @@ your-project/
 
 ### orchestration-state.json
 
-The state file tracks current progress using v3.0 schema:
+Located at `.specflow/orchestration-state.json`, this file tracks current progress using v3.0 schema:
 
 ```json
 {

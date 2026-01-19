@@ -2,8 +2,7 @@
 
 The user has answered the questions:
 
-- Changes: Commit with phase
-- _followup: All changes are good, do not lose any changes - you should stage everything.
+- Changes: Abort
 
 Continue the workflow using these answers. Remember:
 - You CANNOT use AskUserQuestion tool - it is disabled

@@ -7,7 +7,7 @@ import { WorkflowStatusCard } from "@/components/projects/workflow-status-card"
 import { QuestionDrawer } from "@/components/projects/question-drawer"
 import type { OrchestrationState, TasksData } from "@specflow/shared"
 import type { WorkflowExecution } from "@/lib/services/workflow-service"
-import type { WorkflowSkill } from "@/lib/workflow-skills"
+import type { WorkflowSkill } from "@/hooks/use-workflow-skills"
 
 // Staleness thresholds in minutes
 const STALE_THRESHOLD_MINUTES = 5

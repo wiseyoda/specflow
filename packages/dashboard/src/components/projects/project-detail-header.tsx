@@ -16,7 +16,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { getSkillsByGroup, type WorkflowSkill } from "@/lib/workflow-skills"
+import { useWorkflowSkills, type WorkflowSkill } from "@/hooks/use-workflow-skills"
 import type { ProjectStatus } from "@/lib/action-definitions"
 import type { WorkflowExecution } from "@/lib/services/workflow-service"
 import {
@@ -56,6 +56,9 @@ export function ProjectDetailHeader({
   onWorkflowStart,
   onQuestionBadgeClick,
 }: ProjectDetailHeaderProps) {
+  // Workflow skills (dynamic)
+  const { skills, getSkillsByGroup, isLoading: skillsLoading } = useWorkflowSkills()
+
   // Workflow dialog state
   const [selectedSkill, setSelectedSkill] = React.useState<WorkflowSkill | null>(null)
   const [showWorkflowDialog, setShowWorkflowDialog] = React.useState(false)

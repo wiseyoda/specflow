@@ -1,6 +1,6 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { join, basename } from 'node:path';
-import { getSpecifyDir, pathExists, getRoadmapPath } from './paths.js';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { join, basename, dirname } from 'node:path';
+import { getSpecifyDir, getSpecflowDir, getManifestPath, getStatePath, pathExists, getRoadmapPath } from './paths.js';
 import type { RepoVersion, ManifestV2, ManifestV3 } from './detect.js';
 
 /**
@@ -68,11 +68,16 @@ export async function migrateManifest(
   projectPath: string,
   projectName: string,
 ): Promise<MigrationResult> {
-  const manifestPath = join(getSpecifyDir(projectPath), 'manifest.json');
+  const manifestPath = getManifestPath(projectPath);
+  const legacyManifestPath = join(getSpecifyDir(projectPath), 'manifest.json');
 
   try {
+    // Ensure .specflow directory exists
+    await mkdir(dirname(manifestPath), { recursive: true });
+
     let existingManifest: ManifestV2 | ManifestV3 | undefined;
 
+    // Check new location first, then legacy location
     if (pathExists(manifestPath)) {
       const content = await readFile(manifestPath, 'utf-8');
       existingManifest = JSON.parse(content);
@@ -85,6 +90,10 @@ export async function migrateManifest(
           details: 'Manifest already at v3.0',
         };
       }
+    } else if (pathExists(legacyManifestPath)) {
+      // Read from legacy location for migration
+      const content = await readFile(legacyManifestPath, 'utf-8');
+      existingManifest = JSON.parse(content);
     }
 
     const newManifest = createV3Manifest(projectName, existingManifest);
@@ -261,11 +270,16 @@ export async function migrateState(
   projectPath: string,
   projectName: string,
 ): Promise<MigrationResult & { historyExtracted?: number }> {
-  const statePath = join(getSpecifyDir(projectPath), 'orchestration-state.json');
+  const statePath = getStatePath(projectPath);
+  const legacyStatePath = join(getSpecifyDir(projectPath), 'orchestration-state.json');
 
   try {
+    // Ensure .specflow directory exists
+    await mkdir(dirname(statePath), { recursive: true });
+
     let existingState: Record<string, unknown> | undefined;
 
+    // Check new location first, then legacy location
     if (pathExists(statePath)) {
       const content = await readFile(statePath, 'utf-8');
       existingState = JSON.parse(content);
@@ -281,6 +295,10 @@ export async function migrateState(
           details: 'State already at v3.0 with history',
         };
       }
+    } else if (pathExists(legacyStatePath)) {
+      // Read from legacy location for migration
+      const content = await readFile(legacyStatePath, 'utf-8');
+      existingState = JSON.parse(content);
     }
 
     // Extract history from ROADMAP.md for legacy projects

@@ -1,6 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { pathExists, getSpecifyDir, getRoadmapPath, getSpecsDir } from './paths.js';
+import {
+  pathExists,
+  getSpecifyDir,
+  getSpecflowDir,
+  getManifestPath,
+  getStatePath,
+  getRoadmapPath,
+  getSpecsDir,
+} from './paths.js';
 
 /**
  * Repository version detection for SpecFlow upgrade
@@ -122,13 +130,17 @@ async function checkV2Indicators(projectPath: string): Promise<string[]> {
 
 /**
  * Check for v3.0 indicators
+ * Note: v3.0 stores manifest and state in .specflow/ (not .specify/)
  */
 async function checkV3Indicators(projectPath: string): Promise<string[]> {
   const indicators: string[] = [];
-  const specifyDir = getSpecifyDir(projectPath);
+
+  // v3.0 has manifest and state in .specflow/ directory
+  const manifestPath = getManifestPath(projectPath);
+  const statePath = getStatePath(projectPath);
 
   // v3.0 has specflow_version in manifest (key differentiator from v2.0)
-  const manifest = await readJsonFile<ManifestV3>(join(specifyDir, 'manifest.json'));
+  const manifest = await readJsonFile<ManifestV3>(manifestPath);
   if (manifest?.specflow_version) {
     indicators.push(`manifest has specflow_version: ${manifest.specflow_version}`);
   }
@@ -139,9 +151,14 @@ async function checkV3Indicators(projectPath: string): Promise<string[]> {
   }
 
   // v3.0 state file has schema_version = '3.0'
-  const state = await readJsonFile<StateV2>(join(specifyDir, 'orchestration-state.json'));
+  const state = await readJsonFile<StateV2>(statePath);
   if (state?.schema_version === '3.0') {
     indicators.push('state schema_version: 3.0');
+  }
+
+  // Also check for .specflow/ directory existence
+  if (pathExists(getSpecflowDir(projectPath))) {
+    indicators.push('.specflow/ directory exists');
   }
 
   return indicators;
@@ -152,8 +169,12 @@ async function checkV3Indicators(projectPath: string): Promise<string[]> {
  */
 async function hasAnyArtifacts(projectPath: string): Promise<boolean> {
   const specifyDir = getSpecifyDir(projectPath);
+  const specflowDir = getSpecflowDir(projectPath);
   const specsDir = getSpecsDir(projectPath);
   const roadmapPath = getRoadmapPath(projectPath);
+
+  // Check for .specflow directory (v3.0)
+  if (pathExists(specflowDir)) return true;
 
   // Check for .specify directory
   if (pathExists(specifyDir)) return true;
@@ -189,14 +210,18 @@ export async function detectRepoVersion(projectPath: string): Promise<DetectionR
   const v2Indicators = await checkV2Indicators(projectPath);
   const v3Indicators = await checkV3Indicators(projectPath);
 
-  // Read manifest for return value
+  // Read manifest for return value - check both locations
   const specifyDir = getSpecifyDir(projectPath);
-  const manifest = await readJsonFile<ManifestV2 | ManifestV3>(
-    join(specifyDir, 'manifest.json'),
-  );
-  const state = await readJsonFile<StateV2>(
-    join(specifyDir, 'orchestration-state.json'),
-  );
+  // Try v3.0 location first, then fall back to legacy location
+  let manifest = await readJsonFile<ManifestV2 | ManifestV3>(getManifestPath(projectPath));
+  if (!manifest) {
+    manifest = await readJsonFile<ManifestV2 | ManifestV3>(join(specifyDir, 'manifest.json'));
+  }
+  // Try v3.0 location first for state
+  let state = await readJsonFile<StateV2>(getStatePath(projectPath));
+  if (!state) {
+    state = await readJsonFile<StateV2>(join(specifyDir, 'orchestration-state.json'));
+  }
 
   // Prioritize v3.0 detection
   if (v3Indicators.length > 0) {

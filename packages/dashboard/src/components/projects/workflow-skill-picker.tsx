@@ -17,7 +17,7 @@ import {
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 import { Play } from 'lucide-react';
-import { getSkillsByGroup, type WorkflowSkill } from '@/lib/workflow-skills';
+import { useWorkflowSkills, type WorkflowSkill } from '@/hooks/use-workflow-skills';
 
 export interface WorkflowSkillPickerProps {
   /** Called when a skill is selected */
@@ -36,6 +36,8 @@ export function WorkflowSkillPicker({
   onSelectSkill,
   disabled = false,
 }: WorkflowSkillPickerProps) {
+  const { getSkillsByGroup } = useWorkflowSkills();
+
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import {
   findProjectRoot,
   getStatePath,
+  getManifestPath,
   getRoadmapPath,
   getMemoryDir,
   pathExists,
@@ -126,7 +127,7 @@ async function collectIssues(projectPath?: string): Promise<HealthIssue[]> {
       code: 'STATE_INVALID',
       severity: 'error',
       message: 'State file is corrupted or invalid',
-      fix: 'Run "specflow state reset" to reset state, or manually repair .specify/orchestration-state.json',
+      fix: 'Run "specflow state reset" to reset state, or manually repair .specflow/orchestration-state.json',
       autoFixable: false, // Requires manual intervention to preserve data
     });
     return issues;
@@ -169,7 +170,7 @@ async function collectIssues(projectPath?: string): Promise<HealthIssue[]> {
   }
 
   // Check manifest version compatibility
-  const manifestPath = join(root, '.specify', 'manifest.json');
+  const manifestPath = getManifestPath(root);
   if (pathExists(manifestPath)) {
     try {
       const manifestContent = await readFile(manifestPath, 'utf-8');
@@ -202,7 +203,7 @@ async function collectIssues(projectPath?: string): Promise<HealthIssue[]> {
       issues.push({
         code: 'MANIFEST_INVALID',
         severity: 'warning',
-        message: 'Cannot read or parse .specify/manifest.json',
+        message: 'Cannot read or parse .specflow/manifest.json',
         fix: 'Run "/flow.init" to regenerate manifest',
         autoFixable: false,
       });

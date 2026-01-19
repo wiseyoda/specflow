@@ -4,7 +4,7 @@ SpecFlow configuration and state management.
 
 ## State File
 
-SpecFlow uses `.specify/orchestration-state.json` to track project state.
+SpecFlow uses `.specflow/orchestration-state.json` to track project state.
 
 ### v3.0 Schema
 
@@ -144,11 +144,13 @@ The CLI handles both formats automatically.
 | `CLAUDE.md` | Claude Code project instructions | Recommended |
 | `README.md` | Project documentation | Optional |
 
-### State & Configuration (`.specify/`)
+### Operational State (`.specflow/`)
 
 | Path | Purpose | Required |
 |------|---------|----------|
-| `.specify/orchestration-state.json` | Project state (v3.0 schema with UUID) | Yes |
+| `.specflow/orchestration-state.json` | Project state (v3.0 schema with UUID) | Yes |
+| `.specflow/manifest.json` | Project metadata | Yes |
+| `.specflow/workflows/` | Active workflow sessions (gitignored) | Auto-created |
 
 ### Discovery (`.specify/discovery/`)
 

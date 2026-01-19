@@ -30,7 +30,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { WorkflowStatusBadge } from '@/components/projects/workflow-status-badge';
-import { getSkillsByGroup, type WorkflowSkill } from '@/lib/workflow-skills';
+import { useWorkflowSkills, type WorkflowSkill } from '@/hooks/use-workflow-skills';
 import type { WorkflowExecution } from '@/lib/services/workflow-service';
 
 interface WorkflowStatusCardProps {
@@ -95,6 +95,7 @@ export function WorkflowStatusCard({
   onStart,
   onCancel,
 }: WorkflowStatusCardProps) {
+  const { getSkillsByGroup } = useWorkflowSkills();
   const isActive =
     execution?.status === 'running' || execution?.status === 'waiting_for_input';
 

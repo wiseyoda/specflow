@@ -77,6 +77,10 @@ Options:
 - `.specify/phases/`
 - `specs/`
 
+**Ensure `.gitignore` includes workflow session files:**
+- Check if `.gitignore` exists, create if not
+- Add `.specflow/workflows/` if not already present
+
 ---
 
 ## Argument Routing

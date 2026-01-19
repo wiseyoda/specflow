@@ -6,7 +6,7 @@ description: Orchestrate the complete SpecFlow workflow from end to end with sta
 
 **YOU MUST FOLLOW THESE RULES WITHOUT EXCEPTION:**
 
-1. **NEVER edit `.specify/orchestration-state.json` directly** - Use `specflow state set`
+1. **NEVER edit `.specflow/orchestration-state.json` directly** - Use `specflow state set`
 2. **NEVER edit `tasks.md` to mark tasks complete** - Use `specflow mark T###`
 3. **NEVER skip steps** - Execute in order: design → analyze → implement → verify
 4. **ALWAYS verify step completion** before advancing to next step

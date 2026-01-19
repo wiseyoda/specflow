@@ -15,7 +15,7 @@ vi.mock('../../src/lib/paths.js', () => ({
   getMemoryDir: vi.fn((path) => join(path || '/test/project', '.specify/memory')),
   getTemplatesDir: vi.fn((path) => join(path || '/test/project', '.specify/templates')),
   getRoadmapPath: vi.fn((path) => join(path || '/test/project', 'ROADMAP.md')),
-  getStatePath: vi.fn((path) => join(path || '/test/project', '.specify/orchestration-state.json')),
+  getStatePath: vi.fn((path) => join(path || '/test/project', '.specflow/orchestration-state.json')),
   pathExists: vi.fn(() => false),
 }));
 

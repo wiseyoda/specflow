@@ -71,7 +71,7 @@ specflow state show
 specflow state init
 
 # Or manually inspect
-cat .specify/orchestration-state.json | jq .
+cat .specflow/orchestration-state.json | jq .
 ```
 
 ### State Out of Sync

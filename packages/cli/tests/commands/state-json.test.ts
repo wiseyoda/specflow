@@ -51,7 +51,7 @@ describe('state command JSON output', () => {
       expect(result.project).toBeDefined();
       expect(result.project.id).toMatch(/^[0-9a-f-]+$/);
       expect(result.project.name).toBe(path.basename(tempDir));
-      expect(result.statePath).toContain('.specify/orchestration-state.json');
+      expect(result.statePath).toContain('.specflow/orchestration-state.json');
       expect(result.registered).toBe(true);
       expect(result.overwritten).toBe(false);
     });

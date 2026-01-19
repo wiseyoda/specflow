@@ -20,3 +20,6 @@ coverage/
 # Local development
 .env
 .env.local
+
+# SpecFlow workflow session files
+.specflow/workflows/

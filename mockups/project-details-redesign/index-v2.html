@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpecFlow Dashboard - Claude Redesign v2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        surface: {
+                            50: '#fafafa',
+                            100: '#18181b',
+                            200: '#1f1f23',
+                            300: '#27272a',
+                            400: '#3f3f46',
+                            500: '#52525b',
+                        },
+                        accent: {
+                            DEFAULT: '#6366f1',
+                            hover: '#818cf8',
+                            muted: 'rgba(99, 102, 241, 0.1)',
+                        },
+                        success: '#10b981',
+                        warning: '#f59e0b',
+                        danger: '#ef4444',
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'slide-up': 'slideUp 0.3s ease-out',
+                        'fade-in': 'fadeIn 0.2s ease-out',
+                    },
+                    keyframes: {
+                        slideUp: {
+                            '0%': { transform: 'translateY(10px)', opacity: 0 },
+                            '100%': { transform: 'translateY(0)', opacity: 1 },
+                        },
+                        fadeIn: {
+                            '0%': { opacity: 0 },
+                            '100%': { opacity: 1 },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        [x-cloak] { display: none !important; }
+
+        /* Custom scrollbar */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+        /* Glow effects */
+        .glow-accent { box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.3); }
+        .glow-success { box-shadow: 0 0 40px -10px rgba(16, 185, 129, 0.3); }
+        .glow-warning { box-shadow: 0 0 40px -10px rgba(245, 158, 11, 0.4); }
+
+        /* Glass morphism */
+        .glass {
+            background: rgba(24, 24, 27, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(63, 63, 70, 0.5);
+        }
+
+        /* Terminal cursor blink */
+        .cursor-blink::after {
+            content: '▋';
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6, #d946ef);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+    </style>
+</head>
+
+<body class="bg-surface-100 text-zinc-200 font-sans antialiased h-screen flex overflow-hidden"
+      x-data="dashboard()">
+
+    <!-- Sidebar -->
+    <aside class="w-60 bg-surface-200 border-r border-surface-400/50 flex flex-col shrink-0">
+
+        <!-- Logo / Project -->
+        <div class="h-16 px-4 flex items-center gap-3 border-b border-surface-400/50">
+            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center text-white font-bold text-sm shadow-lg">
+                SF
+            </div>
+            <div class="flex-1 min-w-0">
+                <h1 class="text-sm font-semibold text-white truncate">specflow</h1>
+                <p class="text-xs text-zinc-500 truncate">~/dev/specflow</p>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 p-3 space-y-1 overflow-y-auto custom-scroll">
+            <p class="px-3 py-2 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Workspace</p>
+
+            <button @click="activeView = 'dashboard'"
+                    :class="activeView === 'dashboard' ? 'bg-surface-300 text-white' : 'text-zinc-400 hover:bg-surface-300/50 hover:text-zinc-200'"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all">
+                <i class="fa-solid fa-house w-5 text-center" :class="activeView === 'dashboard' && 'text-accent'"></i>
+                Dashboard
+            </button>
+
+            <button @click="activeView = 'session'"
+                    :class="activeView === 'session' ? 'bg-surface-300 text-white' : 'text-zinc-400 hover:bg-surface-300/50 hover:text-zinc-200'"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all relative">
+                <div class="relative w-5 text-center">
+                    <i class="fa-solid fa-terminal" :class="activeView === 'session' && 'text-accent'"></i>
+                    <span x-show="workflowState === 'running'" class="absolute -top-1 -right-1 flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-success"></span>
+                    </span>
+                </div>
+                Session
+                <span x-show="workflowState === 'running'" class="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-success/20 text-success font-mono">LIVE</span>
+            </button>
+
+            <button @click="activeView = 'tasks'"
+                    :class="activeView === 'tasks' ? 'bg-surface-300 text-white' : 'text-zinc-400 hover:bg-surface-300/50 hover:text-zinc-200'"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all">
+                <i class="fa-solid fa-list-check w-5 text-center" :class="activeView === 'tasks' && 'text-accent'"></i>
+                Tasks
+                <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-surface-400 text-zinc-400">3</span>
+            </button>
+
+            <button @click="activeView = 'history'"
+                    :class="activeView === 'history' ? 'bg-surface-300 text-white' : 'text-zinc-400 hover:bg-surface-300/50 hover:text-zinc-200'"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all">
+                <i class="fa-solid fa-clock-rotate-left w-5 text-center" :class="activeView === 'history' && 'text-accent'"></i>
+                History
+            </button>
+
+            <p class="px-3 py-2 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider mt-6">Current Phase</p>
+
+            <div class="px-3 py-2 rounded-lg bg-surface-300/50 border border-surface-400/50">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xs font-mono text-accent">0042</span>
+                    <span class="text-sm text-zinc-300">API Design</span>
+                </div>
+                <div class="flex items-center gap-2 text-xs text-zinc-500">
+                    <div class="flex items-center gap-1">
+                        <div class="w-1.5 h-1.5 rounded-full bg-success"></div>
+                        <span>Implement</span>
+                    </div>
+                    <span class="text-zinc-600">•</span>
+                    <span>80%</span>
+                </div>
+            </div>
+
+            <p class="px-3 py-2 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider mt-6">Artifacts</p>
+
+            <a href="#" class="flex items-center gap-2 px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                <i class="fa-solid fa-file-lines w-4 text-center text-zinc-600"></i>
+                spec.md
+            </a>
+            <a href="#" class="flex items-center gap-2 px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                <i class="fa-solid fa-file-lines w-4 text-center text-zinc-600"></i>
+                plan.md
+            </a>
+            <a href="#" class="flex items-center gap-2 px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                <i class="fa-solid fa-file-lines w-4 text-center text-zinc-600"></i>
+                tasks.md
+            </a>
+        </nav>
+
+        <!-- User -->
+        <div class="p-3 border-t border-surface-400/50">
+            <div class="flex items-center gap-3 px-2">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
+                    PP
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-zinc-200 truncate">Patrick</p>
+                </div>
+                <button class="text-zinc-500 hover:text-zinc-300">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+
+        <!-- Top Bar -->
+        <header class="h-16 px-6 flex items-center justify-between border-b border-surface-400/50 bg-surface-200/50 backdrop-blur shrink-0">
+            <div class="flex items-center gap-4">
+                <!-- Breadcrumb / Context -->
+                <div class="flex items-center gap-2 text-sm">
+                    <span class="text-zinc-500">Projects</span>
+                    <i class="fa-solid fa-chevron-right text-[10px] text-zinc-600"></i>
+                    <span class="text-zinc-200 font-medium">specflow</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <!-- Status Pill -->
+                <div class="flex items-center gap-3 px-4 py-2 rounded-full bg-surface-300 border border-surface-400">
+                    <div class="flex items-center gap-2">
+                        <span class="relative flex h-2 w-2">
+                            <span x-show="workflowState === 'running'" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2"
+                                  :class="{
+                                      'bg-zinc-500': workflowState === 'idle',
+                                      'bg-success': workflowState === 'running',
+                                      'bg-warning': workflowState === 'waiting',
+                                      'bg-danger': workflowState === 'failed'
+                                  }"></span>
+                        </span>
+                        <span class="text-xs font-medium uppercase tracking-wide"
+                              :class="{
+                                  'text-zinc-400': workflowState === 'idle',
+                                  'text-success': workflowState === 'running',
+                                  'text-warning': workflowState === 'waiting',
+                                  'text-danger': workflowState === 'failed'
+                              }"
+                              x-text="workflowState === 'idle' ? 'Ready' : workflowState === 'running' ? 'Active' : workflowState === 'waiting' ? 'Input Needed' : 'Error'">
+                        </span>
+                    </div>
+                    <div x-show="workflowState === 'running'" class="h-4 w-px bg-surface-400"></div>
+                    <div x-show="workflowState === 'running'" class="text-xs text-zinc-400 font-mono" x-text="elapsedTime">00:00</div>
+                </div>
+
+                <!-- Command Palette Trigger -->
+                <button @click="commandPaletteOpen = true"
+                        class="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white font-medium text-sm transition-all shadow-lg shadow-accent/20 hover:shadow-accent/30">
+                    <i class="fa-solid fa-bolt"></i>
+                    <span>Start</span>
+                    <kbd class="ml-1 px-1.5 py-0.5 rounded bg-white/20 text-[10px] font-mono">⌘K</kbd>
+                </button>
+
+                <!-- Notifications -->
+                <button @click="notificationOpen = !notificationOpen" class="relative p-2 rounded-lg hover:bg-surface-300 text-zinc-400 hover:text-zinc-200 transition-colors">
+                    <i class="fa-solid fa-bell"></i>
+                    <span x-show="workflowState === 'waiting'" class="absolute top-1 right-1 flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-warning opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-warning"></span>
+                    </span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Content Area -->
+        <main class="flex-1 overflow-hidden">
+
+            <!-- DASHBOARD VIEW -->
+            <div x-show="activeView === 'dashboard'" x-transition:enter="animate-fade-in" class="h-full overflow-y-auto custom-scroll p-6 space-y-6">
+
+                <!-- Hero Card - State Driven -->
+                <div class="relative rounded-2xl overflow-hidden"
+                     :class="{
+                         'bg-gradient-to-br from-surface-300 via-surface-300 to-accent/10 glow-accent': workflowState === 'idle',
+                         'bg-gradient-to-br from-surface-300 via-surface-300 to-success/10 glow-success': workflowState === 'running',
+                         'bg-gradient-to-br from-surface-300 via-surface-300 to-warning/10 glow-warning': workflowState === 'waiting',
+                         'bg-gradient-to-br from-surface-300 via-surface-300 to-danger/10': workflowState === 'failed'
+                     }">
+
+                    <!-- Decorative elements -->
+                    <div class="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-accent/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+
+                    <div class="relative p-8">
+                        <div class="flex items-start justify-between">
+                            <div class="max-w-2xl">
+                                <!-- Idle State -->
+                                <template x-if="workflowState === 'idle'">
+                                    <div>
+                                        <h2 class="text-2xl font-bold text-white mb-2">Ready to build?</h2>
+                                        <p class="text-zinc-400 mb-6">You're in the <span class="text-accent font-medium">Implementation</span> phase with 3 tasks remaining. Pick up where you left off.</p>
+                                        <div class="flex gap-3">
+                                            <button @click="commandPaletteOpen = true" class="px-5 py-2.5 rounded-lg bg-accent hover:bg-accent-hover text-white font-medium transition-all shadow-lg shadow-accent/20">
+                                                Continue Implementation
+                                            </button>
+                                            <button @click="activeView = 'tasks'" class="px-5 py-2.5 rounded-lg bg-surface-400 hover:bg-surface-500 text-zinc-200 font-medium transition-colors">
+                                                View Tasks
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Running State -->
+                                <template x-if="workflowState === 'running'">
+                                    <div>
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-success/20 border border-success/30">
+                                                <span class="relative flex h-2 w-2">
+                                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+                                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-success"></span>
+                                                </span>
+                                                <span class="text-success text-xs font-medium uppercase tracking-wide">Live Session</span>
+                                            </div>
+                                            <span class="text-zinc-500 text-sm font-mono" x-text="elapsedTime">00:00</span>
+                                        </div>
+                                        <h2 class="text-2xl font-bold text-white mb-2">Implement running...</h2>
+                                        <p class="text-zinc-400 mb-6">Working on: <span class="text-zinc-200">T013 - Add input validation for user forms</span></p>
+                                        <div class="flex gap-3">
+                                            <button @click="activeView = 'session'" class="px-5 py-2.5 rounded-lg bg-success hover:bg-success/80 text-white font-medium transition-all flex items-center gap-2">
+                                                <i class="fa-solid fa-terminal"></i>
+                                                View Live Console
+                                            </button>
+                                            <button @click="cancelWorkflow()" class="px-5 py-2.5 rounded-lg border border-danger/50 text-danger hover:bg-danger/10 font-medium transition-colors">
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Waiting State -->
+                                <template x-if="workflowState === 'waiting'">
+                                    <div>
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-warning/20 border border-warning/30 animate-pulse">
+                                                <i class="fa-solid fa-circle-question text-warning"></i>
+                                                <span class="text-warning text-xs font-medium uppercase tracking-wide">Input Required</span>
+                                            </div>
+                                        </div>
+                                        <h2 class="text-2xl font-bold text-white mb-2">Workflow needs your input</h2>
+                                        <p class="text-zinc-400 mb-6">2 questions need your attention before the workflow can continue.</p>
+                                        <div class="flex gap-3">
+                                            <button @click="questionModalOpen = true" class="px-5 py-2.5 rounded-lg bg-warning hover:bg-warning/80 text-black font-medium transition-all flex items-center gap-2 shadow-lg shadow-warning/20">
+                                                <i class="fa-solid fa-reply"></i>
+                                                Answer Questions (2)
+                                            </button>
+                                            <button @click="activeView = 'session'" class="px-5 py-2.5 rounded-lg bg-surface-400 hover:bg-surface-500 text-zinc-200 font-medium transition-colors">
+                                                View Context
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Failed State -->
+                                <template x-if="workflowState === 'failed'">
+                                    <div>
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-danger/20 border border-danger/30">
+                                                <i class="fa-solid fa-circle-exclamation text-danger"></i>
+                                                <span class="text-danger text-xs font-medium uppercase tracking-wide">Failed</span>
+                                            </div>
+                                        </div>
+                                        <h2 class="text-2xl font-bold text-white mb-2">Workflow encountered an error</h2>
+                                        <p class="text-zinc-400 mb-6">Connection timeout after 3 retries. The session has been preserved.</p>
+                                        <div class="flex gap-3">
+                                            <button @click="activeView = 'session'" class="px-5 py-2.5 rounded-lg bg-danger hover:bg-danger/80 text-white font-medium transition-all flex items-center gap-2">
+                                                <i class="fa-solid fa-magnifying-glass"></i>
+                                                View Error Details
+                                            </button>
+                                            <button @click="retryWorkflow()" class="px-5 py-2.5 rounded-lg bg-surface-400 hover:bg-surface-500 text-zinc-200 font-medium transition-colors flex items-center gap-2">
+                                                <i class="fa-solid fa-rotate-right"></i>
+                                                Retry
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Stats (visible in idle/running) -->
+                            <div x-show="workflowState === 'idle' || workflowState === 'running'" class="hidden lg:flex items-center gap-8 text-center">
+                                <div>
+                                    <div class="text-3xl font-bold text-white">12</div>
+                                    <div class="text-xs text-zinc-500 uppercase tracking-wide mt-1">Done</div>
+                                </div>
+                                <div class="w-px h-12 bg-surface-400"></div>
+                                <div>
+                                    <div class="text-3xl font-bold text-warning">3</div>
+                                    <div class="text-xs text-zinc-500 uppercase tracking-wide mt-1">Todo</div>
+                                </div>
+                                <div class="w-px h-12 bg-surface-400"></div>
+                                <div>
+                                    <div class="text-3xl font-bold text-accent">80%</div>
+                                    <div class="text-xs text-zinc-500 uppercase tracking-wide mt-1">Progress</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Progress bar -->
+                    <div class="h-1 bg-surface-400">
+                        <div class="h-full bg-gradient-to-r from-accent to-success transition-all duration-500" style="width: 80%"></div>
+                    </div>
+                </div>
+
+                <!-- Grid: Phase + Activity -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                    <!-- Phase Progress -->
+                    <div class="bg-surface-300 rounded-xl border border-surface-400 p-5">
+                        <h3 class="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">Phase Progress</h3>
+
+                        <div class="space-y-4">
+                            <!-- Discovery - Complete -->
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-full bg-success/20 border border-success/30 flex items-center justify-center text-success">
+                                    <i class="fa-solid fa-check text-sm"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="text-sm font-medium text-zinc-300">Discovery</div>
+                                    <div class="h-1.5 w-full bg-surface-400 rounded-full mt-2 overflow-hidden">
+                                        <div class="h-full bg-success w-full rounded-full"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Design - Complete -->
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-full bg-success/20 border border-success/30 flex items-center justify-center text-success">
+                                    <i class="fa-solid fa-check text-sm"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="text-sm font-medium text-zinc-300">Design</div>
+                                    <div class="h-1.5 w-full bg-surface-400 rounded-full mt-2 overflow-hidden">
+                                        <div class="h-full bg-success w-full rounded-full"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Implement - In Progress -->
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-full bg-accent border border-accent flex items-center justify-center text-white shadow-lg shadow-accent/30">
+                                    <i class="fa-solid fa-code text-sm"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="flex justify-between text-sm font-medium">
+                                        <span class="text-white">Implement</span>
+                                        <span class="text-accent">80%</span>
+                                    </div>
+                                    <div class="h-1.5 w-full bg-surface-400 rounded-full mt-2 overflow-hidden">
+                                        <div class="h-full bg-accent w-4/5 rounded-full"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Verify - Pending -->
+                            <div class="flex items-center gap-4 opacity-40">
+                                <div class="w-10 h-10 rounded-full bg-surface-400 border border-surface-500 flex items-center justify-center text-zinc-500">
+                                    <i class="fa-solid fa-vial text-sm"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="text-sm font-medium text-zinc-500">Verify</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Activity Feed -->
+                    <div class="lg:col-span-2 bg-surface-300 rounded-xl border border-surface-400 p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Recent Activity</h3>
+                            <button @click="activeView = 'history'" class="text-xs text-accent hover:text-accent-hover transition-colors">View all</button>
+                        </div>
+
+                        <div class="space-y-1">
+                            <div class="flex gap-4 p-3 rounded-lg hover:bg-surface-400/50 transition-colors cursor-pointer group">
+                                <div class="mt-0.5">
+                                    <div class="w-2 h-2 rounded-full bg-success ring-4 ring-success/10"></div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-zinc-300 group-hover:text-white transition-colors">
+                                        <span class="text-success font-medium">Task completed:</span> Configure environment variables
+                                    </p>
+                                    <p class="text-xs text-zinc-600 mt-0.5">Implement Agent • 10 minutes ago</p>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-4 p-3 rounded-lg hover:bg-surface-400/50 transition-colors cursor-pointer group">
+                                <div class="mt-0.5">
+                                    <div class="w-2 h-2 rounded-full bg-accent ring-4 ring-accent/10"></div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-zinc-300 group-hover:text-white transition-colors">
+                                        <span class="text-accent font-medium">File created:</span> src/config/env.ts
+                                    </p>
+                                    <p class="text-xs text-zinc-600 mt-0.5">Implement Agent • 12 minutes ago</p>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-4 p-3 rounded-lg hover:bg-surface-400/50 transition-colors cursor-pointer group">
+                                <div class="mt-0.5">
+                                    <div class="w-2 h-2 rounded-full bg-purple-500 ring-4 ring-purple-500/10"></div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-zinc-300 group-hover:text-white transition-colors">
+                                        <span class="text-purple-400 font-medium">Spec updated:</span> plan.md
+                                    </p>
+                                    <p class="text-xs text-zinc-600 mt-0.5">Design Agent • 15 minutes ago</p>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-4 p-3 rounded-lg hover:bg-surface-400/50 transition-colors cursor-pointer group">
+                                <div class="mt-0.5">
+                                    <div class="w-2 h-2 rounded-full bg-success ring-4 ring-success/10"></div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-zinc-300 group-hover:text-white transition-colors">
+                                        <span class="text-success font-medium">Task completed:</span> Set up database connection
+                                    </p>
+                                    <p class="text-xs text-zinc-600 mt-0.5">Implement Agent • 25 minutes ago</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Tasks -->
+                <div class="bg-surface-300 rounded-xl border border-surface-400 p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Next Up</h3>
+                        <button @click="activeView = 'tasks'" class="text-xs text-accent hover:text-accent-hover transition-colors">View board</button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-surface-200 p-4 rounded-lg border border-surface-400 hover:border-accent/50 cursor-pointer transition-all hover:-translate-y-0.5 group">
+                            <div class="flex justify-between items-start mb-3">
+                                <span class="text-xs font-mono text-zinc-600">T013</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-warning/20 text-warning border border-warning/30">High</span>
+                            </div>
+                            <h4 class="text-sm font-medium text-zinc-200 group-hover:text-white transition-colors">Add input validation for user forms</h4>
+                        </div>
+
+                        <div class="bg-surface-200 p-4 rounded-lg border border-surface-400 hover:border-accent/50 cursor-pointer transition-all hover:-translate-y-0.5 group">
+                            <div class="flex justify-between items-start mb-3">
+                                <span class="text-xs font-mono text-zinc-600">T014</span>
+                            </div>
+                            <h4 class="text-sm font-medium text-zinc-200 group-hover:text-white transition-colors">Write unit tests for auth module</h4>
+                        </div>
+
+                        <div class="bg-surface-200 p-4 rounded-lg border border-surface-400 border-dashed hover:border-accent/50 cursor-pointer transition-all flex items-center justify-center text-zinc-600 hover:text-accent group">
+                            <div class="text-center">
+                                <i class="fa-solid fa-plus mb-1"></i>
+                                <div class="text-xs font-medium">Add Task</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SESSION VIEW -->
+            <div x-show="activeView === 'session'" x-transition:enter="animate-fade-in" class="h-full flex flex-col p-6">
+
+                <!-- Session Header -->
+                <div class="flex items-center justify-between mb-4 shrink-0">
+                    <div>
+                        <div class="flex items-center gap-3">
+                            <h2 class="text-xl font-bold text-white">Session Console</h2>
+                            <span x-show="workflowState === 'running'" class="px-2 py-0.5 rounded-full bg-success/20 text-success text-xs font-medium border border-success/30 animate-pulse">LIVE</span>
+                            <span x-show="workflowState === 'idle'" class="px-2 py-0.5 rounded-full bg-surface-400 text-zinc-500 text-xs font-medium">IDLE</span>
+                        </div>
+                        <p class="text-sm text-zinc-500 mt-1">
+                            <span x-show="workflowState !== 'idle'">Session: <span class="font-mono text-zinc-400">f16d5aa5</span> • Started 14m ago</span>
+                            <span x-show="workflowState === 'idle'">No active session. Start a workflow to see activity.</span>
+                        </p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="p-2 rounded-lg hover:bg-surface-300 text-zinc-500 hover:text-zinc-200 transition-colors" title="Download logs">
+                            <i class="fa-solid fa-download"></i>
+                        </button>
+                        <button class="p-2 rounded-lg hover:bg-surface-300 text-zinc-500 hover:text-zinc-200 transition-colors" title="Fullscreen">
+                            <i class="fa-solid fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Terminal -->
+                <div class="flex-1 bg-surface-200 rounded-xl border border-surface-400 overflow-hidden flex flex-col shadow-2xl">
+                    <!-- Terminal header -->
+                    <div class="flex items-center justify-between px-4 py-2.5 bg-surface-100 border-b border-surface-400">
+                        <div class="flex gap-2">
+                            <div class="w-3 h-3 rounded-full bg-danger/50"></div>
+                            <div class="w-3 h-3 rounded-full bg-warning/50"></div>
+                            <div class="w-3 h-3 rounded-full bg-success/50"></div>
+                        </div>
+                        <div class="text-xs font-mono text-zinc-600">specflow — implement</div>
+                        <div class="w-16"></div>
+                    </div>
+
+                    <!-- Console output -->
+                    <div class="flex-1 p-6 font-mono text-sm overflow-y-auto custom-scroll space-y-4">
+
+                        <div class="flex gap-3">
+                            <div class="shrink-0 w-6 text-center text-accent"><i class="fa-solid fa-robot"></i></div>
+                            <div class="text-zinc-300">
+                                <p>I'll start by analyzing the current project structure to determine the best location for input validation logic.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3 opacity-70">
+                            <div class="shrink-0 w-6 text-center text-purple-400"><i class="fa-solid fa-wrench"></i></div>
+                            <div class="text-zinc-400">
+                                <span class="text-purple-400 font-medium">Glob</span>
+                                <span class="text-zinc-600">pattern="src/**/*.ts"</span>
+                            </div>
+                        </div>
+
+                        <div class="pl-9 border-l-2 border-surface-400 py-1">
+                            <div class="text-xs text-zinc-600">Found 12 files matching pattern.</div>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <div class="shrink-0 w-6 text-center text-accent"><i class="fa-solid fa-robot"></i></div>
+                            <div class="text-zinc-300">
+                                <p>I see the <code class="px-1.5 py-0.5 rounded bg-success/20 text-success text-xs">src/auth</code> directory. Let me examine the login controller.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3 opacity-70">
+                            <div class="shrink-0 w-6 text-center text-purple-400"><i class="fa-solid fa-wrench"></i></div>
+                            <div class="text-zinc-400">
+                                <span class="text-purple-400 font-medium">Read</span>
+                                <span class="text-zinc-600">file="src/auth/login.ts"</span>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <div class="shrink-0 w-6 text-center text-accent"><i class="fa-solid fa-robot"></i></div>
+                            <div class="text-zinc-300">
+                                <p>I'll now implement the validation schema using Zod:</p>
+                                <pre class="mt-3 p-4 rounded-lg bg-surface-100 border border-surface-400 text-xs overflow-x-auto"><code class="text-zinc-300">// src/auth/validation.ts
+import { z } from 'zod';
+
+export const loginSchema = z.object({
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+});</code></pre>
+                            </div>
+                        </div>
+
+                        <!-- Typing indicator -->
+                        <div x-show="workflowState === 'running'" class="flex gap-3">
+                            <div class="shrink-0 w-6 text-center text-accent"><i class="fa-solid fa-robot"></i></div>
+                            <div class="flex gap-1 items-center h-5">
+                                <div class="w-1.5 h-1.5 bg-accent/60 rounded-full animate-bounce" style="animation-delay: 0s"></div>
+                                <div class="w-1.5 h-1.5 bg-accent/60 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                                <div class="w-1.5 h-1.5 bg-accent/60 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Input area -->
+                    <div class="p-4 bg-surface-100 border-t border-surface-400 shrink-0">
+                        <div class="relative">
+                            <input type="text"
+                                   placeholder="Send a message to the agent..."
+                                   class="w-full bg-surface-200 border border-surface-400 rounded-lg px-4 py-3 text-zinc-200 placeholder-zinc-600 font-mono text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent">
+                            <div class="absolute right-3 top-3 flex items-center gap-2">
+                                <kbd class="px-2 py-0.5 rounded bg-surface-400 text-zinc-500 text-[10px] font-mono">⏎</kbd>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TASKS VIEW -->
+            <div x-show="activeView === 'tasks'" x-transition:enter="animate-fade-in" class="h-full flex flex-col p-6">
+
+                <div class="flex items-center justify-between mb-6 shrink-0">
+                    <h2 class="text-xl font-bold text-white">Task Board</h2>
+                    <div class="flex items-center gap-2 bg-surface-300 p-1 rounded-lg border border-surface-400">
+                        <button class="px-3 py-1.5 rounded-md bg-surface-400 text-white text-sm font-medium">Board</button>
+                        <button class="px-3 py-1.5 rounded-md text-zinc-500 hover:text-zinc-300 text-sm font-medium transition-colors">List</button>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex gap-6 overflow-x-auto custom-scroll pb-4">
+
+                    <!-- To Do -->
+                    <div class="w-80 shrink-0 flex flex-col">
+                        <div class="flex items-center gap-2 mb-4 px-1">
+                            <div class="w-2 h-2 rounded-full bg-zinc-500"></div>
+                            <span class="text-sm font-semibold text-zinc-400">To Do</span>
+                            <span class="px-2 py-0.5 rounded-full bg-surface-400 text-zinc-500 text-xs">3</span>
+                        </div>
+                        <div class="flex-1 bg-surface-300/50 rounded-xl border border-surface-400/50 p-3 space-y-3 overflow-y-auto custom-scroll">
+                            <div class="bg-surface-300 p-4 rounded-lg border border-surface-400 hover:border-zinc-600 cursor-pointer transition-all group">
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="text-xs font-mono text-zinc-600">T013</span>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-warning/20 text-warning border border-warning/30">High</span>
+                                </div>
+                                <p class="text-sm font-medium text-zinc-200 group-hover:text-white transition-colors">Add input validation for user forms</p>
+                                <div class="mt-3 flex items-center justify-between text-xs text-zinc-600">
+                                    <span>~30 min</span>
+                                </div>
+                            </div>
+
+                            <div class="bg-surface-300 p-4 rounded-lg border border-surface-400 hover:border-zinc-600 cursor-pointer transition-all group">
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="text-xs font-mono text-zinc-600">T014</span>
+                                </div>
+                                <p class="text-sm font-medium text-zinc-200 group-hover:text-white transition-colors">Write unit tests for auth module</p>
+                                <div class="mt-3 flex items-center justify-between text-xs text-zinc-600">
+                                    <span>~45 min</span>
+                                </div>
+                            </div>
+
+                            <div class="bg-surface-300 p-4 rounded-lg border border-surface-400 hover:border-zinc-600 cursor-pointer transition-all group">
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="text-xs font-mono text-zinc-600">T015</span>
+                                </div>
+                                <p class="text-sm font-medium text-zinc-200 group-hover:text-white transition-colors">Update API documentation</p>
+                                <div class="mt-3 flex items-center justify-between text-xs text-zinc-600">
+                                    <span>~20 min</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Done -->
+                    <div class="w-80 shrink-0 flex flex-col">
+                        <div class="flex items-center gap-2 mb-4 px-1">
+                            <div class="w-2 h-2 rounded-full bg-success"></div>
+                            <span class="text-sm font-semibold text-success">Done</span>
+                            <span class="px-2 py-0.5 rounded-full bg-success/20 text-success text-xs border border-success/30">12</span>
+                        </div>
+                        <div class="flex-1 bg-surface-300/50 rounded-xl border border-surface-400/50 p-3 space-y-3 overflow-y-auto custom-scroll">
+                            <div class="bg-surface-300 p-4 rounded-lg border border-surface-400 opacity-60 hover:opacity-100 transition-all cursor-pointer">
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="text-xs font-mono text-zinc-600 line-through">T012</span>
+                                    <i class="fa-solid fa-check text-success text-xs"></i>
+                                </div>
+                                <p class="text-sm text-zinc-500 line-through">Implement JWT token generation</p>
+                            </div>
+
+                            <div class="bg-surface-300 p-4 rounded-lg border border-surface-400 opacity-60 hover:opacity-100 transition-all cursor-pointer">
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="text-xs font-mono text-zinc-600 line-through">T011</span>
+                                    <i class="fa-solid fa-check text-success text-xs"></i>
+                                </div>
+                                <p class="text-sm text-zinc-500 line-through">Create user model and migrations</p>
+                            </div>
+
+                            <div class="bg-surface-300 p-4 rounded-lg border border-surface-400 opacity-60 hover:opacity-100 transition-all cursor-pointer">
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="text-xs font-mono text-zinc-600 line-through">T010</span>
+                                    <i class="fa-solid fa-check text-success text-xs"></i>
+                                </div>
+                                <p class="text-sm text-zinc-500 line-through">Set up database connection</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HISTORY VIEW -->
+            <div x-show="activeView === 'history'" x-transition:enter="animate-fade-in" class="h-full flex gap-6 p-6">
+
+                <!-- Timeline -->
+                <div class="w-96 shrink-0 overflow-y-auto custom-scroll pr-2">
+                    <h2 class="text-xl font-bold text-white mb-6">Phase History</h2>
+
+                    <div class="relative border-l-2 border-surface-400 ml-2 space-y-6">
+                        <!-- Current Phase -->
+                        <div class="relative pl-8 cursor-pointer" @click="selectedPhase = 0">
+                            <div class="absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 transition-all"
+                                 :class="selectedPhase === 0 ? 'bg-accent border-accent shadow-lg shadow-accent/30' : 'bg-surface-200 border-surface-500 hover:border-accent'"></div>
+
+                            <div class="p-4 rounded-xl border transition-all"
+                                 :class="selectedPhase === 0 ? 'bg-surface-300 border-accent/50 shadow-lg' : 'bg-surface-300/50 border-surface-400 hover:bg-surface-300'">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-xs font-mono text-accent">0042</span>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-accent/20 text-accent border border-accent/30">Current</span>
+                                </div>
+                                <h3 class="text-sm font-semibold text-white mb-1">API Design</h3>
+                                <p class="text-xs text-zinc-500">Implementation in progress • 80% complete</p>
+                                <div class="flex gap-2 mt-3">
+                                    <span class="px-2 py-0.5 rounded bg-surface-400 text-zinc-500 text-[10px]">spec.md</span>
+                                    <span class="px-2 py-0.5 rounded bg-surface-400 text-zinc-500 text-[10px]">plan.md</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Phase 0041 -->
+                        <div class="relative pl-8 cursor-pointer" @click="selectedPhase = 1">
+                            <div class="absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 transition-all"
+                                 :class="selectedPhase === 1 ? 'bg-success border-success shadow-lg shadow-success/30' : 'bg-surface-200 border-surface-500 hover:border-success'"></div>
+
+                            <div class="p-4 rounded-xl border transition-all"
+                                 :class="selectedPhase === 1 ? 'bg-surface-300 border-success/50 shadow-lg' : 'bg-surface-300/50 border-surface-400 hover:bg-surface-300'">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-xs font-mono text-success">0041</span>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">Merged</span>
+                                </div>
+                                <h3 class="text-sm font-semibold text-zinc-200 mb-1">Core Engine</h3>
+                                <p class="text-xs text-zinc-500">Jan 10-14 • 23 tasks • $12.40</p>
+                            </div>
+                        </div>
+
+                        <!-- Phase 0040 -->
+                        <div class="relative pl-8 cursor-pointer" @click="selectedPhase = 2">
+                            <div class="absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 transition-all"
+                                 :class="selectedPhase === 2 ? 'bg-success border-success shadow-lg shadow-success/30' : 'bg-surface-200 border-surface-500 hover:border-success'"></div>
+
+                            <div class="p-4 rounded-xl border transition-all"
+                                 :class="selectedPhase === 2 ? 'bg-surface-300 border-success/50 shadow-lg' : 'bg-surface-300/50 border-surface-400 hover:bg-surface-300'">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-xs font-mono text-success">0040</span>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">Merged</span>
+                                </div>
+                                <h3 class="text-sm font-semibold text-zinc-200 mb-1">Project Setup</h3>
+                                <p class="text-xs text-zinc-500">Jan 5-9 • 12 tasks • $5.20</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detail Panel -->
+                <div class="flex-1 bg-surface-300 rounded-xl border border-surface-400 overflow-hidden flex flex-col">
+                    <div class="flex items-center justify-between px-6 py-4 border-b border-surface-400 bg-surface-200">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-surface-400 flex items-center justify-center text-zinc-500">
+                                <i class="fa-solid fa-file-lines"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-semibold text-white" x-text="phases[selectedPhase].name"></h3>
+                                <p class="text-xs text-zinc-500" x-text="'Phase ' + phases[selectedPhase].number"></p>
+                            </div>
+                        </div>
+                        <button class="text-zinc-500 hover:text-white transition-colors">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex-1 p-6 overflow-y-auto custom-scroll prose prose-invert prose-sm max-w-none">
+                        <template x-if="selectedPhase === 0">
+                            <div>
+                                <h2 class="text-lg font-bold text-white mb-4">API Design Phase</h2>
+                                <p class="text-zinc-400">This phase focuses on designing and implementing the RESTful API for user authentication and authorization.</p>
+
+                                <h3 class="text-sm font-semibold text-zinc-300 mt-6 mb-2">Progress</h3>
+                                <div class="bg-surface-200 rounded-lg p-4 border border-surface-400">
+                                    <div class="flex justify-between text-sm mb-2">
+                                        <span class="text-zinc-400">Tasks completed</span>
+                                        <span class="text-white font-medium">12 / 15</span>
+                                    </div>
+                                    <div class="h-2 bg-surface-400 rounded-full overflow-hidden">
+                                        <div class="h-full bg-accent w-4/5 rounded-full"></div>
+                                    </div>
+                                </div>
+
+                                <h3 class="text-sm font-semibold text-zinc-300 mt-6 mb-2">Sessions</h3>
+                                <div class="space-y-2">
+                                    <div class="flex items-center justify-between p-3 bg-surface-200 rounded-lg border border-surface-400">
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-xs text-zinc-500">Today</span>
+                                            <span class="text-sm text-zinc-300">Implement</span>
+                                        </div>
+                                        <span class="text-xs text-zinc-500 font-mono">$1.23</span>
+                                    </div>
+                                    <div class="flex items-center justify-between p-3 bg-surface-200 rounded-lg border border-surface-400">
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-xs text-zinc-500">Yesterday</span>
+                                            <span class="text-sm text-zinc-300">Design</span>
+                                        </div>
+                                        <span class="text-xs text-zinc-500 font-mono">$0.42</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <template x-if="selectedPhase === 1">
+                            <div>
+                                <h2 class="text-lg font-bold text-white mb-4">Core Engine</h2>
+                                <p class="text-zinc-400">Built the core processing engine with support for multiple input formats and streaming output.</p>
+
+                                <h3 class="text-sm font-semibold text-zinc-300 mt-6 mb-2">Key Decisions</h3>
+                                <ul class="list-disc list-inside text-zinc-400 space-y-1">
+                                    <li>Used streaming parser for memory efficiency</li>
+                                    <li>Chose Zod for runtime validation</li>
+                                    <li>Implemented retry logic with exponential backoff</li>
+                                </ul>
+
+                                <h3 class="text-sm font-semibold text-zinc-300 mt-6 mb-2">Artifacts</h3>
+                                <div class="flex gap-2">
+                                    <a href="#" class="px-3 py-2 bg-surface-200 rounded-lg border border-surface-400 text-sm text-zinc-400 hover:text-white hover:border-accent transition-all">
+                                        <i class="fa-solid fa-file-lines mr-2"></i>spec.md
+                                    </a>
+                                    <a href="#" class="px-3 py-2 bg-surface-200 rounded-lg border border-surface-400 text-sm text-zinc-400 hover:text-white hover:border-accent transition-all">
+                                        <i class="fa-solid fa-file-lines mr-2"></i>plan.md
+                                    </a>
+                                </div>
+                            </div>
+                        </template>
+
+                        <template x-if="selectedPhase === 2">
+                            <div>
+                                <h2 class="text-lg font-bold text-white mb-4">Project Setup</h2>
+                                <p class="text-zinc-400">Initial project scaffolding with TypeScript, ESLint, Prettier, and Vitest configuration.</p>
+
+                                <h3 class="text-sm font-semibold text-zinc-300 mt-6 mb-2">Summary</h3>
+                                <ul class="list-disc list-inside text-zinc-400 space-y-1">
+                                    <li>Set up TypeScript with strict mode</li>
+                                    <li>Configured ESLint and Prettier</li>
+                                    <li>Added Vitest for testing</li>
+                                    <li>Created GitHub Actions CI/CD pipeline</li>
+                                </ul>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- COMMAND PALETTE -->
+    <div x-show="commandPaletteOpen"
+         x-transition:enter="ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-50 overflow-y-auto"
+         @keydown.escape.window="commandPaletteOpen = false"
+         x-cloak>
+
+        <div class="flex min-h-screen items-start justify-center pt-24 px-4">
+            <div class="fixed inset-0 bg-black/70 backdrop-blur-sm" @click="commandPaletteOpen = false"></div>
+
+            <div x-show="commandPaletteOpen"
+                 x-transition:enter="ease-out duration-200"
+                 x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+                 x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                 class="relative w-full max-w-xl bg-surface-200 rounded-2xl border border-surface-400 shadow-2xl overflow-hidden">
+
+                <!-- Search input -->
+                <div class="relative border-b border-surface-400">
+                    <i class="fa-solid fa-magnifying-glass absolute left-5 top-4 text-zinc-600"></i>
+                    <input type="text"
+                           placeholder="What would you like to do?"
+                           class="w-full h-14 bg-transparent border-0 pl-12 pr-4 text-white placeholder-zinc-600 focus:ring-0 text-sm"
+                           x-ref="commandInput"
+                           @keydown.enter="startWorkflow('orchestrate')">
+                </div>
+
+                <!-- Options -->
+                <div class="max-h-80 overflow-y-auto custom-scroll p-2">
+                    <p class="px-3 py-2 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Workflows</p>
+
+                    <button @click="startWorkflow('orchestrate')" class="w-full flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-surface-300 transition-colors group">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 group-hover:shadow-indigo-500/30 transition-shadow">
+                            <i class="fa-solid fa-layer-group"></i>
+                        </div>
+                        <div class="flex-1 text-left">
+                            <div class="text-sm font-medium text-white">Orchestrate</div>
+                            <div class="text-xs text-zinc-500">End-to-end phase execution</div>
+                        </div>
+                        <kbd class="px-2 py-1 rounded bg-surface-400 text-zinc-500 text-[10px] font-mono">⏎</kbd>
+                    </button>
+
+                    <button @click="startWorkflow('implement')" class="w-full flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-surface-300 transition-colors group">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20 group-hover:shadow-emerald-500/30 transition-shadow">
+                            <i class="fa-solid fa-code"></i>
+                        </div>
+                        <div class="flex-1 text-left">
+                            <div class="text-sm font-medium text-white">Implement</div>
+                            <div class="text-xs text-zinc-500">Execute tasks with TDD</div>
+                        </div>
+                    </button>
+
+                    <button @click="startWorkflow('design')" class="w-full flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-surface-300 transition-colors group">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center text-white shadow-lg shadow-pink-500/20 group-hover:shadow-pink-500/30 transition-shadow">
+                            <i class="fa-solid fa-pencil-ruler"></i>
+                        </div>
+                        <div class="flex-1 text-left">
+                            <div class="text-sm font-medium text-white">Design</div>
+                            <div class="text-xs text-zinc-500">Create spec, plan, and tasks</div>
+                        </div>
+                    </button>
+
+                    <button @click="startWorkflow('verify')" class="w-full flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-surface-300 transition-colors group">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/30 transition-shadow">
+                            <i class="fa-solid fa-clipboard-check"></i>
+                        </div>
+                        <div class="flex-1 text-left">
+                            <div class="text-sm font-medium text-white">Verify</div>
+                            <div class="text-xs text-zinc-500">Run checklists and update roadmap</div>
+                        </div>
+                    </button>
+
+                    <p class="px-3 py-2 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider mt-2">Tools</p>
+
+                    <button class="w-full flex items-center gap-4 px-4 py-2.5 rounded-xl hover:bg-surface-300 transition-colors group">
+                        <div class="w-8 h-8 rounded-lg bg-surface-400 flex items-center justify-center text-zinc-500 group-hover:text-zinc-300">
+                            <i class="fa-solid fa-heart-pulse"></i>
+                        </div>
+                        <div class="flex-1 text-left">
+                            <div class="text-sm text-zinc-400 group-hover:text-zinc-200">Check Health</div>
+                        </div>
+                    </button>
+
+                    <button class="w-full flex items-center gap-4 px-4 py-2.5 rounded-xl hover:bg-surface-300 transition-colors group">
+                        <div class="w-8 h-8 rounded-lg bg-surface-400 flex items-center justify-center text-zinc-500 group-hover:text-zinc-300">
+                            <i class="fa-solid fa-wrench"></i>
+                        </div>
+                        <div class="flex-1 text-left">
+                            <div class="text-sm text-zinc-400 group-hover:text-zinc-200">Fix Issues</div>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- Footer -->
+                <div class="flex items-center justify-between px-4 py-2.5 border-t border-surface-400 bg-surface-100 text-xs text-zinc-600">
+                    <div class="flex gap-4">
+                        <span><kbd class="font-mono px-1 py-0.5 rounded bg-surface-300">↑↓</kbd> navigate</span>
+                        <span><kbd class="font-mono px-1 py-0.5 rounded bg-surface-300">⏎</kbd> select</span>
+                    </div>
+                    <span><kbd class="font-mono px-1 py-0.5 rounded bg-surface-300">esc</kbd> close</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUESTION MODAL -->
+    <div x-show="questionModalOpen"
+         x-transition:enter="ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         class="fixed inset-0 z-50 overflow-y-auto"
+         x-cloak>
+
+        <div class="flex min-h-screen items-center justify-center p-4">
+            <div class="fixed inset-0 bg-black/70 backdrop-blur-sm" @click="questionModalOpen = false"></div>
+
+            <div x-show="questionModalOpen"
+                 x-transition:enter="ease-out duration-200"
+                 x-transition:enter-start="opacity-0 scale-95"
+                 x-transition:enter-end="opacity-100 scale-100"
+                 class="relative w-full max-w-lg bg-surface-200 rounded-2xl border border-surface-400 shadow-2xl overflow-hidden">
+
+                <!-- Header -->
+                <div class="px-6 py-4 border-b border-surface-400 bg-warning/10">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-warning/20 flex items-center justify-center">
+                            <i class="fa-solid fa-circle-question text-warning"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-bold text-white">Input Required</h2>
+                            <p class="text-sm text-zinc-400">Question 1 of 2</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Body -->
+                <div class="p-6">
+                    <div class="mb-4">
+                        <span class="text-xs font-semibold text-accent uppercase tracking-wide">BP Approval</span>
+                    </div>
+
+                    <p class="text-zinc-300 mb-4">The following Best Practice findings were detected. How would you like to proceed?</p>
+
+                    <!-- Findings -->
+                    <div class="bg-surface-100 rounded-lg border border-surface-400 p-4 mb-6">
+                        <div class="space-y-2">
+                            <div class="flex gap-3">
+                                <span class="text-xs font-mono text-warning">BP001</span>
+                                <span class="text-sm text-zinc-400">Missing main guard in hello.py</span>
+                            </div>
+                            <div class="flex gap-3">
+                                <span class="text-xs font-mono text-warning">BP002</span>
+                                <span class="text-sm text-zinc-400">Missing module docstring</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Options -->
+                    <div class="space-y-3">
+                        <label class="flex items-start gap-4 p-4 rounded-xl border border-surface-400 hover:border-accent cursor-pointer transition-all group">
+                            <input type="radio" name="q1" value="fix" class="mt-1" checked>
+                            <div>
+                                <div class="text-sm font-medium text-white group-hover:text-accent transition-colors">Fix these issues</div>
+                                <div class="text-xs text-zinc-500">Claude will address these findings before continuing</div>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-4 p-4 rounded-xl border border-surface-400 hover:border-accent cursor-pointer transition-all group">
+                            <input type="radio" name="q1" value="skip" class="mt-1">
+                            <div>
+                                <div class="text-sm font-medium text-white group-hover:text-accent transition-colors">Skip for now</div>
+                                <div class="text-xs text-zinc-500">Continue without fixing (can address later)</div>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-4 p-4 rounded-xl border border-surface-400 hover:border-accent cursor-pointer transition-all group">
+                            <input type="radio" name="q1" value="other" class="mt-1">
+                            <div>
+                                <div class="text-sm font-medium text-white group-hover:text-accent transition-colors">Other</div>
+                                <div class="text-xs text-zinc-500">Provide custom instructions</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="flex items-center justify-between px-6 py-4 border-t border-surface-400 bg-surface-100">
+                    <button class="px-4 py-2 rounded-lg text-zinc-500 hover:text-zinc-300 transition-colors" disabled>
+                        <i class="fa-solid fa-arrow-left mr-2"></i>Previous
+                    </button>
+                    <div class="flex gap-3">
+                        <button @click="questionModalOpen = false; workflowState = 'running'" class="px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white font-medium transition-colors">
+                            Next<i class="fa-solid fa-arrow-right ml-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NOTIFICATION PANEL -->
+    <div x-show="notificationOpen"
+         x-transition:enter="ease-out duration-200"
+         x-transition:enter-start="opacity-0 translate-y-2"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         @click.outside="notificationOpen = false"
+         class="fixed top-20 right-6 w-80 bg-surface-200 rounded-xl border border-surface-400 shadow-2xl z-50"
+         x-cloak>
+
+        <div class="px-4 py-3 border-b border-surface-400 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-white">Notifications</h3>
+            <button class="text-xs text-zinc-500 hover:text-zinc-300">Mark all read</button>
+        </div>
+
+        <div class="max-h-80 overflow-y-auto custom-scroll">
+            <div x-show="workflowState === 'waiting'" class="p-4 border-b border-surface-400 hover:bg-surface-300 cursor-pointer transition-colors" @click="questionModalOpen = true; notificationOpen = false">
+                <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-full bg-warning/20 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-question text-warning text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm text-white">Workflow needs input</p>
+                        <p class="text-xs text-zinc-500 mt-0.5">2 questions are waiting for your response</p>
+                        <p class="text-xs text-zinc-600 mt-1">Just now</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 border-b border-surface-400 hover:bg-surface-300 cursor-pointer transition-colors">
+                <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-check text-success text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm text-zinc-300">Task T012 completed</p>
+                        <p class="text-xs text-zinc-500 mt-0.5">JWT token generation is done</p>
+                        <p class="text-xs text-zinc-600 mt-1">10 minutes ago</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 hover:bg-surface-300 cursor-pointer transition-colors">
+                <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-file-plus text-accent text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm text-zinc-300">New file created</p>
+                        <p class="text-xs text-zinc-500 mt-0.5">src/config/env.ts</p>
+                        <p class="text-xs text-zinc-600 mt-1">12 minutes ago</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function dashboard() {
+            return {
+                activeView: 'dashboard',
+                workflowState: 'idle', // idle, running, waiting, failed
+                commandPaletteOpen: false,
+                questionModalOpen: false,
+                notificationOpen: false,
+                selectedPhase: 0,
+                elapsedTime: '00:00',
+                elapsedSeconds: 0,
+                timerInterval: null,
+
+                phases: [
+                    { number: '0042', name: 'API Design' },
+                    { number: '0041', name: 'Core Engine' },
+                    { number: '0040', name: 'Project Setup' }
+                ],
+
+                init() {
+                    // Keyboard shortcut for command palette
+                    document.addEventListener('keydown', (e) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                            e.preventDefault();
+                            this.commandPaletteOpen = !this.commandPaletteOpen;
+                            if (this.commandPaletteOpen) {
+                                this.$nextTick(() => this.$refs.commandInput?.focus());
+                            }
+                        }
+                    });
+
+                    // Watch for state changes
+                    this.$watch('workflowState', (state) => {
+                        if (state === 'running') {
+                            this.startTimer();
+                        } else {
+                            this.stopTimer();
+                        }
+
+                        if (state === 'waiting') {
+                            setTimeout(() => {
+                                this.questionModalOpen = true;
+                            }, 500);
+                        }
+                    });
+                },
+
+                startWorkflow(type) {
+                    this.commandPaletteOpen = false;
+                    this.workflowState = 'running';
+                    this.activeView = 'session';
+                },
+
+                cancelWorkflow() {
+                    this.workflowState = 'idle';
+                    this.elapsedSeconds = 0;
+                    this.elapsedTime = '00:00';
+                },
+
+                retryWorkflow() {
+                    this.workflowState = 'running';
+                },
+
+                startTimer() {
+                    this.timerInterval = setInterval(() => {
+                        this.elapsedSeconds++;
+                        const mins = Math.floor(this.elapsedSeconds / 60);
+                        const secs = this.elapsedSeconds % 60;
+                        this.elapsedTime = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                    }, 1000);
+                },
+
+                stopTimer() {
+                    if (this.timerInterval) {
+                        clearInterval(this.timerInterval);
+                        this.timerInterval = null;
+                    }
+                }
+            };
+        }
+    </script>
+
+    <!-- Demo State Controls -->
+    <div class="fixed bottom-6 right-6 bg-surface-200 rounded-xl border border-surface-400 p-4 z-50 shadow-2xl" x-data="{ open: true }">
+        <button @click="open = !open" class="flex items-center gap-2 text-sm font-medium text-zinc-400 hover:text-white mb-3">
+            <i class="fa-solid fa-sliders"></i>
+            Demo Controls
+            <i class="fa-solid fa-chevron-down ml-auto transition-transform" :class="!open && 'rotate-180'"></i>
+        </button>
+        <div x-show="open" x-collapse class="space-y-3">
+            <div>
+                <label class="text-xs text-zinc-500 mb-1 block">Workflow State</label>
+                <select x-model="$root.workflowState" class="w-full bg-surface-100 border border-surface-400 rounded-lg px-3 py-2 text-sm text-white">
+                    <option value="idle">Idle</option>
+                    <option value="running">Running</option>
+                    <option value="waiting">Waiting for Input</option>
+                    <option value="failed">Failed</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

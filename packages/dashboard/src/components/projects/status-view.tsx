@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Activity, CheckCircle2, AlertTriangle, XCircle, Clock, FileText, FolderOpen, AlertCircle, Loader2 } from "lucide-react"
 import { WorkflowStatusCard } from "@/components/projects/workflow-status-card"
 import { QuestionDrawer } from "@/components/projects/question-drawer"
+import { SessionHistoryList } from "@/components/projects/session-history-list"
 import type { OrchestrationState, TasksData } from "@specflow/shared"
-import type { WorkflowExecution } from "@/lib/services/workflow-service"
+import type { WorkflowExecution, WorkflowIndexEntry } from "@/lib/services/workflow-service"
 import type { WorkflowSkill } from "@/hooks/use-workflow-skills"
 
 // Staleness thresholds in minutes
@@ -40,6 +41,18 @@ interface StatusViewProps {
   isQuestionDrawerOpen?: boolean
   /** Callback to change drawer open state */
   onQuestionDrawerOpenChange?: (open: boolean) => void
+  /** Session history data */
+  sessionHistory?: WorkflowIndexEntry[]
+  /** Whether session history is loading */
+  sessionHistoryLoading?: boolean
+  /** Session history error */
+  sessionHistoryError?: string | null
+  /** Selected historical session ID */
+  selectedSessionId?: string | null
+  /** Callback when a historical session is clicked */
+  onSessionClick?: (session: WorkflowIndexEntry) => void
+  /** Callback to refresh session history */
+  onRefreshSessionHistory?: () => void
 }
 
 export function StatusView({
@@ -54,6 +67,12 @@ export function StatusView({
   onSubmitAnswers,
   isQuestionDrawerOpen,
   onQuestionDrawerOpenChange,
+  sessionHistory,
+  sessionHistoryLoading,
+  sessionHistoryError,
+  selectedSessionId,
+  onSessionClick,
+  onRefreshSessionHistory,
 }: StatusViewProps) {
   if (!state) {
     return (
@@ -307,6 +326,22 @@ export function StatusView({
         </CardContent>
       </Card>
       </div>
+
+      {/* Session History */}
+      {onSessionClick && (
+        <Card className="mt-4">
+          <CardContent className="p-0 min-h-[200px] max-h-[400px] overflow-hidden">
+            <SessionHistoryList
+              sessions={sessionHistory ?? []}
+              isLoading={sessionHistoryLoading ?? false}
+              error={sessionHistoryError ?? null}
+              selectedSessionId={selectedSessionId ?? null}
+              onSessionClick={onSessionClick}
+              onRefresh={onRefreshSessionHistory}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Question Drawer */}
       {onSubmitAnswers && onQuestionDrawerOpenChange && (

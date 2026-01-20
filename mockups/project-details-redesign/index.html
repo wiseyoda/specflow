@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Details - UI Redesign Mockup</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- State Controls (for demo purposes) -->
+  <div class="demo-controls">
+    <h4>Demo Controls</h4>
+    <div class="control-group">
+      <label>Workflow State:</label>
+      <select id="workflow-state">
+        <option value="idle">Idle (No active workflow)</option>
+        <option value="running">Running</option>
+        <option value="waiting">Waiting for Input</option>
+        <option value="completed">Completed</option>
+        <option value="failed">Failed</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Health Status:</label>
+      <select id="health-state">
+        <option value="healthy">Healthy</option>
+        <option value="warning">Warning</option>
+        <option value="error">Error</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Main App Container -->
+  <div class="app-container">
+
+    <!-- Simplified Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <a href="#" class="breadcrumb">← Projects</a>
+        <h1 class="project-name">test-app</h1>
+        <span class="project-path">/Users/ppatterson/dev/test-app</span>
+      </div>
+      <div class="header-right">
+        <div class="status-indicator" id="header-status">
+          <span class="status-dot idle"></span>
+          <span class="status-text">Idle</span>
+        </div>
+        <button class="icon-btn" id="actions-menu-btn" title="Actions">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <circle cx="10" cy="4" r="2"/>
+            <circle cx="10" cy="10" r="2"/>
+            <circle cx="10" cy="16" r="2"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Actions Menu Dropdown (hidden by default) -->
+    <div class="actions-dropdown" id="actions-dropdown">
+      <div class="dropdown-section">
+        <div class="dropdown-header">Maintenance</div>
+        <button class="dropdown-item">Check Health</button>
+        <button class="dropdown-item">Fix Issues</button>
+        <button class="dropdown-item">Sync Templates</button>
+      </div>
+      <div class="dropdown-section">
+        <div class="dropdown-header">Advanced</div>
+        <button class="dropdown-item">Migrate Schema</button>
+        <button class="dropdown-item">Clear State</button>
+      </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="overview">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"/>
+          <rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        Overview
+      </button>
+      <button class="tab-btn" data-tab="workflow">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        Workflow
+      </button>
+      <button class="tab-btn" data-tab="tasks">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 11l3 3L22 4"/>
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+        Tasks
+      </button>
+      <button class="tab-btn" data-tab="history">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        History
+      </button>
+    </nav>
+
+    <!-- Tab Content -->
+    <main class="tab-content">
+
+      <!-- OVERVIEW TAB -->
+      <div class="tab-pane active" id="overview-tab">
+
+        <!-- Alert Bar (contextual) -->
+        <div class="alert-bar error" id="alert-bar" style="display: none;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span class="alert-message">Workflow failed: Connection timeout. Check logs for details.</span>
+          <button class="alert-action">View Details</button>
+        </div>
+
+        <div class="overview-grid">
+
+          <!-- Current Phase Card -->
+          <div class="card phase-card">
+            <div class="card-header">
+              <h3>Current Phase</h3>
+            </div>
+            <div class="card-body">
+              <div class="phase-info">
+                <span class="phase-number">0042</span>
+                <span class="phase-name">API Design</span>
+                <span class="phase-status badge in-progress">In Progress</span>
+              </div>
+              <div class="step-info">
+                <span class="step-label">Current Step:</span>
+                <span class="step-name">Design</span>
+                <span class="step-status" id="step-status">
+                  <span class="status-dot idle"></span>
+                  Idle
+                </span>
+              </div>
+              <a href="#" class="card-link" data-tab="workflow">View Workflow →</a>
+            </div>
+          </div>
+
+          <!-- Project Health Card -->
+          <div class="card health-card">
+            <div class="card-header">
+              <h3>Project Health</h3>
+            </div>
+            <div class="card-body">
+              <div class="health-status" id="health-display">
+                <span class="health-icon healthy">✓</span>
+                <span class="health-text">Healthy</span>
+              </div>
+              <div class="task-progress">
+                <div class="progress-header">
+                  <span>Tasks</span>
+                  <span class="progress-count">12 / 15</span>
+                </div>
+                <div class="progress-bar">
+                  <div class="progress-fill" style="width: 80%"></div>
+                </div>
+                <span class="progress-percent">80% complete</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Action Card (State-Driven) -->
+          <div class="card quick-action-card">
+            <div class="card-body">
+
+              <!-- Idle State -->
+              <div class="quick-action-state" id="action-idle">
+                <p class="action-context">No active workflow. Start one to continue development.</p>
+                <div class="dropdown-wrapper">
+                  <button class="btn btn-primary btn-large" id="start-workflow-btn">
+                    Start Workflow
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                  </button>
+                  <div class="workflow-dropdown" id="workflow-dropdown">
+                    <div class="dropdown-section">
+                      <div class="dropdown-header">Primary</div>
+                      <button class="dropdown-item" data-skill="orchestrate">
+                        <strong>Orchestrate</strong>
+                        <span>End-to-end phase execution</span>
+                      </button>
+                      <button class="dropdown-item" data-skill="merge">
+                        <strong>Merge</strong>
+                        <span>Close phase and merge to main</span>
+                      </button>
+                    </div>
+                    <div class="dropdown-section">
+                      <div class="dropdown-header">Steps</div>
+                      <button class="dropdown-item" data-skill="design">
+                        <strong>Design</strong>
+                        <span>Create spec, plan, and tasks</span>
+                      </button>
+                      <button class="dropdown-item" data-skill="implement">
+                        <strong>Implement</strong>
+                        <span>Execute tasks with TDD</span>
+                      </button>
+                      <button class="dropdown-item" data-skill="verify">
+                        <strong>Verify</strong>
+                        <span>Verify completion and update roadmap</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Running State -->
+              <div class="quick-action-state" id="action-running" style="display: none;">
+                <div class="running-info">
+                  <div class="running-indicator">
+                    <span class="spinner"></span>
+                    <span class="skill-name">Implement</span>
+                  </div>
+                  <span class="elapsed-time">Running for 2:34</span>
+                </div>
+                <button class="btn btn-primary btn-large" onclick="switchTab('workflow')">
+                  View Live Session →
+                </button>
+              </div>
+
+              <!-- Waiting State -->
+              <div class="quick-action-state" id="action-waiting" style="display: none;">
+                <div class="waiting-info">
+                  <span class="waiting-icon">❓</span>
+                  <span class="waiting-text">Workflow needs your input</span>
+                </div>
+                <button class="btn btn-primary btn-large btn-attention" id="answer-questions-btn">
+                  Answer Questions (2) →
+                </button>
+              </div>
+
+              <!-- Completed State -->
+              <div class="quick-action-state" id="action-completed" style="display: none;">
+                <div class="completed-info">
+                  <span class="completed-icon">✓</span>
+                  <div class="completed-details">
+                    <span class="skill-name">Design completed</span>
+                    <span class="result-summary">Created spec.md, plan.md, and 15 tasks</span>
+                  </div>
+                </div>
+                <div class="dropdown-wrapper">
+                  <button class="btn btn-primary btn-large" id="next-workflow-btn">
+                    Start Next Workflow
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Failed State -->
+              <div class="quick-action-state" id="action-failed" style="display: none;">
+                <div class="failed-info">
+                  <span class="failed-icon">✕</span>
+                  <div class="failed-details">
+                    <span class="skill-name">Implement failed</span>
+                    <span class="error-summary">Connection timeout after 3 retries</span>
+                  </div>
+                </div>
+                <button class="btn btn-primary btn-large" onclick="switchTab('workflow')">
+                  View Error Details →
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- WORKFLOW TAB -->
+      <div class="tab-pane" id="workflow-tab">
+
+        <!-- Active Workflow Header -->
+        <div class="workflow-header" id="workflow-header">
+
+          <!-- No Active Workflow -->
+          <div class="workflow-header-state" id="wf-header-idle">
+            <div class="wf-header-content">
+              <h3>No Active Workflow</h3>
+              <p>Start a workflow to see session activity here.</p>
+            </div>
+            <button class="btn btn-primary" onclick="document.getElementById('start-workflow-btn').click(); switchTab('overview');">
+              Start Workflow
+            </button>
+          </div>
+
+          <!-- Active Workflow -->
+          <div class="workflow-header-state" id="wf-header-active" style="display: none;">
+            <div class="wf-header-left">
+              <div class="wf-status-badge running">
+                <span class="spinner small"></span>
+                Running
+              </div>
+              <div class="wf-details">
+                <span class="wf-skill">Implement</span>
+                <span class="wf-session-id">Session: f16d5aa5</span>
+              </div>
+            </div>
+            <div class="wf-header-right">
+              <span class="wf-elapsed">12:34</span>
+              <button class="btn btn-ghost btn-danger">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Waiting for Input -->
+          <div class="workflow-header-state" id="wf-header-waiting" style="display: none;">
+            <div class="wf-header-left">
+              <div class="wf-status-badge waiting">
+                <span class="waiting-pulse"></span>
+                Waiting for Input
+              </div>
+              <div class="wf-details">
+                <span class="wf-skill">Review</span>
+                <span class="wf-session-id">Session: f16d5aa5</span>
+              </div>
+            </div>
+            <div class="wf-header-right">
+              <button class="btn btn-primary" id="wf-answer-btn">Answer Questions (2)</button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Session Viewer (Inline) -->
+        <div class="session-viewer">
+          <div class="session-viewer-header">
+            <div class="viewer-info">
+              <span class="live-indicator" id="live-indicator">
+                <span class="live-dot"></span>
+                Live
+              </span>
+              <span class="viewer-stats">
+                <span>3 files modified</span>
+              </span>
+            </div>
+            <div class="viewer-controls">
+              <button class="btn btn-ghost btn-small" id="auto-scroll-btn">
+                Auto-scroll: ON
+              </button>
+            </div>
+          </div>
+
+          <div class="message-feed" id="message-feed">
+            <div class="message assistant">
+              <div class="message-role">Assistant</div>
+              <div class="message-content">
+                <p>I'll help you implement the user authentication feature. Let me start by examining the current codebase structure.</p>
+              </div>
+              <div class="message-time">2:31 PM</div>
+            </div>
+
+            <div class="message tool">
+              <div class="message-role">Tool: Glob</div>
+              <div class="message-content">
+                <pre>Found 12 files matching **/*.ts</pre>
+              </div>
+              <div class="message-time">2:31 PM</div>
+            </div>
+
+            <div class="message assistant">
+              <div class="message-role">Assistant</div>
+              <div class="message-content">
+                <p>I found the authentication module. Now I'll implement the login endpoint with JWT tokens.</p>
+                <pre><code>// src/auth/login.ts
+export async function login(email: string, password: string) {
+  const user = await findUserByEmail(email);
+  if (!user || !await verifyPassword(password, user.hash)) {
+    throw new AuthError('Invalid credentials');
+  }
+  return generateToken(user);
+}</code></pre>
+              </div>
+              <div class="message-time">2:32 PM</div>
+            </div>
+
+            <div class="message tool">
+              <div class="message-role">Tool: Write</div>
+              <div class="message-content">
+                <pre>Created src/auth/login.ts</pre>
+              </div>
+              <div class="message-time">2:32 PM</div>
+            </div>
+
+            <div class="message assistant typing" id="typing-indicator" style="display: none;">
+              <div class="message-role">Assistant</div>
+              <div class="message-content">
+                <span class="typing-dots">
+                  <span></span><span></span><span></span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Follow-up Input -->
+          <div class="follow-up-input" id="follow-up-input">
+            <input type="text" placeholder="Send a follow-up message..." id="follow-up-text">
+            <button class="btn btn-primary" id="send-follow-up">Send</button>
+          </div>
+        </div>
+
+        <!-- Session History -->
+        <div class="session-history">
+          <h3>Session History</h3>
+
+          <div class="history-group">
+            <div class="history-date">Today</div>
+            <div class="history-items">
+              <div class="history-item active">
+                <div class="history-item-left">
+                  <span class="history-skill">Implement</span>
+                  <span class="history-id">f16d5aa5</span>
+                </div>
+                <div class="history-item-right">
+                  <span class="history-status badge running">Running</span>
+                  <span class="history-time">2:30 PM</span>
+                </div>
+              </div>
+              <div class="history-item">
+                <div class="history-item-left">
+                  <span class="history-skill">Design</span>
+                  <span class="history-id">a2b3c4d5</span>
+                </div>
+                <div class="history-item-right">
+                  <span class="history-status badge completed">Completed</span>
+                  <span class="history-cost">$0.42</span>
+                  <span class="history-time">1:15 PM</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="history-group">
+            <div class="history-date">Yesterday</div>
+            <div class="history-items">
+              <div class="history-item">
+                <div class="history-item-left">
+                  <span class="history-skill">Orchestrate</span>
+                  <span class="history-id">e5f6g7h8</span>
+                </div>
+                <div class="history-item-right">
+                  <span class="history-status badge completed">Completed</span>
+                  <span class="history-cost">$2.10</span>
+                  <span class="history-time">4:30 PM</span>
+                </div>
+              </div>
+              <div class="history-item">
+                <div class="history-item-left">
+                  <span class="history-skill">Verify</span>
+                  <span class="history-id">i9j0k1l2</span>
+                </div>
+                <div class="history-item-right">
+                  <span class="history-status badge completed">Completed</span>
+                  <span class="history-cost">$0.85</span>
+                  <span class="history-time">2:00 PM</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TASKS TAB -->
+      <div class="tab-pane" id="tasks-tab">
+
+        <div class="tasks-header">
+          <div class="tasks-summary">
+            <span class="tasks-count">12 of 15 tasks completed</span>
+            <span class="tasks-updated">Last updated 2 minutes ago</span>
+          </div>
+        </div>
+
+        <div class="tasks-columns">
+
+          <!-- To Do Column -->
+          <div class="task-column">
+            <div class="column-header">
+              <h3>To Do</h3>
+              <span class="column-count">3</span>
+            </div>
+            <div class="task-list">
+              <div class="task-card" data-task="T013">
+                <div class="task-header">
+                  <span class="task-id">T013</span>
+                  <span class="task-priority high">High</span>
+                </div>
+                <div class="task-title">Add input validation for user forms</div>
+                <div class="task-meta">
+                  <span class="task-estimate">~30 min</span>
+                </div>
+              </div>
+              <div class="task-card" data-task="T014">
+                <div class="task-header">
+                  <span class="task-id">T014</span>
+                </div>
+                <div class="task-title">Write unit tests for auth module</div>
+                <div class="task-meta">
+                  <span class="task-estimate">~45 min</span>
+                </div>
+              </div>
+              <div class="task-card" data-task="T015">
+                <div class="task-header">
+                  <span class="task-id">T015</span>
+                </div>
+                <div class="task-title">Update API documentation</div>
+                <div class="task-meta">
+                  <span class="task-estimate">~20 min</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Done Column -->
+          <div class="task-column done-column">
+            <div class="column-header">
+              <h3>Done</h3>
+              <span class="column-count">12</span>
+              <button class="btn btn-ghost btn-small collapse-btn" id="collapse-done">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+            </div>
+            <div class="task-list" id="done-tasks">
+              <div class="task-card completed">
+                <div class="task-header">
+                  <span class="task-id">T012</span>
+                  <span class="task-check">✓</span>
+                </div>
+                <div class="task-title">Implement JWT token generation</div>
+              </div>
+              <div class="task-card completed">
+                <div class="task-header">
+                  <span class="task-id">T011</span>
+                  <span class="task-check">✓</span>
+                </div>
+                <div class="task-title">Create user model and migrations</div>
+              </div>
+              <div class="task-card completed">
+                <div class="task-header">
+                  <span class="task-id">T010</span>
+                  <span class="task-check">✓</span>
+                </div>
+                <div class="task-title">Set up database connection</div>
+              </div>
+              <div class="task-card completed">
+                <div class="task-header">
+                  <span class="task-id">T009</span>
+                  <span class="task-check">✓</span>
+                </div>
+                <div class="task-title">Configure environment variables</div>
+              </div>
+              <div class="task-card completed">
+                <div class="task-header">
+                  <span class="task-id">T008</span>
+                  <span class="task-check">✓</span>
+                </div>
+                <div class="task-title">Initialize Express server</div>
+              </div>
+              <!-- More completed tasks... -->
+              <div class="task-card completed faded">
+                <div class="task-header">
+                  <span class="task-id">T001-T007</span>
+                  <span class="task-check">✓</span>
+                </div>
+                <div class="task-title">7 more completed tasks...</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Task Detail Panel (shown on click) -->
+        <div class="task-detail-panel" id="task-detail" style="display: none;">
+          <div class="detail-header">
+            <h3><span class="detail-task-id">T013</span> Add input validation for user forms</h3>
+            <button class="btn btn-ghost" onclick="closeTaskDetail()">×</button>
+          </div>
+          <div class="detail-body">
+            <div class="detail-section">
+              <h4>Description</h4>
+              <p>Implement client-side and server-side validation for all user input forms including login, registration, and profile update forms.</p>
+            </div>
+            <div class="detail-section">
+              <h4>Acceptance Criteria</h4>
+              <ul>
+                <li>Email format validation</li>
+                <li>Password strength requirements (8+ chars, mixed case, numbers)</li>
+                <li>XSS prevention on all text inputs</li>
+                <li>Server-side validation matches client-side</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HISTORY TAB -->
+      <div class="tab-pane" id="history-tab">
+
+        <div class="history-header">
+          <h2>Phase History</h2>
+          <span class="history-count">4 phases completed</span>
+        </div>
+
+        <div class="phase-timeline">
+
+          <!-- Current Phase -->
+          <div class="phase-item current expanded" data-phase="0042">
+            <div class="phase-connector"></div>
+            <div class="phase-card">
+              <div class="phase-card-header" onclick="togglePhase(this)">
+                <div class="phase-info">
+                  <span class="phase-number">0042</span>
+                  <span class="phase-name">API Design</span>
+                  <span class="phase-badge current">Current</span>
+                </div>
+                <div class="phase-meta">
+                  <span class="phase-dates">Started Jan 15, 2026</span>
+                  <svg class="expand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="phase-card-body">
+                <div class="phase-detail">
+                  <span class="detail-label">Branch</span>
+                  <span class="detail-value">feature/api-design</span>
+                </div>
+                <div class="phase-detail">
+                  <span class="detail-label">Tasks</span>
+                  <span class="detail-value">12 / 15 complete</span>
+                </div>
+                <div class="phase-detail">
+                  <span class="detail-label">Current Step</span>
+                  <span class="detail-value">Implement</span>
+                </div>
+                <a href="#" class="phase-link" data-tab="workflow">View Active Session →</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Completed Phase -->
+          <div class="phase-item completed" data-phase="0041">
+            <div class="phase-connector"></div>
+            <div class="phase-card">
+              <div class="phase-card-header" onclick="togglePhase(this)">
+                <div class="phase-info">
+                  <span class="phase-number">0041</span>
+                  <span class="phase-name">Core Engine</span>
+                  <span class="phase-badge merged">Merged</span>
+                </div>
+                <div class="phase-meta">
+                  <span class="phase-dates">Jan 10-14, 2026</span>
+                  <span class="phase-cost">$12.40</span>
+                  <svg class="expand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="phase-card-body" style="display: none;">
+                <div class="phase-summary">
+                  <h4>Summary</h4>
+                  <p>Built the core processing engine with support for multiple input formats and streaming output. Implemented chunked processing for large files.</p>
+                </div>
+                <div class="phase-decisions">
+                  <h4>Key Decisions</h4>
+                  <ul>
+                    <li>Used streaming parser for memory efficiency</li>
+                    <li>Chose Zod for runtime validation</li>
+                    <li>Implemented retry logic with exponential backoff</li>
+                  </ul>
+                </div>
+                <div class="phase-artifacts">
+                  <h4>Artifacts</h4>
+                  <div class="artifact-links">
+                    <a href="#" class="artifact-link">📄 spec.md</a>
+                    <a href="#" class="artifact-link">📄 plan.md</a>
+                    <a href="#" class="artifact-link">📄 tasks.md</a>
+                  </div>
+                </div>
+                <div class="phase-sessions">
+                  <h4>Sessions</h4>
+                  <div class="session-list">
+                    <div class="session-item">
+                      <span>Design</span>
+                      <span>Jan 10</span>
+                      <span>$2.10</span>
+                    </div>
+                    <div class="session-item">
+                      <span>Implement</span>
+                      <span>Jan 11-13</span>
+                      <span>$8.30</span>
+                    </div>
+                    <div class="session-item">
+                      <span>Verify</span>
+                      <span>Jan 14</span>
+                      <span>$2.00</span>
+                    </div>
+                  </div>
+                </div>
+                <a href="#" class="phase-link">View Full Archive →</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Completed Phase -->
+          <div class="phase-item completed" data-phase="0040">
+            <div class="phase-connector"></div>
+            <div class="phase-card">
+              <div class="phase-card-header" onclick="togglePhase(this)">
+                <div class="phase-info">
+                  <span class="phase-number">0040</span>
+                  <span class="phase-name">Project Setup</span>
+                  <span class="phase-badge merged">Merged</span>
+                </div>
+                <div class="phase-meta">
+                  <span class="phase-dates">Jan 5-9, 2026</span>
+                  <span class="phase-cost">$5.20</span>
+                  <svg class="expand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="phase-card-body" style="display: none;">
+                <div class="phase-summary">
+                  <h4>Summary</h4>
+                  <p>Initial project scaffolding with TypeScript, ESLint, Prettier, and Vitest configuration. Set up CI/CD pipeline with GitHub Actions.</p>
+                </div>
+                <div class="phase-detail">
+                  <span class="detail-label">Tasks Completed</span>
+                  <span class="detail-value">12</span>
+                </div>
+                <a href="#" class="phase-link">View Full Archive →</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Completed Phase -->
+          <div class="phase-item completed" data-phase="0039">
+            <div class="phase-connector"></div>
+            <div class="phase-card">
+              <div class="phase-card-header" onclick="togglePhase(this)">
+                <div class="phase-info">
+                  <span class="phase-number">0039</span>
+                  <span class="phase-name">Initial Planning</span>
+                  <span class="phase-badge merged">Merged</span>
+                </div>
+                <div class="phase-meta">
+                  <span class="phase-dates">Jan 1-4, 2026</span>
+                  <span class="phase-cost">$3.15</span>
+                  <svg class="expand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="phase-card-body" style="display: none;">
+                <div class="phase-summary">
+                  <h4>Summary</h4>
+                  <p>Created initial project roadmap, defined architecture, and established memory documents for ongoing development guidance.</p>
+                </div>
+                <a href="#" class="phase-link">View Full Archive →</a>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Question Modal Overlay -->
+  <div class="modal-overlay" id="question-modal" style="display: none;">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content question-modal">
+      <div class="modal-header">
+        <h2>Workflow Needs Your Input</h2>
+        <span class="question-progress">Question 1 of 2</span>
+      </div>
+      <div class="modal-body">
+        <div class="question-block">
+          <div class="question-header">BP Approval</div>
+          <div class="question-text">
+            The following Best Practice findings were detected. How would you like to proceed?
+          </div>
+          <div class="findings-list">
+            <div class="finding">
+              <span class="finding-id">BP001</span>
+              <span class="finding-desc">Missing main guard in hello.py</span>
+            </div>
+            <div class="finding">
+              <span class="finding-id">BP002</span>
+              <span class="finding-desc">Missing module docstring</span>
+            </div>
+          </div>
+          <div class="question-options">
+            <label class="option-item">
+              <input type="radio" name="q1" value="fix">
+              <span class="option-label">Fix these issues</span>
+              <span class="option-desc">Claude will address these findings before continuing</span>
+            </label>
+            <label class="option-item">
+              <input type="radio" name="q1" value="skip">
+              <span class="option-label">Skip for now</span>
+              <span class="option-desc">Continue without fixing (can address later)</span>
+            </label>
+            <label class="option-item">
+              <input type="radio" name="q1" value="other">
+              <span class="option-label">Other</span>
+              <span class="option-desc">Provide custom instructions</span>
+            </label>
+          </div>
+          <textarea class="custom-input" id="custom-q1" placeholder="Enter custom instructions..." style="display: none;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div class="follow-up-section">
+          <label>
+            <input type="checkbox" id="add-follow-up">
+            Add follow-up message
+          </label>
+          <textarea class="follow-up-text" id="follow-up-modal-text" placeholder="Additional context or instructions..." style="display: none;"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="prev-question" disabled>← Previous</button>
+          <button class="btn btn-ghost" id="next-question">Next →</button>
+          <button class="btn btn-primary" id="submit-answers" style="display: none;">Submit All</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workflow Start Confirmation Modal -->
+  <div class="modal-overlay" id="confirm-modal" style="display: none;">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content confirm-modal">
+      <div class="modal-header">
+        <h2>Start <span id="confirm-skill">Orchestrate</span>?</h2>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-description">This will run the end-to-end phase execution workflow.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeConfirmModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="startWorkflow()">Start Workflow</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

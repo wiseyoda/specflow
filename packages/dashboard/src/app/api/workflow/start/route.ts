@@ -11,8 +11,9 @@ import {
  *
  * Request body:
  * - projectId: string (required) - Registry project UUID
- * - skill: string (required) - Skill name (e.g., "flow.design")
+ * - skill: string (required) - Skill name (e.g., "flow.design") or follow-up message when resuming
  * - timeoutMs: number (optional) - Override default timeout
+ * - resumeSessionId: string (optional) - Session ID to resume (FR-014)
  *
  * Response (201):
  * - WorkflowExecution object with status "running"
@@ -37,9 +38,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const { projectId, skill, timeoutMs } = parseResult.data;
+    const { projectId, skill, timeoutMs, resumeSessionId } = parseResult.data;
 
-    const execution = await workflowService.start(projectId, skill, timeoutMs);
+    const execution = await workflowService.start(projectId, skill, timeoutMs, resumeSessionId);
 
     // Return execution wrapped in execution property (matches hook expectations)
     return NextResponse.json(

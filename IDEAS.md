@@ -14,6 +14,4 @@
 
 [ ] ID-007: Github status in the dashboard similar to this: https://github.com/Powerlevel9k/powerlevel9k#vcs and also show me the current remote/local branch status (ahead/behind/diverged). etc.
 
-[ ] ID-008: (BUG) During the analyze step, there were issues with project artifacts and it did not auto-fix all of them. It waited for user input (not via the quesiton tool). This killed the end-to-end workflow of orchestrate.
-
 [ ] ID-009: Right now we are using Claude Opus 4.5 for everything, we probably need to be more strategic about when we use which model. Opus is expensive and not always necessary. We should use the right tool for the job. This will dramatically lower costs and probably speed up certain tasks.

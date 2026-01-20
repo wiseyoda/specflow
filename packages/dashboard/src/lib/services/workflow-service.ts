@@ -19,6 +19,7 @@ import {
 } from 'fs';
 import { join } from 'path';
 import { z } from 'zod';
+import { findRecentSessionFile } from '@/lib/project-hash';
 
 // =============================================================================
 // Zod Schemas
@@ -65,11 +66,13 @@ export type WorkflowOutput = z.infer<typeof WorkflowOutputSchema>;
 
 /**
  * Workflow execution state (persisted to disk)
+ * Note: sessionId becomes available (required) after first CLI response completes.
+ * It's obtained from CLI JSON output, not from polling.
  */
 export const WorkflowExecutionSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string().min(1), // Registry key (not necessarily UUID)
-  sessionId: z.string().optional(),
+  sessionId: z.string().optional(), // Populated from CLI JSON output after first response
   skill: z.string(),
   status: z.enum([
     'running',
@@ -101,6 +104,8 @@ export const StartWorkflowRequestSchema = z.object({
   projectId: z.string().min(1), // Registry key (not necessarily UUID)
   skill: z.string().min(1),
   timeoutMs: z.number().positive().optional(),
+  /** Optional session ID to resume (uses --resume flag per FR-014) */
+  resumeSessionId: z.string().optional(),
 });
 
 export type StartWorkflowRequest = z.infer<typeof StartWorkflowRequestSchema>;
@@ -114,6 +119,38 @@ export const AnswerWorkflowRequestSchema = z.object({
 });
 
 export type AnswerWorkflowRequest = z.infer<typeof AnswerWorkflowRequestSchema>;
+
+/**
+ * Workflow index entry for quick session listing
+ * Stored at {project}/.specflow/workflows/index.json
+ */
+export const WorkflowIndexEntrySchema = z.object({
+  sessionId: z.string(),
+  executionId: z.string().uuid(),
+  skill: z.string(),
+  status: z.enum([
+    'running',
+    'waiting_for_input',
+    'completed',
+    'failed',
+    'cancelled',
+  ]),
+  startedAt: z.string(),
+  updatedAt: z.string(),
+  costUsd: z.number(),
+});
+
+export type WorkflowIndexEntry = z.infer<typeof WorkflowIndexEntrySchema>;
+
+/**
+ * Workflow index for a project
+ * Provides quick lookup of all sessions without loading full metadata
+ */
+export const WorkflowIndexSchema = z.object({
+  sessions: z.array(WorkflowIndexEntrySchema),
+});
+
+export type WorkflowIndex = z.infer<typeof WorkflowIndexSchema>;
 
 // =============================================================================
 // Constants
@@ -170,80 +207,273 @@ const WORKFLOW_JSON_SCHEMA = {
 };
 
 // =============================================================================
-// State Persistence (T004)
+// State Persistence - Project-Local Storage (Phase 1053)
 // =============================================================================
 
+// In-memory mapping of executionId -> projectPath for lookups
+const executionProjectMap = new Map<string, string>();
+
+// Track if cleanup has been performed this session
+let globalCleanupDone = false;
+
 /**
- * Get the workflow state directory, creating if needed (FR-001)
+ * Clean up old global workflows from ~/.specflow/workflows/
+ * Per FR-017: Skip active (running/waiting_for_input) workflows
  */
-function getStateDir(): string {
+function cleanupGlobalWorkflows(): void {
+  if (globalCleanupDone) return;
+  globalCleanupDone = true;
+
   const homeDir = process.env.HOME || '/tmp';
-  const stateDir = join(homeDir, '.specflow', 'workflows');
-  mkdirSync(stateDir, { recursive: true });
-  return stateDir;
-}
+  const globalDir = join(homeDir, '.specflow', 'workflows');
 
-/**
- * Save execution state to disk (FR-003)
- */
-function saveExecution(execution: WorkflowExecution): void {
-  const stateDir = getStateDir();
-  const stateFile = join(stateDir, `${execution.id}.json`);
-  writeFileSync(stateFile, JSON.stringify(execution, null, 2));
-}
-
-/**
- * Load execution state from disk
- */
-function loadExecution(id: string): WorkflowExecution | null {
-  const stateDir = getStateDir();
-  const stateFile = join(stateDir, `${id}.json`);
-
-  if (!existsSync(stateFile)) {
-    return null;
-  }
+  if (!existsSync(globalDir)) return;
 
   try {
-    const content = readFileSync(stateFile, 'utf-8');
-    const data = JSON.parse(content);
-    return WorkflowExecutionSchema.parse(data);
-  } catch {
-    return null;
-  }
-}
+    const files = readdirSync(globalDir).filter(f => f.endsWith('.json'));
 
-/**
- * List all executions, optionally filtered by projectId
- */
-function listExecutions(projectId?: string): WorkflowExecution[] {
-  const stateDir = getStateDir();
-
-  let files: string[];
-  try {
-    files = readdirSync(stateDir).filter((f) => f.endsWith('.json'));
-  } catch {
-    return [];
-  }
-
-  const executions = files
-    .map((f) => {
+    for (const file of files) {
+      const filePath = join(globalDir, file);
       try {
-        const content = readFileSync(join(stateDir, f), 'utf-8');
+        const content = readFileSync(filePath, 'utf-8');
         const data = JSON.parse(content);
-        return WorkflowExecutionSchema.parse(data);
-      } catch {
-        return null;
-      }
-    })
-    .filter((e): e is WorkflowExecution => e !== null);
 
-  // Filter by projectId if provided
-  const filtered = projectId
-    ? executions.filter((e) => e.projectId === projectId)
-    : executions;
+        // Skip active workflows per FR-017
+        if (data.status === 'running' || data.status === 'waiting_for_input') {
+          console.log(`[workflow-service] Skipping active workflow: ${file}`);
+          continue;
+        }
+
+        // Delete completed/failed/cancelled workflows
+        const { unlinkSync } = require('fs');
+        unlinkSync(filePath);
+        console.log(`[workflow-service] Cleaned up old workflow: ${file}`);
+      } catch {
+        // Skip files that can't be read/parsed
+      }
+    }
+  } catch {
+    // Ignore errors during cleanup
+  }
+}
+
+/**
+ * Get the project-local workflow directory
+ */
+function getProjectWorkflowDir(projectPath: string): string {
+  const workflowDir = join(projectPath, '.specflow', 'workflows');
+  mkdirSync(workflowDir, { recursive: true });
+  return workflowDir;
+}
+
+/**
+ * Get path to the workflow index file for a project
+ */
+function getIndexPath(projectPath: string): string {
+  return join(getProjectWorkflowDir(projectPath), 'index.json');
+}
+
+/**
+ * Load the workflow index for a project
+ */
+function loadWorkflowIndex(projectPath: string): WorkflowIndex {
+  const indexPath = getIndexPath(projectPath);
+  if (!existsSync(indexPath)) {
+    return { sessions: [] };
+  }
+  try {
+    const content = readFileSync(indexPath, 'utf-8');
+    return WorkflowIndexSchema.parse(JSON.parse(content));
+  } catch {
+    return { sessions: [] };
+  }
+}
+
+/**
+ * Save the workflow index for a project
+ */
+function saveWorkflowIndex(projectPath: string, index: WorkflowIndex): void {
+  const indexPath = getIndexPath(projectPath);
+  writeFileSync(indexPath, JSON.stringify(index, null, 2));
+}
+
+/**
+ * Update the workflow index with execution data
+ */
+function updateWorkflowIndex(projectPath: string, execution: WorkflowExecution): void {
+  if (!execution.sessionId) return; // Can't index without session ID
+
+  const index = loadWorkflowIndex(projectPath);
+  const existingIdx = index.sessions.findIndex(s => s.sessionId === execution.sessionId);
+
+  const entry: WorkflowIndexEntry = {
+    sessionId: execution.sessionId,
+    executionId: execution.id,
+    skill: execution.skill,
+    status: execution.status,
+    startedAt: execution.startedAt,
+    updatedAt: execution.updatedAt,
+    costUsd: execution.costUsd,
+  };
+
+  if (existingIdx >= 0) {
+    index.sessions[existingIdx] = entry;
+  } else {
+    index.sessions.unshift(entry); // Add to front (newest first)
+  }
+
+  // Limit to 50 sessions per project
+  if (index.sessions.length > 50) {
+    index.sessions = index.sessions.slice(0, 50);
+  }
+
+  saveWorkflowIndex(projectPath, index);
+}
+
+/**
+ * Save execution state to project-local storage
+ * - Before sessionId: {project}/.specflow/workflows/pending-{executionId}.json
+ * - After sessionId: {project}/.specflow/workflows/{sessionId}/metadata.json
+ */
+function saveExecution(execution: WorkflowExecution, projectPath?: string): void {
+  // Get project path from parameter, map, or registry
+  let resolvedProjectPath: string | undefined = projectPath;
+  if (!resolvedProjectPath) {
+    resolvedProjectPath = executionProjectMap.get(execution.id);
+  }
+  if (!resolvedProjectPath) {
+    const registryPath = getProjectPath(execution.projectId);
+    if (registryPath) {
+      resolvedProjectPath = registryPath;
+    }
+  }
+  if (!resolvedProjectPath) {
+    console.error(`[workflow-service] Cannot save execution: no project path for ${execution.id}`);
+    return;
+  }
+
+  // Store mapping for future lookups
+  executionProjectMap.set(execution.id, resolvedProjectPath);
+
+  const workflowDir = getProjectWorkflowDir(resolvedProjectPath);
+
+  if (execution.sessionId) {
+    // Session ID available - use session-keyed storage
+    const sessionDir = join(workflowDir, execution.sessionId);
+    mkdirSync(sessionDir, { recursive: true });
+    const metadataPath = join(sessionDir, 'metadata.json');
+    writeFileSync(metadataPath, JSON.stringify(execution, null, 2));
+
+    // Clean up pending file if it exists
+    const pendingPath = join(workflowDir, `pending-${execution.id}.json`);
+    if (existsSync(pendingPath)) {
+      try {
+        const { unlinkSync } = require('fs');
+        unlinkSync(pendingPath);
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+
+    // Update the index
+    updateWorkflowIndex(resolvedProjectPath, execution);
+  } else {
+    // No session ID yet - use pending storage
+    const pendingPath = join(workflowDir, `pending-${execution.id}.json`);
+    writeFileSync(pendingPath, JSON.stringify(execution, null, 2));
+  }
+}
+
+/**
+ * Load execution state from project-local storage
+ */
+function loadExecution(id: string, projectPath?: string): WorkflowExecution | null {
+  // Get project path from parameter or map
+  let resolvedProjectPath = projectPath;
+  if (!resolvedProjectPath) {
+    resolvedProjectPath = executionProjectMap.get(id);
+  }
+  if (!resolvedProjectPath) {
+    return null;
+  }
+
+  const workflowDir = getProjectWorkflowDir(resolvedProjectPath);
+
+  // Try pending file first
+  const pendingPath = join(workflowDir, `pending-${id}.json`);
+  if (existsSync(pendingPath)) {
+    try {
+      const content = readFileSync(pendingPath, 'utf-8');
+      return WorkflowExecutionSchema.parse(JSON.parse(content));
+    } catch {
+      // Continue to check session dirs
+    }
+  }
+
+  // Search session directories for matching execution ID
+  try {
+    const entries = readdirSync(workflowDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith('pending-')) {
+        const metadataPath = join(workflowDir, entry.name, 'metadata.json');
+        if (existsSync(metadataPath)) {
+          try {
+            const content = readFileSync(metadataPath, 'utf-8');
+            const execution = WorkflowExecutionSchema.parse(JSON.parse(content));
+            if (execution.id === id) {
+              return execution;
+            }
+          } catch {
+            // Continue searching
+          }
+        }
+      }
+    }
+  } catch {
+    // Directory doesn't exist or can't be read
+  }
+
+  return null;
+}
+
+/**
+ * List all executions for a project
+ */
+function listExecutions(projectPath: string): WorkflowExecution[] {
+  const workflowDir = getProjectWorkflowDir(projectPath);
+  const executions: WorkflowExecution[] = [];
+
+  try {
+    const entries = readdirSync(workflowDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('pending-') && entry.name.endsWith('.json')) {
+        // Pending execution
+        try {
+          const content = readFileSync(join(workflowDir, entry.name), 'utf-8');
+          executions.push(WorkflowExecutionSchema.parse(JSON.parse(content)));
+        } catch {
+          // Skip invalid files
+        }
+      } else if (entry.isDirectory()) {
+        // Session directory
+        const metadataPath = join(workflowDir, entry.name, 'metadata.json');
+        if (existsSync(metadataPath)) {
+          try {
+            const content = readFileSync(metadataPath, 'utf-8');
+            executions.push(WorkflowExecutionSchema.parse(JSON.parse(content)));
+          } catch {
+            // Skip invalid files
+          }
+        }
+      }
+    }
+  } catch {
+    // Directory doesn't exist
+  }
 
   // Sort by updatedAt descending (most recent first)
-  return filtered.sort(
+  return executions.sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
 }
@@ -400,88 +630,27 @@ interface ClaudeCliResult {
 const runningProcesses = new Map<string, ChildProcess>();
 
 // =============================================================================
-// Session Detection from Claude's sessions-index.json
-// =============================================================================
-
-interface SessionIndexEntry {
-  sessionId: string;
-  fullPath: string;
-  fileMtime: number;
-  created: string;
-  modified: string;
-  messageCount: number;
-  projectPath: string;
-}
-
-interface SessionIndex {
-  version: number;
-  entries: SessionIndexEntry[];
-}
-
-/**
- * Calculate the Claude project directory name (path with slashes replaced by dashes)
- */
-function calculateProjectHash(projectPath: string): string {
-  return projectPath.replace(/\//g, '-');
-}
-
-/**
- * Find a session created after the given timestamp from sessions-index.json
- * Waits 1s initially for CLI to start, then polls up to 10 times with 500ms intervals
- */
-async function findNewSession(
-  projectPath: string,
-  afterTimestamp: number
-): Promise<string | null> {
-  const homeDir = process.env.HOME || '';
-  const hash = calculateProjectHash(projectPath);
-  const indexPath = join(homeDir, '.claude', 'projects', hash, 'sessions-index.json');
-
-  const initialDelay = 1000; // Wait 1s for CLI to start
-  const maxAttempts = 10;
-  const pollInterval = 500; // ms
-
-  // Initial delay to give CLI time to start and create session
-  await new Promise((resolve) => setTimeout(resolve, initialDelay));
-
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      if (existsSync(indexPath)) {
-        const content = readFileSync(indexPath, 'utf-8');
-        const index: SessionIndex = JSON.parse(content);
-
-        // Find a session created after our timestamp
-        for (const entry of index.entries) {
-          const createTime = new Date(entry.created).getTime();
-          if (createTime > afterTimestamp) {
-            return entry.sessionId;
-          }
-        }
-      }
-    } catch {
-      // Ignore errors, keep polling
-    }
-
-    // Wait before next attempt
-    await new Promise((resolve) => setTimeout(resolve, pollInterval));
-  }
-
-  return null;
-}
-
-// =============================================================================
 // Workflow Service Class
 // =============================================================================
+
+// Note: Session ID detection removed (Phase 1053 - T001)
+// Session ID is now obtained directly from CLI JSON output (result.session_id)
+// instead of polling sessions-index.json which had race conditions
 
 class WorkflowService {
   /**
    * Start a new workflow execution (T007)
+   * @param resumeSessionId - Optional session ID to resume (FR-014, FR-015)
    */
   async start(
     projectId: string,
     skill: string,
-    timeoutMs: number = DEFAULT_TIMEOUT_MS
+    timeoutMs: number = DEFAULT_TIMEOUT_MS,
+    resumeSessionId?: string
   ): Promise<WorkflowExecution> {
+    // Clean up old global workflows on first run (T008, FR-016, FR-017)
+    cleanupGlobalWorkflows();
+
     // Validate project exists in registry (FR-010)
     const projectPath = getProjectPath(projectId);
     if (!projectPath) {
@@ -490,7 +659,6 @@ class WorkflowService {
 
     const id = randomUUID();
     const now = new Date().toISOString();
-    const startTimestamp = Date.now();
 
     const execution: WorkflowExecution = {
       id,
@@ -505,15 +673,22 @@ class WorkflowService {
       startedAt: now,
       updatedAt: now,
       timeoutMs,
+      // If resuming, pre-populate sessionId (FR-015: new execution linked to same session)
+      ...(resumeSessionId ? { sessionId: resumeSessionId } : {}),
     };
 
     execution.logs.push(`[${now}] Starting workflow for project ${projectId}`);
     execution.logs.push(`[INFO] Skill: ${skill}`);
     execution.logs.push(`[INFO] Timeout: ${timeoutMs}ms`);
-    saveExecution(execution);
+    if (resumeSessionId) {
+      execution.logs.push(`[INFO] Resuming session: ${resumeSessionId}`);
+    }
+    saveExecution(execution, projectPath);
 
     // Run Claude in background (don't await)
-    this.runClaude(id, projectPath, false).catch((err) => {
+    // Session ID will be obtained from CLI JSON output when it completes
+    // For resume, we pass isResume=true and sessionId is already set
+    this.runClaude(id, projectPath, !!resumeSessionId, resumeSessionId).catch((err) => {
       const exec = loadExecution(id);
       if (exec) {
         exec.status = 'failed';
@@ -521,19 +696,6 @@ class WorkflowService {
         exec.updatedAt = new Date().toISOString();
         exec.logs.push(`[ERROR] ${err.message}`);
         saveExecution(exec);
-      }
-    });
-
-    // Detect session ID from sessions-index.json (async, updates execution when found)
-    findNewSession(projectPath, startTimestamp).then((sessionId) => {
-      if (sessionId) {
-        const exec = loadExecution(id);
-        if (exec && !exec.sessionId) {
-          exec.sessionId = sessionId;
-          exec.updatedAt = new Date().toISOString();
-          exec.logs.push(`[SESSION] Detected: ${sessionId}`);
-          saveExecution(exec);
-        }
       }
     });
 
@@ -568,7 +730,7 @@ class WorkflowService {
     execution.status = 'running';
     execution.updatedAt = new Date().toISOString();
     execution.logs.push(`[RESUME] With answers: ${JSON.stringify(answers)}`);
-    saveExecution(execution);
+    saveExecution(execution, projectPath);
 
     // Run Claude with session resume
     this.runClaude(id, projectPath, true).catch((err) => {
@@ -586,17 +748,43 @@ class WorkflowService {
   }
 
   /**
-   * Get execution by ID (T010)
+   * Get execution by ID
+   * @param id - Execution UUID
+   * @param projectId - Optional project registry key for direct lookup
    */
-  get(id: string): WorkflowExecution | undefined {
-    return loadExecution(id) || undefined;
+  get(id: string, projectId?: string): WorkflowExecution | undefined {
+    let projectPath: string | undefined;
+    if (projectId) {
+      const path = getProjectPath(projectId);
+      if (path) projectPath = path;
+    }
+    const execution = loadExecution(id, projectPath);
+    if (!execution) return undefined;
+
+    // If workflow is running but no session ID yet, try to detect it from file system
+    // This handles the case where CLI hasn't completed but session file exists
+    if (execution.status === 'running' && !execution.sessionId && projectPath) {
+      const detectedSessionId = findRecentSessionFile(projectPath, execution.startedAt);
+      if (detectedSessionId) {
+        execution.sessionId = detectedSessionId;
+        execution.logs.push(`[DETECT] Session detected from file: ${detectedSessionId}`);
+        saveExecution(execution, projectPath);
+      }
+    }
+
+    return execution;
   }
 
   /**
-   * List executions, optionally filtered by projectId (T015)
+   * List executions for a project
+   * @param projectId - Registry key for the project
    */
-  list(projectId?: string): WorkflowExecution[] {
-    return listExecutions(projectId);
+  list(projectId: string): WorkflowExecution[] {
+    const projectPath = getProjectPath(projectId);
+    if (!projectPath) {
+      return [];
+    }
+    return listExecutions(projectPath);
   }
 
   /**
@@ -644,16 +832,21 @@ class WorkflowService {
   /**
    * Run Claude CLI (T006)
    * @param isResume - If true, use --resume with session ID
+   * @param resumeSessionId - Optional explicit session ID for resuming historical sessions
    */
   private async runClaude(
     id: string,
     projectPath: string,
-    isResume: boolean
+    isResume: boolean,
+    resumeSessionId?: string
   ): Promise<void> {
     const execution = loadExecution(id);
     if (!execution) return;
 
     const isTestMode = execution.skill === 'test';
+    // For historical session resume, use the explicit sessionId passed in
+    // For answer-based resume, use execution.sessionId
+    const effectiveSessionId = resumeSessionId || execution.sessionId;
 
     // Create session-specific workflow directory to avoid collisions
     const workflowDir = join(projectPath, '.specflow', 'workflows', id);
@@ -675,21 +868,28 @@ cd "${projectPath}"
 ${claudePath} -p --output-format json "Say hello" < /dev/null > "${outputFile}" 2>&1
 `;
       execution.logs.push(`[TEST] Simple hello test`);
-    } else if (isResume && execution.sessionId) {
-      // Resume existing session with answers
-      const resumePrompt = buildResumePrompt(execution.answers);
+    } else if (isResume && effectiveSessionId) {
+      // Resume existing session
+      // Two cases:
+      // 1. Resuming with answers (from workflow resume method) - use buildResumePrompt
+      // 2. Resuming historical session (from start with resumeSessionId) - use skill as follow-up
+      const hasAnswers = Object.keys(execution.answers).length > 0;
+      const resumePrompt = hasAnswers
+        ? buildResumePrompt(execution.answers)
+        : execution.skill; // skill contains the follow-up message for US3
+
       const promptFile = join(workflowDir, 'resume-prompt.txt');
       writeFileSync(promptFile, resumePrompt);
 
       const schemaFile = join(workflowDir, 'schema.json');
       writeFileSync(schemaFile, JSON.stringify(WORKFLOW_JSON_SCHEMA));
 
-      execution.logs.push(`[RESUME] Session: ${execution.sessionId}`);
+      execution.logs.push(`[RESUME] Session: ${effectiveSessionId}`);
       execution.logs.push(`[INFO] Resume prompt (${resumePrompt.length} chars)`);
 
       scriptContent = `#!/bin/bash
 cd "${projectPath}"
-${claudePath} -p --output-format json --resume "${execution.sessionId}" --dangerously-skip-permissions --disallowedTools "AskUserQuestion" --json-schema "$(cat ${schemaFile})" < "${promptFile}" > "${outputFile}" 2>&1
+${claudePath} -p --output-format json --resume "${effectiveSessionId}" --dangerously-skip-permissions --disallowedTools "AskUserQuestion" --json-schema "$(cat ${schemaFile})" < "${promptFile}" > "${outputFile}" 2>&1
 `;
     } else {
       // Initial run (FR-005)

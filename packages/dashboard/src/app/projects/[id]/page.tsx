@@ -14,6 +14,9 @@ import { useViewPreference } from "@/hooks/use-view-preference"
 import { useWorkflowExecution } from "@/hooks/use-workflow-execution"
 import { AlertCircle } from "lucide-react"
 import { SessionViewerDrawer } from "@/components/projects/session-viewer-drawer"
+import { SessionHistoryList } from "@/components/projects/session-history-list"
+import { useSessionHistory } from "@/hooks/use-session-history"
+import type { WorkflowIndexEntry } from "@/lib/services/workflow-service"
 import {
   toastWorkflowCancelled,
   toastWorkflowError,
@@ -63,6 +66,16 @@ export default function ProjectDetailPage() {
 
   // Session viewer drawer state
   const [isSessionViewerOpen, setIsSessionViewerOpen] = useState(false)
+  // Track which session to view: null = current workflow session, string = historical session
+  const [selectedHistoricalSession, setSelectedHistoricalSession] = useState<WorkflowIndexEntry | null>(null)
+
+  // Session history for this project
+  const {
+    sessions: sessionHistory,
+    isLoading: sessionHistoryLoading,
+    error: sessionHistoryError,
+    refresh: refreshSessionHistory,
+  } = useSessionHistory(project?.path ?? null)
 
   // Set selected project for command palette context
   useEffect(() => {
@@ -129,10 +142,36 @@ export default function ProjectDetailPage() {
     setIsQuestionDrawerOpen(true)
   }, [])
 
-  // Handle session button click
+  // Handle session button click (from header - shows current workflow)
   const handleSessionClick = useCallback(() => {
+    setSelectedHistoricalSession(null) // Clear historical selection, show current
     setIsSessionViewerOpen(true)
   }, [])
+
+  // Handle historical session click (from session history list)
+  const handleHistoricalSessionClick = useCallback((session: WorkflowIndexEntry) => {
+    setSelectedHistoricalSession(session)
+    setIsSessionViewerOpen(true)
+  }, [])
+
+  // Handle resuming a historical session with a follow-up message
+  const [isResumingSession, setIsResumingSession] = useState(false)
+  const handleResumeSession = useCallback(async (sessionId: string, followUp: string) => {
+    setIsResumingSession(true)
+    try {
+      // Start workflow with the follow-up as skill, resuming the session
+      // The follow-up message becomes the prompt, and we resume the session
+      await startWorkflow(followUp, { resumeSessionId: sessionId })
+      // Clear selected historical session since we're now in a new workflow
+      setSelectedHistoricalSession(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      toastWorkflowError(message)
+      throw error // Re-throw so UI stays in input state
+    } finally {
+      setIsResumingSession(false)
+    }
+  }, [startWorkflow])
 
   // Handle answer submission
   const handleSubmitAnswers = useCallback(async (answers: Record<string, string>) => {
@@ -239,6 +278,12 @@ export default function ProjectDetailPage() {
               onSubmitAnswers={handleSubmitAnswers}
               isQuestionDrawerOpen={isQuestionDrawerOpen}
               onQuestionDrawerOpenChange={setIsQuestionDrawerOpen}
+              sessionHistory={sessionHistory}
+              sessionHistoryLoading={sessionHistoryLoading}
+              sessionHistoryError={sessionHistoryError}
+              selectedSessionId={selectedHistoricalSession?.sessionId ?? null}
+              onSessionClick={handleHistoricalSessionClick}
+              onRefreshSessionHistory={refreshSessionHistory}
             />
           )}
           {activeView === "kanban" && (
@@ -252,10 +297,19 @@ export default function ProjectDetailPage() {
         {/* Session Viewer Drawer */}
         <SessionViewerDrawer
           open={isSessionViewerOpen}
-          onOpenChange={setIsSessionViewerOpen}
+          onOpenChange={(open) => {
+            setIsSessionViewerOpen(open)
+            if (!open) setSelectedHistoricalSession(null) // Clear selection on close
+          }}
           projectPath={project.path}
-          sessionId={workflowExecution?.sessionId ?? null}
-          isActive={workflowExecution?.status === 'running' || workflowExecution?.status === 'waiting_for_input'}
+          sessionId={selectedHistoricalSession?.sessionId ?? workflowExecution?.sessionId ?? null}
+          isActive={
+            selectedHistoricalSession
+              ? (selectedHistoricalSession.status === 'running' || selectedHistoricalSession.status === 'waiting_for_input')
+              : (workflowExecution?.status === 'running' || workflowExecution?.status === 'waiting_for_input')
+          }
+          onResumeSession={handleResumeSession}
+          isResuming={isResumingSession}
         />
       </div>
     </MainLayout>

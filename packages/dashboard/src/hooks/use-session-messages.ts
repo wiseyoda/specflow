@@ -165,6 +165,11 @@ export function useSessionMessages(
     }, POLL_INTERVAL_MS);
   }, [refresh]);
 
+  // Track if this is the very first load (no messages yet)
+  const hasLoadedRef = useRef(false);
+  // Track the last loaded session to detect session changes
+  const lastSessionIdRef = useRef<string | null>(null);
+
   // Initial fetch and polling setup
   useEffect(() => {
     if (!projectPath) {
@@ -173,6 +178,8 @@ export function useSessionMessages(
       setElapsed(0);
       setError(null);
       setActiveSessionId(null);
+      hasLoadedRef.current = false;
+      lastSessionIdRef.current = null;
       stopPolling();
       return;
     }
@@ -180,8 +187,17 @@ export function useSessionMessages(
     // Use provided sessionId or nothing yet (will discover on first poll)
     const effectiveSessionId = sessionId;
 
-    // Initial fetch
-    setIsLoading(true);
+    // Reset loaded state if session changed
+    if (effectiveSessionId !== lastSessionIdRef.current) {
+      hasLoadedRef.current = false;
+      lastSessionIdRef.current = effectiveSessionId;
+    }
+
+    // Only show loading state on true initial load, not on refetch
+    // This prevents blank screen when polling callbacks change
+    if (!hasLoadedRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
 
     const doInitialFetch = async () => {
@@ -211,6 +227,7 @@ export function useSessionMessages(
         setElapsed(content.elapsed);
         setActiveSessionId(content.sessionId);
         setIsLoading(false);
+        hasLoadedRef.current = true;
 
         // Start polling if active
         if (isActive) {

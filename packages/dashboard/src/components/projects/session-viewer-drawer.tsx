@@ -8,7 +8,7 @@
  */
 
 import * as React from 'react';
-import { Terminal, Clock, FileCode, FolderOpen, AlertCircle, Loader2 } from 'lucide-react';
+import { Terminal, Clock, FileCode, FolderOpen, AlertCircle, Loader2, Send } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -17,9 +17,12 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useSessionMessages } from '@/hooks/use-session-messages';
 import { SessionMessageDisplay } from './session-message';
+import { SessionPendingState } from './session-pending-state';
 
 export interface SessionViewerDrawerProps {
   /** Whether the drawer is open */
@@ -32,6 +35,10 @@ export interface SessionViewerDrawerProps {
   sessionId: string | null;
   /** Whether the session is currently active (running/waiting) */
   isActive: boolean;
+  /** Callback to resume this session with a follow-up message */
+  onResumeSession?: (sessionId: string, followUp: string) => Promise<void>;
+  /** Whether a resume operation is in progress */
+  isResuming?: boolean;
 }
 
 /**
@@ -111,6 +118,8 @@ export function SessionViewerDrawer({
   projectPath,
   sessionId,
   isActive,
+  onResumeSession,
+  isResuming = false,
 }: SessionViewerDrawerProps) {
   const {
     messages,
@@ -124,6 +133,10 @@ export function SessionViewerDrawer({
   const scrollAreaRef = React.useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = React.useState(true);
   const lastMessageCountRef = React.useRef(0);
+
+  // Follow-up input state for historical sessions
+  const [followUpText, setFollowUpText] = React.useState('');
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
   // Auto-scroll to bottom when new messages arrive (if autoScroll is enabled)
   React.useEffect(() => {
@@ -153,10 +166,38 @@ export function SessionViewerDrawer({
     }
   }, [open]);
 
-  // Use discovered session ID if prop is null (auto-discovery)
-  const effectiveSessionId = sessionId || activeSessionId;
+  // Use explicit session ID (no auto-discovery - Phase 1053)
+  const effectiveSessionId = sessionId;
   const hasSession = projectPath && effectiveSessionId;
   const hasMessages = messages.length > 0;
+  // Show pending state when active but no session ID yet
+  const isPending = isActive && projectPath && !effectiveSessionId;
+  // Show follow-up input for historical (non-active) sessions with messages
+  const showFollowUpInput = hasSession && hasMessages && !isActive && onResumeSession;
+
+  // Handle follow-up submission
+  const handleFollowUpSubmit = React.useCallback(async () => {
+    if (!followUpText.trim() || !effectiveSessionId || !onResumeSession) return;
+    try {
+      await onResumeSession(effectiveSessionId, followUpText.trim());
+      setFollowUpText(''); // Clear input on success
+    } catch {
+      // Error handling is done in parent component
+    }
+  }, [followUpText, effectiveSessionId, onResumeSession]);
+
+  // Handle Enter key in input
+  const handleKeyDown = React.useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !isResuming) {
+      e.preventDefault();
+      handleFollowUpSubmit();
+    }
+  }, [handleFollowUpSubmit, isResuming]);
+
+  // Clear follow-up text when session changes
+  React.useEffect(() => {
+    setFollowUpText('');
+  }, [sessionId]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -199,7 +240,9 @@ export function SessionViewerDrawer({
 
         {/* Messages area */}
         <div className="flex-1 mt-2 -mx-6 overflow-hidden">
-          {isLoading ? (
+          {isPending ? (
+            <SessionPendingState />
+          ) : isLoading ? (
             <SessionLoadingState />
           ) : error ? (
             <SessionErrorState error={error} />
@@ -226,6 +269,38 @@ export function SessionViewerDrawer({
             </ScrollArea>
           )}
         </div>
+
+        {/* Follow-up input for historical sessions */}
+        {showFollowUpInput && (
+          <div className="pt-3 border-t border-neutral-800">
+            <div className="flex gap-2">
+              <Input
+                ref={inputRef}
+                placeholder="Send a follow-up message..."
+                value={followUpText}
+                onChange={(e) => setFollowUpText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isResuming}
+                className="flex-1 bg-neutral-900 border-neutral-700 text-neutral-100 placeholder:text-neutral-500"
+              />
+              <Button
+                onClick={handleFollowUpSubmit}
+                disabled={!followUpText.trim() || isResuming}
+                size="icon"
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {isResuming ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-neutral-500 mt-1.5">
+              This will resume the session with your message
+            </p>
+          </div>
+        )}
 
         {/* Footer with auto-scroll indicator */}
         {hasMessages && (

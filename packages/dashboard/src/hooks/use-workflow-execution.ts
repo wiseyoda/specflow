@@ -25,6 +25,11 @@ type WorkflowStatus = WorkflowExecution['status'];
 const TERMINAL_STATES: WorkflowStatus[] = ['completed', 'failed', 'cancelled'];
 const ACTIVE_STATES: WorkflowStatus[] = ['running', 'waiting_for_input'];
 
+interface StartWorkflowOptions {
+  /** Optional session ID to resume an existing session */
+  resumeSessionId?: string;
+}
+
 interface UseWorkflowExecutionResult {
   /** Current workflow execution, or null if none */
   execution: WorkflowExecution | null;
@@ -38,8 +43,8 @@ interface UseWorkflowExecutionResult {
   isTerminal: boolean;
   /** Error from last operation */
   error: Error | null;
-  /** Start a new workflow with the given skill */
-  start: (skill: string) => Promise<void>;
+  /** Start a new workflow with the given skill, optionally resuming an existing session */
+  start: (skill: string, options?: StartWorkflowOptions) => Promise<void>;
   /** Cancel the current workflow */
   cancel: () => Promise<void>;
   /** Submit answers to resume a waiting workflow */
@@ -83,8 +88,13 @@ async function fetchWorkflowForProject(
 /**
  * Fetch a specific workflow execution by ID
  */
-async function fetchWorkflowById(id: string): Promise<WorkflowExecution | null> {
-  const res = await fetch(`/api/workflow/status?id=${encodeURIComponent(id)}`);
+async function fetchWorkflowById(
+  id: string,
+  projectId: string
+): Promise<WorkflowExecution | null> {
+  const res = await fetch(
+    `/api/workflow/status?id=${encodeURIComponent(id)}&projectId=${encodeURIComponent(projectId)}`
+  );
   if (!res.ok) {
     if (res.status === 404) return null;
     throw new Error(`Failed to fetch workflow: ${res.status}`);
@@ -95,15 +105,21 @@ async function fetchWorkflowById(id: string): Promise<WorkflowExecution | null> 
 
 /**
  * Start a workflow for a project
+ * @param resumeSessionId - Optional session ID to resume (uses --resume flag)
  */
 async function startWorkflow(
   projectId: string,
-  skill: string
+  skill: string,
+  resumeSessionId?: string
 ): Promise<WorkflowExecution> {
+  const body: Record<string, string> = { projectId, skill };
+  if (resumeSessionId) {
+    body.resumeSessionId = resumeSessionId;
+  }
   const res = await fetch('/api/workflow/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ projectId, skill }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -190,7 +206,7 @@ export function useWorkflowExecution(
 
       // If we have a known execution ID, fetch it directly
       if (executionIdRef.current) {
-        exec = await fetchWorkflowById(executionIdRef.current);
+        exec = await fetchWorkflowById(executionIdRef.current, projectId);
         if (exec) {
           // Detect transition to waiting_for_input
           const prevStatus = previousStatusRef.current;
@@ -252,11 +268,17 @@ export function useWorkflowExecution(
 
   // Start a new workflow
   const start = useCallback(
-    async (skill: string) => {
+    async (skill: string, options?: StartWorkflowOptions) => {
       // Validate: check if there's already an active workflow
       // Only running/waiting_for_input states block new workflows
       // cancelled/completed/failed states allow restart
-      if (execution && ACTIVE_STATES.includes(execution.status)) {
+      // Exception: when resuming a session, we allow starting even if active
+      // (the new workflow will link to the same session)
+      if (
+        execution &&
+        ACTIVE_STATES.includes(execution.status) &&
+        !options?.resumeSessionId
+      ) {
         const err = new Error('A workflow is already running on this project');
         setError(err);
         throw err;
@@ -269,7 +291,7 @@ export function useWorkflowExecution(
 
       try {
         setError(null);
-        const exec = await startWorkflow(projectId, skill);
+        const exec = await startWorkflow(projectId, skill, options?.resumeSessionId);
         setExecution(exec);
         executionIdRef.current = exec.id;
         // Start polling for updates

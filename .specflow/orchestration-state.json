@@ -5,7 +5,7 @@
     "name": "specflow",
     "path": "/Users/ppatterson/dev/specflow"
   },
-  "last_updated": "2026-01-20T04:25:45.064Z",
+  "last_updated": "2026-01-20T06:34:58.277Z",
   "orchestration": {
     "phase": {
       "number": null,
@@ -279,6 +279,15 @@
         "phase_name": "Workflow-Session Unification",
         "branch": "1053-workflow-session-unification",
         "completed_at": "2026-01-20T04:25:45.063Z",
+        "tasks_completed": 0,
+        "tasks_total": 0
+      },
+      {
+        "type": "phase_completed",
+        "phase_number": "1054",
+        "phase_name": "Project Details Redesign",
+        "branch": "1054-project-details-redesign",
+        "completed_at": "2026-01-20T06:34:58.276Z",
         "tasks_completed": 0,
         "tasks_total": 0
       }

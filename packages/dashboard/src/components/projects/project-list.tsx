@@ -1,18 +1,18 @@
-"use client"
+'use client'
 
-import { useMemo, useCallback } from "react"
-import { useProjects } from "@/hooks/use-projects"
-import { useConnection } from "@/contexts/connection-context"
-import { useWorkflowList } from "@/hooks/use-workflow-list"
-import { ProjectCard } from "./project-card"
-import { EmptyState } from "./empty-state"
-import { AlertCircle, RefreshCw } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useMemo, useCallback } from 'react'
+import { useProjects } from '@/hooks/use-projects'
+import { useConnection } from '@/contexts/connection-context'
+import { useWorkflowList } from '@/hooks/use-workflow-list'
+import { ProjectCard } from './project-card'
+import { EmptyState } from './empty-state'
+import { GlassCard } from '@/components/design-system'
+import { AlertCircle, RefreshCw, FolderGit2 } from 'lucide-react'
 import {
   toastWorkflowStarted,
   toastWorkflowError,
   toastWorkflowAlreadyRunning,
-} from "@/lib/toast-helpers"
+} from '@/lib/toast-helpers'
 
 /**
  * Check if activity is recent (within last 15 minutes)
@@ -46,39 +46,43 @@ export function ProjectList() {
   const { states, tasks } = useConnection()
 
   // Get project IDs for workflow list filtering
-  const projectIds = useMemo(() => projects.map(p => p.id), [projects])
+  const projectIds = useMemo(() => projects.map((p) => p.id), [projects])
 
   // Fetch active workflows for all projects (with polling)
-  const { executions: workflowExecutions, refresh: refreshWorkflows } = useWorkflowList(projectIds)
+  const { executions: workflowExecutions, refresh: refreshWorkflows } =
+    useWorkflowList(projectIds)
 
   // Create workflow start handler for a specific project
-  const createWorkflowStartHandler = useCallback((projectId: string) => {
-    return async (skill: string) => {
-      try {
-        const res = await fetch('/api/workflow/start', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectId, skill }),
-        })
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}))
-          if (data.error?.includes('already running')) {
-            toastWorkflowAlreadyRunning()
-          } else {
-            throw new Error(data.error || `Failed: ${res.status}`)
+  const createWorkflowStartHandler = useCallback(
+    (projectId: string) => {
+      return async (skill: string) => {
+        try {
+          const res = await fetch('/api/workflow/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectId, skill }),
+          })
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}))
+            if (data.error?.includes('already running')) {
+              toastWorkflowAlreadyRunning()
+            } else {
+              throw new Error(data.error || `Failed: ${res.status}`)
+            }
+            return
           }
-          return
+          toastWorkflowStarted(skill)
+          // Refresh workflow list to show the new execution
+          refreshWorkflows()
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error'
+          toastWorkflowError(message)
+          throw error
         }
-        toastWorkflowStarted(skill)
-        // Refresh workflow list to show the new execution
-        refreshWorkflows()
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error'
-        toastWorkflowError(message)
-        throw error
       }
-    }
-  }, [refreshWorkflows])
+    },
+    [refreshWorkflows]
+  )
 
   // Sort projects: active first, then by most recent activity
   const sortedProjects = useMemo(() => {
@@ -112,10 +116,16 @@ export function ProjectList() {
     return (
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="h-20 rounded-xl bg-neutral-100 dark:bg-neutral-800 animate-pulse"
-          />
+          <GlassCard key={i} className="p-4 animate-pulse">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-lg bg-surface-300" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-32 rounded bg-surface-300" />
+                <div className="h-3 w-48 rounded bg-surface-300" />
+              </div>
+              <div className="w-20 h-1.5 rounded bg-surface-300" />
+            </div>
+          </GlassCard>
         ))}
       </div>
     )
@@ -124,31 +134,45 @@ export function ProjectList() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-        <h3 className="text-lg font-medium text-neutral-900 dark:text-neutral-100">
-          Unable to load projects
-        </h3>
-        <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400 max-w-sm">
-          {error.message}
+        <div className="w-16 h-16 rounded-2xl bg-danger/20 flex items-center justify-center mb-4">
+          <AlertCircle className="h-8 w-8 text-danger" />
+        </div>
+        <h3 className="text-lg font-medium text-white mb-2">Unable to load projects</h3>
+        <p className="text-sm text-surface-400 max-w-sm mb-2">{error.message}</p>
+        <p className="text-sm text-surface-500 mb-4">
+          Try running{' '}
+          <code className="px-1.5 py-0.5 bg-surface-200 rounded text-xs font-mono text-accent-light">
+            specflow status
+          </code>{' '}
+          to check for issues.
         </p>
-        <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-          Try running <code className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded text-xs font-mono">specflow status</code> to check for issues.
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-4"
+        <button
           onClick={() => refetch()}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-200 border border-surface-300 text-sm text-surface-400 hover:text-white hover:border-surface-400 transition-colors"
         >
-          <RefreshCw className="h-4 w-4 mr-2" />
+          <RefreshCw className="h-4 w-4" />
           Retry
-        </Button>
+        </button>
       </div>
     )
   }
 
   if (projects.length === 0) {
-    return <EmptyState />
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-surface-200 flex items-center justify-center mb-4">
+          <FolderGit2 className="h-8 w-8 text-surface-400" />
+        </div>
+        <h3 className="text-lg font-medium text-white mb-2">No projects yet</h3>
+        <p className="text-sm text-surface-400 max-w-sm">
+          Register a project to get started. Run{' '}
+          <code className="px-1.5 py-0.5 bg-surface-200 rounded text-xs font-mono text-accent-light">
+            specflow init
+          </code>{' '}
+          in your project directory.
+        </p>
+      </div>
+    )
   }
 
   return (

@@ -80,6 +80,7 @@ export const WorkflowExecutionSchema = z.object({
     'completed',
     'failed',
     'cancelled',
+    'detached', // Dashboard lost track but session may still be running
   ]),
   output: WorkflowOutputSchema.optional(),
   answers: z.record(z.string(), z.string()),
@@ -134,6 +135,7 @@ export const WorkflowIndexEntrySchema = z.object({
     'completed',
     'failed',
     'cancelled',
+    'detached', // Dashboard lost track but session may still be running
   ]),
   startedAt: z.string(),
   updatedAt: z.string(),
@@ -156,7 +158,9 @@ export type WorkflowIndex = z.infer<typeof WorkflowIndexSchema>;
 // Constants
 // =============================================================================
 
-const DEFAULT_TIMEOUT_MS = 600000; // 10 minutes
+// 4 hours - workflows can run for extended periods during implementation phases
+// This is a dashboard tracking timeout, not the actual CLI timeout
+const DEFAULT_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 /**
  * JSON Schema for workflow structured output (sent to Claude CLI)
@@ -976,10 +980,13 @@ ${claudePath} -p --output-format json --dangerously-skip-permissions --disallowe
           }
 
           // Check for timeout (FR-008)
+          // When timeout occurs, mark as "detached" - the session may still be running
+          // Users can reconnect via the session ID or session history
           if (error && error.killed) {
-            exec.status = 'failed';
-            exec.error = `Timeout exceeded (${exec.timeoutMs}ms)`;
-            exec.logs.push(`[TIMEOUT] ${exec.error}`);
+            exec.status = 'detached';
+            exec.error = `Dashboard tracking timeout (${exec.timeoutMs}ms) - session may still be running`;
+            exec.logs.push(`[DETACHED] ${exec.error}`);
+            exec.logs.push('[DETACHED] Check session history to reconnect');
             saveExecution(exec);
             resolve();
             return;

@@ -22,8 +22,10 @@ const POLL_INTERVAL_MS = 3000; // 3 seconds per PDR
 
 type WorkflowStatus = WorkflowExecution['status'];
 
+// Detached is NOT terminal - the session may still be running
 const TERMINAL_STATES: WorkflowStatus[] = ['completed', 'failed', 'cancelled'];
-const ACTIVE_STATES: WorkflowStatus[] = ['running', 'waiting_for_input'];
+// Detached counts as potentially active - continue polling to see if session updates
+const ACTIVE_STATES: WorkflowStatus[] = ['running', 'waiting_for_input', 'detached'];
 
 interface StartWorkflowOptions {
   /** Optional session ID to resume an existing session */

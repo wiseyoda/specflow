@@ -9,10 +9,11 @@
  * - Completed: green checkmark (fades after 30s)
  * - Failed: red X
  * - Cancelled: gray slash
+ * - Detached: amber warning (dashboard lost track, session may be running)
  */
 
 import * as React from 'react';
-import { Loader2, CheckCircle, XCircle, HelpCircle, Slash } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle, HelpCircle, Slash, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkflowExecution } from '@/lib/services/workflow-service';
 
@@ -71,6 +72,12 @@ const STATUS_CONFIG: Record<
     label: 'Cancelled',
     bgColor: 'bg-neutral-100 dark:bg-neutral-800',
     textColor: 'text-neutral-600 dark:text-neutral-400',
+  },
+  detached: {
+    icon: AlertCircle,
+    label: 'Detached',
+    bgColor: 'bg-amber-100 dark:bg-amber-900/30',
+    textColor: 'text-amber-700 dark:text-amber-400',
   },
 };
 

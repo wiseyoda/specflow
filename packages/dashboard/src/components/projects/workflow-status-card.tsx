@@ -82,6 +82,8 @@ function getStatusMessage(status: WorkflowExecution['status']): string {
       return 'Workflow failed';
     case 'cancelled':
       return 'Workflow was cancelled';
+    case 'detached':
+      return 'Session may still be running';
   }
 }
 
@@ -97,7 +99,9 @@ export function WorkflowStatusCard({
 }: WorkflowStatusCardProps) {
   const { getSkillsByGroup } = useWorkflowSkills();
   const isActive =
-    execution?.status === 'running' || execution?.status === 'waiting_for_input';
+    execution?.status === 'running' ||
+    execution?.status === 'waiting_for_input' ||
+    execution?.status === 'detached';
 
   return (
     <Card>

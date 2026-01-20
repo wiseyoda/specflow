@@ -1,6 +1,6 @@
-"use client"
+'use client'
 
-import Link from "next/link"
+import Link from 'next/link'
 import {
   FolderGit2,
   AlertCircle,
@@ -11,28 +11,28 @@ import {
   CircleDashed,
   Settings2,
   XCircle,
-  GitMerge
-} from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
-import { StatusButton } from "@/components/projects/action-button"
-import { ActionsMenu } from "@/components/projects/actions-menu"
-import { WorkflowStatusBadge, useWorkflowStatusFade } from "@/components/projects/workflow-status-badge"
-import { QuestionBadge } from "@/components/projects/question-badge"
-import { cn } from "@/lib/utils"
-import type { OrchestrationState, TasksData } from "@specflow/shared"
-import type { ProjectStatus as ActionProjectStatus } from "@/lib/action-definitions"
-import type { WorkflowExecution } from "@/lib/services/workflow-service"
+  GitMerge,
+  GitBranch,
+} from 'lucide-react'
+import { GlassCard, StatusPill } from '@/components/design-system'
+import type { WorkflowStatus } from '@/components/design-system/status-pill'
+import { StatusButton } from '@/components/projects/action-button'
+import { ActionsMenu } from '@/components/projects/actions-menu'
+import { cn } from '@/lib/utils'
+import type { OrchestrationState, TasksData } from '@specflow/shared'
+import type { ProjectStatus as ActionProjectStatus } from '@/lib/action-definitions'
+import type { WorkflowExecution } from '@/lib/services/workflow-service'
 
 /**
  * Project initialization status
  */
 type ProjectStatus =
-  | "not_initialized"  // No .specflow/ or no orchestration-state.json
-  | "initializing"     // Has state but health.status is "initializing"
-  | "needs_setup"      // Has state but no orchestration object
-  | "ready"            // Has state with orchestration, health is good
-  | "warning"          // Has state but health status is warning
-  | "error"            // Has state but health status is error
+  | 'not_initialized' // No .specflow/ or no orchestration-state.json
+  | 'initializing' // Has state but health.status is "initializing"
+  | 'needs_setup' // Has state but no orchestration object
+  | 'ready' // Has state with orchestration, health is good
+  | 'warning' // Has state but health status is warning
+  | 'error' // Has state but health status is error
 
 interface Project {
   id: string
@@ -58,7 +58,7 @@ interface ProjectCardProps {
  * Format relative time from ISO string
  */
 function formatRelativeTime(isoString: string | null | undefined): string {
-  if (!isoString) return ""
+  if (!isoString) return ''
 
   const date = new Date(isoString)
   const now = new Date()
@@ -67,7 +67,7 @@ function formatRelativeTime(isoString: string | null | undefined): string {
   const diffHours = Math.floor(diffMs / 3600000)
   const diffDays = Math.floor(diffMs / 86400000)
 
-  if (diffMins < 1) return "just now"
+  if (diffMins < 1) return 'just now'
   if (diffMins < 60) return `${diffMins}m ago`
   if (diffHours < 24) return `${diffHours}h ago`
   if (diffDays < 7) return `${diffDays}d ago`
@@ -76,7 +76,6 @@ function formatRelativeTime(isoString: string | null | undefined): string {
 
 /**
  * Check if activity is recent (within last 15 minutes)
- * This reflects typical work sessions - being in a step for 15+ min is normal
  */
 function isRecentActivity(isoString: string | null | undefined): boolean {
   if (!isoString) return false
@@ -103,171 +102,134 @@ function getMostRecentTimestamp(...timestamps: (string | null | undefined)[]): s
 }
 
 /**
- * Get step status styling based on step name
- * Steps: design → analyze → implement → verify → complete
- */
-function getStepStyles(step: string | null | undefined): string {
-  if (!step) return "text-neutral-500 dark:text-neutral-400"
-
-  const normalizedStep = step.toLowerCase()
-
-  if (normalizedStep === "complete" || normalizedStep === "completed") {
-    // Complete - green
-    return "text-green-600 dark:text-green-400"
-  }
-
-  if (normalizedStep === "design") {
-    // Design - purple (planning/architecture)
-    return "text-purple-600 dark:text-purple-400"
-  }
-
-  if (normalizedStep === "analyze") {
-    // Analyze - cyan (investigation/review)
-    return "text-cyan-600 dark:text-cyan-400"
-  }
-
-  if (normalizedStep === "implement" || normalizedStep === "implementing") {
-    // Implement - blue (active coding)
-    return "text-blue-600 dark:text-blue-400"
-  }
-
-  if (normalizedStep === "verify") {
-    // Verify - amber (needs attention/action)
-    return "text-amber-600 dark:text-amber-400"
-  }
-
-  // Default for unknown steps
-  return "text-neutral-500 dark:text-neutral-400"
-}
-
-/**
  * Check if phase is complete
  */
 function isPhaseComplete(phaseStatus: string | null | undefined): boolean {
   if (!phaseStatus) return false
   const normalized = phaseStatus.toLowerCase()
-  return normalized === "complete" || normalized === "completed"
+  return normalized === 'complete' || normalized === 'completed'
 }
 
 /**
  * Determine overall project status based on state
  */
 function getProjectStatus(state: OrchestrationState | null | undefined): ProjectStatus {
-  // No state file at all
   if (!state) {
-    return "not_initialized"
+    return 'not_initialized'
   }
 
-  // Has state but health is error
-  if (state.health?.status === "error") {
-    return "error"
+  if (state.health?.status === 'error') {
+    return 'error'
   }
 
-  // Has state but health has warnings
-  if (state.health?.status === "warning") {
-    return "warning"
+  if (state.health?.status === 'warning') {
+    return 'warning'
   }
 
-  // Has state but still initializing (setup in progress)
-  if (state.health?.status === "initializing") {
-    return "initializing"
+  if (state.health?.status === 'initializing') {
+    return 'initializing'
   }
 
-  // Has orchestration object at all - means it's been set up
-  // Even if phase is empty/null, the project has been initialized
   if (state.orchestration) {
-    // Has phase info - definitely ready
-    const phase = state.orchestration.phase
-    if (phase?.number || phase?.name) {
-      return "ready"
-    }
-    // Has orchestration but no current phase - could be between phases or just starting
-    // Still consider it "ready" since the project is initialized
-    return "ready"
+    return 'ready'
   }
 
-  // Has state file but no orchestration object - needs setup
-  return "needs_setup"
+  return 'needs_setup'
 }
 
 /**
- * Get status badge configuration
+ * Get status badge configuration for non-ready states
  */
 function getStatusBadge(status: ProjectStatus): {
   label: string
   icon: typeof CircleDashed
   className: string
-  description: string
 } {
   switch (status) {
-    case "not_initialized":
+    case 'not_initialized':
       return {
-        label: "Not Initialized",
+        label: 'Not Initialized',
         icon: CircleDashed,
-        className: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400",
-        description: "Run specflow state init to set up"
+        className: 'bg-surface-300 text-surface-500',
       }
-    case "initializing":
+    case 'initializing':
       return {
-        label: "Initializing",
+        label: 'Initializing',
         icon: Settings2,
-        className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-        description: "Setup in progress..."
+        className: 'bg-accent/20 text-accent-light',
       }
-    case "needs_setup":
+    case 'needs_setup':
       return {
-        label: "Needs Setup",
+        label: 'Needs Setup',
         icon: Settings2,
-        className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-        description: "Run discovery or create roadmap"
+        className: 'bg-warning/20 text-warning',
       }
-    case "error":
+    case 'error':
       return {
-        label: "Error",
+        label: 'Error',
         icon: XCircle,
-        className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-        description: "Run specflow check --fix to diagnose"
+        className: 'bg-danger/20 text-danger',
       }
-    case "ready":
+    case 'warning':
+      return {
+        label: 'Warning',
+        icon: AlertTriangle,
+        className: 'bg-warning/20 text-warning',
+      }
+    case 'ready':
     default:
       return {
-        label: "Ready",
+        label: 'Ready',
         icon: CheckCircle2,
-        className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-        description: "Project is set up and ready"
+        className: 'bg-success/20 text-success',
       }
   }
 }
 
-export function ProjectCard({ project, state, tasks, isUnavailable = false, isDiscovered = false, workflowExecution, onWorkflowStart }: ProjectCardProps) {
+/**
+ * Map workflow execution status to StatusPill status
+ */
+function getWorkflowPillStatus(
+  execution: WorkflowExecution | null | undefined
+): WorkflowStatus {
+  if (!execution?.status) return 'idle'
+  switch (execution.status) {
+    case 'running':
+      return 'running'
+    case 'waiting_for_input':
+      return 'waiting'
+    case 'failed':
+      return 'failed'
+    default:
+      return 'idle'
+  }
+}
+
+export function ProjectCard({
+  project,
+  state,
+  tasks,
+  isUnavailable = false,
+  isDiscovered = false,
+  workflowExecution,
+  onWorkflowStart,
+}: ProjectCardProps) {
   const phase = state?.orchestration?.phase
-  const nextPhase = state?.orchestration?.next_phase
   const step = state?.orchestration?.step
   const health = state?.health
 
-  // Use the most recent of: last_updated field OR file modification time
-  // _fileMtime is more reliable as it reflects any file write
   const lastUpdated = getMostRecentTimestamp(state?.last_updated, state?._fileMtime)
-
   const isActive = isRecentActivity(lastUpdated)
   const phaseComplete = isPhaseComplete(phase?.status)
 
   // Workflow status handling
-  const workflowStatus = workflowExecution?.status
-  const { isFading, isHidden } = useWorkflowStatusFade(
-    workflowStatus,
-    workflowExecution?.updatedAt
-  )
-  const showWorkflowBadge = workflowStatus && !isHidden
-  const hasActiveWorkflow = workflowStatus === 'running' || workflowStatus === 'waiting_for_input'
-
-  // Question badge for waiting workflows
-  const pendingQuestions = workflowExecution?.output?.questions ?? []
-  const showQuestionBadge = workflowStatus === 'waiting_for_input' && pendingQuestions.length > 0
+  const workflowPillStatus = getWorkflowPillStatus(workflowExecution)
+  const hasActiveWorkflow =
+    workflowExecution?.status === 'running' ||
+    workflowExecution?.status === 'waiting_for_input'
 
   // Health status
-  const hasHealthWarning = health?.status === "warning"
-  const healthStatus = health?.status
+  const hasHealthWarning = health?.status === 'warning'
 
   // Project status (4 states)
   const projectStatus = getProjectStatus(state)
@@ -281,204 +243,208 @@ export function ProjectCard({ project, state, tasks, isUnavailable = false, isDi
   const hasTasks = totalTasks > 0
   const allTasksComplete = hasTasks && completedTasks === totalTasks
 
-  // Ready to merge: phase status must explicitly indicate verified/ready_to_merge
-  // Don't rely on task count alone - tasks can be complete while still in verify step
+  // Ready to merge
   const isReadyToMerge =
     phase?.status === 'ready_to_merge' ||
     phase?.status === 'verified' ||
     (allTasksComplete && step?.status === 'complete' && step?.current === 'verify')
 
+  // Branch name
+  const branchName = phase?.branch ?? 'main'
+
   return (
     <Link href={`/projects/${project.id}`}>
-      <Card
+      <GlassCard
         className={cn(
-          "cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900/50",
-          isUnavailable && "opacity-60",
-          isDiscovered && "opacity-50 border-dashed"
+          'p-4 transition-all hover:bg-surface-200/50 hover:border-surface-300',
+          isUnavailable && 'opacity-60',
+          isDiscovered && 'opacity-50 border-dashed'
         )}
       >
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-shrink-0">
-              <FolderGit2 className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
-              {isActive && (
-                <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
+        <div className="flex items-center gap-4">
+          {/* Project icon with activity indicator */}
+          <div className="relative flex-shrink-0">
+            <div className="w-10 h-10 rounded-lg bg-surface-200 flex items-center justify-center">
+              <FolderGit2 className="h-5 w-5 text-surface-400" />
+            </div>
+            {isActive && (
+              <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-success animate-glow-pulse" />
+            )}
+          </div>
+
+          {/* Main content */}
+          <div className="flex-1 min-w-0">
+            {/* Project name row */}
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-medium text-white truncate">{project.name}</h3>
+
+              {/* Workflow status pill - only show when active */}
+              {workflowPillStatus !== 'idle' && (
+                <StatusPill status={workflowPillStatus} size="sm" />
+              )}
+
+              {isUnavailable && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-warning/20 text-warning rounded">
+                  <AlertCircle className="h-3 w-3" />
+                  Unavailable
+                </span>
               )}
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="font-medium text-neutral-900 dark:text-neutral-100 truncate">
-                  {project.name}
-                </h3>
-                {/* Workflow status badge */}
-                {showWorkflowBadge && (
-                  <WorkflowStatusBadge
-                    status={workflowStatus}
-                    showLabel={false}
-                    size="sm"
-                    isFading={isFading}
-                  />
-                )}
-                {/* Question badge when waiting for input */}
-                {showQuestionBadge && (
-                  <QuestionBadge
-                    questionCount={pendingQuestions.length}
-                    size="sm"
-                  />
-                )}
-                {isUnavailable && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 rounded">
-                    <AlertCircle className="h-3 w-3" />
-                    Unavailable
-                  </span>
-                )}
-              </div>
-              {projectStatus === "ready" ? (
-                <div className="flex items-center gap-2 mt-0.5">
-                  {(phase?.number || phase?.name) ? (
-                    <>
-                      <span className={cn(
-                        "text-xs font-medium px-1.5 py-0.5 rounded",
+
+            {/* Phase/Status row */}
+            {projectStatus === 'ready' ? (
+              <div className="flex items-center gap-2 text-sm">
+                {phase?.number || phase?.name ? (
+                  <>
+                    <span
+                      className={cn(
+                        'text-xs font-mono px-1.5 py-0.5 rounded',
                         phaseComplete
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                          : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                      )}>
-                        {phase?.number || "—"}
-                      </span>
-                      <span className="text-sm text-neutral-600 dark:text-neutral-300 truncate">
-                        {phase?.name?.replace(/-/g, " ") || "Unknown phase"}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Ready to start
-                      </span>
-                      {nextPhase?.number && (
+                          ? 'bg-success/20 text-success'
+                          : 'bg-accent/20 text-accent-light'
+                      )}
+                    >
+                      {phase?.number || '—'}
+                    </span>
+                    <span className="text-surface-400 truncate">
+                      {phase?.name?.replace(/-/g, ' ') || 'Unknown phase'}
+                    </span>
+
+                    {/* Progress percentage */}
+                    {hasTasks && (
+                      <>
+                        <span className="text-surface-500">•</span>
+                        <span className="text-surface-500 tabular-nums">
+                          {Math.round(progressPercent)}%
+                        </span>
+                      </>
+                    )}
+
+                    {/* Status indicators */}
+                    {phaseComplete ? (
+                      <>
+                        <span className="text-surface-500">•</span>
+                        <span className="text-xs text-success uppercase tracking-wide flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Complete
+                        </span>
+                      </>
+                    ) : isReadyToMerge ? (
+                      <>
+                        <span className="text-surface-500">•</span>
+                        <span className="text-xs text-accent uppercase tracking-wide flex items-center gap-1">
+                          <GitMerge className="h-3 w-3" />
+                          Ready to merge
+                        </span>
+                      </>
+                    ) : (
+                      step?.current && (
                         <>
-                          <span className="text-neutral-400">→</span>
-                          <span className={cn(
-                            "text-xs font-medium px-1.5 py-0.5 rounded",
-                            "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400"
-                          )}>
-                            {nextPhase.number}
-                          </span>
-                          <span className="text-sm text-neutral-500 dark:text-neutral-400 truncate">
-                            {nextPhase.name?.replace(/-/g, " ")}
+                          <span className="text-surface-500">•</span>
+                          <span className="text-xs text-surface-400 uppercase tracking-wide">
+                            {step.current}
                           </span>
                         </>
-                      )}
-                    </>
-                  )}
-                  {phaseComplete ? (
-                    <>
-                      <span className="text-neutral-400">·</span>
-                      <span className="text-xs text-green-600 dark:text-green-400 uppercase tracking-wide flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" />
-                        COMPLETE
-                      </span>
-                    </>
-                  ) : isReadyToMerge ? (
-                    <>
-                      <span className="text-neutral-400">·</span>
-                      <span className="text-xs text-purple-600 dark:text-purple-400 uppercase tracking-wide flex items-center gap-1">
-                        <GitMerge className="h-3 w-3" />
-                        READY TO MERGE
-                      </span>
-                    </>
-                  ) : step?.current && (
-                    <>
-                      <span className="text-neutral-400">·</span>
-                      <span className={cn(
-                        "text-xs uppercase tracking-wide font-medium",
-                        getStepStyles(step.current)
-                      )}>
-                        {step.current}
-                      </span>
-                    </>
-                  )}
-                  {hasHealthWarning && (
-                    <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className={cn(
-                    "inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded",
-                    statusBadge.className
-                  )}>
-                    <StatusIcon className="h-3 w-3" />
-                    {statusBadge.label}
-                  </span>
-                  <span className="text-xs text-neutral-400 dark:text-neutral-500 truncate">
-                    {statusBadge.description}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
-              {/* Task progress bar */}
-              {hasTasks && (
-                <div className="flex items-center gap-2">
-                  <div className="w-24 h-1.5 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all duration-300",
-                        progressPercent === 100
-                          ? "bg-green-500"
-                          : progressPercent > 50
-                            ? "bg-blue-500"
-                            : "bg-amber-500"
-                      )}
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
-                  <span className="text-xs text-neutral-500 dark:text-neutral-400 tabular-nums">
-                    {completedTasks}/{totalTasks}
-                  </span>
-                </div>
-              )}
-              {lastUpdated && (
-                <div className={cn(
-                  "flex items-center gap-1 text-xs",
-                  phaseComplete
-                    ? "text-green-600 dark:text-green-400"
-                    : "text-neutral-400"
-                )}>
-                  {phaseComplete ? (
+                      )
+                    )}
+
+                    {hasHealthWarning && (
+                      <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-warning" />
+                    )}
+                  </>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-success/20 text-success">
                     <CheckCircle2 className="h-3 w-3" />
-                  ) : (
-                    <Clock className="h-3 w-3" />
-                  )}
-                  <span>
-                    {phaseComplete ? "Completed " : ""}{formatRelativeTime(lastUpdated)}
+                    Ready to start
                   </span>
-                </div>
-              )}
-              <StatusButton
-                projectId={project.id}
-                projectPath={project.path}
-                projectStatus={projectStatus as ActionProjectStatus}
-                isAvailable={!isUnavailable}
-              />
-              <div onClick={(e) => e.preventDefault()}>
-                <ActionsMenu
-                  projectId={project.id}
-                  projectName={project.name}
-                  projectPath={project.path}
-                  projectStatus={projectStatus as ActionProjectStatus}
-                  schemaVersion={state?.schema_version}
-                  isAvailable={!isUnavailable}
-                  hasActiveWorkflow={hasActiveWorkflow}
-                  onWorkflowStart={onWorkflowStart}
-                />
+                )}
               </div>
-              <ChevronRight className="h-5 w-5 text-neutral-400" />
+            ) : (
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded',
+                    statusBadge.className
+                  )}
+                >
+                  <StatusIcon className="h-3 w-3" />
+                  {statusBadge.label}
+                </span>
+              </div>
+            )}
+
+            {/* Branch row */}
+            <div className="flex items-center gap-2 mt-1 text-xs text-surface-500">
+              <GitBranch className="h-3 w-3" />
+              <span className="truncate">{branchName}</span>
             </div>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Right side actions */}
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {/* Task progress bar */}
+            {hasTasks && (
+              <div className="flex items-center gap-2">
+                <div className="w-20 h-1.5 bg-surface-300 rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      'h-full rounded-full transition-all duration-300',
+                      progressPercent === 100
+                        ? 'bg-success'
+                        : progressPercent > 50
+                          ? 'bg-accent'
+                          : 'bg-warning'
+                    )}
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                <span className="text-xs text-surface-500 tabular-nums">
+                  {completedTasks}/{totalTasks}
+                </span>
+              </div>
+            )}
+
+            {/* Last updated */}
+            {lastUpdated && (
+              <div
+                className={cn(
+                  'flex items-center gap-1 text-xs',
+                  phaseComplete ? 'text-success' : 'text-surface-500'
+                )}
+              >
+                {phaseComplete ? (
+                  <CheckCircle2 className="h-3 w-3" />
+                ) : (
+                  <Clock className="h-3 w-3" />
+                )}
+                <span>{formatRelativeTime(lastUpdated)}</span>
+              </div>
+            )}
+
+            <StatusButton
+              projectId={project.id}
+              projectPath={project.path}
+              projectStatus={projectStatus as ActionProjectStatus}
+              isAvailable={!isUnavailable}
+            />
+
+            <div onClick={(e) => e.preventDefault()}>
+              <ActionsMenu
+                projectId={project.id}
+                projectName={project.name}
+                projectPath={project.path}
+                projectStatus={projectStatus as ActionProjectStatus}
+                schemaVersion={state?.schema_version}
+                isAvailable={!isUnavailable}
+                hasActiveWorkflow={hasActiveWorkflow}
+                onWorkflowStart={onWorkflowStart}
+              />
+            </div>
+
+            <ChevronRight className="h-5 w-5 text-surface-500" />
+          </div>
+        </div>
+      </GlassCard>
     </Link>
   )
 }

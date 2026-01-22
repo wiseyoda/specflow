@@ -40,18 +40,22 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Goal
 
-Produce all design artifacts for the current phase:
+Produce all design artifacts for the current phase.
 
-| Artifact | Purpose |
-|----------|---------|
-| `discovery.md` | Codebase examination and clarified user intent |
-| `spec.md` | Feature specification with requirements |
-| `requirements.md` | Requirements quality checklist |
-| `ui-design.md` | Visual mockups and rationale (if UI phase) |
-| `plan.md` | Technical implementation plan |
-| `tasks.md` | Actionable task list |
-| `checklists/implementation.md` | Implementation guidance |
-| `checklists/verification.md` | Verification checklist |
+**Artifact Location**: `specs/{PHASE_NUMBER}-{phase-name}/` at project root.
+- Example: Phase 0060 "GitHub Integration" → `specs/0060-github-integration/`
+- **NOT** `.specify/phases/` - that's for phase definition files only
+
+| Artifact | Location |
+|----------|----------|
+| `discovery.md` | `specs/NNNN-name/discovery.md` |
+| `spec.md` | `specs/NNNN-name/spec.md` |
+| `requirements.md` | `specs/NNNN-name/requirements.md` |
+| `ui-design.md` | `specs/NNNN-name/ui-design.md` (if UI phase) |
+| `plan.md` | `specs/NNNN-name/plan.md` |
+| `tasks.md` | `specs/NNNN-name/tasks.md` |
+| `checklists/implementation.md` | `specs/NNNN-name/checklists/implementation.md` |
+| `checklists/verification.md` | `specs/NNNN-name/checklists/verification.md` |
 
 ---
 
@@ -75,7 +79,27 @@ Set [DESIGN] SETUP to in_progress, then proceed.
 specflow status --json
 ```
 
-Parse: `phase.number`, `phase.dir`, `branch`, `artifacts` (to check what exists).
+Parse:
+- `phase.number` - Current phase number (e.g., "0060")
+- `phase.name` - Phase name (e.g., "GitHub Integration")
+- `phase.branch` - Git branch
+- `context.featureDir` - Path to artifacts directory (null if not created yet)
+- `context.hasSpec/hasPlan/hasTasks/hasChecklists` - Which artifacts exist
+
+**Resolve PHASE_DIR** (critical - this is where ALL artifacts go):
+```
+If context.featureDir exists and is not null:
+  PHASE_DIR = context.featureDir (e.g., /path/to/project/specs/0060-github-integration)
+Else:
+  # Create the specs directory - artifacts ALWAYS go in specs/, never .specify/phases/
+  PHASE_DIR = {PROJECT_ROOT}/specs/{phase.number}-{phase.name-kebab-case}
+
+  # Example: Phase 0060 "GitHub Integration" → specs/0060-github-integration/
+  mkdir -p {PHASE_DIR}
+  mkdir -p {PHASE_DIR}/checklists
+```
+
+**⚠️ CRITICAL**: Artifacts MUST go in `specs/NNNN-name/` at the project root, NOT in `.specify/phases/`. The `.specify/phases/` directory is for phase DEFINITION files (NNNN.md), not artifacts.
 
 **Determine starting phase** from cascade flags or artifact existence:
 - If `--checklist` → start at CHECKLISTS

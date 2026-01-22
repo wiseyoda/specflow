@@ -41,6 +41,8 @@ export interface UseOrchestrationOptions {
 export interface UseOrchestrationReturn {
   /** Current orchestration state (null if none active) */
   orchestration: OrchestrationExecution | null;
+  /** Active workflow session ID (for navigation to session viewer) */
+  activeSessionId: string | null;
   /** Whether fetching status */
   isLoading: boolean;
   /** Error message */
@@ -92,6 +94,7 @@ export function useOrchestration({
   onWorkflowStart,
 }: UseOrchestrationOptions): UseOrchestrationReturn {
   const [orchestration, setOrchestration] = useState<OrchestrationExecution | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [batchPlan, setBatchPlan] = useState<BatchPlanInfo | null>(null);
@@ -134,6 +137,9 @@ export function useOrchestration({
 
       setOrchestration(newOrchestration);
       setError(null);
+
+      // Track active session ID from workflow info
+      setActiveSessionId(data.workflow?.sessionId ?? null);
 
       // Check if workflow is waiting for input (FR-072)
       setIsWaitingForInput(data.workflow?.status === 'waiting_for_input');
@@ -236,7 +242,7 @@ export function useOrchestration({
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/workflow/orchestrate/resume', {
+      const response = await fetch('/api/workflow/orchestrate/pause', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId, id: orchestration.id }),
@@ -392,6 +398,7 @@ export function useOrchestration({
 
   return {
     orchestration,
+    activeSessionId,
     isLoading,
     error,
     batchPlan,

@@ -139,18 +139,28 @@ Use TodoWrite: mark [MERGE] PREFLIGHT complete, mark [MERGE] VERIFY_GATE in_prog
 
 ### 2. Verify Gate Check (REQUIRED, Parallel)
 
+**First, get phase context** (needed for parallel agents):
+
+```bash
+# Get status output to extract phase info for parallel agents
+STATUS=$(specflow status --json)
+PHASE_NUMBER=$(echo "$STATUS" | jq -r '.phase.number')
+PHASE_NAME=$(echo "$STATUS" | jq -r '.phase.name')
+FEATURE_DIR=$(echo "$STATUS" | jq -r '.context.featureDir')
+```
+
 **Use parallel sub-agents** to gather all verification data simultaneously:
 
 ```
 Launch 4 parallel Task agents:
 
-Agent 1 (Status): Get orchestration status
-  - Run `specflow status --json`
-  - Check orchestration.step.current == "verified"
-  → Return: verified status, phase number, phase name
+Agent 1 (Status): Verify orchestration status
+  - Check step.current == "verified" (from status already obtained)
+  - Check step.status == "complete"
+  → Return: verified status confirmation
 
 Agent 2 (Phase Doc): Load phase document
-  - Read `.specify/phases/{PHASE_NUMBER}-*.md`
+  - Read `.specify/phases/${PHASE_NUMBER}-*.md` (PHASE_NUMBER from above)
   - Extract USER GATE marker and criteria
   - Extract all phase goals for verification
   → Return: has_user_gate, gate_criteria, phase_goals
@@ -213,7 +223,7 @@ If `userGateStatus` is `confirmed` or `skipped`, proceed to Step 3.
 
 **Verify phase goals were completed:**
 
-Read `.specify/phases/{PHASE_NUMBER}-*.md` and check that all goals have corresponding completed tasks:
+Read `.specify/phases/${PHASE_NUMBER}-*.md` (using PHASE_NUMBER from step 2) and check that all goals have corresponding completed tasks:
 
 ```bash
 specflow check --gate implement --json

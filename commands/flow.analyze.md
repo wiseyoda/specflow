@@ -46,8 +46,13 @@ specflow status --json
 
 Parse response:
 
-- `context.featureDir` → FEATURE_DIR (abort if null)
+- `context.featureDir` → FEATURE_DIR (abort if null) - e.g., `/path/to/project/specs/0060-github-integration`
+- `phase.number` → PHASE_NUMBER (e.g., "0060")
 - `context.hasSpec/hasPlan/hasTasks` → all must be true
+
+**Path clarification**:
+- `FEATURE_DIR` = `specs/NNNN-name/` - Active phase artifacts (spec.md, plan.md, tasks.md)
+- `.specify/phases/NNNN-*.md` = Phase definition document (goals, scope, verification gate)
 
 Use TodoWrite: mark [ANALYZE] INITIALIZE complete after gate check, mark [ANALYZE] LOAD in_progress.
 

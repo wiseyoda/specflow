@@ -16,6 +16,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 
 import { join } from 'path';
 import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
+import { readPidFile, isPidAlive, killProcess, cleanupPidFile } from './process-spawner';
 import {
   type OrchestrationExecution,
   type OrchestrationConfig,
@@ -611,11 +612,30 @@ class OrchestrationService {
   }
 
   /**
-   * Pause orchestration
+   * Pause orchestration and stop the current workflow process
+   * Note: Claude doesn't support true pause - we kill the process and resume from current state
    */
   pause(projectPath: string, orchestrationId: string): OrchestrationExecution | null {
     const execution = loadOrchestration(projectPath, orchestrationId);
     if (!execution || execution.status !== 'running') return null;
+
+    // Kill the current workflow process
+    const currentWorkflowId = this.getCurrentWorkflowId(execution);
+    if (currentWorkflowId) {
+      const workflowDir = join(projectPath, '.specflow', 'workflows', currentWorkflowId);
+      const pids = readPidFile(workflowDir);
+      if (pids) {
+        if (pids.claudePid && isPidAlive(pids.claudePid)) {
+          killProcess(pids.claudePid, false);
+          logDecision(execution, 'process_killed', `Paused: killed Claude process ${pids.claudePid}`);
+        }
+        if (pids.bashPid && isPidAlive(pids.bashPid)) {
+          killProcess(pids.bashPid, false);
+          logDecision(execution, 'process_killed', `Paused: killed bash process ${pids.bashPid}`);
+        }
+        cleanupPidFile(workflowDir);
+      }
+    }
 
     execution.status = 'paused';
     logDecision(execution, 'pause', 'User requested pause');
@@ -650,20 +670,61 @@ class OrchestrationService {
   }
 
   /**
-   * Cancel orchestration
+   * Cancel orchestration and kill any running workflow process
    */
   cancel(projectPath: string, orchestrationId: string): OrchestrationExecution | null {
     const execution = loadOrchestration(projectPath, orchestrationId);
     if (!execution) return null;
 
-    if (!['running', 'paused', 'waiting_merge'].includes(execution.status)) {
+    if (!['running', 'paused', 'waiting_merge', 'needs_attention'].includes(execution.status)) {
       return execution; // Already in terminal state
+    }
+
+    // Kill the current workflow process if one is running
+    const currentWorkflowId = this.getCurrentWorkflowId(execution);
+    if (currentWorkflowId) {
+      const workflowDir = join(projectPath, '.specflow', 'workflows', currentWorkflowId);
+      const pids = readPidFile(workflowDir);
+      if (pids) {
+        if (pids.claudePid && isPidAlive(pids.claudePid)) {
+          killProcess(pids.claudePid, false);
+          logDecision(execution, 'process_killed', `Killed Claude process ${pids.claudePid}`);
+        }
+        if (pids.bashPid && isPidAlive(pids.bashPid)) {
+          killProcess(pids.bashPid, false);
+          logDecision(execution, 'process_killed', `Killed bash process ${pids.bashPid}`);
+        }
+        cleanupPidFile(workflowDir);
+      }
     }
 
     execution.status = 'cancelled';
     logDecision(execution, 'cancel', 'User cancelled orchestration');
     saveOrchestration(projectPath, execution);
     return execution;
+  }
+
+  /**
+   * Get the current workflow execution ID from orchestration state
+   */
+  private getCurrentWorkflowId(execution: OrchestrationExecution): string | undefined {
+    const { currentPhase, batches, executions } = execution;
+
+    switch (currentPhase) {
+      case 'design':
+        return executions.design;
+      case 'analyze':
+        return executions.analyze;
+      case 'implement':
+        const currentBatch = batches.items[batches.current];
+        return currentBatch?.workflowExecutionId;
+      case 'verify':
+        return executions.verify;
+      case 'merge':
+        return executions.merge;
+      default:
+        return undefined;
+    }
   }
 
   /**

@@ -38,6 +38,10 @@ export interface OrchestrationProgressProps {
   onMerge?: () => void;
   /** Callback for recovery action (retry/skip/abort) */
   onRecover?: (action: RecoveryOption) => void;
+  /** Callback for view session action */
+  onViewSession?: () => void;
+  /** Whether there's an active session */
+  hasActiveSession?: boolean;
   /** Whether controls are disabled */
   controlsDisabled?: boolean;
   /** Whether the current workflow is waiting for user input (FR-072) */
@@ -154,6 +158,8 @@ export function OrchestrationProgress({
   onCancel,
   onMerge,
   onRecover,
+  onViewSession,
+  hasActiveSession = false,
   controlsDisabled = false,
   isWaitingForInput = false,
   isRecovering = false,
@@ -299,6 +305,8 @@ export function OrchestrationProgress({
           onPause={onPause}
           onResume={onResume}
           onCancel={onCancel}
+          onViewSession={onViewSession}
+          hasActiveSession={hasActiveSession}
           disabled={controlsDisabled}
         />
       )}

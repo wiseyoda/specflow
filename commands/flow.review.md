@@ -106,6 +106,12 @@ Set [REVIEW] INITIALIZE to in_progress.
 specflow status --json
 ```
 
+**Extract key values** (if reviewing a specific phase):
+```bash
+PHASE_NUMBER=$(... | jq -r '.phase.number')     # e.g., "0060"
+FEATURE_DIR=$(... | jq -r '.context.featureDir') # e.g., /path/to/project/specs/0060-github-integration
+```
+
 Verify:
 - Project has ROADMAP.md
 - Memory documents available (constitution.md at minimum)
@@ -132,9 +138,11 @@ Read memory documents to understand project standards:
 **If reviewing a specific phase** (phase artifacts exist):
 
 Load phase artifacts to verify implementation matches intent:
-- `.specify/phases/{PHASE_NUMBER}-*.md` - **Phase goals (source of truth)**
-- `specs/{PHASE}/spec.md` - Requirements and acceptance criteria
-- `specs/{PHASE}/ui-design.md` (if exists) - UI component specifications
+- `.specify/phases/${PHASE_NUMBER}-*.md` - **Phase goals (source of truth)**
+- `${FEATURE_DIR}/spec.md` - Requirements and acceptance criteria
+- `${FEATURE_DIR}/ui-design.md` (if exists) - UI component specifications
+
+Where `FEATURE_DIR` = `specs/NNNN-name/` from `context.featureDir` in status output.
 
 Use these documents as the baseline for evaluating findings.
 

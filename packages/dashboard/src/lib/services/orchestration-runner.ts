@@ -482,7 +482,8 @@ function makeDecision(
   }
 
   // For non-implement phases, check if complete and transition
-  if (phaseComplete || workflow?.status === 'completed') {
+  // CRITICAL: Skip this for implement phase - batch logic above handles transitions
+  if (currentPhase !== 'implement' && (phaseComplete || workflow?.status === 'completed')) {
     const nextPhase = getNextPhase(currentPhase, config);
 
     if (!nextPhase || nextPhase === 'complete') {

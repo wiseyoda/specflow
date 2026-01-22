@@ -34,9 +34,13 @@ You **MUST** consider the user input before proceeding (if not empty).
 |-------------|---------------|------------|
 | Implement gate passed | `specflow check --gate implement` | Run `/flow.implement` |
 | All tasks complete | `specflow status --json` → `progress.percentage == 100` | Complete remaining tasks |
-| Checklists exist | `{FEATURE_DIR}/checklists/` | Run `/flow.design --checklist` |
+| Checklists exist | `specs/NNNN-name/checklists/` | Run `/flow.design --checklist` |
 | Constitution | `.specify/memory/constitution.md` | Run `/flow.init` |
 | Git branch | `git branch --show-current` | Should be on phase branch |
+
+**Path clarification**:
+- Artifacts (spec.md, plan.md, tasks.md, checklists/): `specs/NNNN-name/` from `context.featureDir`
+- Phase definition (goals, scope): `.specify/phases/NNNN-*.md`
 
 ## Goal
 
@@ -80,13 +84,19 @@ Parse the JSON to understand:
 
 If no active phase, stop: "No active phase. Use `specflow phase open` first."
 
+**Extract key values from status output:**
+
+```bash
+# From specflow status --json:
+FEATURE_DIR=$(... | jq -r '.context.featureDir')   # e.g., /path/to/project/specs/0060-github-integration
+PHASE_NUMBER=$(... | jq -r '.phase.number')        # e.g., "0060"
+```
+
 **Load phase artifacts:**
 
-From the status output, get FEATURE_DIR and PHASE_NUMBER, then read:
-
-- `.specify/phases/{PHASE_NUMBER}-*.md` - Original phase goals and scope
-- `{FEATURE_DIR}/spec.md` - Requirements and acceptance criteria
-- `{FEATURE_DIR}/ui-design.md` (if exists) - UI component specifications
+- `.specify/phases/${PHASE_NUMBER}-*.md` - Original phase goals and scope (definition document)
+- `${FEATURE_DIR}/spec.md` - Requirements and acceptance criteria
+- `${FEATURE_DIR}/ui-design.md` (if exists) - UI component specifications
 
 These documents define what the phase INTENDED to accomplish and will be verified against in Step 3.
 
@@ -94,7 +104,7 @@ These documents define what the phase INTENDED to accomplish and will be verifie
 
 ```bash
 ANALYZE_TIME=$(specflow state get orchestration.analyze.completedAt 2>/dev/null)
-SPEC_PATH="{FEATURE_DIR}/spec.md"
+SPEC_PATH="${FEATURE_DIR}/spec.md"
 
 if [[ -n "$ANALYZE_TIME" && "$ANALYZE_TIME" != "null" ]]; then
   SPEC_MTIME=$(stat -f '%m' "$SPEC_PATH" 2>/dev/null || stat -c '%Y' "$SPEC_PATH" 2>/dev/null)

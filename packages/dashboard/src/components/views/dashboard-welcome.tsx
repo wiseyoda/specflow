@@ -21,7 +21,8 @@ interface DashboardWelcomeProps {
   projectName?: string
   onStartWorkflow?: (skill: string) => void
   onViewHistory?: (phaseNumber?: string) => void
-  onNavigateToSession?: () => void
+  /** Navigate to session viewer with optional session ID to select */
+  onNavigateToSession?: (sessionId?: string) => void
   isStartingWorkflow?: boolean
   className?: string
 }
@@ -65,6 +66,7 @@ export function DashboardWelcome({
   // Orchestration state (for progress display)
   const {
     orchestration,
+    activeSessionId,
     pause,
     resume,
     cancel,
@@ -81,7 +83,7 @@ export function DashboardWelcome({
   // Check if there's an active orchestration
   const hasActiveOrchestration = !!(
     orchestration &&
-    ['running', 'paused', 'waiting_merge'].includes(orchestration.status)
+    ['running', 'paused', 'waiting_merge', 'needs_attention'].includes(orchestration.status)
   )
 
   // Calculate progress from tasks data
@@ -113,6 +115,39 @@ export function DashboardWelcome({
     return 'Select a workflow to get started.'
   }
 
+  // Simplified view when orchestration is active - just phase card + progress
+  if (hasActiveOrchestration && orchestration) {
+    return (
+      <div className={cn('absolute inset-0 flex flex-col items-center justify-center p-8 z-10', className)}>
+        <div className="max-w-xl w-full space-y-4">
+          {/* Phase Card - compact, with link to history */}
+          {(focusPhase || focusPhaseLoading) && (
+            <PhaseCard
+              phase={focusPhase ?? null}
+              isLoading={focusPhaseLoading}
+              isActive={isFocusPhaseActive}
+              onViewHistory={() => onViewHistory?.(focusPhase?.number)}
+            />
+          )}
+
+          {/* Orchestration Progress - the main focus */}
+          <OrchestrationProgress
+            orchestration={orchestration}
+            onPause={pause}
+            onResume={resume}
+            onCancel={cancel}
+            onMerge={triggerMerge}
+            onViewSession={() => onNavigateToSession?.(activeSessionId ?? undefined)}
+            hasActiveSession={!!activeSessionId && orchestration.status === 'running'}
+            controlsDisabled={orchestrationLoading}
+            isWaitingForInput={isWaitingForInput}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // Default view when no orchestration is active
   return (
     <div className={cn('absolute inset-0 flex flex-col items-center justify-center p-8 z-10', className)}>
       <div className="max-w-xl w-full text-center space-y-8">
@@ -126,7 +161,7 @@ export function DashboardWelcome({
           </p>
         </div>
 
-        {/* Quick actions OR Orchestration Progress */}
+        {/* Quick actions */}
         <div className="grid grid-cols-1 gap-4">
           {/* Phase Card - shows current or next phase */}
           {(focusPhase || focusPhaseLoading) && (
@@ -138,80 +173,65 @@ export function DashboardWelcome({
             />
           )}
 
-          {/* Show Orchestration Progress when active, otherwise show action buttons */}
-          {hasActiveOrchestration && orchestration ? (
-            <OrchestrationProgress
-              orchestration={orchestration}
-              onPause={pause}
-              onResume={resume}
-              onCancel={cancel}
-              onMerge={triggerMerge}
-              controlsDisabled={orchestrationLoading}
-              isWaitingForInput={isWaitingForInput}
+          {/* Primary action - Complete Phase */}
+          {projectId && (
+            <CompletePhaseButton
+              ref={completePhaseRef}
+              projectId={projectId}
+              projectName={projectName ?? 'Project'}
+              phaseName={phaseName ? `${phaseNumber}: ${phaseName}` : phaseNumber ? `Phase ${phaseNumber}` : 'Start New Phase'}
+              disabled={isStartingWorkflow}
+              variant="primary"
+              onNavigateToSession={onNavigateToSession}
             />
-          ) : (
-            <>
-              {/* Primary action - Complete Phase */}
-              {projectId && (
-                <CompletePhaseButton
-                  ref={completePhaseRef}
-                  projectId={projectId}
-                  projectName={projectName ?? 'Project'}
-                  phaseName={phaseName ? `${phaseNumber}: ${phaseName}` : phaseNumber ? `Phase ${phaseNumber}` : 'Start New Phase'}
-                  disabled={isStartingWorkflow}
-                  variant="primary"
-                  onNavigateToSession={onNavigateToSession}
-                />
-              )}
-
-              {/* Secondary actions - compact horizontal layout */}
-              <div className="flex items-center justify-center gap-2">
-                <button
-                  onClick={() => onStartWorkflow?.('flow.orchestrate')}
-                  disabled={isStartingWorkflow}
-                  className="group flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-200/50 border border-surface-300/50 hover:border-accent/30 hover:bg-surface-200 transition-all disabled:opacity-50"
-                >
-                  <div className="w-7 h-7 rounded-md bg-accent/20 flex items-center justify-center text-accent group-hover:scale-110 transition-transform">
-                    <Layers className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">Orchestrate</span>
-                </button>
-
-                <button
-                  onClick={() => onStartWorkflow?.('flow.merge')}
-                  disabled={isStartingWorkflow}
-                  className="group flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-200/50 border border-surface-300/50 hover:border-purple-500/30 hover:bg-surface-200 transition-all disabled:opacity-50"
-                >
-                  <div className="w-7 h-7 rounded-md bg-purple-500/20 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
-                    <GitMerge className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">Merge</span>
-                </button>
-
-                <button
-                  onClick={() => onStartWorkflow?.('flow.review')}
-                  disabled={isStartingWorkflow}
-                  className="group flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-200/50 border border-surface-300/50 hover:border-pink-500/30 hover:bg-surface-200 transition-all disabled:opacity-50"
-                >
-                  <div className="w-7 h-7 rounded-md bg-pink-500/20 flex items-center justify-center text-pink-400 group-hover:scale-110 transition-transform">
-                    <MessageSquareCode className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">Review</span>
-                </button>
-
-                <button
-                  onClick={() => onStartWorkflow?.('flow.memory')}
-                  disabled={isStartingWorkflow}
-                  className="group flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-200/50 border border-surface-300/50 hover:border-amber-500/30 hover:bg-surface-200 transition-all disabled:opacity-50"
-                >
-                  <div className="w-7 h-7 rounded-md bg-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
-                    <BookOpen className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">Memory</span>
-                </button>
-              </div>
-            </>
           )}
+
+          {/* Secondary actions - compact horizontal layout */}
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => onStartWorkflow?.('flow.orchestrate')}
+              disabled={isStartingWorkflow}
+              className="group flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-200/50 border border-surface-300/50 hover:border-accent/30 hover:bg-surface-200 transition-all disabled:opacity-50"
+            >
+              <div className="w-7 h-7 rounded-md bg-accent/20 flex items-center justify-center text-accent group-hover:scale-110 transition-transform">
+                <Layers className="w-4 h-4" />
+              </div>
+              <span className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">Orchestrate</span>
+            </button>
+
+            <button
+              onClick={() => onStartWorkflow?.('flow.merge')}
+              disabled={isStartingWorkflow}
+              className="group flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-200/50 border border-surface-300/50 hover:border-purple-500/30 hover:bg-surface-200 transition-all disabled:opacity-50"
+            >
+              <div className="w-7 h-7 rounded-md bg-purple-500/20 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
+                <GitMerge className="w-4 h-4" />
+              </div>
+              <span className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">Merge</span>
+            </button>
+
+            <button
+              onClick={() => onStartWorkflow?.('flow.review')}
+              disabled={isStartingWorkflow}
+              className="group flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-200/50 border border-surface-300/50 hover:border-pink-500/30 hover:bg-surface-200 transition-all disabled:opacity-50"
+            >
+              <div className="w-7 h-7 rounded-md bg-pink-500/20 flex items-center justify-center text-pink-400 group-hover:scale-110 transition-transform">
+                <MessageSquareCode className="w-4 h-4" />
+              </div>
+              <span className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">Review</span>
+            </button>
+
+            <button
+              onClick={() => onStartWorkflow?.('flow.memory')}
+              disabled={isStartingWorkflow}
+              className="group flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-200/50 border border-surface-300/50 hover:border-amber-500/30 hover:bg-surface-200 transition-all disabled:opacity-50"
+            >
+              <div className="w-7 h-7 rounded-md bg-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
+                <BookOpen className="w-4 h-4" />
+              </div>
+              <span className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">Memory</span>
+            </button>
+          </div>
         </div>
 
         {/* Stats row - only show if we have task data */}

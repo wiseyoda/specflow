@@ -32,6 +32,7 @@ import {
 import type { ProjectStatus } from "@/lib/action-definitions"
 import type { OrchestrationState, Task } from "@specflow/shared"
 import { useWorkflowSkills, type WorkflowSkill } from "@/hooks/use-workflow-skills"
+import { useOrchestration } from "@/hooks/use-orchestration"
 
 /**
  * Determine project status from orchestration state
@@ -96,6 +97,18 @@ export default function ProjectDetailPage() {
 
   // Workflow skills for autocomplete
   const { skills: workflowSkills } = useWorkflowSkills()
+
+  // Orchestration state (for pause functionality in session console)
+  const {
+    orchestration,
+    pause: pauseOrchestration,
+  } = useOrchestration({ projectId })
+
+  // Check if there's an active orchestration that can be paused
+  const hasActiveOrchestration = !!(
+    orchestration &&
+    ['running', 'paused', 'waiting_merge', 'needs_attention'].includes(orchestration.status)
+  )
 
   // Question drawer state - removed in favor of toast
   const previousStatusRef = useRef<string | null>(null)
@@ -230,6 +243,18 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     previousStatusRef.current = workflowExecution?.status ?? null
   }, [workflowExecution?.status])
+
+  // Auto-refresh session history when a new workflow session becomes available
+  // This handles the race condition when orchestration starts a workflow asynchronously
+  const prevSessionIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    const currentSessionId = workflowExecution?.sessionId ?? null
+    if (currentSessionId && currentSessionId !== prevSessionIdRef.current) {
+      // New session appeared - refresh history so it shows in the list
+      refreshSessionHistory()
+    }
+    prevSessionIdRef.current = currentSessionId
+  }, [workflowExecution?.sessionId, refreshSessionHistory])
 
   // Handle OmniBox focus
   const handleFocusOmniBox = useCallback(() => {
@@ -459,7 +484,7 @@ export default function ProjectDetailPage() {
     cancelWorkflow()
   }, [cancelWorkflow])
 
-  // Handle ending a session by ID (from session console X button)
+  // Handle ending a session by ID (from session console Cancel button)
   const handleEndSession = useCallback(async (sessionId: string) => {
     try {
       const params = new URLSearchParams({
@@ -477,6 +502,14 @@ export default function ProjectDetailPage() {
       console.error('Failed to end session:', error)
     }
   }, [projectId, selectedConsoleSession, refreshSessionHistory])
+
+  // Handle pausing a session (pauses orchestration if active)
+  const handlePauseSession = useCallback(async (_sessionId: string) => {
+    if (hasActiveOrchestration) {
+      await pauseOrchestration()
+      refreshSessionHistory()
+    }
+  }, [hasActiveOrchestration, pauseOrchestration, refreshSessionHistory])
 
   // Build questions for decision toast
   const decisionQuestions = useMemo(() => {
@@ -548,7 +581,25 @@ export default function ProjectDetailPage() {
               setHistorySelectedPhase(phaseNumber ?? null)
               setActiveView('history')
             }}
-            onNavigateToSession={() => setActiveView('session')}
+            onNavigateToSession={(sessionId) => {
+              // If a specific session ID is provided, find it in history and select it
+              if (sessionId) {
+                const session = sessionHistory.find(s => s.sessionId === sessionId)
+                if (session) {
+                  setSelectedConsoleSession(session)
+                } else {
+                  // Session not in history yet - clear selection and it should appear via workflowExecution
+                  setSelectedConsoleSession(null)
+                  refreshSessionHistory()
+                }
+              } else {
+                // No session ID - clear selected session so the new workflow's session is shown when it becomes available
+                setSelectedConsoleSession(null)
+                // Refresh session history to pick up the new session
+                refreshSessionHistory()
+              }
+              setActiveView('session')
+            }}
             isStartingWorkflow={isStartingWorkflow}
           />
         )
@@ -566,6 +617,8 @@ export default function ProjectDetailPage() {
             currentSessionId={workflowExecution?.sessionId}
             onSelectSession={handleConsoleSessionSelect}
             onEndSession={handleEndSession}
+            onPauseSession={handlePauseSession}
+            canPause={hasActiveOrchestration}
             projectId={projectId}
             currentTodos={sessionTodos}
           />

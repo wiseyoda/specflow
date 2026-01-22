@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { orchestrationService } from '@/lib/services/orchestration-service';
 import { parseBatchesFromProject } from '@/lib/services/batch-parser';
+import { workflowService } from '@/lib/services/workflow-service';
+import type { OrchestrationExecution } from '@specflow/shared';
 
 // =============================================================================
 // Types
@@ -64,6 +66,29 @@ function getProjectPath(projectId: string): string | null {
     return project?.path || null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Get the current workflow execution ID from orchestration state
+ */
+function getCurrentWorkflowId(orchestration: OrchestrationExecution): string | undefined {
+  const { currentPhase, batches, executions } = orchestration;
+
+  switch (currentPhase) {
+    case 'design':
+      return executions.design;
+    case 'analyze':
+      return executions.analyze;
+    case 'implement':
+      const currentBatch = batches.items[batches.current];
+      return currentBatch?.workflowExecutionId;
+    case 'verify':
+      return executions.verify;
+    case 'merge':
+      return executions.merge;
+    default:
+      return undefined;
   }
 }
 
@@ -195,7 +220,21 @@ export async function GET(request: Request) {
     }
 
     if (!orchestration) {
-      return NextResponse.json({ orchestration: null }, { status: 200 });
+      return NextResponse.json({ orchestration: null, workflow: null }, { status: 200 });
+    }
+
+    // Look up the current workflow to get its sessionId
+    let workflowInfo: { id: string; sessionId?: string; status?: string } | null = null;
+    const currentWorkflowId = getCurrentWorkflowId(orchestration);
+    if (currentWorkflowId && projectId) {
+      const workflowExecution = workflowService.get(currentWorkflowId, projectId);
+      if (workflowExecution) {
+        workflowInfo = {
+          id: currentWorkflowId,
+          sessionId: workflowExecution.sessionId,
+          status: workflowExecution.status,
+        };
+      }
     }
 
     return NextResponse.json({
@@ -213,7 +252,9 @@ export async function GET(request: Request) {
         decisionLog: orchestration.decisionLog.slice(-20), // Last 20 decisions
         totalCostUsd: orchestration.totalCostUsd,
         errorMessage: orchestration.errorMessage,
+        recoveryContext: orchestration.recoveryContext,
       },
+      workflow: workflowInfo,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

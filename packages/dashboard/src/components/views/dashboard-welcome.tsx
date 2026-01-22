@@ -157,7 +157,7 @@ export function DashboardWelcome({
                   ref={completePhaseRef}
                   projectId={projectId}
                   projectName={projectName ?? 'Project'}
-                  phaseName={phaseName ?? `Phase ${phaseNumber ?? 'Unknown'}`}
+                  phaseName={phaseName ? `${phaseNumber}: ${phaseName}` : phaseNumber ? `Phase ${phaseNumber}` : 'Start New Phase'}
                   disabled={isStartingWorkflow}
                   variant="primary"
                   onNavigateToSession={onNavigateToSession}

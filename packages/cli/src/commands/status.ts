@@ -188,31 +188,39 @@ async function getStatus(): Promise<StatusOutput> {
   let tasksTotal = 0;
   let tasksBlocked = 0;
 
-  const featureDir = await resolveFeatureDir(undefined, projectRoot);
+  let featureDir: string | undefined;
   let hasSpec = false;
   let hasPlan = false;
   let hasTasks = false;
   let hasChecklists = false;
 
-  if (featureDir) {
-    try {
-      const context = await getProjectContext(projectRoot);
-      if (context.activeFeature) {
-        hasSpec = context.activeFeature.artifacts.spec;
-        hasPlan = context.activeFeature.artifacts.plan;
-        hasTasks = context.activeFeature.artifacts.tasks;
-        hasChecklists = context.activeFeature.artifacts.checklists.implementation &&
-                        context.activeFeature.artifacts.checklists.verification;
-      }
+  // Only look for artifacts if there's an active phase
+  // This prevents showing artifacts from old phases when no phase is started
+  const hasActivePhase = phaseNumber && phaseStatus && phaseStatus !== 'not_started';
 
-      if (hasTasks) {
-        const tasks = await readTasks(featureDir);
-        tasksCompleted = tasks.progress.completed;
-        tasksTotal = tasks.progress.total;
-        tasksBlocked = tasks.progress.blocked;
+  if (hasActivePhase) {
+    featureDir = await resolveFeatureDir(undefined, projectRoot);
+
+    if (featureDir) {
+      try {
+        const context = await getProjectContext(projectRoot);
+        if (context.activeFeature) {
+          hasSpec = context.activeFeature.artifacts.spec;
+          hasPlan = context.activeFeature.artifacts.plan;
+          hasTasks = context.activeFeature.artifacts.tasks;
+          hasChecklists = context.activeFeature.artifacts.checklists.implementation &&
+                          context.activeFeature.artifacts.checklists.verification;
+        }
+
+        if (hasTasks) {
+          const tasks = await readTasks(featureDir);
+          tasksCompleted = tasks.progress.completed;
+          tasksTotal = tasks.progress.total;
+          tasksBlocked = tasks.progress.blocked;
+        }
+      } catch {
+        // Context/tasks not available
       }
-    } catch {
-      // Context/tasks not available
     }
   }
 

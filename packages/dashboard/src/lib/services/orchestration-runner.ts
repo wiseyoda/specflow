@@ -520,9 +520,35 @@ function makeDecision(
     };
   }
 
-  // If no workflow exists for current phase, spawn one
-  // This handles the case where orchestration was started but no workflow was spawned yet
+  // If no workflow exists for current phase, check if we should spawn one
+  // GUARD: Don't re-spawn if we already have a workflow ID for this phase
+  // This prevents spawning duplicate workflows when the lookup fails
   if (!workflow) {
+    // Check if we already have a workflow ID for this phase
+    let existingWorkflowId: string | undefined;
+    if (currentPhase === 'implement') {
+      const implExecutions = orchestration.executions.implement;
+      existingWorkflowId = implExecutions?.length ? implExecutions[implExecutions.length - 1] : undefined;
+    } else if (currentPhase === 'design') {
+      existingWorkflowId = orchestration.executions.design;
+    } else if (currentPhase === 'analyze') {
+      existingWorkflowId = orchestration.executions.analyze;
+    } else if (currentPhase === 'verify') {
+      existingWorkflowId = orchestration.executions.verify;
+    } else if (currentPhase === 'merge') {
+      existingWorkflowId = orchestration.executions.merge;
+    }
+    if (existingWorkflowId && typeof existingWorkflowId === 'string') {
+      // We have a workflow ID but couldn't find it - something is wrong
+      // Don't spawn another, wait for manual intervention or the workflow to reappear
+      console.log(`[orchestration-runner] WARNING: Workflow ${existingWorkflowId} for ${currentPhase} not found in lookup, but ID exists in state. Waiting...`);
+      return {
+        action: 'continue',
+        reason: `Workflow ${existingWorkflowId} lookup failed, waiting for it to complete or reappear`,
+      };
+    }
+
+    // Truly no workflow exists - spawn one (first time for this phase)
     return {
       action: 'spawn_workflow',
       reason: `No workflow found for ${currentPhase} phase, spawning one`,

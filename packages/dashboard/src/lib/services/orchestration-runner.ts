@@ -435,13 +435,19 @@ function makeDecision(
 
   // Handle implement phase batches
   if (currentPhase === 'implement') {
-    const allBatchesComplete = batches.items.every(
+    // ROBUST CHECK: Must have batches AND all must be completed/healed
+    const completedCount = batches.items.filter(
       (b) => b.status === 'completed' || b.status === 'healed'
-    );
+    ).length;
+    const allBatchesComplete = batches.items.length > 0 && completedCount === batches.items.length;
+
+    // DEBUG: Log batch state when checking completion
+    console.log(`[orchestration-runner] Implement batch check: ${completedCount}/${batches.items.length} complete, current=${batches.current}, allComplete=${allBatchesComplete}`);
 
     if (allBatchesComplete) {
       // All batches done, move to verify
       const nextPhase = getNextPhase(currentPhase, config);
+      console.log(`[orchestration-runner] ALL BATCHES COMPLETE - transitioning to ${nextPhase}`);
       if (nextPhase === 'merge' && !config.autoMerge) {
         return {
           action: 'wait_merge',
@@ -759,12 +765,18 @@ async function executeDecision(
 
       // GUARD: Never transition OUT of implement phase while batches are incomplete
       // This prevents Claude analyzer or other decisions from prematurely jumping to verify/merge
-      const allBatchesComplete = orchestration.batches.items.every(
+      const completedBatchCount = orchestration.batches.items.filter(
         (b) => b.status === 'completed' || b.status === 'healed'
-      );
-      if (orchestration.currentPhase === 'implement' && nextPhase !== 'implement' && !allBatchesComplete) {
-        console.log(`[orchestration-runner] BLOCKED: Cannot transition from implement to ${nextPhase} - batches incomplete (${orchestration.batches.items.filter(b => b.status === 'completed' || b.status === 'healed').length}/${orchestration.batches.total})`);
-        return;
+      ).length;
+      const allBatchesComplete = orchestration.batches.items.length > 0 &&
+        completedBatchCount === orchestration.batches.items.length;
+
+      if (orchestration.currentPhase === 'implement' && nextPhase !== 'implement') {
+        console.log(`[orchestration-runner] GUARD CHECK: implement→${nextPhase}, batches=${completedBatchCount}/${orchestration.batches.items.length}, allComplete=${allBatchesComplete}`);
+        if (!allBatchesComplete) {
+          console.log(`[orchestration-runner] BLOCKED: Cannot transition from implement to ${nextPhase} - batches incomplete`);
+          return;
+        }
       }
 
       if (nextPhase && nextPhase !== orchestration.currentPhase) {

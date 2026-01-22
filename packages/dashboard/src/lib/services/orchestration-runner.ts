@@ -483,7 +483,14 @@ function makeDecision(
 
   // For non-implement phases, check if complete and transition
   // CRITICAL: Skip this for implement phase - batch logic above handles transitions
-  if (currentPhase !== 'implement' && (phaseComplete || workflow?.status === 'completed')) {
+  // CRITICAL: For design phase, require BOTH workflow completion AND artifacts exist
+  // This prevents auto-advancing when workflow completes without producing required artifacts
+  const workflowComplete = workflow?.status === 'completed';
+  const canAdvance = currentPhase === 'analyze'
+    ? workflowComplete  // Analyze has no artifacts, workflow completion is enough
+    : (phaseComplete && workflowComplete);  // Other phases need artifacts AND workflow done
+
+  if (currentPhase !== 'implement' && canAdvance) {
     const nextPhase = getNextPhase(currentPhase, config);
 
     if (!nextPhase || nextPhase === 'complete') {
@@ -749,6 +756,17 @@ async function executeDecision(
 
       // Transition to next phase if needed
       const nextPhase = getNextPhaseFromSkill(decision.skill);
+
+      // GUARD: Never transition OUT of implement phase while batches are incomplete
+      // This prevents Claude analyzer or other decisions from prematurely jumping to verify/merge
+      const allBatchesComplete = orchestration.batches.items.every(
+        (b) => b.status === 'completed' || b.status === 'healed'
+      );
+      if (orchestration.currentPhase === 'implement' && nextPhase !== 'implement' && !allBatchesComplete) {
+        console.log(`[orchestration-runner] BLOCKED: Cannot transition from implement to ${nextPhase} - batches incomplete (${orchestration.batches.items.filter(b => b.status === 'completed' || b.status === 'healed').length}/${orchestration.batches.total})`);
+        return;
+      }
+
       if (nextPhase && nextPhase !== orchestration.currentPhase) {
         // Before transitioning to implement, ensure batches are populated
         // This handles the case when phase was opened during this orchestration

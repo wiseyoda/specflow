@@ -145,17 +145,17 @@ export function SessionConsole({
         {/* Session selector - always show if we have history */}
         {hasHistory && (
           <div className="flex-shrink-0 mb-2">
-            <div className="relative inline-block" ref={dropdownRef}>
+            <div className="relative inline-block max-w-xs" ref={dropdownRef}>
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface-200 hover:bg-surface-300 border border-surface-300 transition-colors text-xs"
+                className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface-200 hover:bg-surface-300 border border-surface-300 transition-colors text-xs max-w-full"
               >
-                <History className="w-3.5 h-3.5 text-zinc-500" />
-                <span className="text-zinc-300 truncate">
+                <History className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+                <span className="text-zinc-300 truncate min-w-0">
                   Browse Session History
                 </span>
                 <ChevronDown className={cn(
-                  'w-3.5 h-3.5 text-zinc-500 transition-transform',
+                  'w-3.5 h-3.5 text-zinc-500 transition-transform flex-shrink-0',
                   isDropdownOpen && 'rotate-180'
                 )} />
               </button>
@@ -266,17 +266,17 @@ export function SessionConsole({
       {(hasHistory || selectedSession) && (
         <div className="flex-shrink-0 mb-2">
           <div className="flex items-center gap-2">
-            <div className="relative inline-block" ref={dropdownRef}>
+            <div className="relative inline-block max-w-xs" ref={dropdownRef}>
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface-200 hover:bg-surface-300 border border-surface-300 transition-colors text-xs"
+                className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface-200 hover:bg-surface-300 border border-surface-300 transition-colors text-xs max-w-full"
               >
-                <History className="w-3.5 h-3.5 text-zinc-500" />
-                <span className="text-zinc-300 truncate">
+                <History className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+                <span className="text-zinc-300 truncate min-w-0">
                   {getSessionDisplayName()}
                 </span>
                 <ChevronDown className={cn(
-                  'w-3.5 h-3.5 text-zinc-500 transition-transform',
+                  'w-3.5 h-3.5 text-zinc-500 transition-transform flex-shrink-0',
                   isDropdownOpen && 'rotate-180'
                 )} />
               </button>

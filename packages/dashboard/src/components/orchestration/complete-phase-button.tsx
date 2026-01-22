@@ -8,8 +8,9 @@
  */
 
 import * as React from 'react';
-import { Layers, ArrowRight, GitMerge } from 'lucide-react';
+import { Layers, ArrowRight, GitMerge, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { StartOrchestrationModal, type BatchPlanInfo, type PreflightInfo } from './start-orchestration-modal';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { useOrchestration } from '@/hooks/use-orchestration';
@@ -41,7 +42,7 @@ export interface CompletePhaseButtonProps {
   /** Callback when orchestration is started */
   onStart?: () => void;
   /** Callback to navigate to session viewer */
-  onNavigateToSession?: () => void;
+  onNavigateToSession?: (sessionId?: string) => void;
 }
 
 // =============================================================================
@@ -66,16 +67,47 @@ export const CompletePhaseButton = React.forwardRef<CompletePhaseButtonRef, Comp
   const [preflight, setPreflight] = React.useState<PreflightInfo | null>(null);
   const [isLoadingPlan, setIsLoadingPlan] = React.useState(false);
   const [planError, setPlanError] = React.useState<string | null>(null);
+  // Track whether we're waiting to navigate after starting orchestration
+  const [pendingNavigation, setPendingNavigation] = React.useState(false);
+  const navigationTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  const { orchestration, start, triggerMerge, error: orchestrationError } = useOrchestration({
+  const { orchestration, activeSessionId, start, triggerMerge, error: orchestrationError } = useOrchestration({
     projectId,
-    onWorkflowStart: () => {
-      // Navigate to session viewer when workflow starts
-      if (onNavigateToSession) {
-        onNavigateToSession();
-      }
-    },
   });
+
+  // Effect: Navigate to session viewer once session ID becomes available
+  React.useEffect(() => {
+    if (pendingNavigation && onNavigateToSession) {
+      if (activeSessionId) {
+        // Session is now available, navigate with the session ID
+        if (navigationTimeoutRef.current) {
+          clearTimeout(navigationTimeoutRef.current);
+          navigationTimeoutRef.current = null;
+        }
+        onNavigateToSession(activeSessionId);
+        setPendingNavigation(false);
+      } else {
+        // Set a fallback timeout to navigate even without session ID after 5 seconds
+        // This handles edge cases where session takes too long to spawn
+        if (!navigationTimeoutRef.current) {
+          navigationTimeoutRef.current = setTimeout(() => {
+            if (pendingNavigation) {
+              onNavigateToSession();
+              setPendingNavigation(false);
+            }
+            navigationTimeoutRef.current = null;
+          }, 5000);
+        }
+      }
+    }
+
+    return () => {
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+        navigationTimeoutRef.current = null;
+      }
+    };
+  }, [pendingNavigation, activeSessionId, onNavigateToSession]);
 
   // Orchestration is truly blocked only when running or paused (not waiting_merge)
   const hasActiveOrchestration = !!(orchestration &&
@@ -138,12 +170,16 @@ export const CompletePhaseButton = React.forwardRef<CompletePhaseButtonRef, Comp
       await triggerMerge();
       setMergeDialogOpen(false);
       onStart?.();
+      // Set pending navigation - effect will navigate when session ID is available
+      if (onNavigateToSession) {
+        setPendingNavigation(true);
+      }
     } catch {
       // Error is handled by useOrchestration
     } finally {
       setIsMerging(false);
     }
-  }, [triggerMerge, onStart]);
+  }, [triggerMerge, onStart, onNavigateToSession]);
 
   // Expose openModal via ref for programmatic triggering (e.g., from command palette)
   React.useImperativeHandle(ref, () => ({
@@ -156,12 +192,16 @@ export const CompletePhaseButton = React.forwardRef<CompletePhaseButtonRef, Comp
       await start(config);
       setModalOpen(false);
       onStart?.();
+      // Set pending navigation - effect will navigate when session ID is available
+      if (onNavigateToSession) {
+        setPendingNavigation(true);
+      }
     } catch {
       // Error is handled by useOrchestration
     } finally {
       setIsStarting(false);
     }
-  }, [start, onStart]);
+  }, [start, onStart, onNavigateToSession]);
 
   const isDisabled = disabled || hasActiveOrchestration;
 
@@ -220,6 +260,21 @@ export const CompletePhaseButton = React.forwardRef<CompletePhaseButtonRef, Comp
           onConfirm={handleMergeConfirm}
           isLoading={isMerging}
         />
+
+        {/* Creating Session Interstitial */}
+        <Dialog open={pendingNavigation} onOpenChange={() => {}}>
+          <DialogContent className="sm:max-w-[360px]" hideCloseButton>
+            <DialogHeader className="items-center text-center">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-purple-500/20">
+                <Loader2 className="h-6 w-6 text-purple-400 animate-spin" />
+              </div>
+              <DialogTitle>Creating Session</DialogTitle>
+              <DialogDescription>
+                Starting orchestration workflow...
+              </DialogDescription>
+            </DialogHeader>
+          </DialogContent>
+        </Dialog>
       </>
     );
   }
@@ -306,6 +361,21 @@ export const CompletePhaseButton = React.forwardRef<CompletePhaseButtonRef, Comp
         onConfirm={handleMergeConfirm}
         isLoading={isMerging}
       />
+
+      {/* Creating Session Interstitial */}
+      <Dialog open={pendingNavigation} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-[360px]" hideCloseButton>
+          <DialogHeader className="items-center text-center">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-purple-500/20">
+              <Loader2 className="h-6 w-6 text-purple-400 animate-spin" />
+            </div>
+            <DialogTitle>Creating Session</DialogTitle>
+            <DialogDescription>
+              Starting orchestration workflow...
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </>
   );
 });

@@ -685,6 +685,77 @@ class OrchestrationService {
   }
 
   /**
+   * Set orchestration to needs_attention status (recoverable error)
+   * Allows user to decide: retry, skip, or abort
+   */
+  setNeedsAttention(
+    projectPath: string,
+    orchestrationId: string,
+    issue: string,
+    options: Array<'retry' | 'skip' | 'abort'>,
+    failedWorkflowId?: string
+  ): OrchestrationExecution | null {
+    const execution = loadOrchestration(projectPath, orchestrationId);
+    if (!execution) return null;
+
+    execution.status = 'needs_attention';
+    execution.recoveryContext = {
+      issue,
+      options,
+      failedWorkflowId,
+    };
+    logDecision(execution, 'needs_attention', issue);
+    saveOrchestration(projectPath, execution);
+    return execution;
+  }
+
+  /**
+   * Handle recovery action from user (retry, skip, abort)
+   */
+  handleRecovery(
+    projectPath: string,
+    orchestrationId: string,
+    action: 'retry' | 'skip' | 'abort'
+  ): OrchestrationExecution | null {
+    const execution = loadOrchestration(projectPath, orchestrationId);
+    if (!execution) return null;
+    if (execution.status !== 'needs_attention') return null;
+
+    switch (action) {
+      case 'retry':
+        // Resume running - runner will respawn the workflow
+        execution.status = 'running';
+        execution.recoveryContext = undefined;
+        logDecision(execution, 'recovery_retry', 'User chose to retry');
+        break;
+
+      case 'skip': {
+        // Skip to next phase - mark current as done and move on
+        execution.status = 'running';
+        execution.recoveryContext = undefined;
+        logDecision(execution, 'recovery_skip', 'User chose to skip current phase');
+        // Actually transition to the next phase
+        const nextPhase = getNextPhase(execution.currentPhase, execution.config);
+        if (nextPhase) {
+          execution.currentPhase = nextPhase;
+          logDecision(execution, 'transition', `Skipped to ${nextPhase}`);
+        }
+        break;
+      }
+
+      case 'abort':
+        // User chose to abort - mark as cancelled
+        execution.status = 'cancelled';
+        execution.recoveryContext = undefined;
+        logDecision(execution, 'recovery_abort', 'User chose to abort');
+        break;
+    }
+
+    saveOrchestration(projectPath, execution);
+    return execution;
+  }
+
+  /**
    * Update total cost
    */
   addCost(

@@ -31,10 +31,14 @@ const {
     resume: vi.fn(),
     fail: vi.fn(),
     triggerMerge: vi.fn(),
+    updateBatches: vi.fn(),
+    setNeedsAttention: vi.fn(),
   },
   mockWorkflowServiceFns: {
     get: vi.fn(),
     start: vi.fn(() => Promise.resolve({ id: 'workflow-123', status: 'running' })),
+    findActiveByOrchestration: vi.fn(() => []),
+    hasActiveWorkflow: vi.fn(() => false),
   },
   mockAttemptHealFn: vi.fn(),
   mockQuickDecision: vi.fn(() =>

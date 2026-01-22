@@ -10,6 +10,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { OrchestrationExecution, OrchestrationConfig } from '@specflow/shared';
 import type { BatchPlanInfo } from '@/components/orchestration/start-orchestration-modal';
+import type { RecoveryOption } from '@/components/orchestration/recovery-panel';
 
 // =============================================================================
 // Types
@@ -50,6 +51,10 @@ export interface UseOrchestrationReturn {
   isLoadingPlan: boolean;
   /** Whether the current workflow is waiting for user input (FR-072) */
   isWaitingForInput: boolean;
+  /** Whether a recovery action is in progress */
+  isRecovering: boolean;
+  /** Which recovery action is currently loading */
+  recoveryAction: RecoveryOption | null;
   /** Start orchestration with config */
   start: (config: OrchestrationConfig) => Promise<void>;
   /** Pause orchestration */
@@ -60,6 +65,8 @@ export interface UseOrchestrationReturn {
   cancel: () => Promise<void>;
   /** Trigger merge */
   triggerMerge: () => Promise<void>;
+  /** Handle recovery action (retry/skip/abort) */
+  recover: (action: RecoveryOption) => Promise<void>;
   /** Fetch batch plan */
   fetchBatchPlan: () => Promise<void>;
   /** Refresh status */
@@ -90,6 +97,8 @@ export function useOrchestration({
   const [batchPlan, setBatchPlan] = useState<BatchPlanInfo | null>(null);
   const [isLoadingPlan, setIsLoadingPlan] = useState(false);
   const [isWaitingForInput, setIsWaitingForInput] = useState(false);
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [recoveryAction, setRecoveryAction] = useState<RecoveryOption | null>(null);
 
   const lastStatusRef = useRef<OrchestrationExecution['status'] | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -325,12 +334,40 @@ export function useOrchestration({
     }
   }, [orchestration, projectId, refresh]);
 
+  // Handle recovery action (retry/skip/abort)
+  const recover = useCallback(async (action: RecoveryOption) => {
+    if (!orchestration) return;
+
+    setIsRecovering(true);
+    setRecoveryAction(action);
+    try {
+      const response = await fetch('/api/workflow/orchestrate/recover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, id: orchestration.id, action }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to recover');
+      }
+
+      await refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
+    } finally {
+      setIsRecovering(false);
+      setRecoveryAction(null);
+    }
+  }, [orchestration, projectId, refresh]);
+
   // Setup polling when orchestration is active
   useEffect(() => {
     // Start polling
     const shouldPoll =
       orchestration &&
-      ['running', 'paused', 'waiting_merge'].includes(orchestration.status);
+      ['running', 'paused', 'waiting_merge', 'needs_attention'].includes(orchestration.status);
 
     if (shouldPoll) {
       pollingRef.current = setInterval(fetchStatus, pollingInterval);
@@ -360,11 +397,14 @@ export function useOrchestration({
     batchPlan,
     isLoadingPlan,
     isWaitingForInput,
+    isRecovering,
+    recoveryAction,
     start,
     pause,
     resume,
     cancel,
     triggerMerge,
+    recover,
     fetchBatchPlan,
     refresh,
   };

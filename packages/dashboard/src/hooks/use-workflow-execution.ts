@@ -87,6 +87,11 @@ async function fetchWorkflowForProject(
 
   // Return the most recent execution (already sorted by updatedAt desc)
   // Prefer active workflows over completed ones
+  // Priority: waiting_for_input > running > other active states
+  // This ensures questions are shown even if multiple workflows exist
+  const waiting = executions.find((e) => e.status === 'waiting_for_input');
+  if (waiting) return waiting;
+
   const active = executions.find((e) => ACTIVE_STATES.includes(e.status));
   if (active) return active;
 

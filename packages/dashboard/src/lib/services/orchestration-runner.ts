@@ -216,11 +216,15 @@ function mapClaudeDecision(decision: StateAnalyzerDecision): DecisionResult {
 }
 
 interface DecisionResult {
-  action: 'continue' | 'spawn_workflow' | 'spawn_batch' | 'heal' | 'wait_merge' | 'complete' | 'fail';
+  action: 'continue' | 'spawn_workflow' | 'spawn_batch' | 'heal' | 'wait_merge' | 'needs_attention' | 'complete' | 'fail';
   reason: string;
   skill?: string;
   batchContext?: string;
   errorMessage?: string;
+  /** Recovery options when action is 'needs_attention' */
+  recoveryOptions?: Array<'retry' | 'skip' | 'abort'>;
+  /** Failed workflow ID for recovery context */
+  failedWorkflowId?: string;
 }
 
 // =============================================================================
@@ -392,9 +396,20 @@ function makeDecision(
     };
   }
 
-  // Check if workflow failed
-  if (workflow && workflow.status === 'failed') {
-    // If in implement phase, try auto-healing
+  // Check if workflow failed or was cancelled
+  if (workflow && ['failed', 'cancelled'].includes(workflow.status)) {
+    // If cancelled by user, don't auto-heal, go to needs_attention
+    if (workflow.status === 'cancelled') {
+      return {
+        action: 'needs_attention',
+        reason: `Workflow was cancelled by user`,
+        errorMessage: 'Workflow cancelled',
+        recoveryOptions: ['retry', 'skip', 'abort'],
+        failedWorkflowId: workflow.id,
+      };
+    }
+
+    // If failed in implement phase, try auto-healing first
     if (currentPhase === 'implement' && config.autoHealEnabled) {
       const currentBatch = batches.items[batches.current];
       if (currentBatch && currentBatch.healAttempts < config.maxHealAttempts) {
@@ -404,10 +419,14 @@ function makeDecision(
         };
       }
     }
+
+    // Instead of immediately failing, go to needs_attention for user decision
     return {
-      action: 'fail',
+      action: 'needs_attention',
       reason: `Workflow failed: ${workflow.error}`,
       errorMessage: workflow.error,
+      recoveryOptions: ['retry', 'skip', 'abort'],
+      failedWorkflowId: workflow.id,
     };
   }
 
@@ -569,6 +588,12 @@ export async function runOrchestration(
       }
 
       // Check for paused/waiting states
+      if (orchestration.status === 'needs_attention') {
+        console.log(`[orchestration-runner] Orchestration ${orchestrationId} needs attention, waiting for user action...`);
+        await sleep(ctx.pollingInterval * 2);
+        continue;
+      }
+
       if (orchestration.status === 'paused') {
         console.log(`[orchestration-runner] Orchestration ${orchestrationId} is paused, waiting...`);
         await sleep(ctx.pollingInterval * 2);
@@ -582,10 +607,22 @@ export async function runOrchestration(
       }
 
       // Get the current workflow (if any)
+      // First try the stored workflow ID, then fallback to querying by orchestrationId
+      // This provides resilience if the stored ID is stale/wrong
       const currentWorkflowId = getCurrentWorkflowId(orchestration);
-      const workflow = currentWorkflowId
+      let workflow = currentWorkflowId
         ? workflowService.get(currentWorkflowId, projectId)
         : undefined;
+
+      // Fallback: if stored ID didn't find a workflow, check for any active workflows
+      // linked to this orchestration (handles race conditions and cancelled workflows)
+      if (!workflow || !['running', 'waiting_for_input'].includes(workflow.status)) {
+        const activeWorkflows = workflowService.findActiveByOrchestration(projectId, orchestrationId);
+        if (activeWorkflows.length > 0) {
+          workflow = activeWorkflows[0];
+          console.log(`[orchestration-runner] Found active workflow via orchestration link: ${workflow.id}`);
+        }
+      }
 
       // Get specflow status
       const specflowStatus = getSpecflowStatus(projectPath);
@@ -703,6 +740,12 @@ async function executeDecision(
         return;
       }
 
+      // QUEUE CHECK: Don't spawn if there's already an active workflow for this orchestration
+      if (workflowService.hasActiveWorkflow(ctx.projectId, ctx.orchestrationId)) {
+        console.log(`[orchestration-runner] Workflow already active for orchestration ${ctx.orchestrationId}, skipping spawn`);
+        return;
+      }
+
       // Transition to next phase if needed
       const nextPhase = getNextPhaseFromSkill(decision.skill);
       if (nextPhase && nextPhase !== orchestration.currentPhase) {
@@ -723,10 +766,16 @@ async function executeDecision(
         orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
       }
 
-      // Spawn the workflow
-      const workflow = await workflowService.start(ctx.projectId, decision.skill);
+      // Spawn the workflow with orchestrationId for proper linking
+      const workflow = await workflowService.start(
+        ctx.projectId,
+        decision.skill,
+        undefined, // default timeout
+        undefined, // no resume session
+        ctx.orchestrationId // link to this orchestration
+      );
 
-      // Link to orchestration
+      // Also store in orchestration for backwards compatibility
       orchestrationService.linkWorkflowExecution(ctx.projectPath, ctx.orchestrationId, workflow.id);
 
       // Track cost
@@ -734,11 +783,17 @@ async function executeDecision(
         orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
       }
 
-      console.log(`[orchestration-runner] Spawned workflow ${workflow.id} for ${decision.skill}`);
+      console.log(`[orchestration-runner] Spawned workflow ${workflow.id} for ${decision.skill} (linked to orchestration ${ctx.orchestrationId})`);
       break;
     }
 
     case 'spawn_batch': {
+      // QUEUE CHECK: Don't spawn if there's already an active workflow for this orchestration
+      if (workflowService.hasActiveWorkflow(ctx.projectId, ctx.orchestrationId)) {
+        console.log(`[orchestration-runner] Workflow already active for orchestration ${ctx.orchestrationId}, skipping batch spawn`);
+        return;
+      }
+
       // Complete current batch
       orchestrationService.completeBatch(ctx.projectPath, ctx.orchestrationId);
 
@@ -765,10 +820,16 @@ async function executeDecision(
             ? `${batchContext}\n\n${updatedOrchestration.config.additionalContext}`
             : batchContext;
 
-          // Spawn next batch
-          const workflow = await workflowService.start(ctx.projectId, `flow.implement ${fullContext}`);
+          // Spawn next batch with orchestrationId
+          const workflow = await workflowService.start(
+            ctx.projectId,
+            `flow.implement ${fullContext}`,
+            undefined,
+            undefined,
+            ctx.orchestrationId
+          );
           orchestrationService.linkWorkflowExecution(ctx.projectPath, ctx.orchestrationId, workflow.id);
-          console.log(`[orchestration-runner] Spawned batch ${updatedOrchestration.batches.current + 1}/${updatedOrchestration.batches.total}`);
+          console.log(`[orchestration-runner] Spawned batch ${updatedOrchestration.batches.current + 1}/${updatedOrchestration.batches.total} (linked to orchestration ${ctx.orchestrationId})`);
         }
       }
       break;
@@ -851,6 +912,20 @@ async function executeDecision(
         });
       }
       console.log(`[orchestration-runner] Orchestration complete!`);
+      break;
+    }
+
+    case 'needs_attention': {
+      // Set orchestration to needs_attention instead of failing
+      // This allows the user to decide what to do (retry, skip, abort)
+      orchestrationService.setNeedsAttention(
+        ctx.projectPath,
+        ctx.orchestrationId,
+        decision.errorMessage || 'Unknown issue',
+        decision.recoveryOptions || ['retry', 'abort'],
+        decision.failedWorkflowId
+      );
+      console.log(`[orchestration-runner] Orchestration needs attention: ${decision.errorMessage}`);
       break;
     }
 

@@ -12,5 +12,6 @@ export { DecisionLogPanel } from './decision-log-panel';
 export { OrchestrationProgress } from './orchestration-progress';
 export { OrchestrationControls } from './orchestration-controls';
 export { MergeReadyPanel } from './merge-ready-panel';
+export { RecoveryPanel, type RecoveryOption } from './recovery-panel';
 export { OrchestrationBadge } from './orchestration-badge';
 export { CompletePhaseButton, type CompletePhaseButtonRef } from './complete-phase-button';

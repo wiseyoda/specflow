@@ -9,6 +9,7 @@ export const OrchestrationStatusSchema = z.enum([
   'running',
   'paused',
   'waiting_merge',
+  'needs_attention', // Workflow failed/cancelled - awaiting user decision (retry, skip, abort)
   'completed',
   'failed',
   'cancelled',
@@ -105,6 +106,16 @@ export const OrchestrationExecutionSchema = z.object({
 
   /** Error message if failed */
   errorMessage: z.string().optional(),
+
+  /** Recovery context when status is 'needs_attention' */
+  recoveryContext: z.object({
+    /** What went wrong */
+    issue: z.string(),
+    /** Available recovery actions */
+    options: z.array(z.enum(['retry', 'skip', 'abort'])),
+    /** Workflow that caused the issue */
+    failedWorkflowId: z.string().optional(),
+  }).optional(),
 });
 
 export type OrchestrationExecution = z.infer<typeof OrchestrationExecutionSchema>;

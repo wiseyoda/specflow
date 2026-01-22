@@ -84,6 +84,7 @@ export const WorkflowExecutionSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string().min(1), // Registry key (not necessarily UUID)
   sessionId: z.string().optional(), // Populated from CLI JSON output after first response
+  orchestrationId: z.string().uuid().optional(), // Links workflow to orchestration (if any)
   skill: z.string(),
   status: z.enum([
     'running',
@@ -732,12 +733,14 @@ class WorkflowService {
   /**
    * Start a new workflow execution (T007)
    * @param resumeSessionId - Optional session ID to resume (FR-014, FR-015)
+   * @param orchestrationId - Optional orchestration ID to link this workflow to
    */
   async start(
     projectId: string,
     skill: string,
     timeoutMs: number = DEFAULT_TIMEOUT_MS,
-    resumeSessionId?: string
+    resumeSessionId?: string,
+    orchestrationId?: string
   ): Promise<WorkflowExecution> {
     // Clean up old global workflows on first run (T008, FR-016, FR-017)
     cleanupGlobalWorkflows();
@@ -766,6 +769,8 @@ class WorkflowService {
       timeoutMs,
       // If resuming, pre-populate sessionId (FR-015: new execution linked to same session)
       ...(resumeSessionId ? { sessionId: resumeSessionId } : {}),
+      // Link to orchestration if provided
+      ...(orchestrationId ? { orchestrationId } : {}),
     };
 
     execution.logs.push(`[${now}] Starting workflow for project ${projectId}`);
@@ -773,6 +778,9 @@ class WorkflowService {
     execution.logs.push(`[INFO] Timeout: ${timeoutMs}ms`);
     if (resumeSessionId) {
       execution.logs.push(`[INFO] Resuming session: ${resumeSessionId}`);
+    }
+    if (orchestrationId) {
+      execution.logs.push(`[INFO] Linked to orchestration: ${orchestrationId}`);
     }
     saveExecution(execution, projectPath);
 
@@ -920,6 +928,40 @@ class WorkflowService {
       return [];
     }
     return listExecutions(projectPath);
+  }
+
+  /**
+   * Find all workflows linked to a specific orchestration
+   * @param projectId - Registry key for the project
+   * @param orchestrationId - Orchestration ID to filter by
+   * @returns Workflows linked to this orchestration, sorted by startedAt (newest first)
+   */
+  findByOrchestration(projectId: string, orchestrationId: string): WorkflowExecution[] {
+    const all = this.list(projectId);
+    return all
+      .filter(w => w.orchestrationId === orchestrationId)
+      .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+  }
+
+  /**
+   * Find active workflows for an orchestration (running or waiting_for_input)
+   * @param projectId - Registry key for the project
+   * @param orchestrationId - Orchestration ID to filter by
+   * @returns Active workflows for this orchestration
+   */
+  findActiveByOrchestration(projectId: string, orchestrationId: string): WorkflowExecution[] {
+    return this.findByOrchestration(projectId, orchestrationId)
+      .filter(w => ['running', 'waiting_for_input'].includes(w.status));
+  }
+
+  /**
+   * Check if an orchestration has any active workflows
+   * @param projectId - Registry key for the project
+   * @param orchestrationId - Orchestration ID to check
+   * @returns True if there's at least one active workflow
+   */
+  hasActiveWorkflow(projectId: string, orchestrationId: string): boolean {
+    return this.findActiveByOrchestration(projectId, orchestrationId).length > 0;
   }
 
   /**

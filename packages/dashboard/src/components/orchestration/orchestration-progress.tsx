@@ -14,6 +14,7 @@ import { BatchProgress } from './batch-progress';
 import { DecisionLogPanel } from './decision-log-panel';
 import { OrchestrationControls } from './orchestration-controls';
 import { MergeReadyPanel } from './merge-ready-panel';
+import { RecoveryPanel, type RecoveryOption } from './recovery-panel';
 import type {
   OrchestrationExecution,
   OrchestrationPhase,
@@ -35,10 +36,16 @@ export interface OrchestrationProgressProps {
   onCancel?: () => void;
   /** Callback for merge action */
   onMerge?: () => void;
+  /** Callback for recovery action (retry/skip/abort) */
+  onRecover?: (action: RecoveryOption) => void;
   /** Whether controls are disabled */
   controlsDisabled?: boolean;
   /** Whether the current workflow is waiting for user input (FR-072) */
   isWaitingForInput?: boolean;
+  /** Whether a recovery action is in progress */
+  isRecovering?: boolean;
+  /** Which recovery action is loading */
+  recoveryAction?: RecoveryOption;
 }
 
 // =============================================================================
@@ -146,8 +153,11 @@ export function OrchestrationProgress({
   onResume,
   onCancel,
   onMerge,
+  onRecover,
   controlsDisabled = false,
   isWaitingForInput = false,
+  isRecovering = false,
+  recoveryAction,
 }: OrchestrationProgressProps) {
   const elapsedMs = React.useMemo(() => {
     const start = new Date(orchestration.startedAt).getTime();
@@ -159,6 +169,7 @@ export function OrchestrationProgress({
 
   const isPaused = orchestration.status === 'paused';
   const isWaitingMerge = orchestration.status === 'waiting_merge';
+  const isNeedsAttention = orchestration.status === 'needs_attention';
   const isCompleted = orchestration.status === 'completed';
   const isFailed = orchestration.status === 'failed';
   const isCancelled = orchestration.status === 'cancelled';
@@ -239,6 +250,18 @@ export function OrchestrationProgress({
         <MergeReadyPanel
           onMerge={onMerge}
           disabled={controlsDisabled}
+        />
+      )}
+
+      {/* Recovery Panel (needs_attention status) */}
+      {isNeedsAttention && orchestration.recoveryContext && (
+        <RecoveryPanel
+          issue={orchestration.recoveryContext.issue}
+          options={orchestration.recoveryContext.options}
+          onRecover={onRecover}
+          disabled={controlsDisabled}
+          isLoading={isRecovering}
+          loadingAction={recoveryAction}
         />
       )}
 
@@ -325,6 +348,11 @@ function StatusBadge({ status }: { status: OrchestrationExecution['status'] }) {
       icon: Clock,
       label: 'Merge Ready',
       className: 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30',
+    },
+    needs_attention: {
+      icon: AlertCircle,
+      label: 'Needs Attention',
+      className: 'text-orange-600 bg-orange-100 dark:text-orange-400 dark:bg-orange-900/30',
     },
   }[status] || {
     icon: Clock,

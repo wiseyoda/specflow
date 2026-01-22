@@ -12,8 +12,10 @@ import {
   type TasksData,
   type WorkflowIndex,
   type WorkflowData,
+  type PhasesData,
 } from '@specflow/shared';
 import { parseTasks, type ParseTasksOptions } from './task-parser';
+import { parseRoadmapToPhasesData } from './roadmap-parser';
 import {
   getStateFilePath,
   getStateFilePathSync,
@@ -33,9 +35,13 @@ let currentRegistry: Registry | null = null;
 let watchedStatePaths: Set<string> = new Set();
 let watchedTasksPaths: Set<string> = new Set();
 let watchedWorkflowPaths: Set<string> = new Set();
+let watchedPhasesPaths: Set<string> = new Set();
 
 // Cache workflow data to detect actual changes
 const workflowCache: Map<string, string> = new Map(); // projectId -> JSON string
+
+// Cache phases data to detect actual changes
+const phasesCache: Map<string, string> = new Map(); // projectId -> JSON string
 
 // Event listeners (SSE connections)
 type EventListener = (event: SSEEvent) => void;
@@ -264,6 +270,46 @@ async function handleWorkflowChange(projectId: string, indexPath: string): Promi
 }
 
 /**
+ * Read and parse ROADMAP.md for a project
+ */
+async function readPhases(projectId: string, roadmapPath: string): Promise<PhasesData | null> {
+  try {
+    const content = await fs.readFile(roadmapPath, 'utf-8');
+    return parseRoadmapToPhasesData(content, projectId);
+  } catch (error) {
+    // Silently return null for missing files (ENOENT)
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      return null;
+    }
+    console.error(`[Watcher] Error reading ROADMAP.md for ${projectId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Handle ROADMAP.md file change
+ */
+async function handlePhasesChange(projectId: string, roadmapPath: string): Promise<void> {
+  const data = await readPhases(projectId, roadmapPath);
+  if (!data) return;
+
+  // Check if data actually changed (avoid duplicate broadcasts)
+  const dataJson = JSON.stringify(data);
+  const cached = phasesCache.get(projectId);
+  if (cached === dataJson) {
+    return; // No change
+  }
+  phasesCache.set(projectId, dataJson);
+
+  broadcast({
+    type: 'phases',
+    timestamp: new Date().toISOString(),
+    projectId,
+    data,
+  });
+}
+
+/**
  * Get tasks.md path for a project based on current phase
  * Tasks are in specs/{phase_number}-{phase_name_slug}/tasks.md
  * The directory name uses the branch format (lowercase, hyphenated)
@@ -315,8 +361,9 @@ async function updateWatchedPaths(registry: Registry): Promise<void> {
   const newStatePaths = new Set<string>();
   const newTasksPaths = new Set<string>();
   const newWorkflowPaths = new Set<string>();
+  const newPhasesPaths = new Set<string>();
 
-  // Get state, tasks, and workflow file paths for all projects
+  // Get state, tasks, workflow, and phases file paths for all projects
   for (const [projectId, project] of Object.entries(registry.projects)) {
     // Auto-migrate state files from .specify/ to .specflow/ if needed
     await migrateStateFiles(project.path);
@@ -396,6 +443,28 @@ async function updateWatchedPaths(registry: Registry): Promise<void> {
         });
       }
     }
+
+    // Add ROADMAP.md path for this project
+    const roadmapPath = path.join(project.path, 'ROADMAP.md');
+    newPhasesPaths.add(roadmapPath);
+
+    // Add new phases paths to watcher and broadcast initial data
+    if (!watchedPhasesPaths.has(roadmapPath)) {
+      watcher.add(roadmapPath);
+      console.log(`[Watcher] Added ROADMAP.md: ${roadmapPath}`);
+
+      // Broadcast initial phases data
+      const data = await readPhases(projectId, roadmapPath);
+      if (data) {
+        phasesCache.set(projectId, JSON.stringify(data));
+        broadcast({
+          type: 'phases',
+          timestamp: new Date().toISOString(),
+          projectId,
+          data,
+        });
+      }
+    }
   }
 
   // Remove old state paths from watcher
@@ -422,15 +491,24 @@ async function updateWatchedPaths(registry: Registry): Promise<void> {
     }
   }
 
+  // Remove old phases paths from watcher
+  for (const oldPath of watchedPhasesPaths) {
+    if (!newPhasesPaths.has(oldPath)) {
+      watcher.unwatch(oldPath);
+      console.log(`[Watcher] Removed ROADMAP.md: ${oldPath}`);
+    }
+  }
+
   watchedStatePaths = newStatePaths;
   watchedTasksPaths = newTasksPaths;
   watchedWorkflowPaths = newWorkflowPaths;
+  watchedPhasesPaths = newPhasesPaths;
 }
 
 /**
  * Get project ID and file type for a watched file path
  */
-function getProjectInfoForPath(filePath: string): { projectId: string; fileType: 'state' | 'tasks' | 'workflow' } | null {
+function getProjectInfoForPath(filePath: string): { projectId: string; fileType: 'state' | 'tasks' | 'workflow' | 'phases' } | null {
   if (!currentRegistry) return null;
 
   for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
@@ -455,6 +533,12 @@ function getProjectInfoForPath(filePath: string): { projectId: string; fileType:
     const workflowIndexPath = path.join(project.path, '.specflow', 'workflows', 'index.json');
     if (filePath === workflowIndexPath && watchedWorkflowPaths.has(filePath)) {
       return { projectId, fileType: 'workflow' };
+    }
+
+    // Check if this is a ROADMAP.md file for this project
+    const roadmapPath = path.join(project.path, 'ROADMAP.md');
+    if (filePath === roadmapPath && watchedPhasesPaths.has(filePath)) {
+      return { projectId, fileType: 'phases' };
     }
   }
   return null;
@@ -484,7 +568,7 @@ export async function initWatcher(): Promise<void> {
     if (filePath === registryPath) {
       debouncedChange(filePath, handleRegistryChange);
     } else {
-      // State, tasks, or workflow file change
+      // State, tasks, workflow, or phases file change
       const info = getProjectInfoForPath(filePath);
       if (info) {
         if (info.fileType === 'state') {
@@ -499,6 +583,8 @@ export async function initWatcher(): Promise<void> {
           debouncedChange(filePath, () => handleTasksChange(info.projectId, filePath));
         } else if (info.fileType === 'workflow') {
           debouncedChange(filePath, () => handleWorkflowChange(info.projectId, filePath));
+        } else if (info.fileType === 'phases') {
+          debouncedChange(filePath, () => handlePhasesChange(info.projectId, filePath));
         }
       }
     }
@@ -612,6 +698,27 @@ export async function getAllWorkflows(): Promise<Map<string, WorkflowData>> {
 }
 
 /**
+ * Get all current phases data for registered projects
+ */
+export async function getAllPhases(): Promise<Map<string, PhasesData>> {
+  const phases = new Map<string, PhasesData>();
+
+  if (!currentRegistry) return phases;
+
+  for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
+    const roadmapPath = path.join(project.path, 'ROADMAP.md');
+    const data = await readPhases(projectId, roadmapPath);
+    if (data) {
+      phases.set(projectId, data);
+      // Update cache
+      phasesCache.set(projectId, JSON.stringify(data));
+    }
+  }
+
+  return phases;
+}
+
+/**
  * Start heartbeat timer for a listener
  */
 export function startHeartbeat(listener: EventListener): NodeJS.Timeout {
@@ -634,8 +741,10 @@ export async function closeWatcher(): Promise<void> {
     watchedStatePaths.clear();
     watchedTasksPaths.clear();
     watchedWorkflowPaths.clear();
+    watchedPhasesPaths.clear();
     projectTasksPaths.clear();
     workflowCache.clear();
+    phasesCache.clear();
     currentRegistry = null;
     debounceTimers.forEach((timer) => clearTimeout(timer));
     debounceTimers.clear();

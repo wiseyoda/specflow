@@ -16,6 +16,7 @@ export {
   StateEventSchema,
   TasksEventSchema,
   WorkflowSSEEventSchema,
+  PhasesEventSchema,
   OrchestrationStateSchema,
   StepStatusSchema,
   WorkflowStepSchema,
@@ -30,6 +31,7 @@ export {
   type StateEvent,
   type TasksEvent,
   type WorkflowSSEEvent,
+  type PhasesEvent,
   type OrchestrationState,
   type StepStatus,
 } from './events.js';
@@ -42,6 +44,15 @@ export {
   type Task,
   type TasksData,
 } from './tasks.js';
+
+export {
+  RoadmapPhaseStatusSchema,
+  RoadmapPhaseSchema,
+  PhasesDataSchema,
+  type RoadmapPhaseStatus,
+  type RoadmapPhase,
+  type PhasesData,
+} from './phases.js';
 
 export {
   SpecflowSubcommandSchema,

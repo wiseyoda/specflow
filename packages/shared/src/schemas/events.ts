@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { RegistrySchema } from './registry.js';
 import { TasksDataSchema } from './tasks.js';
 import { WorkflowDataSchema } from './workflow.js';
+import { PhasesDataSchema } from './phases.js';
 
 /**
  * Schema for orchestration state (simplified for SSE events)
@@ -160,6 +161,7 @@ export const SSEEventTypeSchema = z.enum([
   'state',        // Project state file changed
   'tasks',        // Project tasks.md file changed
   'workflow',     // Project workflow index changed
+  'phases',       // Project ROADMAP.md phases changed
 ]);
 
 /**
@@ -218,6 +220,16 @@ export const WorkflowSSEEventSchema = z.object({
 });
 
 /**
+ * Phases event - project ROADMAP.md phases changed
+ */
+export const PhasesEventSchema = z.object({
+  type: z.literal('phases'),
+  timestamp: z.string(),
+  projectId: z.string(),
+  data: PhasesDataSchema,
+});
+
+/**
  * Union of all SSE event types
  */
 export const SSEEventSchema = z.discriminatedUnion('type', [
@@ -227,6 +239,7 @@ export const SSEEventSchema = z.discriminatedUnion('type', [
   StateEventSchema,
   TasksEventSchema,
   WorkflowSSEEventSchema,
+  PhasesEventSchema,
 ]);
 
 // Type exports
@@ -237,5 +250,6 @@ export type RegistryEvent = z.infer<typeof RegistryEventSchema>;
 export type StateEvent = z.infer<typeof StateEventSchema>;
 export type TasksEvent = z.infer<typeof TasksEventSchema>;
 export type WorkflowSSEEvent = z.infer<typeof WorkflowSSEEventSchema>;
+export type PhasesEvent = z.infer<typeof PhasesEventSchema>;
 export type SSEEvent = z.infer<typeof SSEEventSchema>;
 export type OrchestrationState = z.infer<typeof OrchestrationStateSchema>;

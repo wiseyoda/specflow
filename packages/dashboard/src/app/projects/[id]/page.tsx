@@ -161,12 +161,12 @@ export default function ProjectDetailPage() {
     isConsoleSessionActive
   )
 
-  // Phase history from ROADMAP.md
+  // Phase history from ROADMAP.md (SSE for real-time updates)
   const {
     phases: phaseHistory,
     activePhase,
     isLoading: phaseHistoryLoading,
-  } = usePhaseHistory(project?.path ?? null)
+  } = usePhaseHistory(projectId, project?.path ?? null)
 
   // Determine focus phase: active phase if exists, otherwise first pending phase
   const focusPhase = useMemo(() => {

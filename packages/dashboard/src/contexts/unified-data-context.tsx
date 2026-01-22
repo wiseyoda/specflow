@@ -4,7 +4,7 @@
  * UNIFIED DATA CONTEXT - Single source of truth for all real-time data
  *
  * DATA SOURCES:
- * - SSE (pushed): registry, states, tasks, workflows
+ * - SSE (pushed): registry, states, tasks, workflows, phases
  *   -> Triggered by file system changes via chokidar watcher
  *   -> See: lib/watcher.ts, hooks/use-sse.ts
  *
@@ -37,6 +37,7 @@ import type {
   OrchestrationState,
   TasksData,
   WorkflowData,
+  PhasesData,
   Project,
 } from '@specflow/shared';
 
@@ -49,6 +50,7 @@ interface UnifiedDataContextValue {
   states: Map<string, OrchestrationState>;
   tasks: Map<string, TasksData>;
   workflows: Map<string, WorkflowData>;
+  phases: Map<string, PhasesData>;
   connectionStatus: ConnectionStatus;
 
   // === Polled Data (Session content only) ===
@@ -128,6 +130,7 @@ export function UnifiedDataProvider({ children }: { children: ReactNode }) {
     states: sseData.states,
     tasks: sseData.tasks,
     workflows: sseData.workflows,
+    phases: sseData.phases,
     connectionStatus: sseData.connectionStatus,
 
     // Polled data

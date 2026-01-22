@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export interface Artifact {
   name: string;
@@ -29,12 +29,9 @@ interface UsePhaseDetailResult {
   refresh: () => Promise<void>;
 }
 
-/** Polling interval for phase detail (10 seconds) */
-const POLL_INTERVAL = 10000;
-
 /**
  * Hook to fetch phase detail content from HISTORY.md or phase file
- * Polls automatically to keep phase card content updated
+ * Refreshes when phase history updates via SSE
  */
 export function usePhaseDetail(
   projectPath: string | null,
@@ -44,7 +41,6 @@ export function usePhaseDetail(
   const [detail, setDetail] = useState<PhaseDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchDetail = useCallback(async () => {
     if (!projectPath || !phaseNumber) {
@@ -77,28 +73,10 @@ export function usePhaseDetail(
     }
   }, [projectPath, phaseNumber, phaseName]);
 
-  // Initial fetch and polling
+  // Fetch when inputs change
   useEffect(() => {
     fetchDetail();
-
-    // Set up polling (only if we have valid inputs)
-    if (projectPath && phaseNumber) {
-      const poll = () => {
-        pollTimeoutRef.current = setTimeout(async () => {
-          await fetchDetail();
-          poll(); // Schedule next poll
-        }, POLL_INTERVAL);
-      };
-
-      poll();
-    }
-
-    return () => {
-      if (pollTimeoutRef.current) {
-        clearTimeout(pollTimeoutRef.current);
-      }
-    };
-  }, [fetchDetail, projectPath, phaseNumber]);
+  }, [fetchDetail]);
 
   return {
     detail,

@@ -1,5 +1,6 @@
 import { mkdir, writeFile as fsWriteFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { STEP_INDEX_MAP } from '@specflow/shared';
 import { output } from '../../lib/output.js';
 import { readState, writeState, setStateValue } from '../../lib/state.js';
 import {
@@ -140,8 +141,9 @@ async function openExistingPhase(
   state = setStateValue(state, 'orchestration.phase.name', phase.name);
   state = setStateValue(state, 'orchestration.phase.branch', branch);
   state = setStateValue(state, 'orchestration.phase.status', 'in_progress');
+  // Initialize step to 'design' using STEP_INDEX_MAP as source of truth
   state = setStateValue(state, 'orchestration.step.current', 'design');
-  state = setStateValue(state, 'orchestration.step.index', 0);
+  state = setStateValue(state, 'orchestration.step.index', STEP_INDEX_MAP.design);
   state = setStateValue(state, 'orchestration.step.status', 'not_started');
   // Reset step-specific data from previous phase
   state = setStateValue(state, 'orchestration.steps', {});
@@ -219,8 +221,9 @@ async function createHotfixPhase(
   state = setStateValue(state, 'orchestration.phase.name', phaseName);
   state = setStateValue(state, 'orchestration.phase.branch', branch);
   state = setStateValue(state, 'orchestration.phase.status', 'in_progress');
+  // Initialize step to 'design' using STEP_INDEX_MAP as source of truth
   state = setStateValue(state, 'orchestration.step.current', 'design');
-  state = setStateValue(state, 'orchestration.step.index', 0);
+  state = setStateValue(state, 'orchestration.step.index', STEP_INDEX_MAP.design);
   state = setStateValue(state, 'orchestration.step.status', 'not_started');
   // Reset step-specific data from previous phase
   state = setStateValue(state, 'orchestration.steps', {});

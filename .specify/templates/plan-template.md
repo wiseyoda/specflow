@@ -106,3 +106,21 @@ directories captured above]
 | -------------------------- | ------------------ | ------------------------------------ |
 | [e.g., 4th project]        | [current need]     | [why 3 projects insufficient]        |
 | [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient]  |
+
+---
+
+## Memory Promotion Markers
+
+Use these markers to flag content for promotion to memory documents during archive review:
+
+| Marker | Purpose | Example |
+|--------|---------|---------|
+| `[PROMOTE]` | Flag content for memory promotion | `[PROMOTE] This architecture pattern avoids circular deps` |
+| `[MEMORY]` | Same as PROMOTE | `[MEMORY] Always use X over Y for this use case` |
+
+**When to use**:
+- Architectural decisions that should apply to future phases
+- Technology choices that become project standards
+- Patterns or anti-patterns discovered during planning
+
+**What happens**: During `/flow.memory --archive`, marked content is presented for review and can be promoted to constitution.md, tech-stack.md, or coding-standards.md.

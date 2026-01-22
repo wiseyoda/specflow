@@ -22,7 +22,11 @@ import {
   Settings,
   ArrowUpCircle,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
+import { StartOrchestrationModal, type BatchPlanInfo, type PreflightInfo } from '@/components/orchestration/start-orchestration-modal';
+import { useOrchestration } from '@/hooks/use-orchestration';
+import type { OrchestrationConfig } from '@specflow/shared';
 import {
   type ActionDefinition,
   type ProjectStatus,
@@ -43,6 +47,8 @@ export interface ActionsMenuProps {
   projectPath: string;
   /** Current project status */
   projectStatus: ProjectStatus;
+  /** Current phase name/number */
+  phaseName?: string;
   /** Schema version (for migrate action) */
   schemaVersion?: string;
   /** Whether the project path is accessible */
@@ -68,6 +74,7 @@ export function ActionsMenu({
   projectName,
   projectPath,
   projectStatus,
+  phaseName,
   schemaVersion,
   isAvailable,
   hasActiveWorkflow = false,
@@ -87,6 +94,19 @@ export function ActionsMenu({
   const [selectedSkill, setSelectedSkill] = React.useState<WorkflowSkill | null>(null);
   const [showWorkflowDialog, setShowWorkflowDialog] = React.useState(false);
   const [isStartingWorkflow, setIsStartingWorkflow] = React.useState(false);
+
+  // Orchestration modal state
+  const [showOrchestrationModal, setShowOrchestrationModal] = React.useState(false);
+  const [batchPlan, setBatchPlan] = React.useState<BatchPlanInfo | null>(null);
+  const [preflight, setPreflight] = React.useState<PreflightInfo | null>(null);
+  const [isLoadingPlan, setIsLoadingPlan] = React.useState(false);
+  const [planError, setPlanError] = React.useState<string | null>(null);
+  const [isStartingOrchestration, setIsStartingOrchestration] = React.useState(false);
+
+  // Orchestration hook
+  const { start: startOrchestration, error: orchestrationError } = useOrchestration({
+    projectId,
+  });
 
   // Get actions grouped by category
   const actionsByGroup = React.useMemo(
@@ -199,6 +219,54 @@ export function ActionsMenu({
     }
   };
 
+  // Complete Phase handler - fetch batch plan when opening modal
+  const handleCompletePhaseClick = React.useCallback(async () => {
+    setIsOpen(false);
+    setShowOrchestrationModal(true);
+    setIsLoadingPlan(true);
+    setPlanError(null);
+    setBatchPlan(null);
+    setPreflight(null);
+
+    try {
+      const response = await fetch(
+        `/api/workflow/orchestrate/status?projectId=${encodeURIComponent(projectId)}&preview=true`
+      );
+
+      if (!response.ok) {
+        const data = await response.json();
+        if (response.status !== 404) {
+          setPlanError(data.error || 'Failed to load batch plan');
+        }
+      } else {
+        const data = await response.json();
+        if (data.batchPlan) {
+          setBatchPlan(data.batchPlan);
+        }
+        if (data.preflight) {
+          setPreflight(data.preflight);
+        }
+      }
+    } catch (err) {
+      setPlanError(err instanceof Error ? err.message : 'Failed to load batch plan');
+    } finally {
+      setIsLoadingPlan(false);
+    }
+  }, [projectId]);
+
+  // Orchestration confirm handler
+  const handleOrchestrationConfirm = React.useCallback(async (config: OrchestrationConfig) => {
+    setIsStartingOrchestration(true);
+    try {
+      await startOrchestration(config);
+      setShowOrchestrationModal(false);
+    } catch (err) {
+      // Error is handled by useOrchestration
+    } finally {
+      setIsStartingOrchestration(false);
+    }
+  }, [startOrchestration]);
+
   return (
     <>
       <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
@@ -212,7 +280,22 @@ export function ActionsMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          {/* Workflow skill picker at top */}
+          {/* Complete Phase - Primary action */}
+          {projectStatus === 'ready' && (
+            <>
+              <DropdownMenuItem
+                onClick={handleCompletePhaseClick}
+                disabled={hasActiveWorkflow || isExecuting}
+                className="cursor-pointer bg-gradient-to-r from-accent/20 to-purple-500/20 hover:from-accent/30 hover:to-purple-500/30 border border-accent/30 rounded-md my-1 mx-1"
+              >
+                <Sparkles className="mr-2 h-4 w-4 text-accent" />
+                <span className="font-medium text-accent-light">Complete Phase</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+
+          {/* Workflow skill picker */}
           {projectStatus === 'ready' && onWorkflowStart && (
             <>
               <WorkflowSkillPicker
@@ -291,6 +374,20 @@ export function ActionsMenu({
         projectName={projectName}
         onConfirm={handleWorkflowConfirm}
         isLoading={isStartingWorkflow}
+      />
+
+      {/* Orchestration modal */}
+      <StartOrchestrationModal
+        open={showOrchestrationModal}
+        onOpenChange={setShowOrchestrationModal}
+        projectName={projectName}
+        phaseName={phaseName ?? 'Current Phase'}
+        batchPlan={batchPlan}
+        preflight={preflight}
+        isLoadingPlan={isLoadingPlan}
+        planError={planError || orchestrationError}
+        onConfirm={handleOrchestrationConfirm}
+        isStarting={isStartingOrchestration}
       />
     </>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useUnifiedData } from '@/contexts/unified-data-context';
 
 export type PhaseStatus = 'not_started' | 'in_progress' | 'complete' | 'awaiting_user' | 'blocked';
 
@@ -32,8 +33,16 @@ interface UsePhaseHistoryResult {
 
 /**
  * Hook to fetch phase history from ROADMAP.md
+ * Uses SSE via unified data context for real-time updates
+ *
+ * @param projectId - Project UUID for SSE context lookups
+ * @param projectPath - Project filesystem path for API fallback
  */
-export function usePhaseHistory(projectPath: string | null): UsePhaseHistoryResult {
+export function usePhaseHistory(
+  projectId: string | null,
+  projectPath: string | null
+): UsePhaseHistoryResult {
+  const { phases: contextPhases } = useUnifiedData();
   const [phases, setPhases] = useState<Phase[]>([]);
   const [activePhase, setActivePhase] = useState<Phase | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -73,9 +82,21 @@ export function usePhaseHistory(projectPath: string | null): UsePhaseHistoryResu
     }
   }, [projectPath]);
 
+  // Initial fetch
   useEffect(() => {
     fetchPhases();
   }, [fetchPhases]);
+
+  // Update from SSE context when phases change
+  useEffect(() => {
+    if (projectId && contextPhases.has(projectId)) {
+      const data = contextPhases.get(projectId);
+      if (data) {
+        setPhases(data.phases || []);
+        setActivePhase(data.activePhase || null);
+      }
+    }
+  }, [projectId, contextPhases]);
 
   return {
     phases,

@@ -19,6 +19,7 @@ $ARGUMENTS
 | `--promote` | Scan completed specs for decisions to promote |
 | `--deep` | Full codebase pattern scan (slower) |
 | `--archive <phase\|all>` | Review archived phase(s) for memory promotion |
+| `--archive <phase\|all> --delete` | Review AND delete archives after promotion |
 
 ## Prerequisites
 
@@ -319,8 +320,18 @@ For approved promotions:
 
 **8.8 Track Review Status**
 
-After processing each phase, update state:
+After processing each phase, update state.
 
+**Initialize parent object if needed:**
+```bash
+# Check if archive_reviews exists, initialize if not
+REVIEWS=$(specflow state get memory.archive_reviews 2>/dev/null)
+if [[ -z "$REVIEWS" || "$REVIEWS" == "null" ]]; then
+  specflow state set memory.archive_reviews='{}'
+fi
+```
+
+**Then record the review:**
 ```bash
 specflow state set memory.archive_reviews.NNNN='{"reviewed_at":"2026-01-18","promotions":["P001","P003"],"skipped":["P002"]}'
 ```
@@ -344,20 +355,32 @@ This prevents re-reviewing the same archives.
 | P002 | 0042 | coding-standards.md | Error handling pattern | Skipped (exists) |
 ```
 
-**8.10 Delete Reviewed Archives**
+**8.10 Archive Disposition**
 
-After successful review and tracking, delete the archive directory:
+Archive deletion is controlled by the `--delete` flag:
 
+**If `--delete` flag is set:**
 ```bash
-rm -rf .specify/archive/NNNN-*/
+# Safety checks before deletion
+if specflow state get memory.archive_reviews.NNNN | grep -q reviewed_at; then
+  rm -rf .specify/archive/NNNN-*/
+  echo "Deleted archive for phase NNNN"
+fi
 ```
 
-**Safety checks before deletion**:
+**If `--delete` flag is NOT set (default):**
+- Archive is preserved in `.specify/archive/`
+- Mark as reviewed in state but do not delete
+- `/flow.merge` handles current phase archive deletion separately
+
+**Safety checks before any deletion**:
 - Confirm review status was successfully written to state
 - Verify any promotions were successfully applied to memory docs
 - Log deletion for audit trail in report
 
-This ensures archives don't accumulate after their knowledge has been extracted/reviewed.
+**Ownership clarification**:
+- `/flow.memory --archive` reviews ANY phase, deletes only with `--delete`
+- `/flow.merge` owns deletion of CURRENT phase archive after merge
 
 ### 9. Generate Report (standard mode)
 

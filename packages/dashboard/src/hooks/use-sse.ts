@@ -7,6 +7,7 @@ import type {
   OrchestrationState,
   TasksData,
   WorkflowData,
+  PhasesData,
 } from '@specflow/shared';
 
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
@@ -16,6 +17,7 @@ interface SSEState {
   states: Map<string, OrchestrationState>;
   tasks: Map<string, TasksData>;
   workflows: Map<string, WorkflowData>;
+  phases: Map<string, PhasesData>;
   connectionStatus: ConnectionStatus;
   error: Error | null;
 }
@@ -32,6 +34,7 @@ export function useSSE(): SSEResult {
   const [states, setStates] = useState<Map<string, OrchestrationState>>(new Map());
   const [tasks, setTasks] = useState<Map<string, TasksData>>(new Map());
   const [workflows, setWorkflows] = useState<Map<string, WorkflowData>>(new Map());
+  const [phases, setPhases] = useState<Map<string, PhasesData>>(new Map());
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [error, setError] = useState<Error | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -95,6 +98,14 @@ export function useSSE(): SSEResult {
             });
             break;
 
+          case 'phases':
+            setPhases((prev) => {
+              const next = new Map(prev);
+              next.set(data.projectId, data.data);
+              return next;
+            });
+            break;
+
           case 'heartbeat':
             // Heartbeat received - connection is alive
             break;
@@ -151,6 +162,7 @@ export function useSSE(): SSEResult {
     states,
     tasks,
     workflows,
+    phases,
     connectionStatus,
     error,
     refetch,

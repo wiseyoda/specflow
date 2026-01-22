@@ -24,6 +24,10 @@ import {
   type ProcessHealthResult,
 } from './process-health';
 import { WorkflowExecutionSchema, type WorkflowExecution } from './workflow-service';
+import {
+  OrchestrationExecutionSchema,
+  type OrchestrationExecution,
+} from '@specflow/shared';
 
 // Track reconciliation state
 let reconciliationDone = false;
@@ -52,6 +56,8 @@ export interface ReconciliationResult {
   projectsChecked: number;
   workflowsChecked: number;
   workflowsUpdated: number;
+  orchestrationsChecked: number;
+  orchestrationsUpdated: number;
   orphansFound: number;
   orphansKilled: number;
   errors: string[];
@@ -119,6 +125,71 @@ function loadProjectWorkflows(projectPath: string): WorkflowExecution[] {
   }
 
   return executions;
+}
+
+/**
+ * Load all orchestration executions for a project (T056)
+ */
+function loadProjectOrchestrations(projectPath: string): OrchestrationExecution[] {
+  const workflowDir = join(projectPath, '.specflow', 'workflows');
+  const executions: OrchestrationExecution[] = [];
+
+  if (!existsSync(workflowDir)) {
+    return [];
+  }
+
+  try {
+    const files = readdirSync(workflowDir).filter(
+      (f) => f.startsWith('orchestration-') && f.endsWith('.json')
+    );
+
+    for (const file of files) {
+      try {
+        const content = readFileSync(join(workflowDir, file), 'utf-8');
+        executions.push(OrchestrationExecutionSchema.parse(JSON.parse(content)));
+      } catch {
+        // Skip invalid files
+      }
+    }
+  } catch {
+    // Directory doesn't exist or can't be read
+  }
+
+  return executions;
+}
+
+/**
+ * Get the current linked workflow execution ID for an orchestration
+ */
+function getCurrentLinkedWorkflowId(orchestration: OrchestrationExecution): string | undefined {
+  const { executions, currentPhase, batches } = orchestration;
+
+  switch (currentPhase) {
+    case 'design':
+      return executions.design;
+    case 'analyze':
+      return executions.analyze;
+    case 'implement':
+      // Get the current batch's workflow execution
+      const currentBatch = batches.items[batches.current];
+      return currentBatch?.workflowExecutionId;
+    case 'verify':
+      return executions.verify;
+    case 'merge':
+      return executions.merge;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Save an orchestration execution
+ */
+function saveOrchestration(execution: OrchestrationExecution, projectPath: string): void {
+  const workflowDir = join(projectPath, '.specflow', 'workflows');
+  mkdirSync(workflowDir, { recursive: true });
+  const filePath = join(workflowDir, `orchestration-${execution.id}.json`);
+  writeFileSync(filePath, JSON.stringify(execution, null, 2));
 }
 
 /**
@@ -233,6 +304,8 @@ export async function reconcileWorkflows(): Promise<ReconciliationResult> {
     projectsChecked: 0,
     workflowsChecked: 0,
     workflowsUpdated: 0,
+    orchestrationsChecked: 0,
+    orchestrationsUpdated: 0,
     orphansFound: 0,
     orphansKilled: 0,
     errors: [],
@@ -276,6 +349,63 @@ export async function reconcileWorkflows(): Promise<ReconciliationResult> {
         if (updated) {
           saveWorkflow(workflow, project.path);
           result.workflowsUpdated++;
+        }
+      }
+
+      // Phase 1b: Check orchestration health (T056, T057)
+      const orchestrations = loadProjectOrchestrations(project.path);
+      for (const orchestration of orchestrations) {
+        // Only check active orchestrations
+        if (!['running', 'paused', 'waiting_merge'].includes(orchestration.status)) {
+          continue;
+        }
+
+        result.orchestrationsChecked++;
+        let updated = false;
+
+        // Check if linked workflow executions are still alive
+        const currentWorkflowId = getCurrentLinkedWorkflowId(orchestration);
+        if (currentWorkflowId) {
+          // Find the workflow execution
+          const workflows = loadProjectWorkflows(project.path);
+          const linkedWorkflow = workflows.find(
+            (w) => w.id === currentWorkflowId || w.sessionId === currentWorkflowId
+          );
+
+          if (linkedWorkflow) {
+            // If workflow is failed/cancelled, orchestration should reflect that
+            if (linkedWorkflow.status === 'failed' || linkedWorkflow.status === 'cancelled') {
+              orchestration.status = 'failed';
+              orchestration.errorMessage = `Linked workflow ${linkedWorkflow.status}: ${linkedWorkflow.error || 'Unknown error'}`;
+              orchestration.updatedAt = new Date().toISOString();
+              orchestration.decisionLog.push({
+                timestamp: new Date().toISOString(),
+                decision: 'reconcile_failed',
+                reason: `Workflow ${linkedWorkflow.status} detected on startup`,
+              });
+              updated = true;
+            }
+          }
+        }
+
+        // If orchestration has been running for too long without updates, mark as failed
+        const lastUpdateAge = Date.now() - new Date(orchestration.updatedAt).getTime();
+        const MAX_ORCHESTRATION_AGE_MS = 4 * 60 * 60 * 1000; // 4 hours
+        if (orchestration.status === 'running' && lastUpdateAge > MAX_ORCHESTRATION_AGE_MS) {
+          orchestration.status = 'failed';
+          orchestration.errorMessage = 'Orchestration stale (no updates in 4+ hours)';
+          orchestration.updatedAt = new Date().toISOString();
+          orchestration.decisionLog.push({
+            timestamp: new Date().toISOString(),
+            decision: 'reconcile_stale',
+            reason: 'No updates in 4+ hours, marking as failed',
+          });
+          updated = true;
+        }
+
+        if (updated) {
+          saveOrchestration(orchestration, project.path);
+          result.orchestrationsUpdated++;
         }
       }
     } catch (err) {

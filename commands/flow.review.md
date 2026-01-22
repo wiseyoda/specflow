@@ -21,10 +21,21 @@ $ARGUMENTS
 Arguments:
 - Empty: Run full interactive review with category-by-category approval
 - `--dry-run`: Generate findings without creating phase (preview mode)
-- `--categories <list>`: Review only specified categories (comma-separated: BP,RF,HD,MF,OC,OE,OD)
+- `--categories <list>`: Review only specified categories (comma-separated: BP,RF,HD,MF,OC,OE,OD,SC,UI)
 - `--fix`: Auto-approve findings with effort ≤4, defer effort=5 items, then auto-run `/flow.orchestrate`
 
 You **MUST** consider the user input before proceeding (if not empty).
+
+**Note**: Use `specflow` directly, NOT `npx specflow`. It's a local CLI at `~/.claude/specflow-system/bin/`.
+
+## Prerequisites
+
+| Requirement | Check Command | If Missing |
+|-------------|---------------|------------|
+| ROADMAP.md exists | `cat ROADMAP.md` | Run `/flow.roadmap` |
+| Constitution | `.specify/memory/constitution.md` | Run `/flow.init` |
+| Codebase to review | `ls -la` | Need code to review |
+| Git repo | `git status` | Initialize git repo |
 
 ## Goal
 
@@ -57,6 +68,8 @@ This is a **refinement** workflow focused on:
 | OC | Orphaned Code | Unused exports, dead code, unreferenced files |
 | OE | Over-Engineering | Excessive abstraction, unused flexibility, premature optimization |
 | OD | Outdated Docs | Stale comments, README mismatches, incorrect examples |
+| SC | Spec Compliance | Implementation doesn't match spec.md requirements (if phase artifacts exist) |
+| UI | UI Compliance | UI doesn't match ui-design.md mockups (if ui-design.md exists) |
 
 ## Rating Scales (1-5)
 
@@ -72,11 +85,31 @@ This is a **refinement** workflow focused on:
 
 ## Execution Flow
 
+### Step 0: Create Todo List
+
+**Create todo list immediately (use TodoWrite):**
+
+1. [REVIEW] INITIALIZE - Get project status and create review ID
+2. [REVIEW] CONTEXT - Load memory and phase documents
+3. [REVIEW] SCAN - Run 9 category scans in parallel
+4. [REVIEW] APPROVE - Get user approval for each category
+5. [REVIEW] DOCUMENT - Write review document
+6. [REVIEW] PHASE - Create phase and defer items
+7. [REVIEW] COMPLETE - Summary and next steps
+
+Set [REVIEW] INITIALIZE to in_progress.
+
 ### Step 1: Initialize Review Context
 
 **Get project status:**
 ```bash
 specflow status --json
+```
+
+**Extract key values** (if reviewing a specific phase):
+```bash
+PHASE_NUMBER=$(... | jq -r '.phase.number')     # e.g., "0060"
+FEATURE_DIR=$(... | jq -r '.context.featureDir') # e.g., /path/to/project/specs/0060-github-integration
 ```
 
 Verify:
@@ -85,6 +118,8 @@ Verify:
 
 **Create reviews directory** if needed and generate review ID:
 - Format: `review-YYYYMMDD-HHMMSS` (e.g., `review-20260111-143025`)
+
+Use TodoWrite: mark [REVIEW] INITIALIZE complete, mark [REVIEW] CONTEXT in_progress.
 
 ---
 
@@ -100,13 +135,42 @@ Read memory documents to understand project standards:
 - `.specify/memory/tech-stack.md` - Approved technologies
 - `.specify/memory/testing-strategy.md` - Testing requirements
 
+**If reviewing a specific phase** (phase artifacts exist):
+
+Load phase artifacts to verify implementation matches intent:
+- `.specify/phases/${PHASE_NUMBER}-*.md` - **Phase goals (source of truth)**
+- `${FEATURE_DIR}/spec.md` - Requirements and acceptance criteria
+- `${FEATURE_DIR}/ui-design.md` (if exists) - UI component specifications
+
+Where `FEATURE_DIR` = `specs/NNNN-name/` from `context.featureDir` in status output.
+
 Use these documents as the baseline for evaluating findings.
+
+Use TodoWrite: mark [REVIEW] CONTEXT complete, mark [REVIEW] SCAN in_progress.
 
 ---
 
-### Step 3: Systematic Codebase Scan
+### Step 3: Systematic Codebase Scan (Parallel)
 
-For each category, scan the relevant files in the codebase.
+**Use parallel sub-agents** to scan all 9 categories simultaneously:
+
+```
+Launch 9 parallel Task agents (subagent_type: Explore):
+
+Agent BP: Best Practices - anti-patterns, inconsistent naming, error codes
+Agent RF: Refactoring - functions >100 lines, deep nesting, duplication
+Agent HD: Hardening - unvalidated inputs, missing error handling, security
+Agent MF: Missing Features - TODOs, FIXMEs, stubs, incomplete implementations
+Agent OC: Orphaned Code - unused functions, unreferenced files, dead code
+Agent OE: Over-Engineering - unused abstractions, premature optimization
+Agent OD: Outdated Docs - README mismatches, stale comments
+Agent SC: Spec Compliance - implementation vs spec.md requirements
+Agent UI: UI Compliance - implementation vs ui-design.md mockups
+```
+
+**Expected speedup**: 9x faster (all categories scanned in parallel)
+
+Each agent returns: `{category: "BP", findings: [{id, file, lines, problem, fix, effort, impact, severity}]}`
 
 **Category-specific scan focus:**
 
@@ -119,6 +183,16 @@ For each category, scan the relevant files in the codebase.
 | OC | Unused functions, unreferenced files, dead code paths, commented-out code blocks |
 | OE | Unused abstractions, over-parameterized functions, premature optimization, excessive indirection |
 | OD | README doesn't match implementation, stale comments, incorrect usage examples |
+
+**Phase-specific checks (if phase artifacts loaded):**
+
+| Check | What to Look For |
+|-------|------------------|
+| **Spec Compliance** | Implementation doesn't match spec.md requirements; missing acceptance criteria; functional requirements not implemented |
+| **UI Design Compliance** | UI doesn't match ui-design.md mockups; missing components from inventory; interactions not working as specified |
+| **Phase Goal Drift** | Implementation diverged from original phase goals; scope creep; goals not achieved |
+
+**Aggregate findings** from all 9 agents, assign IDs (BP001, RF001, etc.), cross-reference related items.
 
 **For each finding, capture:**
 
@@ -142,6 +216,8 @@ For each category, scan the relevant files in the codebase.
 
 **Finding ID format:** `{CATEGORY_CODE}{NNN}` (e.g., BP001, RF003, HD012)
 
+Use TodoWrite: mark [REVIEW] SCAN complete, mark [REVIEW] APPROVE in_progress.
+
 ---
 
 ### Step 4: Category Approval
@@ -151,7 +227,20 @@ For each category, scan the relevant files in the codebase.
 
 #### AUTO-APPROVE Mode (--fix)
 
-Auto-triage by effort:
+**CRITICAL: Check for Severity 5 (Blocking) findings first:**
+
+```bash
+# Scan all findings for severity: 5
+BLOCKING=$(echo "$FINDINGS" | grep -c '"severity": 5' || echo 0)
+```
+
+**If ANY findings have Severity=5:**
+- Display all Severity=5 findings with full context
+- Output: "Cannot auto-approve - {N} BLOCKING findings detected"
+- Switch to INTERACTIVE mode for user approval
+- User must explicitly handle each blocking finding (approve or defer)
+
+**If no Severity=5 findings, auto-triage by effort:**
 - **Effort ≤4**: Approve (anything under "major" effort)
 - **Effort 5**: Defer to backlog (major tasks)
 
@@ -194,11 +283,26 @@ Ask for approval:
 
 Track decisions: `approved = ["BP001", "BP003", ...]`, `deferred = ["BP002", ...]`
 
+Use TodoWrite: mark [REVIEW] APPROVE complete, mark [REVIEW] DOCUMENT in_progress.
+
 ---
 
-### Step 5: Write Review Document
+### Step 5: Write Review Document (Parallel)
 
 Create review file at `.specify/reviews/review-YYYYMMDD-HHMMSS.md`:
+
+**Use parallel sub-agents** to assemble document sections simultaneously:
+
+```
+Launch 4 parallel Task agents:
+
+Agent 1 (Summary): Build header, executive summary, summary table
+Agent 2 (Approved): Format all approved findings in detailed format
+Agent 3 (Deferred): Format all deferred findings with rationale
+Agent 4 (Guidance): Build implementation guidance, patterns, verification commands
+```
+
+**Expected speedup**: 4x faster document assembly
 
 **Document sections:**
 
@@ -209,6 +313,8 @@ Create review file at `.specify/reviews/review-YYYYMMDD-HHMMSS.md`:
 5. **Deferred Findings** (with rationale for deferral)
 6. **Implementation Guidance** (agent-ready reference)
 7. **Cross-references**: Phase number, backlog items, related memory docs
+
+**Assemble** sections from all 4 agents in order: Summary → Approved → Deferred → Guidance
 
 **Approved Finding Format** (use for each finding):
 
@@ -313,6 +419,8 @@ Recommended order based on dependencies and risk:
 3. ...
 ```
 
+Use TodoWrite: mark [REVIEW] DOCUMENT complete, mark [REVIEW] PHASE in_progress.
+
 ---
 
 ### Step 6: Create Phase (if approved findings exist)
@@ -343,6 +451,8 @@ Or batch multiple items:
 specflow phase defer "BP002: Missing function docs" "RF005: Complex validation logic"
 ```
 
+Use TodoWrite: mark [REVIEW] PHASE complete, mark [REVIEW] COMPLETE in_progress.
+
 ---
 
 ### Step 8: Summary Output
@@ -367,6 +477,8 @@ Next Steps:
   1. Run /flow.orchestrate to build spec/plan/tasks
   2. Review generated tasks before implementation
 ```
+
+Use TodoWrite: mark [REVIEW] COMPLETE complete.
 
 ---
 
@@ -424,6 +536,37 @@ This command **MUST NOT**:
 - Group related findings and cross-reference common patterns
 - Prioritize constitution violations (always CRITICAL)
 - The review document must be self-contained for implementation (no re-discovery needed)
+
+---
+
+## Parallel Agent Coordination
+
+When launching parallel agents (category scans, document assembly):
+
+**1. Pre-launch**:
+- Load memory documents and phase artifacts BEFORE launching scan agents
+- Verify spec.md exists for SC category, ui-design.md for UI category
+- Skip SC/UI agents if corresponding artifacts don't exist
+
+**2. Execution**:
+- Launch all 9 category scan agents simultaneously
+- Set timeout: 180 seconds per scan agent (codebase scans take longer)
+- Launch 4 document assembly agents after scans complete
+
+**3. Synchronization**:
+- Wait for ALL scan agents before starting document assembly
+- Wait for ALL assembly agents before writing final document
+
+**4. Result aggregation**:
+- Collect findings from all 9 scan agents
+- Deduplicate: Same file:line reported by multiple categories → keep highest severity
+- Cross-reference: Link related findings (e.g., RF001 relates to OC003)
+- Assemble document sections in order: Summary → Approved → Deferred → Guidance
+
+**5. Error handling**:
+- 1 scan agent fails: Continue, note category as "scan incomplete"
+- SC/UI agent fails when artifacts exist: Log error, exclude from findings
+- >50% scan agents fail: Abort review, report "Parallel scan failed"
 
 ---
 

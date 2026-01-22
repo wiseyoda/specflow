@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input"
 import {
   Terminal,
   Loader2,
+  Layers,
+  Play,
 } from "lucide-react"
 import type { CommandList as CommandListType } from "@specflow/shared"
 import { OutputDrawer, type OutputLine } from "@/components/output-drawer"
@@ -22,12 +24,50 @@ import { useConnection } from "@/contexts/connection-context"
 import { cn } from "@/lib/utils"
 import { isGlobalCommand } from "@/lib/allowed-commands"
 
+// Quick actions that trigger special behaviors (not CLI commands)
+interface QuickAction {
+  id: string
+  label: string
+  description: string
+  icon: typeof Layers
+  requiresProject: boolean
+  action: (projectId: string | undefined, projectName: string | undefined) => void
+}
+
+// Event bus for triggering orchestration modal from command palette
+export const commandPaletteEvents = {
+  listeners: new Set<(projectId: string) => void>(),
+  onCompletePhase(listener: (projectId: string) => void) {
+    this.listeners.add(listener)
+    return () => { this.listeners.delete(listener) }
+  },
+  triggerCompletePhase(projectId: string) {
+    this.listeners.forEach(fn => fn(projectId))
+  },
+}
+
 interface CommandHistoryEntry {
   id: string
   command: string
   timestamp: string
   status: "completed" | "failed"
 }
+
+// Define quick actions
+const quickActions: QuickAction[] = [
+  {
+    id: 'complete-phase',
+    label: 'Complete Phase',
+    description: 'Automatically execute all steps to complete the current phase',
+    icon: Layers,
+    requiresProject: true,
+    action: (projectId) => {
+      if (projectId) {
+        commandPaletteEvents.triggerCompletePhase(projectId)
+      }
+    },
+  },
+]
 
 export function CommandPalette() {
   const { selectedProject } = useConnection()
@@ -215,6 +255,17 @@ export function CommandPalette() {
     }
   }, [selectedProject])
 
+  // Get matching quick actions based on input
+  const getMatchingQuickActions = (): QuickAction[] => {
+    if (!inputValue.trim()) return quickActions // Show all if empty
+
+    const input = inputValue.toLowerCase().trim()
+    return quickActions.filter(action =>
+      action.label.toLowerCase().includes(input) ||
+      action.description.toLowerCase().includes(input)
+    )
+  }
+
   // Get suggestions based on input
   const getSuggestions = (): string[] => {
     if (!commands || !inputValue.trim()) return []
@@ -249,6 +300,17 @@ export function CommandPalette() {
   }
 
   const suggestions = getSuggestions()
+  const matchingQuickActions = getMatchingQuickActions()
+
+  // Execute a quick action
+  const executeQuickAction = useCallback((action: QuickAction) => {
+    if (action.requiresProject && !selectedProject) {
+      toastCommandError(action.label, "Select a project first")
+      return
+    }
+    setOpen(false)
+    action.action(selectedProject?.id, selectedProject?.name)
+  }, [selectedProject])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
@@ -331,41 +393,129 @@ export function CommandPalette() {
             <div className="p-4 text-center text-red-500 text-sm">
               {commandError}
             </div>
-          ) : suggestions.length > 0 ? (
-            <div className="p-2 max-h-[200px] overflow-y-auto">
-              {suggestions.map((suggestion, index) => (
-                <button
-                  key={suggestion}
-                  onClick={() => handleSuggestionClick(suggestion)}
-                  className={cn(
-                    "w-full text-left px-3 py-2 rounded text-sm font-mono flex items-center gap-2",
-                    index === selectedIndex
-                      ? "bg-neutral-100 dark:bg-neutral-800"
-                      : "hover:bg-neutral-50 dark:hover:bg-neutral-900"
+          ) : (suggestions.length > 0 || matchingQuickActions.length > 0) ? (
+            <div className="p-2 max-h-[280px] overflow-y-auto">
+              {/* Quick Actions Section */}
+              {matchingQuickActions.length > 0 && (
+                <>
+                  <div className="px-3 py-1.5 text-[10px] font-medium text-neutral-400 uppercase tracking-wider">
+                    Quick Actions
+                  </div>
+                  {matchingQuickActions.map((action) => {
+                    const Icon = action.icon
+                    return (
+                      <button
+                        key={action.id}
+                        onClick={() => executeQuickAction(action)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded text-sm flex items-center gap-3",
+                          "hover:bg-purple-50 dark:hover:bg-purple-900/20",
+                          "border border-transparent hover:border-purple-200 dark:hover:border-purple-800"
+                        )}
+                      >
+                        <div className="h-7 w-7 rounded-md bg-gradient-to-br from-purple-500/20 to-purple-600/20 flex items-center justify-center">
+                          <Icon className="h-4 w-4 text-purple-500" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium text-neutral-900 dark:text-neutral-100">
+                            {action.label}
+                            {selectedProject && (
+                              <span className="ml-1 text-neutral-500 font-normal">
+                                for {selectedProject.name}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-neutral-500">{action.description}</div>
+                        </div>
+                        <Play className="h-3 w-3 text-neutral-400" />
+                      </button>
+                    )
+                  })}
+                </>
+              )}
+
+              {/* CLI Commands Section */}
+              {suggestions.length > 0 && (
+                <>
+                  {matchingQuickActions.length > 0 && (
+                    <div className="px-3 py-1.5 text-[10px] font-medium text-neutral-400 uppercase tracking-wider mt-2">
+                      CLI Commands
+                    </div>
                   )}
-                >
-                  <Terminal className="h-3 w-3 text-neutral-400" />
-                  <span>{suggestion}</span>
-                  {index === selectedIndex && (
-                    <span className="ml-auto text-xs text-neutral-400">Tab to complete</span>
-                  )}
-                </button>
-              ))}
+                  {suggestions.map((suggestion, index) => (
+                    <button
+                      key={suggestion}
+                      onClick={() => handleSuggestionClick(suggestion)}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded text-sm font-mono flex items-center gap-2",
+                        index === selectedIndex
+                          ? "bg-neutral-100 dark:bg-neutral-800"
+                          : "hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                      )}
+                    >
+                      <Terminal className="h-3 w-3 text-neutral-400" />
+                      <span>{suggestion}</span>
+                      {index === selectedIndex && (
+                        <span className="ml-auto text-xs text-neutral-400">Tab to complete</span>
+                      )}
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
           ) : inputValue.trim() ? (
             <div className="p-4 text-center text-neutral-500 text-sm">
               Press Enter to run: <code className="bg-neutral-100 dark:bg-neutral-800 px-1 rounded">specflow {inputValue}</code>
             </div>
           ) : (
-            <div className="p-4 text-sm text-neutral-500">
-              <p className="mb-2">Type a command and press <kbd className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded text-xs">Enter</kbd> to run</p>
-              <p className="text-xs">
-                <kbd className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">Tab</kbd> autocomplete
-                {" · "}
-                <kbd className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">↑↓</kbd> navigate
-                {" · "}
-                <kbd className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">Esc</kbd> close
-              </p>
+            <div className="p-2 max-h-[280px] overflow-y-auto">
+              {/* Show quick actions when input is empty */}
+              <div className="px-3 py-1.5 text-[10px] font-medium text-neutral-400 uppercase tracking-wider">
+                Quick Actions
+              </div>
+              {quickActions.map((action) => {
+                const Icon = action.icon
+                return (
+                  <button
+                    key={action.id}
+                    onClick={() => executeQuickAction(action)}
+                    className={cn(
+                      "w-full text-left px-3 py-2 rounded text-sm flex items-center gap-3",
+                      "hover:bg-purple-50 dark:hover:bg-purple-900/20",
+                      "border border-transparent hover:border-purple-200 dark:hover:border-purple-800"
+                    )}
+                  >
+                    <div className="h-7 w-7 rounded-md bg-gradient-to-br from-purple-500/20 to-purple-600/20 flex items-center justify-center">
+                      <Icon className="h-4 w-4 text-purple-500" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-neutral-900 dark:text-neutral-100">
+                        {action.label}
+                        {selectedProject && (
+                          <span className="ml-1 text-neutral-500 font-normal">
+                            for {selectedProject.name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-neutral-500">{action.description}</div>
+                    </div>
+                    <Play className="h-3 w-3 text-neutral-400" />
+                  </button>
+                )
+              })}
+
+              <div className="mt-3 px-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
+                <p className="text-xs text-neutral-500">
+                  Type a command and press <kbd className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">Enter</kbd> to run
+                </p>
+                <p className="text-xs text-neutral-400 mt-1">
+                  <kbd className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">Tab</kbd> autocomplete
+                  {" · "}
+                  <kbd className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">↑↓</kbd> navigate
+                  {" · "}
+                  <kbd className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">Esc</kbd> close
+                </p>
+              </div>
             </div>
           )}
         </DialogContent>

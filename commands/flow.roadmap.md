@@ -4,7 +4,6 @@ handoffs:
   - label: Start First Phase
     agent: flow.orchestrate
     prompt: Begin orchestrated development from the roadmap
-    send: true
 ---
 
 ## User Input

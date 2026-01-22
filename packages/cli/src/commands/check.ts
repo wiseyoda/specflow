@@ -15,7 +15,7 @@ import type { OrchestrationState } from '@specflow/shared';
 /**
  * Gate types
  */
-export type GateType = 'design' | 'implement' | 'verify' | 'memory';
+export type GateType = 'design' | 'specify' | 'implement' | 'verify' | 'memory';
 
 /**
  * Check result for a single gate
@@ -57,6 +57,7 @@ export interface CheckOutput {
   };
   gates: {
     design: GateResult;
+    specify: GateResult;
     implement: GateResult;
     verify: GateResult;
     memory: GateResult;
@@ -102,6 +103,57 @@ async function checkDesignGate(featureDir: string | undefined): Promise<GateResu
   return {
     passed,
     reason: passed ? undefined : 'Missing design artifacts',
+    checks,
+  };
+}
+
+/**
+ * Check specify gate - validates spec.md is complete with goal coverage
+ */
+async function checkSpecifyGate(featureDir: string | undefined): Promise<GateResult> {
+  if (!featureDir) {
+    return {
+      passed: false,
+      reason: 'No active feature',
+      checks: { feature_exists: false },
+    };
+  }
+
+  const checks: Record<string, boolean> = {};
+
+  // Check spec.md exists
+  const specPath = join(featureDir, 'spec.md');
+  checks.spec_exists = pathExists(specPath);
+
+  if (checks.spec_exists) {
+    try {
+      const content = await readFile(specPath, 'utf-8');
+
+      // Check for placeholders
+      const hasPlaceholders = /\b(TODO|TBD|TKTK|\?\?\?|<placeholder>)\b/i.test(content);
+      checks.no_placeholders = !hasPlaceholders;
+
+      // Check for goal coverage matrix (should have a table with goals)
+      const hasGoalMatrix = /\|\s*(Phase\s*)?Goal/i.test(content) ||
+                           /##\s*(Phase\s*)?Goals?\s*Coverage/i.test(content);
+      checks.has_goal_coverage = hasGoalMatrix;
+
+      // Check all goals are at least PARTIAL (not MISSING)
+      const missingGoals = content.match(/\|\s*MISSING\s*\|/gi);
+      checks.no_missing_goals = !missingGoals || missingGoals.length === 0;
+    } catch {
+      checks.spec_readable = false;
+    }
+  }
+
+  const passed = checks.spec_exists &&
+    checks.no_placeholders !== false &&
+    checks.has_goal_coverage !== false &&
+    checks.no_missing_goals !== false;
+
+  return {
+    passed,
+    reason: passed ? undefined : 'Spec incomplete or missing goal coverage',
     checks,
   };
 }
@@ -406,6 +458,10 @@ function determineSuggestedAction(
     return 'run_design';
   }
 
+  if (!gates.specify.passed) {
+    return 'complete_spec';
+  }
+
   if (!gates.implement.passed) {
     return 'complete_tasks';
   }
@@ -432,6 +488,7 @@ async function runCheck(options: {
       summary: { errors: 1, warnings: 0, info: 0 },
       gates: {
         design: { passed: false, reason: 'No project', checks: {} },
+        specify: { passed: false, reason: 'No project', checks: {} },
         implement: { passed: false, reason: 'No project', checks: {} },
         verify: { passed: false, reason: 'No project', checks: {} },
         memory: { passed: false, reason: 'No project', checks: {} },
@@ -458,6 +515,7 @@ async function runCheck(options: {
 
   // Run gate checks
   const designGate = await checkDesignGate(featureDir);
+  const specifyGate = await checkSpecifyGate(featureDir);
   const implementGate = await checkImplementGate(featureDir);
   const verifyGate = await checkVerifyGate(featureDir, implementGate);
   const memoryGate = await checkMemoryGate(projectRoot);
@@ -465,13 +523,14 @@ async function runCheck(options: {
   // If specific gate requested, only check that
   if (options.gate) {
     const gateResult = options.gate === 'design' ? designGate :
+                       options.gate === 'specify' ? specifyGate :
                        options.gate === 'implement' ? implementGate :
                        options.gate === 'memory' ? memoryGate : verifyGate;
 
     return {
       passed: gateResult.passed,
       summary: { errors: gateResult.passed ? 0 : 1, warnings: 0, info: 0 },
-      gates: { design: designGate, implement: implementGate, verify: verifyGate, memory: memoryGate },
+      gates: { design: designGate, specify: specifyGate, implement: implementGate, verify: verifyGate, memory: memoryGate },
       issues: gateResult.passed ? [] : [{
         severity: 'error',
         code: `${options.gate.toUpperCase()}_GATE_FAILED`,
@@ -502,20 +561,21 @@ async function runCheck(options: {
     info: issues.filter(i => i.severity === 'info').length,
   };
 
-  const passed = summary.errors === 0 && designGate.passed && implementGate.passed;
+  const passed = summary.errors === 0 && designGate.passed && specifyGate.passed && implementGate.passed;
 
   const result: CheckOutput = {
     passed,
     summary,
     gates: {
       design: designGate,
+      specify: specifyGate,
       implement: implementGate,
       verify: verifyGate,
       memory: memoryGate,
     },
     issues,
     autoFixableCount: issues.filter(i => i.autoFixable).length,
-    suggestedAction: determineSuggestedAction(issues, { design: designGate, implement: implementGate, verify: verifyGate, memory: memoryGate }),
+    suggestedAction: determineSuggestedAction(issues, { design: designGate, specify: specifyGate, implement: implementGate, verify: verifyGate, memory: memoryGate }),
   };
 
   if (fixed && fixed.length > 0) {

@@ -4,7 +4,6 @@ handoffs:
   - label: Start Next Phase
     agent: specflow.orchestrate
     prompt: Start the next phase
-    send: true
   - label: View Roadmap
     agent: specflow.roadmap
     prompt: Show the roadmap
@@ -19,6 +18,18 @@ $ARGUMENTS
 Arguments:
 - Empty: Close phase, push, create PR, merge, cleanup (default)
 - `--pr-only`: Create PR but don't merge (for review workflow)
+
+**Note**: Use `specflow` directly, NOT `npx specflow`. It's a local CLI at `~/.claude/specflow-system/bin/`.
+
+## Prerequisites
+
+| Requirement | Check Command | If Missing |
+|-------------|---------------|------------|
+| Verification passed | `specflow status --json` → `step.status == complete` | Run `/flow.verify` |
+| On feature branch | `git branch --show-current` (not main) | Switch to phase branch |
+| GitHub CLI installed | `gh --version` | Install with `brew install gh` |
+| Git remote configured | `git remote -v` | Set up git remote |
+| No merge conflicts | `git merge-base main HEAD` | Rebase on main first |
 
 ## Goal
 
@@ -35,12 +46,13 @@ Complete the current phase:
 **Create todo list immediately (use TodoWrite):**
 
 1. [MERGE] PREFLIGHT - Verify branch and uncommitted changes
-2. [MERGE] CLOSE - Close phase via CLI
-3. [MERGE] COMMIT - Commit phase closure
-4. [MERGE] PUSH - Push and create PR
-5. [MERGE] MERGE - Merge PR to main
-6. [MERGE] MEMORY - Integrate archive into memory
-7. [MERGE] DONE - Report completion
+2. [MERGE] VERIFY_GATE - Confirm verification passed
+3. [MERGE] CLOSE - Close phase via CLI
+4. [MERGE] COMMIT - Commit phase closure
+5. [MERGE] PUSH - Push and create PR
+6. [MERGE] MERGE - Merge PR to main
+7. [MERGE] MEMORY - Integrate archive into memory
+8. [MERGE] DONE - Report completion
 
 Set [MERGE] PREFLIGHT to in_progress.
 
@@ -53,6 +65,36 @@ CURRENT_BRANCH=$(git branch --show-current)
 if [[ "$CURRENT_BRANCH" == "main" || "$CURRENT_BRANCH" == "master" ]]; then
   echo "ERROR: Cannot merge from main branch"
   echo "Switch to a feature branch first"
+  exit 1
+fi
+```
+
+**Check for merge conflicts with main:**
+
+```bash
+# Fetch latest main to ensure we have current state
+git fetch origin main
+
+# Check if we can merge cleanly (dry-run)
+if ! git merge-tree $(git merge-base HEAD origin/main) HEAD origin/main | grep -q "^<<<<<<<"; then
+  echo "No merge conflicts detected"
+else
+  echo "ERROR: Merge conflicts detected with main"
+  echo "Run: git rebase origin/main"
+  echo "Resolve conflicts, then retry /flow.merge"
+  exit 1
+fi
+```
+
+**Alternative conflict check** (simpler but requires clean working directory):
+```bash
+# Attempt merge without committing
+git merge --no-commit --no-ff origin/main
+MERGE_STATUS=$?
+git merge --abort 2>/dev/null || true
+
+if [[ $MERGE_STATUS -ne 0 ]]; then
+  echo "ERROR: Merge conflicts detected"
   exit 1
 fi
 ```
@@ -93,9 +135,105 @@ Detect unusual changes by checking if ANY of these apply:
 
 **For normal changes**: Proceed without asking - include all changes in the phase commit.
 
-Use TodoWrite: mark [MERGE] PREFLIGHT complete, mark [MERGE] CLOSE in_progress.
+Use TodoWrite: mark [MERGE] PREFLIGHT complete, mark [MERGE] VERIFY_GATE in_progress.
 
-### 2. Close Phase via CLI
+### 2. Verify Gate Check (REQUIRED, Parallel)
+
+**First, get phase context** (needed for parallel agents):
+
+```bash
+# Get status output to extract phase info for parallel agents
+STATUS=$(specflow status --json)
+PHASE_NUMBER=$(echo "$STATUS" | jq -r '.phase.number')
+PHASE_NAME=$(echo "$STATUS" | jq -r '.phase.name')
+FEATURE_DIR=$(echo "$STATUS" | jq -r '.context.featureDir')
+```
+
+**Use parallel sub-agents** to gather all verification data simultaneously:
+
+```
+Launch 4 parallel Task agents:
+
+Agent 1 (Status): Verify orchestration status
+  - Check step.current == "verified" (from status already obtained)
+  - Check step.status == "complete"
+  → Return: verified status confirmation
+
+Agent 2 (Phase Doc): Load phase document
+  - Read `.specify/phases/${PHASE_NUMBER}-*.md` (PHASE_NUMBER from above)
+  - Extract USER GATE marker and criteria
+  - Extract all phase goals for verification
+  → Return: has_user_gate, gate_criteria, phase_goals
+
+Agent 3 (Gate Check): Verify implementation gate
+  - Run `specflow check --gate implement --json`
+  - Map incomplete tasks to phase goals
+  → Return: gate_passed, incomplete_goals
+
+Agent 4 (Memory Gate): Verify memory compliance
+  - Run `specflow check --gate memory --json`
+  - Check constitution.md exists and has no placeholders
+  → Return: memory_gate_passed, memory_issues
+```
+
+**Expected speedup**: 2x faster (4 parallel checks vs. sequential)
+
+**Aggregate results and validate:**
+
+- If not verified → **BLOCK merge**, instruct user to run `/flow.verify` first
+- If implement gate not passed → **BLOCK merge**, report incomplete goals
+- If memory gate not passed → **BLOCK merge**, report memory issues (constitution violations cannot reach main)
+
+**If USER GATE exists:**
+
+See `.specify/templates/user-gate-guide.md` for the complete USER GATE handling protocol.
+
+First, check if already handled (likely confirmed in `/flow.verify`):
+```bash
+GATE_STATUS=$(specflow state get orchestration.phase.userGateStatus)
+```
+
+If `userGateStatus` is `confirmed` or `skipped`, proceed to Step 3.
+
+**If gate is pending**, use standardized `AskUserQuestion`:
+
+```json
+{
+  "questions": [{
+    "question": "Phase {number} has a USER GATE requiring your verification.\n\nGate Criteria:\n{criteria from phase doc}\n\nHave you verified the implementation meets these criteria?",
+    "header": "User Gate",
+    "options": [
+      {"label": "Yes, verified (Recommended)", "description": "I have tested and confirmed the gate criteria are met"},
+      {"label": "Show details", "description": "Display verification instructions and test steps"},
+      {"label": "Skip gate", "description": "Proceed without user verification (not recommended)"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+**Handle response:**
+
+| Response | Action |
+|----------|--------|
+| **Yes, verified** | `specflow state set orchestration.phase.userGateStatus=confirmed` → Proceed |
+| **Show details** | Display: 1) Gate criteria, 2) Test instructions, 3) Expected behavior → Re-ask |
+| **Skip gate** | `specflow state set orchestration.phase.userGateStatus=skipped` → Proceed (log reason) |
+| **Other (not ready)** | BLOCK merge, instruct to verify and return |
+
+**Verify phase goals were completed:**
+
+Read `.specify/phases/${PHASE_NUMBER}-*.md` (using PHASE_NUMBER from step 2) and check that all goals have corresponding completed tasks:
+
+```bash
+specflow check --gate implement --json
+```
+
+If any tasks are incomplete that map to phase goals, **BLOCK merge** and report which goals are incomplete.
+
+Use TodoWrite: mark [MERGE] VERIFY_GATE complete, mark [MERGE] CLOSE in_progress.
+
+### 3. Close Phase via CLI
 
 Use the `specflow phase close` command to handle all phase closure operations:
 
@@ -119,22 +257,35 @@ PHASE_NAME=$(echo "$PHASE_INFO" | jq -r '.phase.name')
 
 Use TodoWrite: mark [MERGE] CLOSE complete, mark [MERGE] COMMIT in_progress.
 
-### 3. Commit Phase Closure
+### 4. Commit Phase Closure
+
+Stage ALL phase-related changes, not just closure files:
 
 ```bash
-git add ROADMAP.md .specify/
-git commit -m "chore: complete phase $PHASE_NUMBER"
+# Stage all changes from the phase
+# - ROADMAP.md (status update)
+# - .specify/ (state, archive, history)
+# - specs/ (feature specs if not archived)
+# - BACKLOG.md (deferred items)
+# - Any implementation files changed during phase
+
+git add -A  # Stage all changes (tracked and untracked)
+git commit -m "chore: complete phase $PHASE_NUMBER - $PHASE_NAME
+
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 ```
+
+**Why stage all**: The phase includes both closure artifacts AND any uncommitted implementation work. Users running `/flow.merge` expect all phase work to be committed together. Step 1 already handles unusual changes.
 
 Use TodoWrite: mark [MERGE] COMMIT complete, mark [MERGE] PUSH in_progress.
 
-### 4. Push Branch
+### 5. Push Branch
 
 ```bash
 git push -u origin "$CURRENT_BRANCH"
 ```
 
-### 5. Create Pull Request
+### 6. Create Pull Request
 
 **Check for existing PR:**
 
@@ -156,7 +307,7 @@ if [[ -z "$PR_URL" ]]; then
 fi
 ```
 
-### 6. Handle --pr-only
+### 7. Handle --pr-only
 
 ```bash
 if [[ "$ARGUMENTS" == *"--pr-only"* ]]; then
@@ -170,13 +321,13 @@ fi
 
 Use TodoWrite: mark [MERGE] PUSH complete, mark [MERGE] MERGE in_progress.
 
-### 7. Merge PR
+### 8. Merge PR
 
 ```bash
 gh pr merge --squash --delete-branch
 ```
 
-### 8. Switch to Main
+### 9. Switch to Main
 
 ```bash
 git checkout main
@@ -188,7 +339,9 @@ Working directory is now clean on main.
 
 Use TodoWrite: mark [MERGE] MERGE complete, mark [MERGE] MEMORY in_progress.
 
-### 9. Archive Memory Integration
+### 10. Archive Memory Integration
+
+**Ownership**: `/flow.merge` owns deletion of the CURRENT phase archive only. For other phases, use `/flow.memory --archive --delete`.
 
 Now that we're on main with a clean state, run memory archive review for the just-closed phase:
 
@@ -205,9 +358,31 @@ If archive exists, execute `/flow.memory --archive $PHASE_NUMBER` inline. This w
 - Scan the archived phase for promotable content
 - Present findings for user approval
 - Promote approved content to memory docs
-- Delete the archive after successful review
 
-If no promotable content is found, ask user whether to delete the archive or keep for manual review.
+**After review completes**, use `AskUserQuestion` to determine archive disposition:
+
+```json
+{
+  "questions": [{
+    "question": "Archive review complete. What should we do with the archive?",
+    "header": "Archive",
+    "options": [
+      {"label": "Delete archive (Recommended)", "description": "Archive is in git history if needed later"},
+      {"label": "Keep archive", "description": "Preserve for manual review"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+**Handle response:**
+- **Delete archive**:
+  ```bash
+  rm -rf .specify/archive/${PHASE_NUMBER}-*/
+  echo "Deleted archive for phase $PHASE_NUMBER (current phase only)"
+  ```
+- **Keep archive**: Leave in place, log that archive was preserved
+  - User can run `/flow.memory --archive $PHASE_NUMBER --delete` later
 
 After memory integration completes, commit any changes:
 ```bash
@@ -220,7 +395,7 @@ fi
 
 Use TodoWrite: mark [MERGE] MEMORY complete, mark [MERGE] DONE in_progress.
 
-### 10. Done
+### 11. Done
 
 ```text
 ✓ Closed phase $PHASE_NUMBER

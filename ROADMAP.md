@@ -59,7 +59,8 @@ This allows inserting urgent work without renumbering existing phases.
 | 1052 | Session Viewer | ✅ Complete | **USER GATE**: View session JSONL, real-time streaming |
 | 1053 | Workflow-Session Unification | ✅ Complete | **USER GATE**: Session detected immediately on workflow start |
 | 1054 | Project Details Redesign | ✅ Complete | **USER GATE**: New UI matches v3 mockup, all states work |
-| 1055  | Smart Batching & Orchestration    | ⬜ Not Started | **USER GATE**: Auto-batch tasks, state machine, auto-healing       |
+| 1055 | Smart Batching & Orchestration | ✅ Complete | **USER GATE**: Auto-batch tasks, state machine, auto-healing |
+| 1056 | JSONL Watcher (Push Updates) | ⬜ Not Started | **USER GATE**: SSE-based instant updates, no polling delay |
 | 1060  | Stats & Operations                | ⬜ Not Started | **USER GATE**: Costs on cards, operations page, basic chart        |
 | 1070  | Cost Analytics                    | ⬜ Not Started | **USER GATE**: Advanced charts, projections, export                |
 
@@ -108,6 +109,7 @@ specflow phase list --complete
 | **Gate 6.6** | 1053  | Session detected immediately when workflow starts, history viewable   |
 | **Gate 6.7** | 1054  | New project details UI matches v3 mockup, all workflow states work    |
 | **Gate 7**   | 1055  | Auto-batching works, state machine transitions, auto-healing attempts |
+| **Gate 7.5** | 1056  | Session updates within 500ms, questions appear instantly, SSE works   |
 | **Gate 8**   | 1060  | Costs on cards, session history, basic chart, operations page         |
 | **Gate 9**   | 1070  | Advanced charts, projections, CSV/JSON export                         |
 

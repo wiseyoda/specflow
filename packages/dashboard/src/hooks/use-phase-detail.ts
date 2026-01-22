@@ -31,6 +31,7 @@ interface UsePhaseDetailResult {
 
 /**
  * Hook to fetch phase detail content from HISTORY.md or phase file
+ * Refreshes when phase history updates via SSE
  */
 export function usePhaseDetail(
   projectPath: string | null,
@@ -72,6 +73,7 @@ export function usePhaseDetail(
     }
   }, [projectPath, phaseNumber, phaseName]);
 
+  // Fetch when inputs change
   useEffect(() => {
     fetchDetail();
   }, [fetchDetail]);

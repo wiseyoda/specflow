@@ -13,6 +13,10 @@ import {
   XCircle,
   GitMerge,
   GitBranch,
+  Layers,
+  Loader2,
+  Wrench,
+  HelpCircle,
 } from 'lucide-react'
 import { GlassCard, StatusPill } from '@/components/design-system'
 import type { WorkflowStatus } from '@/components/design-system/status-pill'
@@ -22,6 +26,7 @@ import { cn } from '@/lib/utils'
 import type { OrchestrationState, TasksData } from '@specflow/shared'
 import type { ProjectStatus as ActionProjectStatus } from '@/lib/action-definitions'
 import type { WorkflowExecution } from '@/lib/services/workflow-service'
+import type { OrchestrationExecution } from '@specflow/shared'
 
 /**
  * Project initialization status
@@ -50,6 +55,8 @@ interface ProjectCardProps {
   isDiscovered?: boolean
   /** Active workflow execution for this project */
   workflowExecution?: WorkflowExecution | null
+  /** Active orchestration execution for this project */
+  activeOrchestration?: OrchestrationExecution | null
   /** Callback to start a workflow */
   onWorkflowStart?: (skill: string) => Promise<void>
   /** Next phase from roadmap (when no active phase) */
@@ -207,6 +214,46 @@ function getWorkflowPillStatus(
   }
 }
 
+/**
+ * Get orchestration badge configuration
+ */
+function getOrchestrationBadge(orchestration: OrchestrationExecution | null | undefined): {
+  label: string
+  icon: typeof Loader2
+  className: string
+} | null {
+  if (!orchestration) return null
+  if (['completed', 'failed', 'cancelled'].includes(orchestration.status)) return null
+
+  const { status, batches, currentPhase } = orchestration
+  const batchInfo = currentPhase === 'implement'
+    ? ` (${batches.current + 1}/${batches.total})`
+    : ''
+
+  switch (status) {
+    case 'running':
+      return {
+        label: `Completing${batchInfo}`,
+        icon: Loader2,
+        className: 'bg-purple-500/20 text-purple-400',
+      }
+    case 'paused':
+      return {
+        label: 'Paused',
+        icon: Clock,
+        className: 'bg-amber-500/20 text-amber-400',
+      }
+    case 'waiting_merge':
+      return {
+        label: 'Merge Ready',
+        icon: GitMerge,
+        className: 'bg-blue-500/20 text-blue-400',
+      }
+    default:
+      return null
+  }
+}
+
 export function ProjectCard({
   project,
   state,
@@ -214,6 +261,7 @@ export function ProjectCard({
   isUnavailable = false,
   isDiscovered = false,
   workflowExecution,
+  activeOrchestration,
   onWorkflowStart,
   nextPhase,
 }: ProjectCardProps) {
@@ -231,6 +279,10 @@ export function ProjectCard({
     workflowExecution?.status === 'running' ||
     workflowExecution?.status === 'waiting_for_input'
 
+  // Orchestration status
+  const orchestrationBadge = getOrchestrationBadge(activeOrchestration)
+  const hasActiveOrchestration = !!orchestrationBadge
+
   // Health status
   const hasHealthWarning = health?.status === 'warning'
 
@@ -246,10 +298,9 @@ export function ProjectCard({
   const hasTasks = totalTasks > 0
   const allTasksComplete = hasTasks && completedTasks === totalTasks
 
-  // Ready to merge
+  // Ready to merge - phase is complete AND verify step is done
   const isReadyToMerge =
-    phase?.status === 'ready_to_merge' ||
-    phase?.status === 'verified' ||
+    phase?.status === 'complete' ||
     (allTasksComplete && step?.status === 'complete' && step?.current === 'verify')
 
   // Branch name
@@ -302,8 +353,20 @@ export function ProjectCard({
                 <span className="truncate">{branchName}</span>
               </span>
             )}
-            {workflowPillStatus !== 'idle' && (
+            {workflowPillStatus !== 'idle' && !hasActiveOrchestration && (
               <StatusPill status={workflowPillStatus} size="sm" />
+            )}
+            {orchestrationBadge && (
+              <span className={cn(
+                'inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded',
+                orchestrationBadge.className
+              )}>
+                <orchestrationBadge.icon className={cn(
+                  'h-2.5 w-2.5',
+                  orchestrationBadge.icon === Loader2 && 'animate-spin'
+                )} />
+                {orchestrationBadge.label}
+              </span>
             )}
             {isUnavailable && (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-warning/15 text-warning rounded">
@@ -412,6 +475,7 @@ export function ProjectCard({
               projectName={project.name}
               projectPath={project.path}
               projectStatus={projectStatus as ActionProjectStatus}
+              phaseName={phase?.name ? `${phase.number}: ${phase.name}` : phase?.number ?? undefined}
               schemaVersion={state?.schema_version}
               isAvailable={!isUnavailable}
               hasActiveWorkflow={hasActiveWorkflow}

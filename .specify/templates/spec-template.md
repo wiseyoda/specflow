@@ -10,6 +10,22 @@ description: 'Feature specification template'
 **Status**: Draft
 **Input**: User description: "$ARGUMENTS"
 
+## ID Format Reference
+
+This spec uses standardized IDs for traceability through the workflow:
+
+| ID Format | Type | Example | Used For |
+|-----------|------|---------|----------|
+| `FR-###` | Functional Requirement | FR-001 | Must-have functionality |
+| `NFR-###` | Non-Functional Requirement | NFR-001 | Performance, security, etc. |
+| `SC-###` | Success Criteria | SC-001 | Measurable outcomes |
+| `US-###` | User Story | US-001 | User journeys |
+| `IR-###` | Inherited Requirement | IR-001 | Deferred from prior phase |
+
+**Traceability chain**: Phase Goal → FR-### → T### → V-###
+
+---
+
 ## Inherited Requirements _(if applicable)_
 
 <!--
@@ -143,3 +159,21 @@ _Example of marking unclear requirements:_
 - **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
 - **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
 - **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+
+---
+
+## Memory Promotion Markers
+
+Use these markers to flag content for promotion to memory documents during archive review:
+
+| Marker | Purpose | Example |
+|--------|---------|---------|
+| `[PROMOTE]` | Flag content for memory promotion | `[PROMOTE] This pattern works well for async APIs` |
+| `[MEMORY]` | Same as PROMOTE | `[MEMORY] Always validate user input at boundaries` |
+
+**When to use**:
+- Discoveries that apply beyond this phase (architectural insights, patterns, gotchas)
+- Corrections to existing assumptions in memory docs
+- New coding standards or conventions established during this phase
+
+**What happens**: During `/flow.memory --archive`, marked content is presented for review and can be promoted to the appropriate memory document (constitution.md, coding-standards.md, tech-stack.md, etc.).

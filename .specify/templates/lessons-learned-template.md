@@ -126,12 +126,32 @@ Examples:
 
 ---
 
+## Memory Promotion Markers
+
+Use these markers to flag content for promotion to permanent memory documents:
+
+| Marker | Purpose | Example |
+|--------|---------|---------|
+| `[PROMOTE]` | Flag content for memory promotion | `[PROMOTE] Always check for null before accessing .length` |
+| `[MEMORY]` | Same as PROMOTE | `[MEMORY] This gotcha applies to all bash scripts` |
+
+**Good candidates for promotion**:
+- Error patterns that apply beyond this phase (e.g., "always validate input X")
+- Architecture decisions that should become project standards
+- Technology gotchas that affect the entire codebase
+- Performance insights that inform future work
+
+**What happens**: During `/flow.memory --archive`, marked content is presented for review and can be promoted to constitution.md, coding-standards.md, or tech-stack.md.
+
+---
+
 ## Usage Instructions
 
 This file should be:
 1. **Checked BEFORE starting implementation tasks** - Agents should scan for relevant entries
 2. **Updated AFTER encountering issues** - Add entries when problems are solved
 3. **Reviewed at phase completion** - During `/flow.verify`, add any new learnings
+4. **Scanned for [PROMOTE] markers** - During `/flow.memory --archive`, promote learnings to memory docs
 
 ### Adding Entries
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { PhaseTimelineItem } from "./phase-timeline-item"
+import { PhaseTimelineItem, type PhaseHistoryItem } from "./phase-timeline-item"
 import { GitBranch, History } from "lucide-react"
 import type { OrchestrationState } from "@specflow/shared"
 
@@ -14,36 +14,40 @@ interface TimelineViewProps {
   state?: OrchestrationState | null
 }
 
-interface PhaseHistoryItem {
-  type: string
-  phase_number?: string | null
-  phase_name?: string | null
-  branch?: string | null
-  completed_at?: string
-  tasks_completed?: number | string
-  tasks_total?: number | string
+/** History item from orchestration state actions.history */
+type HistoryItem = NonNullable<NonNullable<NonNullable<OrchestrationState['actions']>['history']>[number]>
+
+/** Type guard for phase_completed history items - returns items compatible with PhaseHistoryItem */
+function isPhaseCompletedItem(item: HistoryItem): item is HistoryItem & { type: string; phase_number: string } {
+  return item.type === 'phase_completed' && typeof item.phase_number === 'string' && item.phase_number.length > 0
+}
+
+/** Convert history item to PhaseHistoryItem for display */
+function toPhaseHistoryItem(item: HistoryItem & { type: string; phase_number: string }): PhaseHistoryItem {
+  return {
+    type: item.type,
+    phase_number: item.phase_number,
+    phase_name: item.phase_name,
+    branch: item.branch,
+    completed_at: item.completed_at,
+    tasks_completed: item.tasks_completed,
+    tasks_total: item.tasks_total,
+  }
 }
 
 export function TimelineView({ state }: TimelineViewProps) {
-  // Extract history from state
-  const stateWithActions = state as (OrchestrationState & {
-    actions?: {
-      history?: PhaseHistoryItem[]
-    }
-  }) | null
-
-  const history = stateWithActions?.actions?.history || []
+  // Extract history from state - schema now includes all required fields
+  const history = state?.actions?.history || []
   const currentPhase = state?.orchestration?.phase
 
   // Filter for phase_completed events and deduplicate by phase_number
   const completedPhases = history
-    .filter((item): item is PhaseHistoryItem =>
-      item.type === "phase_completed" && !!item.phase_number
-    )
+    .filter(isPhaseCompletedItem)
+    .map(toPhaseHistoryItem)
     .reduce((acc, phase) => {
       // Keep the most recent completion for each phase number
       const existing = acc.get(phase.phase_number!)
-      if (!existing || new Date(phase.completed_at || 0) > new Date(existing.completed_at || 0)) {
+      if (!existing || new Date(phase.completed_at ?? 0) > new Date(existing.completed_at ?? 0)) {
         acc.set(phase.phase_number!, phase)
       }
       return acc

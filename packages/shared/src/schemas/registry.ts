@@ -2,8 +2,12 @@ import { z } from 'zod';
 
 /**
  * Schema for a single registered SpecFlow project
+ *
+ * Note: id is optional because the registry stores projects in a Record<id, Project>
+ * structure. When loading projects for display, the id should be populated from the key.
  */
 export const ProjectSchema = z.object({
+  id: z.string().optional().describe('Project ID (registry key)'),
   path: z.string().describe('Absolute path to project directory'),
   name: z.string().describe('Project display name'),
   registered_at: z.string().describe('ISO 8601 registration timestamp'),

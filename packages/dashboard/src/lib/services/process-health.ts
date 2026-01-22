@@ -178,3 +178,81 @@ export function getHealthStatusMessage(health: ProcessHealthResult): string {
       return 'Unknown status';
   }
 }
+
+/**
+ * Check if a session ended gracefully
+ *
+ * Reads the last portion of the session JSONL to detect if the session
+ * completed normally vs terminated unexpectedly.
+ *
+ * Detection methods:
+ * 1. Stop hook feedback meta message (most reliable)
+ * 2. Result type message from Claude CLI
+ * 3. Final assistant message without pending tool calls
+ */
+export function didSessionEndGracefully(
+  projectPath: string,
+  sessionId: string | undefined
+): boolean {
+  if (!sessionId) return false;
+
+  const sessionDir = getProjectSessionDir(projectPath);
+  const sessionFile = join(sessionDir, `${sessionId}.jsonl`);
+
+  try {
+    if (!existsSync(sessionFile)) return false;
+
+    const { readFileSync } = require('fs');
+    const content = readFileSync(sessionFile, 'utf-8');
+
+    // Check the last portion of the file
+    const lastChunk = content.slice(-10000); // Last 10KB for better coverage
+
+    // Method 1: Stop hook feedback (most reliable indicator of graceful end)
+    if (lastChunk.includes('"isMeta":true') && lastChunk.includes('Stop hook feedback:')) {
+      return true;
+    }
+
+    // Method 2: Result type message from Claude CLI output
+    if (lastChunk.includes('"type":"result"')) {
+      return true;
+    }
+
+    // Method 3: Check if the last non-empty entry is an assistant message
+    // without tool_use blocks (indicates natural completion)
+    const lines = lastChunk.trim().split('\n').filter((l: string) => l.trim());
+    if (lines.length > 0) {
+      // Check last few lines for a final assistant message
+      for (let i = lines.length - 1; i >= Math.max(0, lines.length - 5); i--) {
+        try {
+          const entry = JSON.parse(lines[i]);
+          // Skip meta messages
+          if (entry.isMeta) continue;
+          // If we find an assistant message, check if it has tool calls
+          if (entry.type === 'assistant' || entry.message?.role === 'assistant') {
+            const msgContent = entry.message?.content || entry.content;
+            // If it's a text-only response (no tool_use), likely completed
+            if (msgContent && typeof msgContent === 'string') {
+              return true;
+            }
+            // If content is array, check for tool_use blocks
+            if (Array.isArray(msgContent)) {
+              const hasToolUse = msgContent.some((c: { type?: string }) => c.type === 'tool_use');
+              // No pending tool calls = likely completed
+              if (!hasToolUse) {
+                return true;
+              }
+            }
+            break; // Only check the last assistant message
+          }
+        } catch {
+          // Skip invalid JSON lines
+        }
+      }
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}

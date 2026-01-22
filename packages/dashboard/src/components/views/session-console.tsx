@@ -7,7 +7,8 @@ import { ToolCallBlock } from '@/components/session/tool-call-block'
 import { TypingIndicator } from '@/components/session/typing-indicator'
 import { TodoPanel } from '@/components/session/todo-panel'
 import type { TodoItem } from '@/lib/session-parser'
-import { Play, Terminal, LayoutDashboard, ChevronDown, Clock, CheckCircle, XCircle, Loader2, History, X } from 'lucide-react'
+import { Play, Terminal, LayoutDashboard, ChevronDown, Clock, CheckCircle, XCircle, Loader2, History } from 'lucide-react'
+import { SessionControls } from '@/components/session/session-controls'
 import type { SessionMessage } from '@/lib/session-parser'
 import type { WorkflowStatus } from '@/components/design-system'
 import type { WorkflowIndexEntry } from '@/lib/services/workflow-service'
@@ -29,6 +30,10 @@ interface SessionConsoleProps {
   onSelectSession?: (session: WorkflowIndexEntry | null) => void
   /** Callback to end/cancel an active session */
   onEndSession?: (sessionId: string) => void
+  /** Callback to pause an active session (when part of orchestration) */
+  onPauseSession?: (sessionId: string) => void
+  /** Whether pause is available (e.g., orchestration is active) */
+  canPause?: boolean
   /** Project ID for session operations */
   projectId?: string
   /** Current todo items from session */
@@ -89,6 +94,8 @@ export function SessionConsole({
   currentSessionId,
   onSelectSession,
   onEndSession,
+  onPauseSession,
+  canPause = false,
   projectId,
   currentTodos = [],
   className,
@@ -346,15 +353,14 @@ export function SessionConsole({
             )}
             </div>
 
-            {/* End session button - show for active sessions */}
+            {/* Session controls - show for active sessions */}
             {isCurrentViewActive && currentViewSessionId && onEndSession && (
-              <button
-                onClick={handleEndCurrentSession}
-                className="p-1 rounded hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-colors"
-                title="End session"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <SessionControls
+                onCancel={handleEndCurrentSession}
+                onPause={canPause && onPauseSession ? () => onPauseSession(currentViewSessionId) : undefined}
+                showPause={canPause && !!onPauseSession}
+                compact={true}
+              />
             )}
           </div>
         </div>

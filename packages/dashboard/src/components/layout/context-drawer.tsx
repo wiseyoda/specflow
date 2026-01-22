@@ -141,7 +141,12 @@ export function ContextDrawer({
   // Get current step from state - only if we have orchestration data
   const hasOrchestration = !!state?.orchestration?.phase?.number
   const currentStep = state?.orchestration?.step?.current
-  const currentStepIndex = currentStep ? phaseSteps.findIndex((s) => s.id === currentStep) : -1
+  const stepStatus = state?.orchestration?.step?.status
+  // If step.status is 'complete', the current step is done - show next step as active
+  const stepComplete = stepStatus === 'complete'
+  const baseStepIndex = currentStep ? phaseSteps.findIndex((s) => s.id === currentStep) : -1
+  // Advance to next step if current step is complete
+  const currentStepIndex = stepComplete && baseStepIndex >= 0 ? baseStepIndex + 1 : baseStepIndex
 
   // Calculate task progress from actual tasks data
   const tasksList = tasksData?.tasks ?? []

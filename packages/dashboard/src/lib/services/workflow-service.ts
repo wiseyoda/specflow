@@ -29,7 +29,7 @@ import {
   killProcess,
   readPidFile,
 } from './process-spawner';
-import { checkProcessHealth, getHealthStatusMessage } from './process-health';
+import { checkProcessHealth, getHealthStatusMessage, didSessionEndGracefully } from './process-health';
 import { ensureReconciliation } from './process-reconciler';
 
 // =============================================================================
@@ -84,6 +84,7 @@ export const WorkflowExecutionSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string().min(1), // Registry key (not necessarily UUID)
   sessionId: z.string().optional(), // Populated from CLI JSON output after first response
+  orchestrationId: z.string().uuid().optional(), // Links workflow to orchestration (if any)
   skill: z.string(),
   status: z.enum([
     'running',
@@ -732,12 +733,14 @@ class WorkflowService {
   /**
    * Start a new workflow execution (T007)
    * @param resumeSessionId - Optional session ID to resume (FR-014, FR-015)
+   * @param orchestrationId - Optional orchestration ID to link this workflow to
    */
   async start(
     projectId: string,
     skill: string,
     timeoutMs: number = DEFAULT_TIMEOUT_MS,
-    resumeSessionId?: string
+    resumeSessionId?: string,
+    orchestrationId?: string
   ): Promise<WorkflowExecution> {
     // Clean up old global workflows on first run (T008, FR-016, FR-017)
     cleanupGlobalWorkflows();
@@ -766,6 +769,8 @@ class WorkflowService {
       timeoutMs,
       // If resuming, pre-populate sessionId (FR-015: new execution linked to same session)
       ...(resumeSessionId ? { sessionId: resumeSessionId } : {}),
+      // Link to orchestration if provided
+      ...(orchestrationId ? { orchestrationId } : {}),
     };
 
     execution.logs.push(`[${now}] Starting workflow for project ${projectId}`);
@@ -773,6 +778,9 @@ class WorkflowService {
     execution.logs.push(`[INFO] Timeout: ${timeoutMs}ms`);
     if (resumeSessionId) {
       execution.logs.push(`[INFO] Resuming session: ${resumeSessionId}`);
+    }
+    if (orchestrationId) {
+      execution.logs.push(`[INFO] Linked to orchestration: ${orchestrationId}`);
     }
     saveExecution(execution, projectPath);
 
@@ -872,11 +880,22 @@ class WorkflowService {
       const health = checkProcessHealth(execution, projectPath);
 
       if (health.healthStatus === 'dead') {
-        execution.status = 'failed';
-        execution.error = 'Process terminated unexpectedly';
-        execution.updatedAt = new Date().toISOString();
-        execution.logs.push(`[HEALTH] ${getHealthStatusMessage(health)}`);
-        saveExecution(execution, projectPath);
+        // Check if the session ended gracefully before marking as failed
+        if (didSessionEndGracefully(projectPath, execution.sessionId)) {
+          execution.status = 'completed';
+          execution.completedAt = new Date().toISOString();
+          execution.updatedAt = new Date().toISOString();
+          execution.logs.push(`[HEALTH] Session completed gracefully`);
+          saveExecution(execution, projectPath);
+          // Also update the workflow index
+          this.updateSessionStatus(execution.sessionId, projectPath, 'completed');
+        } else {
+          execution.status = 'failed';
+          execution.error = 'Process terminated unexpectedly';
+          execution.updatedAt = new Date().toISOString();
+          execution.logs.push(`[HEALTH] ${getHealthStatusMessage(health)}`);
+          saveExecution(execution, projectPath);
+        }
       } else if (health.healthStatus === 'stale' && execution.status !== 'stale') {
         execution.status = 'stale';
         execution.error = getHealthStatusMessage(health);
@@ -909,6 +928,40 @@ class WorkflowService {
       return [];
     }
     return listExecutions(projectPath);
+  }
+
+  /**
+   * Find all workflows linked to a specific orchestration
+   * @param projectId - Registry key for the project
+   * @param orchestrationId - Orchestration ID to filter by
+   * @returns Workflows linked to this orchestration, sorted by startedAt (newest first)
+   */
+  findByOrchestration(projectId: string, orchestrationId: string): WorkflowExecution[] {
+    const all = this.list(projectId);
+    return all
+      .filter(w => w.orchestrationId === orchestrationId)
+      .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+  }
+
+  /**
+   * Find active workflows for an orchestration (running or waiting_for_input)
+   * @param projectId - Registry key for the project
+   * @param orchestrationId - Orchestration ID to filter by
+   * @returns Active workflows for this orchestration
+   */
+  findActiveByOrchestration(projectId: string, orchestrationId: string): WorkflowExecution[] {
+    return this.findByOrchestration(projectId, orchestrationId)
+      .filter(w => ['running', 'waiting_for_input'].includes(w.status));
+  }
+
+  /**
+   * Check if an orchestration has any active workflows
+   * @param projectId - Registry key for the project
+   * @param orchestrationId - Orchestration ID to check
+   * @returns True if there's at least one active workflow
+   */
+  hasActiveWorkflow(projectId: string, orchestrationId: string): boolean {
+    return this.findActiveByOrchestration(projectId, orchestrationId).length > 0;
   }
 
   /**
@@ -1033,6 +1086,26 @@ class WorkflowService {
     }
 
     return true;
+  }
+
+  /**
+   * Update session status in workflow index (internal helper)
+   */
+  private updateSessionStatus(
+    sessionId: string | undefined,
+    projectPath: string,
+    status: 'completed' | 'cancelled' | 'failed'
+  ): void {
+    if (!sessionId) return;
+
+    const index = loadWorkflowIndex(projectPath);
+    const session = index.sessions.find(s => s.sessionId === sessionId);
+
+    if (session && ['running', 'waiting_for_input', 'detached', 'stale'].includes(session.status)) {
+      session.status = status;
+      session.updatedAt = new Date().toISOString();
+      saveWorkflowIndex(projectPath, index);
+    }
   }
 
   /**

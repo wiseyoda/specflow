@@ -3,14 +3,14 @@
 import { CheckCircle2, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-interface PhaseHistoryItem {
+export interface PhaseHistoryItem {
   type: string
   phase_number?: string | null
   phase_name?: string | null
   branch?: string | null
-  completed_at?: string
-  tasks_completed?: number | string
-  tasks_total?: number | string
+  completed_at?: string | null
+  tasks_completed?: number | string | null
+  tasks_total?: number | string | null
 }
 
 interface PhaseTimelineItemProps {

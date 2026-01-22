@@ -4,7 +4,6 @@ handoffs:
   - label: Start Orchestration
     agent: specflow.orchestrate
     prompt: Begin development workflow
-    send: true
   - label: Check Memory Health
     agent: specflow.memory
     prompt: Verify memory document health

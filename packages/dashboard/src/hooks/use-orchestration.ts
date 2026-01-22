@@ -202,12 +202,13 @@ export function useOrchestration({
           setBatchPlan(data.batchPlan);
         }
 
-        // Notify about workflow start (for navigation to session viewer)
+        // Notify about orchestration start (for navigation to session viewer)
+        // The runner will spawn the workflow shortly after
         if (data.workflow && onWorkflowStartRef.current) {
           onWorkflowStartRef.current(data.workflow);
         }
 
-        // Refresh to get full orchestration state
+        // Refresh to get full orchestration state (including spawned workflow)
         await refresh();
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';

@@ -487,6 +487,16 @@ function makeDecision(
     };
   }
 
+  // If no workflow exists for current phase, spawn one
+  // This handles the case where orchestration was started but no workflow was spawned yet
+  if (!workflow) {
+    return {
+      action: 'spawn_workflow',
+      reason: `No workflow found for ${currentPhase} phase, spawning one`,
+      skill: getSkillForPhase(currentPhase),
+    };
+  }
+
   // Default: continue waiting
   return {
     action: 'continue',

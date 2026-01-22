@@ -4,7 +4,6 @@ import { execSync } from 'child_process';
 import { OrchestrationConfigSchema, type OrchestrationPhase, type OrchestrationConfig } from '@specflow/shared';
 import { orchestrationService } from '@/lib/services/orchestration-service';
 import { parseBatchesFromProject, getBatchPlanSummary } from '@/lib/services/batch-parser';
-import { workflowService } from '@/lib/services/workflow-service';
 import { runOrchestration } from '@/lib/services/orchestration-runner';
 
 // =============================================================================
@@ -226,27 +225,18 @@ export async function POST(request: Request) {
       phaseNeedsOpen ? null : batchPlan
     );
 
-    // Build skill command with additional context if provided
+    // Start the orchestration runner in the background
+    // The runner will spawn the first workflow - this prevents race conditions
+    // where both API and runner try to spawn workflows
+    runOrchestration(projectId, orchestration.id).catch((error) => {
+      console.error('[orchestrate] Runner error:', error);
+    });
+
+    // Determine what skill will be run (for response info)
     const baseSkill = getSkillForPhase(orchestration.currentPhase);
     const skill = smartConfig.additionalContext
       ? `${baseSkill} ${smartConfig.additionalContext}`
       : baseSkill;
-
-    // Spawn workflow for the first phase
-    const workflowExecution = await workflowService.start(projectId, skill);
-
-    // Link workflow to orchestration
-    orchestrationService.linkWorkflowExecution(
-      projectPath,
-      orchestration.id,
-      workflowExecution.id
-    );
-
-    // Start the orchestration runner in the background
-    // This drives the state machine forward automatically
-    runOrchestration(projectId, orchestration.id).catch((error) => {
-      console.error('[orchestrate] Runner error:', error);
-    });
 
     return NextResponse.json(
       {
@@ -262,11 +252,12 @@ export async function POST(request: Request) {
           startedAt: orchestration.startedAt,
           phaseNeedsOpen,
         },
+        // Workflow will be spawned by runner - return expected skill info
         workflow: {
-          id: workflowExecution.id,
-          skill: workflowExecution.skill,
-          status: workflowExecution.status,
-          sessionId: workflowExecution.sessionId,
+          id: null,
+          skill: skill,
+          status: 'pending',
+          sessionId: null,
         },
         batchPlan: batchPlan
           ? {

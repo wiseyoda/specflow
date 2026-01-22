@@ -86,6 +86,15 @@ function needsPhaseOpen(status: SpecflowStatus | null): boolean {
 }
 
 /**
+ * Check if design phase needs to run (phase open but no artifacts)
+ */
+function needsDesign(status: SpecflowStatus | null): boolean {
+  if (!status) return false;
+  // Phase is open but design hasn't been run yet
+  return !status.context?.hasSpec && !status.context?.hasPlan && !status.context?.hasTasks;
+}
+
+/**
  * Determine smart starting phase based on project state
  * Returns config overrides for skipDesign/skipAnalyze
  */
@@ -198,15 +207,18 @@ export async function POST(request: Request) {
     // Check if phase needs to be opened first
     const phaseNeedsOpen = needsPhaseOpen(specflowStatus);
 
+    // Check if design needs to run (phase open but no artifacts)
+    const designNeeded = needsDesign(specflowStatus);
+
     // Apply smart config based on actual project state
     // This auto-skips design/analyze if artifacts already exist
     const smartConfig = getSmartConfig(specflowStatus, config);
 
-    // Parse batch plan (T025) - only required if phase is already open
+    // Parse batch plan (T025) - only required if design is complete
     const batchPlan = parseBatchesFromProject(projectPath, smartConfig.batchSizeFallback);
 
-    if (!phaseNeedsOpen && !batchPlan) {
-      // Phase is open but no tasks.md found
+    if (!phaseNeedsOpen && !designNeeded && !batchPlan) {
+      // Phase is open, design is done, but no tasks.md found
       return NextResponse.json(
         { error: 'Could not find tasks.md in project specs directory' },
         { status: 400 }
@@ -217,12 +229,13 @@ export async function POST(request: Request) {
     // User may want to run verify/merge after implementation is complete
 
     // Start orchestration (T025, T026)
-    // When phase needs opening, we pass null batchPlan - service will create empty batches
+    // When phase needs opening or design needs to run, pass null batchPlan
+    // Service will create empty batches that get populated after design completes
     const orchestration = await orchestrationService.start(
       projectId,
       projectPath,
       smartConfig,
-      phaseNeedsOpen ? null : batchPlan
+      (phaseNeedsOpen || designNeeded) ? null : batchPlan
     );
 
     // Start the orchestration runner in the background
@@ -251,6 +264,7 @@ export async function POST(request: Request) {
           },
           startedAt: orchestration.startedAt,
           phaseNeedsOpen,
+          designNeeded,
         },
         // Workflow will be spawned by runner - return expected skill info
         workflow: {
@@ -267,7 +281,11 @@ export async function POST(request: Request) {
               usedFallback: batchPlan.usedFallback,
             }
           : {
-              summary: 'Phase will be opened first, batches detected after design',
+              summary: phaseNeedsOpen
+                ? 'Phase will be opened first, batches detected after design'
+                : designNeeded
+                ? 'Design will run first, batches detected after completion'
+                : 'No batches available',
               batchCount: 0,
               taskCount: 0,
               usedFallback: false,

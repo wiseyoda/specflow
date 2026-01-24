@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useWorkflowSkills, type WorkflowSkill } from "@/hooks/use-workflow-skills"
 import type { ProjectStatus } from "@/lib/action-definitions"
-import type { WorkflowExecution } from "@/lib/services/workflow-service"
+import type { WorkflowIndexEntry } from "@specflow/shared"
 import {
   toastWorkflowStarted,
   toastWorkflowError,
@@ -36,8 +36,8 @@ interface ProjectDetailHeaderProps {
   projectStatus?: ProjectStatus
   schemaVersion?: string
   isAvailable?: boolean
-  /** Active workflow execution */
-  workflowExecution?: WorkflowExecution | null
+  /** Active workflow execution (from SSE) */
+  workflowExecution?: WorkflowIndexEntry | null
   /** Whether a workflow is starting */
   isStartingWorkflow?: boolean
   /** Callback to start a workflow */
@@ -76,7 +76,8 @@ export function ProjectDetailHeader({
   const hasActiveWorkflow = workflowStatus === 'running' || workflowStatus === 'waiting_for_input' || workflowStatus === 'detached'
 
   // Question badge for waiting workflows
-  const pendingQuestions = workflowExecution?.output?.questions ?? []
+  // TODO: T010 - Questions will come via session:question SSE events
+  const pendingQuestions: Array<{ question: string }> = [] // Temporarily empty
   const showQuestionBadge = workflowStatus === 'waiting_for_input' && pendingQuestions.length > 0
 
   // Session button visibility - show when there's an active workflow (even without session ID yet)

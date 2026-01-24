@@ -8,7 +8,7 @@ export function EmptyState() {
         No projects registered
       </h3>
       <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400 max-w-sm">
-        Run <code className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded text-xs font-mono">specflow state init</code> in a project directory to register it with SpecFlow.
+        Run <code className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded text-xs font-mono">specflow init</code> in a project directory to register it with SpecFlow.
       </p>
     </div>
   )

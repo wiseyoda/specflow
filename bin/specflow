@@ -9,8 +9,10 @@
 #   next        Get next actionable task
 #   mark        Mark task(s) complete/incomplete
 #   check       Deep validation with auto-fix
+#   init        Initialize a new SpecFlow project
 #   state       Manage orchestration state
 #   phase       Manage phase lifecycle (open/close/status)
+#   project     Manage project lifecycle (init)
 #   workflow    Execute SpecFlow skills via Claude CLI
 #   templates   Manage project templates
 #   help        Show this help message
@@ -65,6 +67,15 @@ COMMANDS:
                   [--fix]             Auto-fix fixable issues
                   [--gate <gate>]     Check specific gate: design, implement, verify
 
+    init        Initialize a new SpecFlow project (alias for "project init")
+                  [--force]           Reinitialize existing project
+                  [--name <name>]     Project name (default: directory name)
+
+    project     Manage project lifecycle
+                  init                Initialize a new SpecFlow project
+                  [--force]           Reinitialize existing project
+                  [--name <name>]     Project name (default: directory name)
+
     state       Manage orchestration state
                   get [key]           Get state value (dot notation)
                   set <key>=<value>   Set state value
@@ -92,11 +103,18 @@ COMMANDS:
     version     Show version
 
 EXAMPLES:
+    specflow init                            # Initialize new project
+    specflow init --name "My App"            # With custom name
     specflow status --json
     specflow next
     specflow mark T007
     specflow check --fix
     specflow state get orchestration.phase.number
+
+INITIALIZATION SEQUENCE:
+    1. specflow init                         # Create project structure (CLI)
+    2. /flow.init                            # Run discovery interview (Claude Code)
+    3. /flow.orchestrate                     # Start development workflow (Claude Code)
 
 For Claude Code slash commands, use: /flow.orchestrate, /flow.design, etc.
 EOF
@@ -163,6 +181,12 @@ main() {
     check)
       run_ts_cli "check" "$@"
       ;;
+    init)
+      run_ts_cli "init" "$@"
+      ;;
+    project)
+      run_ts_cli "project" "$@"
+      ;;
     state)
       run_ts_cli "state" "$@"
       ;;
@@ -193,7 +217,7 @@ main() {
       deprecated_command "${command}"
       ;;
     # Slash commands - these are Claude Code prompts, not CLI commands
-    analyze|specify|clarify|plan|implement|verify|orchestrate|init|constitution|start|design)
+    analyze|specify|clarify|plan|implement|verify|orchestrate|constitution|start|design)
       log_error "Unknown command: ${command}"
       echo ""
       echo "'${command}' is a Claude Code slash command, not a CLI command."

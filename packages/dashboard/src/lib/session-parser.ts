@@ -1,4 +1,33 @@
 /**
+ * Question option from AskUserQuestion tool call.
+ */
+export interface QuestionOption {
+  label: string;
+  description?: string;
+}
+
+/**
+ * Question from AskUserQuestion tool call.
+ */
+export interface QuestionInfo {
+  question: string;
+  header?: string;
+  options: QuestionOption[];
+  multiSelect?: boolean;
+}
+
+/**
+ * Structured output from workflow completion (StructuredOutput tool call).
+ */
+export interface WorkflowOutput {
+  status: 'completed' | 'error' | 'needs_input' | 'cancelled' | string;
+  phase?: string;
+  message?: string;
+  artifacts?: Array<{ path: string; action: string }>;
+  questions?: QuestionInfo[];
+}
+
+/**
  * Session message from Claude JSONL files.
  * Only user and assistant messages are displayed; tool calls are parsed for metrics.
  */
@@ -14,6 +43,10 @@ export interface SessionMessage {
   commandName?: string;
   /** Whether this is a session end indicator */
   isSessionEnd?: boolean;
+  /** Questions from AskUserQuestion tool call (for assistant messages) */
+  questions?: QuestionInfo[];
+  /** Agent tasks launched from this message */
+  agentTasks?: AgentTaskInfo[];
 }
 
 /**
@@ -29,9 +62,19 @@ export interface ToolCallMetrics {
  */
 export interface ToolCallInfo {
   name: string;
-  operation: 'read' | 'write' | 'edit' | 'search' | 'execute' | 'todo';
+  operation: 'read' | 'write' | 'edit' | 'search' | 'execute' | 'todo' | 'agent';
   files: string[];
   input?: Record<string, unknown>;
+}
+
+/**
+ * Agent task information from Task tool calls.
+ */
+export interface AgentTaskInfo {
+  id: string;
+  description: string;
+  subagentType: string;
+  status: 'running' | 'completed';
 }
 
 /**
@@ -51,6 +94,10 @@ export interface ParseResult {
   toolCall?: ToolCallMetrics;
   toolCalls?: ToolCallInfo[];
   todos?: TodoItem[];
+  workflowOutput?: WorkflowOutput;
+  agentTasks?: AgentTaskInfo[];
+  /** Tool IDs that received results (to mark agents as completed) */
+  completedToolIds?: string[];
 }
 
 /**
@@ -62,6 +109,10 @@ export interface SessionData {
   startTime?: string;
   toolCalls: ToolCallInfo[];
   currentTodos: TodoItem[];
+  /** Final structured output from workflow completion (if any) */
+  workflowOutput?: WorkflowOutput;
+  /** Currently running or recently completed agent tasks */
+  agentTasks: AgentTaskInfo[];
 }
 
 /**
@@ -148,6 +199,8 @@ function getToolOperation(name: string): ToolCallInfo['operation'] {
       return 'search';
     case 'TodoWrite':
       return 'todo';
+    case 'Task':
+      return 'agent';
     case 'Bash':
     default:
       return 'execute';
@@ -157,12 +210,21 @@ function getToolOperation(name: string): ToolCallInfo['operation'] {
 /**
  * Extract detailed tool call information for UI display.
  */
-function extractToolCallInfos(content: unknown): { toolCalls: ToolCallInfo[]; todos: TodoItem[] } {
+function extractToolCallInfos(content: unknown): {
+  toolCalls: ToolCallInfo[];
+  todos: TodoItem[];
+  questions: QuestionInfo[];
+  workflowOutput?: WorkflowOutput;
+  agentTasks: AgentTaskInfo[];
+} {
   const toolCalls: ToolCallInfo[] = [];
   let todos: TodoItem[] = [];
+  const questions: QuestionInfo[] = [];
+  let workflowOutput: WorkflowOutput | undefined;
+  const agentTasks: AgentTaskInfo[] = [];
 
   if (!Array.isArray(content)) {
-    return { toolCalls, todos };
+    return { toolCalls, todos, questions, agentTasks };
   }
 
   for (const block of content) {
@@ -221,6 +283,100 @@ function extractToolCallInfos(content: unknown): { toolCalls: ToolCallInfo[]; to
             }
             break;
           }
+          case 'AskUserQuestion': {
+            // Extract questions from AskUserQuestion calls
+            const questionItems = input?.questions;
+            if (Array.isArray(questionItems)) {
+              for (const q of questionItems) {
+                if (typeof q === 'object' && q !== null && typeof q.question === 'string') {
+                  const questionInfo: QuestionInfo = {
+                    question: q.question,
+                    header: typeof q.header === 'string' ? q.header : undefined,
+                    options: [],
+                    multiSelect: typeof q.multiSelect === 'boolean' ? q.multiSelect : false,
+                  };
+                  // Extract options
+                  if (Array.isArray(q.options)) {
+                    for (const opt of q.options) {
+                      if (typeof opt === 'object' && opt !== null && typeof opt.label === 'string') {
+                        questionInfo.options.push({
+                          label: opt.label,
+                          description: typeof opt.description === 'string' ? opt.description : undefined,
+                        });
+                      }
+                    }
+                  }
+                  questions.push(questionInfo);
+                }
+              }
+            }
+            break;
+          }
+          case 'StructuredOutput': {
+            // Extract structured output from workflow completion
+            if (input && typeof input.status === 'string') {
+              workflowOutput = {
+                status: input.status as WorkflowOutput['status'],
+                phase: typeof input.phase === 'string' ? input.phase : undefined,
+                message: typeof input.message === 'string' ? input.message : undefined,
+              };
+              // Extract artifacts if present
+              if (Array.isArray(input.artifacts)) {
+                workflowOutput.artifacts = input.artifacts
+                  .filter(
+                    (a): a is { path: string; action: string } =>
+                      typeof a === 'object' &&
+                      a !== null &&
+                      typeof a.path === 'string' &&
+                      typeof a.action === 'string'
+                  );
+              }
+              // Extract questions if present (for needs_input status)
+              if (Array.isArray(input.questions)) {
+                workflowOutput.questions = input.questions
+                  .filter(
+                    (q): q is { question: string } =>
+                      typeof q === 'object' && q !== null && typeof q.question === 'string'
+                  )
+                  .map((q) => ({
+                    question: q.question,
+                    header: typeof (q as Record<string, unknown>).header === 'string'
+                      ? (q as Record<string, unknown>).header as string
+                      : undefined,
+                    options: Array.isArray((q as Record<string, unknown>).options)
+                      ? ((q as Record<string, unknown>).options as unknown[])
+                          .filter(
+                            (o): o is { label: string } =>
+                              typeof o === 'object' && o !== null && typeof (o as Record<string, unknown>).label === 'string'
+                          )
+                          .map((o) => ({
+                            label: (o as Record<string, unknown>).label as string,
+                            description: typeof (o as Record<string, unknown>).description === 'string'
+                              ? (o as Record<string, unknown>).description as string
+                              : undefined,
+                          }))
+                      : [],
+                    multiSelect: typeof (q as Record<string, unknown>).multiSelect === 'boolean'
+                      ? (q as Record<string, unknown>).multiSelect as boolean
+                      : false,
+                  }));
+              }
+            }
+            break;
+          }
+          case 'Task': {
+            // Extract agent task information
+            const id = 'id' in block ? String(block.id) : '';
+            const description = typeof input?.description === 'string' ? input.description : 'Running task...';
+            const subagentType = typeof input?.subagent_type === 'string' ? input.subagent_type : 'general-purpose';
+            agentTasks.push({
+              id,
+              description,
+              subagentType,
+              status: 'running', // Will be updated to 'completed' when result is found
+            });
+            break;
+          }
         }
 
         toolCalls.push({
@@ -233,7 +389,7 @@ function extractToolCallInfos(content: unknown): { toolCalls: ToolCallInfo[]; to
     }
   }
 
-  return { toolCalls, todos };
+  return { toolCalls, todos, questions, workflowOutput, agentTasks };
 }
 
 /**
@@ -337,18 +493,32 @@ export function parseSessionLine(line: string): ParseResult {
       const textContent = extractTextContent(messageContent);
 
       // Extract detailed tool call info (for assistant messages)
-      const { toolCalls: detailedToolCalls, todos } = extractToolCallInfos(messageContent);
+      const { toolCalls: detailedToolCalls, todos, questions, workflowOutput, agentTasks } = extractToolCallInfos(messageContent);
+
+      // Extract completed tool IDs from tool_result blocks (user messages contain these)
+      const completedToolIds: string[] = [];
+      if (Array.isArray(messageContent)) {
+        for (const block of messageContent) {
+          if (typeof block === 'object' && block !== null && 'type' in block && block.type === 'tool_result' && 'tool_use_id' in block) {
+            completedToolIds.push(String(block.tool_use_id));
+          }
+        }
+      }
 
       // Skip messages that are only tool calls (no text content)
-      if (!textContent) {
+      // BUT: If there are questions, workflowOutput, or agentTasks, we still want to capture them
+      if (!textContent && questions.length === 0 && !workflowOutput && agentTasks.length === 0) {
         // But still extract tool call metrics
         const toolCallMetrics = extractToolCallMetrics(messageContent);
-        if (toolCallMetrics.length > 0 || detailedToolCalls.length > 0) {
+        if (toolCallMetrics.length > 0 || detailedToolCalls.length > 0 || completedToolIds.length > 0) {
           return {
             message: null,
             toolCall: toolCallMetrics[0],
             toolCalls: detailedToolCalls.length > 0 ? detailedToolCalls : undefined,
             todos: todos.length > 0 ? todos : undefined,
+            workflowOutput,
+            agentTasks: agentTasks.length > 0 ? agentTasks : undefined,
+            completedToolIds: completedToolIds.length > 0 ? completedToolIds : undefined,
           };
         }
         return { message: null };
@@ -364,15 +534,20 @@ export function parseSessionLine(line: string): ParseResult {
       return {
         message: {
           role: data.type,
-          content: textContent,
+          content: textContent || '', // May be empty if only questions
           timestamp: data.timestamp,
           toolCalls: detailedToolCalls.length > 0 ? detailedToolCalls : undefined,
           isCommandInjection: commandInfo?.isCommand,
           commandName: commandInfo?.commandName ?? undefined,
+          questions: questions.length > 0 ? questions : undefined,
+          agentTasks: agentTasks.length > 0 ? agentTasks : undefined,
         },
         toolCall: toolCallMetrics.length > 0 ? toolCallMetrics[0] : undefined,
         toolCalls: detailedToolCalls.length > 0 ? detailedToolCalls : undefined,
         todos: todos.length > 0 ? todos : undefined,
+        workflowOutput,
+        agentTasks: agentTasks.length > 0 ? agentTasks : undefined,
+        completedToolIds: completedToolIds.length > 0 ? completedToolIds : undefined,
       };
     }
 
@@ -398,6 +573,9 @@ export function parseSessionLines(lines: string[]): SessionData {
   const allToolCalls: ToolCallInfo[] = [];
   let currentTodos: TodoItem[] = [];
   let startTime: string | undefined;
+  let workflowOutput: WorkflowOutput | undefined;
+  // Track agent tasks by ID for status updates
+  const agentTasksMap = new Map<string, AgentTaskInfo>();
 
   for (const line of lines) {
     const result = parseSessionLine(line);
@@ -413,6 +591,36 @@ export function parseSessionLines(lines: string[]): SessionData {
     if (result.toolCall?.filesModified) {
       for (const file of result.toolCall.filesModified) {
         filesModified.add(file);
+      }
+    }
+
+    // Track agent tasks
+    if (result.agentTasks && result.agentTasks.length > 0) {
+      for (const task of result.agentTasks) {
+        agentTasksMap.set(task.id, task);
+      }
+      // Also associate with the message that launched them
+      if (result.message) {
+        result.message.agentTasks = result.agentTasks;
+      } else {
+        // Associate with last assistant message
+        const lastAssistantMessage = [...messages].reverse().find((m) => m.role === 'assistant');
+        if (lastAssistantMessage) {
+          lastAssistantMessage.agentTasks = [
+            ...(lastAssistantMessage.agentTasks ?? []),
+            ...result.agentTasks,
+          ];
+        }
+      }
+    }
+
+    // Mark agent tasks as completed when we see their tool_result
+    if (result.completedToolIds && result.completedToolIds.length > 0) {
+      for (const toolId of result.completedToolIds) {
+        const task = agentTasksMap.get(toolId);
+        if (task) {
+          task.status = 'completed';
+        }
       }
     }
 
@@ -446,9 +654,17 @@ export function parseSessionLines(lines: string[]): SessionData {
     if (result.todos && result.todos.length > 0) {
       currentTodos = result.todos;
     }
+
+    // Track workflow output (last StructuredOutput wins)
+    if (result.workflowOutput) {
+      workflowOutput = result.workflowOutput;
+    }
   }
 
-  return { messages, filesModified, startTime, toolCalls: allToolCalls, currentTodos };
+  // Convert agent tasks map to array (preserves status updates)
+  const agentTasks = Array.from(agentTasksMap.values());
+
+  return { messages, filesModified, startTime, toolCalls: allToolCalls, currentTodos, workflowOutput, agentTasks };
 }
 
 /**

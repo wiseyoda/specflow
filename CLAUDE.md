@@ -12,6 +12,7 @@ SpecFlow v3.0 is a spec-driven development framework for Claude Code. This repos
 
 ```bash
 # Smart Commands (TypeScript CLI)
+specflow init                # Initialize new project (full 3.0 compliance)
 specflow status              # Complete project status
 specflow next                # Next actionable task with context
 specflow mark T007           # Mark task complete
@@ -38,8 +39,10 @@ packages/cli/                → TypeScript CLI implementation
 │   │   ├── next.ts         → Next task command
 │   │   ├── mark.ts         → Mark task command
 │   │   ├── check.ts        → Validation command
+│   │   ├── init.ts         → Initialize project (top-level alias)
 │   │   ├── state/          → State subcommands
-│   │   └── phase/          → Phase lifecycle (open/close/status)
+│   │   ├── phase/          → Phase lifecycle (open/close/status)
+│   │   └── project/        → Project lifecycle (init)
 │   └── lib/                → Shared libraries
 │       ├── tasks.ts        → Parse tasks.md
 │       ├── roadmap.ts      → Parse ROADMAP.md
@@ -60,6 +63,12 @@ commands/flow.*.md          → Claude Code slash commands (/flow.*)
 ## CLI Syntax Notes
 
 ```bash
+# Project initialization
+specflow init                       # Initialize new project with full compliance
+specflow init --name "My App"       # With custom project name
+specflow init --force               # Reinitialize existing project
+specflow project init               # Same as specflow init
+
 # State operations
 specflow state get orchestration.phase.number
 specflow state set orchestration.step.current=verify

@@ -8,6 +8,8 @@ import type {
   TasksData,
   WorkflowData,
   PhasesData,
+  SessionContent,
+  SessionQuestion,
 } from '@specflow/shared';
 
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
@@ -18,12 +20,17 @@ interface SSEState {
   tasks: Map<string, TasksData>;
   workflows: Map<string, WorkflowData>;
   phases: Map<string, PhasesData>;
+  sessionContent: Map<string, SessionContent>;
+  /** Questions from AskUserQuestion tool calls, keyed by sessionId (G4.2) */
+  sessionQuestions: Map<string, SessionQuestion[]>;
   connectionStatus: ConnectionStatus;
   error: Error | null;
 }
 
 interface SSEResult extends SSEState {
   refetch: () => void;
+  /** Clear questions for a session after they've been answered (G4.8) */
+  clearSessionQuestions: (sessionId: string) => void;
 }
 
 /**
@@ -35,6 +42,8 @@ export function useSSE(): SSEResult {
   const [tasks, setTasks] = useState<Map<string, TasksData>>(new Map());
   const [workflows, setWorkflows] = useState<Map<string, WorkflowData>>(new Map());
   const [phases, setPhases] = useState<Map<string, PhasesData>>(new Map());
+  const [sessionContent, setSessionContent] = useState<Map<string, SessionContent>>(new Map());
+  const [sessionQuestions, setSessionQuestions] = useState<Map<string, SessionQuestion[]>>(new Map());
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [error, setError] = useState<Error | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -109,6 +118,30 @@ export function useSSE(): SSEResult {
           case 'heartbeat':
             // Heartbeat received - connection is alive
             break;
+
+          case 'session:message':
+            // Session content update - store by sessionId
+            console.log(`[SSE] session:message received: sessionId=${data.sessionId}, messages=${data.data?.messages?.length ?? 0}`);
+            setSessionContent((prev) => {
+              const next = new Map(prev);
+              next.set(data.sessionId, data.data);
+              return next;
+            });
+            break;
+
+          case 'session:question':
+            // G4.3: Question detected - populate sessionQuestions map
+            setSessionQuestions((prev) => {
+              const next = new Map(prev);
+              // Replace questions for this session (new questions replace old)
+              next.set(data.sessionId, data.data.questions);
+              return next;
+            });
+            break;
+
+          case 'session:end':
+            // Session ended - keep content but could mark as complete
+            break;
         }
       } catch (e) {
         console.error('[SSE] Error parsing event:', e);
@@ -157,14 +190,26 @@ export function useSSE(): SSEResult {
     };
   }, [connect]);
 
+  // G4.8: Function to clear questions after user answers
+  const clearSessionQuestions = useCallback((sessionId: string) => {
+    setSessionQuestions((prev) => {
+      const next = new Map(prev);
+      next.delete(sessionId);
+      return next;
+    });
+  }, []);
+
   return {
     registry,
     states,
     tasks,
     workflows,
     phases,
+    sessionContent,
+    sessionQuestions,
     connectionStatus,
     error,
     refetch,
+    clearSessionQuestions,
   };
 }

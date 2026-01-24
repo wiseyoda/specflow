@@ -1,7 +1,7 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join } from 'node:path';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { z } from 'zod';
 import {
   findProjectRoot,
@@ -11,13 +11,31 @@ import {
   getMemoryDir,
   getTemplatesDir,
   getSystemTemplatesDir,
+  getSpecsDir,
+  getArchiveDir,
+  getHistoryDir,
+  getPhasesDir,
+  getSpecifyDir,
   pathExists,
 } from './paths.js';
-import { readState } from './state.js';
+import { readState, readRawState } from './state.js';
 import { readRoadmap, getPhaseByNumber } from './roadmap.js';
 import { getProjectContext, getMissingArtifacts, resolveFeatureDir } from './context.js';
 import { readTasks } from './tasks.js';
 import type { OrchestrationState } from '@specflow/shared';
+
+/**
+ * Valid enum values for schema validation
+ */
+const VALID_STEP_NAMES = ['design', 'analyze', 'implement', 'verify'] as const;
+const VALID_STEP_STATUSES = ['not_started', 'pending', 'in_progress', 'complete', 'failed', 'blocked', 'skipped'] as const;
+const VALID_PHASE_STATUSES = ['not_started', 'in_progress', 'complete'] as const;
+const STEP_INDEX_MAP: Record<string, number> = { design: 0, analyze: 1, implement: 2, verify: 3 };
+
+/**
+ * ABBC naming pattern - 4 digits (e.g., 0010, 0020, 1015)
+ */
+const ABBC_PATTERN = /^\d{4}-/;
 
 /**
  * Zod schema for manifest.json validation
@@ -115,8 +133,8 @@ async function collectIssues(projectPath?: string): Promise<HealthIssue[]> {
       code: 'NO_STATE',
       severity: 'error',
       message: 'No state file found',
-      fix: 'Run "specflow phase open <number>" to start a phase, or "specflow state set" to initialize',
-      autoFixable: true,
+      fix: 'Run "specflow init" to initialize the project',
+      autoFixable: false, // Requires full project setup, not just state file
     });
     return issues; // Can't check further without state
   }
@@ -126,14 +144,218 @@ async function collectIssues(projectPath?: string): Promise<HealthIssue[]> {
   try {
     state = await readState(root);
   } catch (err) {
-    issues.push({
-      code: 'STATE_INVALID',
-      severity: 'error',
-      message: 'State file is corrupted or invalid',
-      fix: 'Run "specflow state reset" to reset state, or manually repair .specflow/orchestration-state.json',
-      autoFixable: false, // Requires manual intervention to preserve data
-    });
+    // Try to read raw state for better diagnostics
+    const rawResult = await readRawState(root);
+    if (rawResult.zodErrors && rawResult.zodErrors.length > 0) {
+      // Provide specific error messages for each Zod validation issue
+      for (const zodIssue of rawResult.zodErrors.slice(0, 5)) {
+        const path = zodIssue.path.join('.');
+        issues.push({
+          code: 'STATE_SCHEMA_ERROR',
+          severity: 'error',
+          message: `${path}: ${zodIssue.message}`,
+          fix: 'Run "specflow check --fix" to attempt auto-repair',
+          autoFixable: true,
+        });
+      }
+      if (rawResult.zodErrors.length > 5) {
+        issues.push({
+          code: 'STATE_SCHEMA_ERROR',
+          severity: 'error',
+          message: `... and ${rawResult.zodErrors.length - 5} more validation errors`,
+          autoFixable: false,
+        });
+      }
+    } else {
+      issues.push({
+        code: 'STATE_INVALID',
+        severity: 'error',
+        message: rawResult.error || 'State file is corrupted or invalid',
+        fix: 'Run "specflow state reset" to reset state, or manually repair .specflow/orchestration-state.json',
+        autoFixable: false,
+      });
+    }
     return issues;
+  }
+
+  // === NEW: Schema validation checks ===
+
+  // Check schema_version
+  if (state.schema_version !== '3.0') {
+    issues.push({
+      code: 'SCHEMA_VERSION_OUTDATED',
+      severity: 'error',
+      message: `schema_version is "${state.schema_version}", expected "3.0"`,
+      fix: 'Run "specflow check --fix" to update schema version',
+      autoFixable: true,
+    });
+  }
+
+  // Check step.index is a number (not string)
+  const stepIndex = state.orchestration?.step?.index;
+  if (stepIndex !== null && stepIndex !== undefined && typeof stepIndex !== 'number') {
+    issues.push({
+      code: 'STEP_INDEX_TYPE_ERROR',
+      severity: 'error',
+      message: `step.index is "${typeof stepIndex}" ("${stepIndex}"), must be a number`,
+      fix: 'Run "specflow check --fix" to convert to correct type',
+      autoFixable: true,
+    });
+  }
+
+  // Check step.current is valid enum or null
+  const stepCurrent = state.orchestration?.step?.current;
+  if (stepCurrent !== null && stepCurrent !== undefined) {
+    if (!VALID_STEP_NAMES.includes(stepCurrent as typeof VALID_STEP_NAMES[number])) {
+      issues.push({
+        code: 'STEP_CURRENT_INVALID',
+        severity: 'error',
+        message: `step.current is "${stepCurrent}", must be one of: ${VALID_STEP_NAMES.join(', ')} (or null)`,
+        fix: 'Run "specflow check --fix" to reset to valid value',
+        autoFixable: true,
+      });
+    }
+  }
+
+  // Check step.status is valid enum
+  const stepStatus = state.orchestration?.step?.status;
+  if (stepStatus !== null && stepStatus !== undefined) {
+    if (!VALID_STEP_STATUSES.includes(stepStatus as typeof VALID_STEP_STATUSES[number])) {
+      issues.push({
+        code: 'STEP_STATUS_INVALID',
+        severity: 'error',
+        message: `step.status is "${stepStatus}", must be one of: ${VALID_STEP_STATUSES.join(', ')}`,
+        fix: 'Run "specflow check --fix" to reset to valid value',
+        autoFixable: true,
+      });
+    }
+  }
+
+  // Check phase.status is valid enum
+  const phaseStatus = state.orchestration?.phase?.status;
+  if (phaseStatus !== null && phaseStatus !== undefined) {
+    if (!VALID_PHASE_STATUSES.includes(phaseStatus as typeof VALID_PHASE_STATUSES[number])) {
+      issues.push({
+        code: 'PHASE_STATUS_INVALID',
+        severity: 'error',
+        message: `phase.status is "${phaseStatus}", must be one of: ${VALID_PHASE_STATUSES.join(', ')}`,
+        fix: 'Run "specflow check --fix" to reset to valid value',
+        autoFixable: true,
+      });
+    }
+  }
+
+  // Check step.index matches step.current (if both set)
+  if (stepCurrent && typeof stepIndex === 'number') {
+    const expectedIndex = STEP_INDEX_MAP[stepCurrent];
+    if (expectedIndex !== undefined && stepIndex !== expectedIndex) {
+      issues.push({
+        code: 'STEP_INDEX_MISMATCH',
+        severity: 'warning',
+        message: `step.index is ${stepIndex} but step.current is "${stepCurrent}" (expected index ${expectedIndex})`,
+        fix: 'Run "specflow check --fix" to correct index',
+        autoFixable: true,
+      });
+    }
+  }
+
+  // === NEW: File structure checks ===
+
+  // Check for state file in wrong location (.specify/)
+  const wrongStatePath = join(getSpecifyDir(root), 'orchestration-state.json');
+  if (pathExists(wrongStatePath)) {
+    issues.push({
+      code: 'STATE_WRONG_LOCATION',
+      severity: 'warning',
+      message: 'State file found in .specify/ (should only be in .specflow/)',
+      fix: 'Run "specflow check --fix" to remove duplicate, or manually delete .specify/orchestration-state.json',
+      autoFixable: true,
+    });
+  }
+
+  // Check BACKLOG.md exists
+  const backlogPath = join(root, 'BACKLOG.md');
+  if (!pathExists(backlogPath)) {
+    issues.push({
+      code: 'NO_BACKLOG',
+      severity: 'info',
+      message: 'No BACKLOG.md found',
+      fix: 'Run "specflow check --fix" to create BACKLOG.md template',
+      autoFixable: true,
+    });
+  }
+
+  // Check HISTORY.md exists
+  const historyDir = getHistoryDir(root);
+  const historyPath = join(historyDir, 'HISTORY.md');
+  if (!pathExists(historyPath)) {
+    issues.push({
+      code: 'NO_HISTORY',
+      severity: 'info',
+      message: 'No .specify/history/HISTORY.md found',
+      fix: 'Run "specflow check --fix" to create HISTORY.md template',
+      autoFixable: true,
+    });
+  }
+
+  // Check specs/ folder for ABC naming (should be ABBC)
+  const specsDir = getSpecsDir(root);
+  if (pathExists(specsDir)) {
+    try {
+      const specFolders = await readdir(specsDir, { withFileTypes: true });
+      const abcFolders = specFolders
+        .filter(d => d.isDirectory())
+        .filter(d => /^\d{3}-/.test(d.name) && !ABBC_PATTERN.test(d.name))
+        .map(d => d.name);
+
+      if (abcFolders.length > 0) {
+        issues.push({
+          code: 'ABC_NAMING_FOUND',
+          severity: 'warning',
+          message: `Found ${abcFolders.length} phase folder(s) with old ABC naming: ${abcFolders.slice(0, 3).join(', ')}${abcFolders.length > 3 ? '...' : ''}`,
+          fix: 'Rename folders from ABC (001-name) to ABBC (0010-name) format',
+          autoFixable: false, // Requires careful migration
+        });
+      }
+    } catch {
+      // Can't read specs dir
+    }
+  }
+
+  // Check for completed phases still in specs/ (should be archived)
+  if (pathExists(specsDir) && state.actions?.history) {
+    try {
+      const specFolders = await readdir(specsDir, { withFileTypes: true });
+      const specFolderNames = specFolders.filter(d => d.isDirectory()).map(d => d.name);
+
+      const completedPhases = state.actions.history
+        .filter(h => h.type === 'phase_completed' && h.phase_number)
+        .map(h => h.phase_number);
+
+      const unarchived: string[] = [];
+      for (const folder of specFolderNames) {
+        // Extract phase number from folder name (e.g., "0010-name" -> "0010")
+        const match = folder.match(/^(\d{3,4})-/);
+        if (match) {
+          const phaseNum = match[1].padStart(4, '0'); // Normalize to 4 digits
+          if (completedPhases.includes(phaseNum) || completedPhases.includes(match[1])) {
+            unarchived.push(folder);
+          }
+        }
+      }
+
+      if (unarchived.length > 0) {
+        issues.push({
+          code: 'COMPLETED_PHASE_NOT_ARCHIVED',
+          severity: 'warning',
+          message: `Found ${unarchived.length} completed phase(s) still in specs/: ${unarchived.slice(0, 3).join(', ')}${unarchived.length > 3 ? '...' : ''}`,
+          fix: 'Move completed phases to .specify/archive/ with "specflow phase archive <number>"',
+          autoFixable: false, // Requires careful migration
+        });
+      }
+    } catch {
+      // Can't check
+    }
   }
 
   // Check ROADMAP.md
@@ -310,7 +532,7 @@ async function collectIssues(projectPath?: string): Promise<HealthIssue[]> {
             severity: 'warning',
             message: `Current branch "${currentBranch}" doesn't match state "${expectedBranch}"`,
             fix: `Run "git checkout ${expectedBranch}" to switch branches`,
-            autoFixable: true,
+            autoFixable: false, // Don't auto-switch branches - could lose uncommitted work
           });
         }
       }
@@ -365,13 +587,13 @@ async function collectIssues(projectPath?: string): Promise<HealthIssue[]> {
     }
   }
 
-  // Check step status consistency
-  const stepStatus = state.orchestration?.step?.status;
-  if (stepStatus === 'blocked' || stepStatus === 'failed') {
+  // Check step status consistency (blocked/failed)
+  const currentStepStatus = state.orchestration?.step?.status;
+  if (currentStepStatus === 'blocked' || currentStepStatus === 'failed') {
     issues.push({
       code: 'STEP_BLOCKED',
       severity: 'warning',
-      message: `Current step is ${stepStatus}`,
+      message: `Current step is ${currentStepStatus}`,
       fix: 'Review blockers and retry, or skip with "specflow state set orchestration.step.status=in_progress"',
       autoFixable: false,
     });

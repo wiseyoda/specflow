@@ -105,6 +105,8 @@ export async function GET(request: Request) {
       sessionId,
       toolCalls,
       currentTodos: sessionData.currentTodos,
+      workflowOutput: sessionData.workflowOutput,
+      agentTasks: sessionData.agentTasks,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

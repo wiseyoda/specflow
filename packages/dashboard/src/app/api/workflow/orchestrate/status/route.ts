@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
 import { execSync } from 'child_process';
 import { orchestrationService } from '@/lib/services/orchestration-service';
 import { parseBatchesFromProject } from '@/lib/services/batch-parser';
 import { workflowService } from '@/lib/services/workflow-service';
-import type { OrchestrationExecution } from '@specflow/shared';
+import type { OrchestrationExecution, OrchestrationPhase } from '@specflow/shared';
 
 // =============================================================================
 // Types
@@ -47,6 +49,34 @@ interface PreflightStatus {
 // =============================================================================
 // Registry Lookup
 // =============================================================================
+
+/**
+ * Sync current phase to orchestration-state.json for UI consistency
+ */
+function syncPhaseToStateFile(projectPath: string, phase: OrchestrationPhase): void {
+  try {
+    let statePath = join(projectPath, '.specflow', 'orchestration-state.json');
+    if (!existsSync(statePath)) {
+      statePath = join(projectPath, '.specify', 'orchestration-state.json');
+    }
+    if (!existsSync(statePath)) return;
+
+    const content = readFileSync(statePath, 'utf-8');
+    const state = JSON.parse(content);
+
+    // Only update if phase differs (avoid unnecessary writes)
+    if (state.orchestration?.step?.current !== phase) {
+      state.orchestration = state.orchestration || {};
+      state.orchestration.step = state.orchestration.step || {};
+      state.orchestration.step.current = phase;
+      state.orchestration.step.status = 'in_progress';
+      state.last_updated = new Date().toISOString();
+      writeFileSync(statePath, JSON.stringify(state, null, 2));
+    }
+  } catch {
+    // Non-critical
+  }
+}
 
 function getProjectPath(projectId: string): string | null {
   const { existsSync, readFileSync } = require('fs');
@@ -222,6 +252,9 @@ export async function GET(request: Request) {
     if (!orchestration) {
       return NextResponse.json({ orchestration: null, workflow: null }, { status: 200 });
     }
+
+    // Sync current phase to state file (ensures UI consistency for project list)
+    syncPhaseToStateFile(projectPath, orchestration.currentPhase);
 
     // Look up the current workflow to get its sessionId
     let workflowInfo: { id: string; sessionId?: string; status?: string } | null = null;

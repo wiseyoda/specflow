@@ -121,6 +121,17 @@ export const OrchestrationExecutionSchema = z.object({
 export type OrchestrationExecution = z.infer<typeof OrchestrationExecutionSchema>;
 
 /**
+ * Determine the starting phase based on config skip flags
+ */
+function getStartingPhase(config: z.infer<typeof OrchestrationConfigSchema>): z.infer<typeof OrchestrationPhaseSchema> {
+  if (!config.skipDesign) return 'design';
+  if (!config.skipAnalyze) return 'analyze';
+  if (!config.skipImplement) return 'implement';
+  if (!config.skipVerify) return 'verify';
+  return 'merge';
+}
+
+/**
  * Create a new orchestration execution with defaults
  */
 export function createOrchestrationExecution(
@@ -135,7 +146,7 @@ export function createOrchestrationExecution(
     projectId,
     status: 'running',
     config,
-    currentPhase: config.skipDesign ? (config.skipAnalyze ? 'implement' : 'analyze') : 'design',
+    currentPhase: getStartingPhase(config),
     batches,
     executions: {
       implement: [],

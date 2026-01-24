@@ -3,7 +3,8 @@
 /**
  * useOrchestration Hook
  *
- * Manages orchestration state with polling for status updates.
+ * Manages orchestration state with event-driven updates.
+ * Uses SSE events (workflow, state changes) to trigger refreshes instead of polling.
  * Provides methods for starting, pausing, resuming, canceling orchestration.
  */
 
@@ -11,6 +12,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import type { OrchestrationExecution, OrchestrationConfig } from '@specflow/shared';
 import type { BatchPlanInfo } from '@/components/orchestration/start-orchestration-modal';
 import type { RecoveryOption } from '@/components/orchestration/recovery-panel';
+import { useUnifiedData } from '@/contexts/unified-data-context';
 
 // =============================================================================
 // Types
@@ -26,7 +28,7 @@ export interface WorkflowInfo {
 export interface UseOrchestrationOptions {
   /** Project ID */
   projectId: string;
-  /** Polling interval in ms (default: 3000) */
+  /** @deprecated No longer used - refreshes are now SSE-driven */
   pollingInterval?: number;
   /** Callback when orchestration status changes */
   onStatusChange?: (status: OrchestrationExecution['status']) => void;
@@ -76,18 +78,12 @@ export interface UseOrchestrationReturn {
 }
 
 // =============================================================================
-// Constants
-// =============================================================================
-
-const DEFAULT_POLLING_INTERVAL = 3000;
-
-// =============================================================================
 // Hook Implementation
 // =============================================================================
 
 export function useOrchestration({
   projectId,
-  pollingInterval = DEFAULT_POLLING_INTERVAL,
+  // pollingInterval is deprecated - SSE-driven refresh
   onStatusChange,
   onComplete,
   onError,
@@ -104,7 +100,9 @@ export function useOrchestration({
   const [recoveryAction, setRecoveryAction] = useState<RecoveryOption | null>(null);
 
   const lastStatusRef = useRef<OrchestrationExecution['status'] | null>(null);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  // SSE data for event-driven refresh (T028: replaces polling)
+  const { workflows, states } = useUnifiedData();
 
   // Use refs for callbacks to avoid recreating fetchStatus on every render
   const onStatusChangeRef = useRef(onStatusChange);
@@ -223,13 +221,46 @@ export function useOrchestration({
           onWorkflowStartRef.current(data.workflow);
         }
 
-        // Refresh to get full orchestration state (including spawned workflow)
+        // Initial refresh to get orchestration state
         await refresh();
+
+        // Poll for sessionId - it becomes available after CLI spawns and returns first output
+        // This can take 30+ seconds for complex workflows. Poll for up to 90 seconds.
+        // IMPORTANT: We await this to keep isLoading=true until session is found
+        const maxAttempts = 90;
+        const pollInterval = 1000;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+          try {
+            const statusResponse = await fetch(
+              `/api/workflow/orchestrate/status?projectId=${encodeURIComponent(projectId)}`
+            );
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              if (statusData.workflow?.sessionId) {
+                setActiveSessionId(statusData.workflow.sessionId);
+                setOrchestration(statusData.orchestration);
+                setIsLoading(false);
+                return; // Found sessionId, stop polling
+              }
+              // Also update orchestration state during polling so UI shows progress
+              if (statusData.orchestration) {
+                setOrchestration(statusData.orchestration);
+              }
+            }
+          } catch {
+            // Continue polling on error
+          }
+        }
+
+        // Polling timed out without finding session - still set loading false
+        setIsLoading(false);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         setError(message);
         onErrorRef.current?.(message);
-      } finally {
         setIsLoading(false);
       }
     },
@@ -368,24 +399,32 @@ export function useOrchestration({
     }
   }, [orchestration, projectId, refresh]);
 
-  // Setup polling when orchestration is active
+  // T028: Event-driven refresh via SSE instead of polling
+  // When workflow or state SSE events come in, refresh orchestration status
+  // This replaces the previous setInterval polling
+  const lastWorkflowRef = useRef<unknown>(null);
+  const lastStateRef = useRef<unknown>(null);
+
   useEffect(() => {
-    // Start polling
-    const shouldPoll =
-      orchestration &&
-      ['running', 'paused', 'waiting_merge', 'needs_attention'].includes(orchestration.status);
+    // Only react if orchestration is active
+    if (!orchestration) return;
+    if (!['running', 'paused', 'waiting_merge', 'needs_attention'].includes(orchestration.status)) return;
 
-    if (shouldPoll) {
-      pollingRef.current = setInterval(fetchStatus, pollingInterval);
+    // Check if workflow data changed
+    const currentWorkflow = workflows.get(projectId);
+    const workflowChanged = currentWorkflow !== lastWorkflowRef.current;
+
+    // Check if state data changed
+    const currentState = states.get(projectId);
+    const stateChanged = currentState !== lastStateRef.current;
+
+    // Refresh on either change
+    if (workflowChanged || stateChanged) {
+      lastWorkflowRef.current = currentWorkflow;
+      lastStateRef.current = currentState;
+      fetchStatus();
     }
-
-    return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-    };
-  }, [orchestration?.status, pollingInterval, fetchStatus]);
+  }, [orchestration, projectId, workflows, states, fetchStatus]);
 
   // Initial fetch on mount (only once)
   const hasFetchedRef = useRef(false);

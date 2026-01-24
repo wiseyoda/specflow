@@ -17,7 +17,7 @@ import { spawn, execSync } from 'child_process';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
-import type { z } from 'zod';
+import { z } from 'zod';
 import zodToJsonSchema from 'zod-to-json-schema';
 import type {
   ClaudeHelperOptions,
@@ -557,4 +557,445 @@ export async function healWithClaude<T>(
     maxBudgetUsd: 2.0,
     ...options,
   });
+}
+
+// =============================================================================
+// Claude Helper Use Cases (G3) - Exactly 3 allowed use cases
+// =============================================================================
+
+// Schema for state recovery response
+const StateRecoverySchema = z.object({
+  action: z.enum(['use_recovered', 'use_heuristic', 'abort']),
+  confidence: z.number().min(0).max(1),
+  recovered_state: z.object({
+    step: z.object({
+      current: z.string(),
+      index: z.number(),
+      status: z.string(),
+    }).optional(),
+    phase: z.object({
+      number: z.string(),
+      name: z.string(),
+    }).optional(),
+  }).optional(),
+  reason: z.string(),
+});
+
+type StateRecoveryResult = z.infer<typeof StateRecoverySchema>;
+
+// Schema for stale workflow diagnosis
+const StaleWorkflowSchema = z.object({
+  action: z.enum(['continue', 'restart_task', 'skip_task', 'abort']),
+  confidence: z.enum(['high', 'medium', 'low']),
+  reason: z.string(),
+  context: z.object({
+    last_output: z.string().optional(),
+    likely_stuck_at: z.string().optional(),
+  }).optional(),
+});
+
+type StaleWorkflowResult = z.infer<typeof StaleWorkflowSchema>;
+
+// Schema for failed step diagnosis
+const FailedStepSchema = z.object({
+  action: z.enum(['retry', 'skip_tasks', 'run_prerequisite', 'abort']),
+  confidence: z.enum(['high', 'medium', 'low']),
+  reason: z.string(),
+  tasks_to_skip: z.array(z.string()).optional(),
+  prerequisite: z.string().optional(),
+});
+
+type FailedStepResult = z.infer<typeof FailedStepSchema>;
+
+/**
+ * Recovery result from state recovery
+ */
+export interface StateRecoveryResponse {
+  success: boolean;
+  state?: {
+    step: {
+      current: string;
+      index: number;
+      status: string;
+    };
+    phase?: {
+      number: string;
+      name: string;
+    };
+  };
+  source: 'claude' | 'heuristic' | 'none';
+  reason: string;
+  cost: number;
+}
+
+/**
+ * Case 1: Corrupt/Missing State Recovery (G3.1-G3.6)
+ *
+ * Attempts to recover orchestration state using Claude Helper.
+ * Falls back to heuristic recovery if Claude fails.
+ * Silently returns null if all recovery attempts fail.
+ *
+ * @param projectPath - Path to the project
+ * @param existingState - The corrupt/partial existing state (if any)
+ * @param backupPath - Path to create backup before recovery
+ */
+export async function recoverStateWithClaudeHelper(
+  projectPath: string,
+  existingState: Record<string, unknown> | null,
+  backupPath: string
+): Promise<StateRecoveryResponse> {
+  // G3.2: Create backup BEFORE attempting recovery
+  if (existingState && backupPath) {
+    try {
+      writeFileSync(backupPath, JSON.stringify(existingState, null, 2), 'utf-8');
+    } catch (error) {
+      // Continue even if backup fails - recovery attempt is still valuable
+      console.warn('[claude-helper] Failed to create backup:', error);
+    }
+  }
+
+  // G3.3: Call Claude Helper with task: 'recover_state'
+  const message = `
+You are analyzing a corrupt or missing orchestration state file.
+
+Existing state (may be corrupt or partial):
+${existingState ? JSON.stringify(existingState, null, 2) : 'null (missing)'}
+
+Analyze the project to determine the correct orchestration state:
+1. Check .specflow/orchestration-state.json for any recoverable data
+2. Check specs/ directory for active phase artifacts
+3. Check ROADMAP.md for phase information
+
+Provide your best assessment of the current state.
+`;
+
+  try {
+    const response = await claudeHelper<StateRecoveryResult>({
+      message,
+      schema: StateRecoverySchema,
+      projectPath,
+      model: 'haiku',
+      tools: ['Read', 'Glob'],
+      maxTurns: 3,
+      maxBudgetUsd: 0.5,
+      noSessionPersistence: true,
+    });
+
+    // G3.4: If Claude Helper succeeds + confidence > 0.7 → use recovered state
+    if (response.success && response.result.confidence > 0.7 && response.result.recovered_state?.step) {
+      return {
+        success: true,
+        state: {
+          step: response.result.recovered_state.step as StateRecoveryResponse['state'] extends { step: infer S } ? S : never,
+          phase: response.result.recovered_state.phase,
+        },
+        source: 'claude',
+        reason: response.result.reason,
+        cost: response.cost,
+      };
+    }
+
+    // G3.5: If Claude Helper fails or low confidence → try heuristic recovery (silent)
+    const heuristicResult = tryHeuristicStateRecovery(projectPath);
+    if (heuristicResult) {
+      return {
+        success: true,
+        state: heuristicResult,
+        source: 'heuristic',
+        reason: 'Recovered using heuristic analysis',
+        cost: response.cost,
+      };
+    }
+
+    // G3.6: If heuristic fails → return null (caller sets needs_attention)
+    return {
+      success: false,
+      source: 'none',
+      reason: 'All recovery methods failed',
+      cost: response.cost,
+    };
+  } catch {
+    // G3.5: Silent fallback to heuristic on error
+    const heuristicResult = tryHeuristicStateRecovery(projectPath);
+    if (heuristicResult) {
+      return {
+        success: true,
+        state: heuristicResult,
+        source: 'heuristic',
+        reason: 'Recovered using heuristic (Claude Helper unavailable)',
+        cost: 0,
+      };
+    }
+
+    return {
+      success: false,
+      source: 'none',
+      reason: 'All recovery methods failed',
+      cost: 0,
+    };
+  }
+}
+
+/**
+ * Heuristic state recovery - analyzes project files to infer state
+ * Called when Claude Helper fails or has low confidence
+ */
+function tryHeuristicStateRecovery(projectPath: string): StateRecoveryResponse['state'] | null {
+  try {
+    // Check specs directory for active artifacts
+    const specsDir = join(projectPath, 'specs');
+    if (!existsSync(specsDir)) return null;
+
+    // Find the most recent specs folder (highest number prefix)
+    const dirsRaw = require('fs').readdirSync(specsDir, { withFileTypes: true }) as { name: string; isDirectory: () => boolean }[];
+    const dirs = dirsRaw
+      .filter((d: { isDirectory: () => boolean }) => d.isDirectory())
+      .map((d: { name: string }) => d.name)
+      .filter((name: string) => /^\d+/.test(name))
+      .sort()
+      .reverse();
+
+    if (dirs.length === 0) return null;
+
+    const activeDir = dirs[0];
+    const match = activeDir.match(/^(\d+)-(.+)/);
+    if (!match) return null;
+
+    const phaseNumber = match[1];
+    const phaseName = match[2];
+    const phasePath = join(specsDir, activeDir);
+
+    // Determine current step based on what artifacts exist
+    const hasSpec = existsSync(join(phasePath, 'spec.md'));
+    const hasPlan = existsSync(join(phasePath, 'plan.md'));
+    const hasTasks = existsSync(join(phasePath, 'tasks.md'));
+    const hasChecklists = existsSync(join(phasePath, 'checklists'));
+
+    let currentStep = 'design';
+    let stepIndex = 0;
+    let status = 'in_progress';
+
+    if (hasChecklists) {
+      // All design artifacts exist, likely in implement or verify
+      currentStep = 'implement';
+      stepIndex = 2;
+    } else if (hasTasks && hasPlan) {
+      currentStep = 'implement';
+      stepIndex = 2;
+    } else if (hasPlan) {
+      currentStep = 'design';
+      stepIndex = 0;
+      status = 'complete';
+    } else if (hasSpec) {
+      currentStep = 'design';
+      stepIndex = 0;
+    }
+
+    return {
+      step: {
+        current: currentStep,
+        index: stepIndex,
+        status,
+      },
+      phase: {
+        number: phaseNumber,
+        name: phaseName,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Stale workflow response
+ */
+export interface StaleWorkflowResponse {
+  action: 'continue' | 'restart_task' | 'skip_task' | 'abort';
+  reason: string;
+  confidence: 'high' | 'medium' | 'low';
+  context?: {
+    last_output?: string;
+    likely_stuck_at?: string;
+  };
+  cost: number;
+}
+
+/**
+ * Case 2: Stale Workflow Diagnosis (G3.7-G3.10)
+ *
+ * Diagnoses a workflow that has been running with no output for >10 minutes.
+ * Returns recommended action. Sets needs_attention if Claude Helper fails.
+ *
+ * @param projectPath - Path to the project
+ * @param workflowId - ID of the stale workflow
+ * @param lastOutput - Last output from the workflow (if any)
+ * @param staleMinutes - How long the workflow has been stale
+ */
+export async function handleStaleWorkflow(
+  projectPath: string,
+  workflowId: string,
+  lastOutput: string | undefined,
+  staleMinutes: number
+): Promise<StaleWorkflowResponse> {
+  // G3.8: Call Claude Helper with task: 'diagnose_stale_workflow'
+  const message = `
+You are diagnosing a stale workflow.
+
+Workflow ID: ${workflowId}
+Time since last activity: ${staleMinutes} minutes
+
+Last output:
+${lastOutput || '(no output available)'}
+
+Analyze the situation and recommend an action:
+- continue: Wait longer (if workflow might still be working)
+- restart_task: Kill and restart the current task
+- skip_task: Skip the current task and move on
+- abort: Stop orchestration entirely
+
+Be conservative - prefer 'continue' if there's any chance the workflow is still working.
+`;
+
+  try {
+    const response = await claudeHelper<StaleWorkflowResult>({
+      message,
+      schema: StaleWorkflowSchema,
+      projectPath,
+      model: 'haiku',
+      tools: ['Read', 'Glob'],
+      maxTurns: 2,
+      maxBudgetUsd: 0.25,
+      noSessionPersistence: true,
+    });
+
+    // G3.9: Handle response actions
+    if (response.success) {
+      return {
+        action: response.result.action,
+        reason: response.result.reason,
+        confidence: response.result.confidence,
+        context: response.result.context,
+        cost: response.cost,
+      };
+    }
+
+    // G3.10: If Claude Helper fails → needs_attention (silent, no error toast)
+    return {
+      action: 'continue', // Default to waiting
+      reason: 'Claude Helper unavailable, defaulting to continue',
+      confidence: 'low',
+      cost: response.cost,
+    };
+  } catch {
+    // Silent failure - default to continue
+    return {
+      action: 'continue',
+      reason: 'Claude Helper error, defaulting to continue',
+      confidence: 'low',
+      cost: 0,
+    };
+  }
+}
+
+/**
+ * Failed step response
+ */
+export interface FailedStepResponse {
+  action: 'retry' | 'skip_tasks' | 'run_prerequisite' | 'abort' | 'needs_attention';
+  reason: string;
+  confidence: 'high' | 'medium' | 'low';
+  tasksToSkip?: string[];
+  prerequisite?: string;
+  cost: number;
+}
+
+/**
+ * Case 3: Failed Step Diagnosis (G3.11-G3.16)
+ *
+ * Diagnoses a failed step and recommends recovery action.
+ * Skips Claude Helper if max heal attempts reached.
+ *
+ * @param projectPath - Path to the project
+ * @param stepName - Name of the failed step
+ * @param errorMessage - Error message from the failure
+ * @param healAttempts - Number of heal attempts already made
+ * @param maxHealAttempts - Maximum allowed heal attempts
+ */
+export async function handleFailedStep(
+  projectPath: string,
+  stepName: string,
+  errorMessage: string | undefined,
+  healAttempts: number,
+  maxHealAttempts: number
+): Promise<FailedStepResponse> {
+  // G3.12: Pre-check heal attempts → skip Claude Helper if exhausted
+  if (healAttempts >= maxHealAttempts) {
+    return {
+      action: 'needs_attention',
+      reason: `Max heal attempts (${maxHealAttempts}) reached`,
+      confidence: 'high',
+      cost: 0,
+    };
+  }
+
+  // G3.13: Call Claude Helper with task: 'diagnose_failed_step'
+  const message = `
+You are diagnosing a failed orchestration step.
+
+Step: ${stepName}
+Error: ${errorMessage || '(no error message)'}
+Heal attempts: ${healAttempts}/${maxHealAttempts}
+
+Analyze the error and recommend an action:
+- retry: Try the step again (maybe with different approach)
+- skip_tasks: Skip specific failing tasks and continue
+- run_prerequisite: Run a prerequisite step first
+- abort: Stop orchestration entirely
+
+If the error is transient (network, timeout), recommend 'retry'.
+If specific tasks are failing, list them in tasks_to_skip.
+If a prerequisite is needed, specify it.
+`;
+
+  try {
+    const response = await claudeHelper<FailedStepResult>({
+      message,
+      schema: FailedStepSchema,
+      projectPath,
+      model: 'haiku',
+      tools: ['Read', 'Glob'],
+      maxTurns: 2,
+      maxBudgetUsd: 0.25,
+      noSessionPersistence: true,
+    });
+
+    // G3.14: Handle response actions
+    if (response.success) {
+      return {
+        action: response.result.action,
+        reason: response.result.reason,
+        confidence: response.result.confidence,
+        tasksToSkip: response.result.tasks_to_skip,
+        prerequisite: response.result.prerequisite,
+        cost: response.cost,
+      };
+    }
+
+    // G3.15: If Claude Helper fails + heal attempts remaining → simple retry (silent)
+    return {
+      action: 'retry',
+      reason: 'Claude Helper unavailable, attempting simple retry',
+      confidence: 'low',
+      cost: response.cost,
+    };
+  } catch {
+    // G3.15: Silent failure - default to retry if attempts remaining
+    return {
+      action: 'retry',
+      reason: 'Claude Helper error, attempting simple retry',
+      confidence: 'low',
+      cost: 0,
+    };
+  }
 }

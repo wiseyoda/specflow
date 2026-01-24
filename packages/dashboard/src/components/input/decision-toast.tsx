@@ -19,6 +19,8 @@ interface DecisionToastProps {
   onCustomAnswer?: (answer: string) => void
   /** Dismiss the question without answering */
   onDismiss?: () => void
+  /** Whether the questions are still loading */
+  isLoading?: boolean
   className?: string
 }
 
@@ -28,12 +30,49 @@ export function DecisionToast({
   onAnswer,
   onCustomAnswer,
   onDismiss,
+  isLoading = false,
   className,
 }: DecisionToastProps) {
   const [showCustomInput, setShowCustomInput] = useState(false)
   const [customValue, setCustomValue] = useState('')
 
   const currentQuestion = questions[currentIndex]
+
+  // Show loading state when waiting for questions
+  if (isLoading && !currentQuestion) {
+    return (
+      <div
+        className={cn(
+          'fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-lg z-50 animate-slide-up',
+          className
+        )}
+      >
+        {/* Beam progress indicator */}
+        <div className="h-1 w-full rounded-t-lg bg-surface-300 overflow-hidden">
+          <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-accent to-transparent animate-beam" />
+        </div>
+
+        {/* Toast content - loading state */}
+        <div className="glass rounded-b-lg p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <HelpCircle className="w-5 h-5 text-warning animate-pulse" />
+            <span className="font-medium text-white">Loading question...</span>
+            {onDismiss && (
+              <button
+                onClick={onDismiss}
+                className="ml-auto p-1 rounded hover:bg-surface-300 text-surface-500 hover:text-white transition-colors"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <p className="text-sm text-zinc-400">Retrieving the question from the session...</p>
+        </div>
+      </div>
+    )
+  }
+
   if (!currentQuestion) return null
 
   const handleCustomSubmit = () => {

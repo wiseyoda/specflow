@@ -2,11 +2,12 @@
 
 import { useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
-import type { SessionMessage, ToolCallInfo } from '@/lib/session-parser'
+import type { SessionMessage, ToolCallInfo, QuestionInfo, AgentTaskInfo } from '@/lib/session-parser'
 import { CommandChip } from './command-chip'
 import { FileChipGroup } from './file-chip'
 import { FileViewerModal } from './file-viewer-modal'
 import { MarkdownContent } from '@/components/ui/markdown-content'
+import { AgentTaskGroup } from './agent-task-chip'
 
 interface SessionMessageDisplayProps {
   message: SessionMessage
@@ -275,9 +276,42 @@ export function SessionMessageDisplay({
         </div>
 
         {/* Content - render as markdown */}
-        <div className="text-zinc-300 leading-relaxed">
-          <MarkdownContent content={message.content} className="prose-p:mb-2 prose-p:last:mb-0" />
-        </div>
+        {message.content && (
+          <div className="text-zinc-300 leading-relaxed">
+            <MarkdownContent content={message.content} className="prose-p:mb-2 prose-p:last:mb-0" />
+          </div>
+        )}
+
+        {/* Questions from AskUserQuestion tool */}
+        {message.questions && message.questions.length > 0 && (
+          <div className="mt-3 space-y-3">
+            {message.questions.map((q, qIdx) => (
+              <div key={qIdx} className="rounded-lg border border-accent/30 bg-accent/5 p-4">
+                {q.header && (
+                  <span className="inline-block px-2 py-0.5 mb-2 rounded text-[10px] uppercase tracking-wider bg-accent/20 text-accent">
+                    {q.header}
+                  </span>
+                )}
+                <p className="text-zinc-200 font-medium mb-3">{q.question}</p>
+                {q.options.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {q.options.map((opt, optIdx) => (
+                      <div
+                        key={optIdx}
+                        className="px-3 py-2 rounded-lg border border-surface-300 bg-surface-200 text-sm"
+                      >
+                        <span className="text-zinc-200">{opt.label}</span>
+                        {opt.description && (
+                          <span className="text-zinc-500 ml-2">— {opt.description}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* File chips for tool calls */}
         {fileChips.length > 0 && (
@@ -286,6 +320,13 @@ export function SessionMessageDisplay({
               files={fileChips}
               onFileClick={handleFileClick}
             />
+          </div>
+        )}
+
+        {/* Agent tasks (parallel agents) */}
+        {message.agentTasks && message.agentTasks.length > 0 && (
+          <div className="mt-3">
+            <AgentTaskGroup tasks={message.agentTasks} />
           </div>
         )}
       </div>

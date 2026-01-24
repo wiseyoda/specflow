@@ -1,0 +1,5 @@
+{"type":"workflow_start","timestamp":"2026-01-24T10:00:00.000Z","workflowId":"wf-001","skill":"flow.design","orchestrationId":"orch-001"}
+{"type":"workflow_progress","timestamp":"2026-01-24T10:00:30.000Z","workflowId":"wf-001","phase":"discovery","progress":25}
+{"type":"workflow_progress","timestamp":"2026-01-24T10:01:00.000Z","workflowId":"wf-001","phase":"specification","progress":50}
+{"type":"workflow_progress","timestamp":"2026-01-24T10:01:30.000Z","workflowId":"wf-001","phase":"planning","progress":75}
+{"type":"workflow_complete","timestamp":"2026-01-24T10:02:00.000Z","workflowId":"wf-001","status":"completed","costUsd":0.15}

@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir, rename, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 import type { OrchestrationState } from '@specflow/shared';
 import { OrchestrationStateSchema } from '@specflow/shared';
 import { getStatePath, pathExists } from './paths.js';
@@ -9,6 +10,20 @@ import { NotFoundError, StateError, ValidationError } from './errors.js';
 /**
  * State file operations for SpecFlow
  */
+
+/**
+ * Format Zod error for human-readable output
+ */
+function formatZodError(error: z.ZodError): string {
+  const issues = error.issues.slice(0, 3).map(issue => {
+    const path = issue.path.join('.');
+    return `  - ${path}: ${issue.message}`;
+  });
+  if (error.issues.length > 3) {
+    issues.push(`  ... and ${error.issues.length - 3} more issues`);
+  }
+  return issues.join('\n');
+}
 
 /** Read and parse the state file */
 export async function readState(projectPath?: string): Promise<OrchestrationState> {
@@ -29,8 +44,69 @@ export async function readState(projectPath?: string): Promise<OrchestrationStat
     if (err instanceof SyntaxError) {
       throw new StateError('State file contains invalid JSON');
     }
+    if (err instanceof z.ZodError) {
+      throw new StateError(
+        `State file schema validation failed:\n${formatZodError(err)}\n\nRun "specflow check --fix" to attempt auto-repair.`
+      );
+    }
     throw err;
   }
+}
+
+/**
+ * Result of reading raw state (for diagnostics)
+ */
+export interface RawStateResult {
+  success: boolean;
+  data?: Record<string, unknown>;
+  error?: string;
+  zodErrors?: z.ZodIssue[];
+}
+
+/**
+ * Read state file without validation (for diagnostics and repair)
+ * Returns parsed JSON data even if it fails Zod validation
+ */
+export async function readRawState(projectPath?: string): Promise<RawStateResult> {
+  const statePath = getStatePath(projectPath);
+
+  if (!pathExists(statePath)) {
+    return { success: false, error: 'State file not found' };
+  }
+
+  try {
+    const content = await readFile(statePath, 'utf-8');
+    const data = JSON.parse(content);
+
+    // Try to validate but capture errors instead of throwing
+    const result = OrchestrationStateSchema.safeParse(data);
+    if (result.success) {
+      return { success: true, data };
+    } else {
+      return {
+        success: false,
+        data, // Return the raw data anyway for repair
+        error: 'Schema validation failed',
+        zodErrors: result.error.issues,
+      };
+    }
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      return { success: false, error: 'Invalid JSON' };
+    }
+    return { success: false, error: String(err) };
+  }
+}
+
+/**
+ * Write raw data to state file (bypasses validation, use with caution)
+ * Used for auto-repair scenarios
+ */
+export async function writeRawState(data: Record<string, unknown>, projectPath?: string): Promise<void> {
+  const statePath = getStatePath(projectPath);
+  const dir = dirname(statePath);
+  await mkdir(dir, { recursive: true });
+  await atomicWriteFile(statePath, JSON.stringify(data, null, 2));
 }
 
 /**

@@ -1,16 +1,21 @@
 import { Command } from 'commander';
-import { readFile, readdir, copyFile, mkdir } from 'node:fs/promises';
+import { readFile, readdir, copyFile, mkdir, writeFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { output } from '../lib/output.js';
-import { readState, writeState, setStateValue } from '../lib/state.js';
+import { readState, writeState, setStateValue, readRawState, writeRawState } from '../lib/state.js';
 import { readTasks, detectCircularDependencies } from '../lib/tasks.js';
 import { readRoadmap, getPhaseByNumber } from '../lib/roadmap.js';
 import { readFeatureChecklists, areAllChecklistsComplete } from '../lib/checklist.js';
 import { getProjectContext, resolveFeatureDir, getMissingArtifacts } from '../lib/context.js';
 import { runHealthCheck, type HealthIssue } from '../lib/health.js';
-import { findProjectRoot, pathExists, getStatePath, getMemoryDir, getTemplatesDir, getSystemTemplatesDir } from '../lib/paths.js';
+import { findProjectRoot, pathExists, getStatePath, getMemoryDir, getTemplatesDir, getSystemTemplatesDir, getHistoryDir, getSpecifyDir } from '../lib/paths.js';
 import { handleError, NotFoundError } from '../lib/errors.js';
 import type { OrchestrationState } from '@specflow/shared';
+
+/**
+ * Step index mapping for validation
+ */
+const STEP_INDEX_MAP: Record<string, number> = { design: 0, analyze: 1, implement: 2, verify: 3 };
 
 /**
  * Gate types
@@ -392,8 +397,208 @@ async function applyFixes(
   const fixed: FixResult[] = [];
   const autoFixable = issues.filter(i => i.autoFixable);
 
+  // First pass: Fix STATE_SCHEMA_ERROR issues that prevent normal reads
+  const schemaErrors = autoFixable.filter(i => i.code === 'STATE_SCHEMA_ERROR');
+  if (schemaErrors.length > 0) {
+    try {
+      const rawResult = await readRawState(projectRoot);
+      if (rawResult.data && rawResult.zodErrors) {
+        const data = rawResult.data as Record<string, unknown>;
+        let fixCount = 0;
+
+        // Fix common schema issues in raw data
+        const orchestration = data.orchestration as Record<string, unknown> | undefined;
+        if (orchestration) {
+          const step = orchestration.step as Record<string, unknown> | undefined;
+          const phase = orchestration.phase as Record<string, unknown> | undefined;
+
+          // Fix step.index if it's a string
+          if (step && typeof step.index === 'string') {
+            const stepCurrent = step.current as string | undefined;
+            const correctIndex = stepCurrent && STEP_INDEX_MAP[stepCurrent] !== undefined
+              ? STEP_INDEX_MAP[stepCurrent]
+              : null;
+            step.index = correctIndex;
+            fixCount++;
+          }
+
+          // Fix step.current if invalid
+          const validSteps = ['design', 'analyze', 'implement', 'verify'];
+          if (step && step.current && !validSteps.includes(step.current as string)) {
+            step.current = null;
+            fixCount++;
+          }
+
+          // Fix step.status if invalid
+          const validStepStatuses = ['not_started', 'pending', 'in_progress', 'complete', 'failed', 'blocked', 'skipped'];
+          if (step && step.status && !validStepStatuses.includes(step.status as string)) {
+            step.status = 'not_started';
+            fixCount++;
+          }
+
+          // Fix phase.status if invalid
+          const validPhaseStatuses = ['not_started', 'in_progress', 'complete'];
+          if (phase && phase.status && !validPhaseStatuses.includes(phase.status as string)) {
+            phase.status = 'not_started';
+            fixCount++;
+          }
+        }
+
+        // Fix schema_version
+        if (data.schema_version !== '3.0') {
+          data.schema_version = '3.0';
+          fixCount++;
+        }
+
+        if (fixCount > 0) {
+          await writeRawState(data, projectRoot);
+          fixed.push({
+            code: 'STATE_SCHEMA_ERROR',
+            action: `Repaired ${fixCount} schema validation issue(s) in state file`,
+          });
+        }
+      }
+    } catch {
+      // Raw repair failed, continue with other fixes
+    }
+  }
+
   for (const issue of autoFixable) {
     try {
+      // Skip STATE_SCHEMA_ERROR - already handled above
+      if (issue.code === 'STATE_SCHEMA_ERROR') continue;
+
+      // === Schema validation fixes ===
+
+      if (issue.code === 'SCHEMA_VERSION_OUTDATED') {
+        const state = await readState(projectRoot);
+        const updated = { ...state, schema_version: '3.0' };
+        await writeState(updated as OrchestrationState, projectRoot);
+        fixed.push({
+          code: issue.code,
+          action: 'Updated schema_version to "3.0"',
+        });
+      }
+
+      if (issue.code === 'STEP_INDEX_TYPE_ERROR') {
+        const state = await readState(projectRoot);
+        const currentStep = state.orchestration?.step?.current;
+        // Convert to correct number based on step name, or 0 if unknown
+        const correctIndex = currentStep && STEP_INDEX_MAP[currentStep] !== undefined
+          ? STEP_INDEX_MAP[currentStep]
+          : 0;
+        const updated = setStateValue(state, 'orchestration.step.index', correctIndex);
+        await writeState(updated, projectRoot);
+        fixed.push({
+          code: issue.code,
+          action: `Converted step.index to number: ${correctIndex}`,
+        });
+      }
+
+      if (issue.code === 'STEP_CURRENT_INVALID') {
+        const state = await readState(projectRoot);
+        // Reset to null for invalid values like "idle"
+        const updated = setStateValue(state, 'orchestration.step.current', null);
+        await writeState(updated, projectRoot);
+        fixed.push({
+          code: issue.code,
+          action: 'Reset step.current to null',
+        });
+      }
+
+      if (issue.code === 'STEP_STATUS_INVALID') {
+        const state = await readState(projectRoot);
+        // Reset to not_started for invalid values like "idle"
+        const updated = setStateValue(state, 'orchestration.step.status', 'not_started');
+        await writeState(updated, projectRoot);
+        fixed.push({
+          code: issue.code,
+          action: 'Reset step.status to "not_started"',
+        });
+      }
+
+      if (issue.code === 'PHASE_STATUS_INVALID') {
+        const state = await readState(projectRoot);
+        // Reset to not_started for invalid values like "idle"
+        const updated = setStateValue(state, 'orchestration.phase.status', 'not_started');
+        await writeState(updated, projectRoot);
+        fixed.push({
+          code: issue.code,
+          action: 'Reset phase.status to "not_started"',
+        });
+      }
+
+      if (issue.code === 'STEP_INDEX_MISMATCH') {
+        const state = await readState(projectRoot);
+        const currentStep = state.orchestration?.step?.current;
+        if (currentStep && STEP_INDEX_MAP[currentStep] !== undefined) {
+          const correctIndex = STEP_INDEX_MAP[currentStep];
+          const updated = setStateValue(state, 'orchestration.step.index', correctIndex);
+          await writeState(updated, projectRoot);
+          fixed.push({
+            code: issue.code,
+            action: `Corrected step.index to ${correctIndex} (for "${currentStep}")`,
+          });
+        }
+      }
+
+      // === File structure fixes ===
+
+      if (issue.code === 'STATE_WRONG_LOCATION') {
+        const wrongPath = join(getSpecifyDir(projectRoot), 'orchestration-state.json');
+        await unlink(wrongPath);
+        fixed.push({
+          code: issue.code,
+          action: 'Removed duplicate state file from .specify/',
+        });
+      }
+
+      if (issue.code === 'NO_BACKLOG') {
+        const backlogPath = join(projectRoot, 'BACKLOG.md');
+        const backlogContent = `# Backlog
+
+> Items deferred for future consideration. Add items during \`/flow.verify\` or with \`specflow phase defer "item"\`.
+
+## Deferred Items
+
+<!-- Add deferred items here -->
+
+## Technical Debt
+
+<!-- Add tech debt items here -->
+
+## Future Considerations
+
+<!-- Add future ideas here -->
+`;
+        await writeFile(backlogPath, backlogContent, 'utf-8');
+        fixed.push({
+          code: issue.code,
+          action: 'Created BACKLOG.md template',
+        });
+      }
+
+      if (issue.code === 'NO_HISTORY') {
+        const historyDir = getHistoryDir(projectRoot);
+        await mkdir(historyDir, { recursive: true });
+        const historyPath = join(historyDir, 'HISTORY.md');
+        const historyContent = `# Phase History
+
+> Summaries of completed phases. Updated automatically by \`specflow phase close\`.
+
+---
+
+<!-- Completed phase summaries will be added here -->
+`;
+        await writeFile(historyPath, historyContent, 'utf-8');
+        fixed.push({
+          code: issue.code,
+          action: 'Created .specify/history/HISTORY.md template',
+        });
+      }
+
+      // === Existing fixes ===
+
       if (issue.code === 'TASKS_COMPLETE_STEP_IMPLEMENT') {
         const state = await readState(projectRoot);
         const updated = setStateValue(state, 'orchestration.step.current', 'verify');

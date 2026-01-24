@@ -9,6 +9,7 @@ import { TodoPanel } from '@/components/session/todo-panel'
 import type { TodoItem } from '@/lib/session-parser'
 import { Play, Terminal, LayoutDashboard, ChevronDown, Clock, CheckCircle, XCircle, Loader2, History } from 'lucide-react'
 import { SessionControls } from '@/components/session/session-controls'
+import { WorkflowOutputCard, type WorkflowOutput } from '@/components/session/workflow-output-card'
 import type { SessionMessage } from '@/lib/session-parser'
 import type { WorkflowStatus } from '@/components/design-system'
 import type { WorkflowIndexEntry } from '@/lib/services/workflow-service'
@@ -32,12 +33,20 @@ interface SessionConsoleProps {
   onEndSession?: (sessionId: string) => void
   /** Callback to pause an active session (when part of orchestration) */
   onPauseSession?: (sessionId: string) => void
+  /** Callback to resume a paused session */
+  onResumeSession?: () => void
   /** Whether pause is available (e.g., orchestration is active) */
   canPause?: boolean
+  /** Whether orchestration is currently paused */
+  isPaused?: boolean
   /** Project ID for session operations */
   projectId?: string
   /** Current todo items from session */
   currentTodos?: TodoItem[]
+  /** Workflow's final structured output (for completed sessions) */
+  workflowOutput?: WorkflowOutput | null
+  /** Whether the session has ended */
+  sessionEnded?: boolean
   className?: string
 }
 
@@ -95,9 +104,13 @@ export function SessionConsole({
   onSelectSession,
   onEndSession,
   onPauseSession,
+  onResumeSession,
   canPause = false,
+  isPaused = false,
   projectId,
   currentTodos = [],
+  workflowOutput,
+  sessionEnded = false,
   className,
 }: SessionConsoleProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -135,8 +148,8 @@ export function SessionConsole({
   // Check if we have sessions to show in dropdown
   const hasHistory = sessionHistory.length > 0
 
-  // Check if session has ended (based on messages)
-  const hasSessionEnded = messages.some(m => m.isSessionEnd)
+  // Compute hasEnded from messages if not passed via prop
+  const hasEnded = sessionEnded || messages.some(m => m.isSessionEnd)
 
   // Empty state when idle AND no history selected
   if (workflowStatus === 'idle' && messages.length === 0 && !selectedSession) {
@@ -285,7 +298,7 @@ export function SessionConsole({
             {isDropdownOpen && (
               <div className="absolute top-full left-0 mt-1 w-72 bg-surface-100 border border-surface-300 rounded-md shadow-xl z-50 overflow-hidden">
                 {/* Current session option - only show if workflow is actually active */}
-                {currentSessionId && !hasSessionEnded && workflowStatus !== 'idle' && (
+                {currentSessionId && !hasEnded && workflowStatus !== 'idle' && (
                   <>
                     <button
                       onClick={() => {
@@ -320,7 +333,7 @@ export function SessionConsole({
                   {sessionHistory.map((session) => {
                     // Override status if this is the currently viewed session and it has ended
                     const isCurrentlyViewed = session.sessionId === currentViewSessionId
-                    const effectiveStatus = (isCurrentlyViewed && hasSessionEnded) ? 'completed' : session.status
+                    const effectiveStatus = (isCurrentlyViewed && hasEnded) ? 'completed' : session.status
 
                     return (
                       <button
@@ -358,7 +371,9 @@ export function SessionConsole({
               <SessionControls
                 onCancel={handleEndCurrentSession}
                 onPause={canPause && onPauseSession ? () => onPauseSession(currentViewSessionId) : undefined}
+                onResume={onResumeSession}
                 showPause={canPause && !!onPauseSession}
+                isPaused={isPaused}
                 compact={true}
               />
             )}
@@ -398,8 +413,13 @@ export function SessionConsole({
           return <SessionMessageDisplay key={index} message={message} />
         })}
 
+        {/* Workflow output card - shown when workflow produced structured output */}
+        {workflowOutput && (
+          <WorkflowOutputCard output={workflowOutput} className="mt-4" />
+        )}
+
         {/* Typing indicator when processing (hide if session has ended) */}
-        {isProcessing && !hasSessionEnded && <TypingIndicator />}
+        {isProcessing && !hasEnded && <TypingIndicator />}
       </div>
 
       {/* Todo panel at bottom */}

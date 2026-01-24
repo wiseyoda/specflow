@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { RegistrySchema } from './registry.js';
 import { TasksDataSchema } from './tasks.js';
-import { WorkflowDataSchema } from './workflow.js';
+import { WorkflowDataSchema, QuestionOptionSchema } from './workflow.js';
 import { PhasesDataSchema } from './phases.js';
 
 /**
@@ -152,16 +152,105 @@ export const OrchestrationStateSchema = z.object({
 export type StepStatus = z.infer<typeof StepStatusSchema>;
 
 /**
+ * Session message schema for real-time session content
+ * Matches the structure in session-parser.ts
+ */
+export const ToolCallInfoSchema = z.object({
+  name: z.string(),
+  operation: z.enum(['read', 'write', 'edit', 'search', 'execute', 'todo', 'agent']),
+  files: z.array(z.string()),
+  input: z.record(z.string(), z.unknown()).optional(),
+});
+
+/**
+ * Agent task information from Task tool calls
+ */
+export const AgentTaskInfoSchema = z.object({
+  id: z.string(),
+  description: z.string(),
+  subagentType: z.string(),
+  status: z.enum(['running', 'completed']),
+});
+
+export const SessionMessageSchema = z.object({
+  role: z.enum(['user', 'assistant', 'system']),
+  content: z.string(),
+  timestamp: z.string().optional(),
+  toolCalls: z.array(ToolCallInfoSchema).optional(),
+  isCommandInjection: z.boolean().optional(),
+  commandName: z.string().optional(),
+  isSessionEnd: z.boolean().optional(),
+  questions: z.array(z.object({
+    question: z.string(),
+    header: z.string().optional(),
+    options: z.array(z.object({
+      label: z.string(),
+      description: z.string().optional(),
+    })),
+    multiSelect: z.boolean().optional(),
+  })).optional(),
+  agentTasks: z.array(AgentTaskInfoSchema).optional(),
+});
+
+export const TodoItemSchema = z.object({
+  content: z.string(),
+  status: z.enum(['pending', 'in_progress', 'completed']),
+  activeForm: z.string(),
+});
+
+/**
+ * Question from AskUserQuestion tool call (for session:question SSE events)
+ * Uses QuestionOptionSchema from workflow.ts for consistency
+ */
+export const SessionQuestionSchema = z.object({
+  question: z.string(),
+  header: z.string().optional(),
+  options: z.array(QuestionOptionSchema),
+  multiSelect: z.boolean().optional(),
+});
+
+/**
+ * Workflow output from StructuredOutput tool call
+ */
+export const WorkflowOutputSchema = z.object({
+  status: z.string(), // 'completed' | 'error' | 'needs_input' | 'cancelled' | etc.
+  phase: z.string().optional(),
+  message: z.string().optional(),
+  artifacts: z.array(z.object({
+    path: z.string(),
+    action: z.string(),
+  })).optional(),
+  questions: z.array(SessionQuestionSchema).optional(),
+});
+
+/**
+ * Session content structure for SSE
+ */
+export const SessionContentSchema = z.object({
+  messages: z.array(SessionMessageSchema),
+  filesModified: z.array(z.string()),
+  elapsedMs: z.number(),
+  currentTodos: z.array(TodoItemSchema),
+  workflowOutput: WorkflowOutputSchema.optional(),
+  agentTasks: z.array(AgentTaskInfoSchema).optional(),
+});
+
+/**
  * SSE Event Types
  */
 export const SSEEventTypeSchema = z.enum([
-  'connected',    // Initial connection established
-  'heartbeat',    // Keep-alive ping
-  'registry',     // Registry file changed
-  'state',        // Project state file changed
-  'tasks',        // Project tasks.md file changed
-  'workflow',     // Project workflow index changed
-  'phases',       // Project ROADMAP.md phases changed
+  'connected',        // Initial connection established
+  'heartbeat',        // Keep-alive ping
+  'registry',         // Registry file changed
+  'state',            // Project state file changed
+  'tasks',            // Project tasks.md file changed
+  'workflow',         // Project workflow index changed
+  'phases',           // Project ROADMAP.md phases changed
+  'session:message',  // Session JSONL content changed
+  'session:question', // AskUserQuestion detected
+  'session:end',      // Session ended
+  'session:created',  // New session JSONL file detected (G6.4)
+  'session:activity', // Existing session JSONL file modified (G6.5)
 ]);
 
 /**
@@ -230,6 +319,60 @@ export const PhasesEventSchema = z.object({
 });
 
 /**
+ * Session message event - session JSONL content changed
+ */
+export const SessionMessageEventSchema = z.object({
+  type: z.literal('session:message'),
+  timestamp: z.string(),
+  projectId: z.string(),
+  sessionId: z.string(),
+  data: SessionContentSchema,
+});
+
+/**
+ * Session question event - AskUserQuestion detected
+ */
+export const SessionQuestionEventSchema = z.object({
+  type: z.literal('session:question'),
+  timestamp: z.string(),
+  projectId: z.string(),
+  sessionId: z.string(),
+  data: z.object({
+    questions: z.array(SessionQuestionSchema),
+  }),
+});
+
+/**
+ * Session end event - session ended
+ */
+export const SessionEndEventSchema = z.object({
+  type: z.literal('session:end'),
+  timestamp: z.string(),
+  projectId: z.string(),
+  sessionId: z.string(),
+});
+
+/**
+ * Session created event - new session JSONL file detected (G6.4)
+ */
+export const SessionCreatedEventSchema = z.object({
+  type: z.literal('session:created'),
+  timestamp: z.string(),
+  projectId: z.string(),
+  sessionId: z.string(),
+});
+
+/**
+ * Session activity event - existing session JSONL file modified (G6.5)
+ */
+export const SessionActivityEventSchema = z.object({
+  type: z.literal('session:activity'),
+  timestamp: z.string(),
+  projectId: z.string(),
+  sessionId: z.string(),
+});
+
+/**
  * Union of all SSE event types
  */
 export const SSEEventSchema = z.discriminatedUnion('type', [
@@ -240,6 +383,11 @@ export const SSEEventSchema = z.discriminatedUnion('type', [
   TasksEventSchema,
   WorkflowSSEEventSchema,
   PhasesEventSchema,
+  SessionMessageEventSchema,
+  SessionQuestionEventSchema,
+  SessionEndEventSchema,
+  SessionCreatedEventSchema,
+  SessionActivityEventSchema,
 ]);
 
 // Type exports
@@ -251,5 +399,18 @@ export type StateEvent = z.infer<typeof StateEventSchema>;
 export type TasksEvent = z.infer<typeof TasksEventSchema>;
 export type WorkflowSSEEvent = z.infer<typeof WorkflowSSEEventSchema>;
 export type PhasesEvent = z.infer<typeof PhasesEventSchema>;
+export type SessionMessageEvent = z.infer<typeof SessionMessageEventSchema>;
+export type SessionQuestionEvent = z.infer<typeof SessionQuestionEventSchema>;
+export type SessionEndEvent = z.infer<typeof SessionEndEventSchema>;
+export type SessionCreatedEvent = z.infer<typeof SessionCreatedEventSchema>;
+export type SessionActivityEvent = z.infer<typeof SessionActivityEventSchema>;
 export type SSEEvent = z.infer<typeof SSEEventSchema>;
 export type OrchestrationState = z.infer<typeof OrchestrationStateSchema>;
+export type ToolCallInfo = z.infer<typeof ToolCallInfoSchema>;
+export type AgentTaskInfo = z.infer<typeof AgentTaskInfoSchema>;
+export type SessionMessage = z.infer<typeof SessionMessageSchema>;
+export type TodoItem = z.infer<typeof TodoItemSchema>;
+// QuestionOption is exported from workflow.ts
+export type SessionQuestion = z.infer<typeof SessionQuestionSchema>;
+export type WorkflowOutput = z.infer<typeof WorkflowOutputSchema>;
+export type SessionContent = z.infer<typeof SessionContentSchema>;

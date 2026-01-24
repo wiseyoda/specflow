@@ -8,7 +8,7 @@
  */
 
 import * as React from 'react';
-import { Pause, XCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { Pause, Play, XCircle, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -26,6 +26,8 @@ import {
 export interface SessionControlsProps {
   /** Callback for pause action */
   onPause?: () => void;
+  /** Callback for resume action */
+  onResume?: () => void;
   /** Callback for cancel action */
   onCancel?: () => void;
   /** Whether controls are disabled */
@@ -34,6 +36,8 @@ export interface SessionControlsProps {
   isLoading?: boolean;
   /** Whether pause is available (e.g., when part of orchestration) */
   showPause?: boolean;
+  /** Whether orchestration is currently paused */
+  isPaused?: boolean;
   /** Compact mode - shows smaller buttons */
   compact?: boolean;
 }
@@ -44,10 +48,12 @@ export interface SessionControlsProps {
 
 export function SessionControls({
   onPause,
+  onResume,
   onCancel,
   disabled = false,
   isLoading = false,
   showPause = false,
+  isPaused = false,
   compact = false,
 }: SessionControlsProps) {
   const [showCancelDialog, setShowCancelDialog] = React.useState(false);
@@ -63,21 +69,23 @@ export function SessionControls({
   return (
     <>
       <div className="flex items-center gap-2">
-        {/* Pause Button (optional) */}
-        {showPause && onPause && (
+        {/* Pause/Resume Button (optional) */}
+        {showPause && (isPaused ? onResume : onPause) && (
           <Button
             variant="outline"
             size={buttonSize}
-            onClick={onPause}
+            onClick={isPaused ? onResume : onPause}
             disabled={disabled || isLoading}
             className={compact ? 'gap-1.5 px-2 py-1 h-7 text-xs' : 'gap-2'}
           >
             {isLoading ? (
               <Loader2 className={`${iconSize} animate-spin`} />
+            ) : isPaused ? (
+              <Play className={iconSize} />
             ) : (
               <Pause className={iconSize} />
             )}
-            {!compact && 'Pause'}
+            {!compact && (isPaused ? 'Resume' : 'Pause')}
           </Button>
         )}
 

@@ -40,6 +40,16 @@ vi.mock('fs', () => ({
     }
     return [];
   }),
+  renameSync: vi.fn((oldPath: string, newPath: string) => {
+    // For atomic writes: copy content from temp to final path
+    if (mockFiles.has(oldPath)) {
+      mockFiles.set(newPath, mockFiles.get(oldPath)!);
+      mockFiles.delete(oldPath);
+    }
+  }),
+  unlinkSync: vi.fn((path: string) => {
+    mockFiles.delete(path);
+  }),
 }));
 
 // Mock child_process for specflow status

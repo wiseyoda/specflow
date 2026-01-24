@@ -12,7 +12,7 @@
  * - Integration with specflow status --json
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, renameSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
@@ -57,12 +57,66 @@ function getOrchestrationPath(projectPath: string, id: string): string {
 }
 
 /**
- * Save orchestration state to file
+ * Save orchestration state to file (atomic write - G5.1, G5.2)
+ *
+ * Uses write-to-temp + atomic rename pattern to prevent partial writes
+ * from corrupting state during crashes or concurrent access.
  */
 function saveOrchestration(projectPath: string, execution: OrchestrationExecution): void {
   const filePath = getOrchestrationPath(projectPath, execution.id);
+  const tempPath = `${filePath}.tmp`;
+
   execution.updatedAt = new Date().toISOString();
-  writeFileSync(filePath, JSON.stringify(execution, null, 2));
+  const content = JSON.stringify(execution, null, 2);
+
+  // G5.1: Write to temp file first
+  writeFileSync(tempPath, content);
+
+  // G5.2: Atomic rename (POSIX guarantees atomicity on same filesystem)
+  try {
+    renameSync(tempPath, filePath);
+  } catch (error) {
+    // Clean up temp file if rename fails
+    try {
+      unlinkSync(tempPath);
+    } catch {
+      // Ignore cleanup errors
+    }
+    throw error;
+  }
+}
+
+/**
+ * Sync current phase to orchestration-state.json for UI consistency
+ * This keeps the state file in sync with the orchestration execution
+ */
+function syncPhaseToStateFile(projectPath: string, phase: OrchestrationPhase): void {
+  try {
+    // Try .specflow first (v3), then .specify (v2)
+    let statePath = join(projectPath, '.specflow', 'orchestration-state.json');
+    if (!existsSync(statePath)) {
+      statePath = join(projectPath, '.specify', 'orchestration-state.json');
+    }
+    if (!existsSync(statePath)) {
+      return; // No state file to update
+    }
+
+    const content = readFileSync(statePath, 'utf-8');
+    const state = JSON.parse(content);
+
+    // Update step.current to match orchestration phase
+    if (state.orchestration) {
+      state.orchestration.step = state.orchestration.step || {};
+      state.orchestration.step.current = phase;
+      state.orchestration.step.status = 'in_progress';
+      state.last_updated = new Date().toISOString();
+    }
+
+    writeFileSync(statePath, JSON.stringify(state, null, 2));
+  } catch {
+    // Non-critical: log but don't fail orchestration
+    console.warn('[orchestration-service] Failed to sync phase to state file');
+  }
 }
 
 /**
@@ -113,12 +167,38 @@ function listOrchestrations(projectPath: string): OrchestrationExecution[] {
 }
 
 /**
+ * Staleness threshold for waiting_merge orchestrations
+ * If an orchestration has been waiting for merge for longer than this, consider it stale
+ */
+const WAITING_MERGE_STALE_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+/**
+ * Check if an orchestration is stale based on its status and age
+ */
+function isOrchestrationStale(orchestration: OrchestrationExecution): boolean {
+  // Only apply staleness check to waiting_merge status
+  // running/paused should always be considered active regardless of age
+  if (orchestration.status !== 'waiting_merge') {
+    return false;
+  }
+
+  // Check if waiting_merge has been stale for too long
+  const updatedAt = new Date(orchestration.updatedAt).getTime();
+  const age = Date.now() - updatedAt;
+  return age > WAITING_MERGE_STALE_MS;
+}
+
+/**
  * Find active orchestration for a project (FR-024)
  * Returns the first orchestration in 'running' or 'paused' status
+ * Excludes stale waiting_merge orchestrations (older than 2 hours)
  */
 function findActiveOrchestration(projectPath: string): OrchestrationExecution | null {
   const orchestrations = listOrchestrations(projectPath);
-  return orchestrations.find((o) => ['running', 'paused', 'waiting_merge'].includes(o.status)) || null;
+  return orchestrations.find((o) =>
+    ['running', 'paused', 'waiting_merge'].includes(o.status) &&
+    !isOrchestrationStale(o)
+  ) || null;
 }
 
 // =============================================================================
@@ -191,32 +271,65 @@ function getSpecflowStatus(projectPath: string): SpecflowStatus | null {
 /**
  * Check if a step is complete based on specflow status
  */
-function isStepComplete(projectPath: string, phase: OrchestrationPhase): boolean {
-  const status = getSpecflowStatus(projectPath);
+/**
+ * Check if a phase is complete based on specflow status
+ * Exported for use by orchestration-runner.ts
+ */
+export function isPhaseComplete(status: SpecflowStatus | null, phase: OrchestrationPhase): boolean {
   if (!status) return false;
 
   switch (phase) {
     case 'design':
+      // Design is complete when plan.md and tasks.md exist
       return status.context?.hasPlan === true && status.context?.hasTasks === true;
+
     case 'analyze':
-      // Analyze doesn't produce new artifacts - check orchestration state
-      return status.orchestration?.step?.current === 'implement';
+      // Analyze doesn't produce artifacts - check orchestration state
+      // step.current must have moved past analyze (to 'implement' or later)
+      // OR step.status is 'complete' when current step is analyze
+      const analyzeStepComplete =
+        status.orchestration?.step?.current === 'implement' ||
+        status.orchestration?.step?.current === 'verify' ||
+        (status.orchestration?.step?.current === 'analyze' &&
+          status.orchestration?.step?.status === 'complete');
+      return analyzeStepComplete ?? false;
+
     case 'implement':
       // All tasks complete
       return (
         status.progress?.tasksComplete === status.progress?.tasksTotal &&
         (status.progress?.tasksTotal ?? 0) > 0
       );
+
     case 'verify':
-      // Check orchestration state moved to merge
-      return status.orchestration?.step?.current === 'merge';
+      // Verify is complete when step.current has moved past verify (to merge)
+      // OR when step.status is 'complete' with current step as verify
+      const verifyStepComplete =
+        status.orchestration?.step?.current === 'merge' ||
+        (status.orchestration?.step?.current === 'verify' &&
+          status.orchestration?.step?.status === 'complete');
+      return verifyStepComplete ?? false;
+
     case 'merge':
-      return status.orchestration?.step?.status === 'complete';
+      // Merge is complete when orchestration marks it so
+      return status.orchestration?.step?.status === 'complete' &&
+        (status.orchestration?.step?.current === 'merge' ||
+          status.orchestration?.step?.current === undefined);
+
     case 'complete':
       return true;
+
     default:
       return false;
   }
+}
+
+/**
+ * Check if a step is complete for a project (convenience wrapper)
+ */
+function isStepComplete(projectPath: string, phase: OrchestrationPhase): boolean {
+  const status = getSpecflowStatus(projectPath);
+  return isPhaseComplete(status, phase);
 }
 
 // =============================================================================
@@ -225,8 +338,9 @@ function isStepComplete(projectPath: string, phase: OrchestrationPhase): boolean
 
 /**
  * Get the next phase in the orchestration flow
+ * Respects all skip flags: skipDesign, skipAnalyze, skipImplement, skipVerify
  */
-function getNextPhase(
+export function getNextPhase(
   current: OrchestrationPhase,
   config: OrchestrationConfig
 ): OrchestrationPhase | null {
@@ -238,18 +352,21 @@ function getNextPhase(
     return null;
   }
 
-  // Get next phase
+  // Get next phase, respecting skip flags
   let nextIndex = currentIndex + 1;
   let nextPhase = phases[nextIndex];
 
-  // Skip design if configured
-  if (nextPhase === 'design' && config.skipDesign) {
-    nextIndex++;
-    nextPhase = phases[nextIndex];
-  }
+  // Skip phases as configured (loop to handle consecutive skips)
+  while (nextPhase && nextIndex < phases.length - 1) {
+    const shouldSkip =
+      (nextPhase === 'design' && config.skipDesign) ||
+      (nextPhase === 'analyze' && config.skipAnalyze) ||
+      (nextPhase === 'implement' && config.skipImplement) ||
+      (nextPhase === 'verify' && config.skipVerify);
 
-  // Skip analyze if configured
-  if (nextPhase === 'analyze' && config.skipAnalyze) {
+    if (!shouldSkip) break;
+
+    console.log(`[getNextPhase] Skipping ${nextPhase} (skip flag is true)`);
     nextIndex++;
     nextPhase = phases[nextIndex];
   }
@@ -347,6 +464,9 @@ class OrchestrationService {
 
     // Save initial state
     saveOrchestration(projectPath, execution);
+
+    // Sync initial phase to state file for UI consistency
+    syncPhaseToStateFile(projectPath, execution.currentPhase);
 
     return execution;
   }
@@ -478,6 +598,8 @@ class OrchestrationService {
       execution.status = 'waiting_merge';
       logDecision(execution, 'waiting_merge', 'Auto-merge disabled, waiting for user');
       saveOrchestration(projectPath, execution);
+      // Sync to state file for UI consistency
+      syncPhaseToStateFile(projectPath, nextPhase);
       return execution;
     }
 
@@ -485,6 +607,9 @@ class OrchestrationService {
     execution.currentPhase = nextPhase;
     logDecision(execution, 'transition', `Moving from ${currentPhase} to ${nextPhase}`);
     saveOrchestration(projectPath, execution);
+
+    // Sync to state file for UI consistency (project list, sidebar)
+    syncPhaseToStateFile(projectPath, nextPhase);
 
     return execution;
   }
@@ -844,6 +969,18 @@ class OrchestrationService {
   }
 
   /**
+   * Touch activity timestamp for external session detection (G6.6)
+   * Called when external CLI session activity is detected
+   */
+  touchActivity(projectPath: string, orchestrationId: string): void {
+    const execution = loadOrchestration(projectPath, orchestrationId);
+    if (!execution) return;
+
+    // saveOrchestration already updates updatedAt, so just save
+    saveOrchestration(projectPath, execution);
+  }
+
+  /**
    * Get the skill to run for the current phase
    */
   getCurrentSkill(projectPath: string, orchestrationId: string): string | null {
@@ -898,6 +1035,23 @@ class OrchestrationService {
       taskIds: batch.taskIds,
       status: batch.status,
     };
+  }
+
+  /**
+   * Add an entry to the decision log (public interface for runner)
+   */
+  logDecision(
+    projectPath: string,
+    orchestrationId: string,
+    decision: string,
+    reason: string,
+    data?: Record<string, unknown>
+  ): void {
+    const execution = loadOrchestration(projectPath, orchestrationId);
+    if (!execution) return;
+
+    logDecision(execution, decision, reason, data);
+    saveOrchestration(projectPath, execution);
   }
 }
 

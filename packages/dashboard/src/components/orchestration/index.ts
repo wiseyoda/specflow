@@ -8,7 +8,7 @@ export { StartOrchestrationModal, type BatchPlanInfo } from './start-orchestrati
 export { OrchestrationConfigForm } from './orchestration-config-form';
 export { PhaseProgressBar } from './phase-progress-bar';
 export { BatchProgress } from './batch-progress';
-export { DecisionLogPanel } from './decision-log-panel';
+export { DecisionLogPanel, DecisionLogPanel as DecisionLogViewer } from './decision-log-panel';
 export { OrchestrationProgress } from './orchestration-progress';
 export { OrchestrationControls } from './orchestration-controls';
 export { MergeReadyPanel } from './merge-ready-panel';

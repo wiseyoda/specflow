@@ -1303,6 +1303,16 @@ ${claudePath} -p --output-format json --dangerously-skip-permissions --disallowe
           exec.logs.push(
             `[WAITING] ${cliResult.structured_output.questions?.length || 0} questions`
           );
+
+          // Broadcast questions via SSE so the UI can display them
+          if (cliResult.structured_output.questions && exec.sessionId) {
+            const { broadcastWorkflowQuestions } = require('../watcher');
+            broadcastWorkflowQuestions(
+              exec.sessionId,
+              exec.projectId,
+              cliResult.structured_output.questions
+            );
+          }
         } else if (cliResult.structured_output.status === 'completed') {
           exec.status = 'completed';
           exec.logs.push('[COMPLETE] Workflow finished!');

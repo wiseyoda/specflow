@@ -31,6 +31,10 @@ export const OrchestrationConfigSchema = z.object({
   skipDesign: z.boolean().default(false),
   /** Skip /flow.analyze step */
   skipAnalyze: z.boolean().default(false),
+  /** Skip /flow.implement if all tasks are already complete */
+  skipImplement: z.boolean().default(false),
+  /** Skip /flow.verify if verify step is already complete */
+  skipVerify: z.boolean().default(false),
 
   // Advanced options (collapsed section in modal)
   /** Attempt automatic recovery on batch failure */
@@ -56,6 +60,8 @@ export const DEFAULT_ORCHESTRATION_CONFIG: OrchestrationConfig = {
   additionalContext: '',
   skipDesign: false,
   skipAnalyze: false,
+  skipImplement: false,
+  skipVerify: false,
   autoHealEnabled: true,
   maxHealAttempts: 1,
   batchSizeFallback: 15,

@@ -69,7 +69,37 @@ if [[ "$CURRENT_BRANCH" == "main" || "$CURRENT_BRANCH" == "master" ]]; then
 fi
 ```
 
-**Check for merge conflicts with main:**
+**Check for git remote (critical for push/PR/merge):**
+
+```bash
+REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+```
+
+If `REMOTE_URL` is empty, use `AskUserQuestion` to offer local-only fallback:
+
+```json
+{
+  "questions": [{
+    "question": "No git remote is configured. The merge workflow normally pushes to a remote and creates a PR.\n\nWould you like to proceed with a local-only merge instead? This will:\n- Close the phase and update ROADMAP.md\n- Commit all changes locally\n- Skip push, PR, and remote merge\n\nYou can push manually later or configure a remote.",
+    "header": "No Remote",
+    "options": [
+      {"label": "Local merge (Recommended)", "description": "Close phase locally - commit changes but skip push/PR/merge"},
+      {"label": "Cancel", "description": "Stop and configure git remote first"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+**Handle response:**
+- **Local merge**: Set `LOCAL_ONLY_MODE=true` and continue. Skip steps 5-9 (push/PR/merge), but still do steps 1-4 and 10-11.
+- **Cancel**: Return with `status: "cancelled"` and message about configuring remote.
+
+**If remote is configured**, proceed normally with `LOCAL_ONLY_MODE=false`.
+
+**Check for merge conflicts with main (skip if LOCAL_ONLY_MODE):**
+
+If `LOCAL_ONLY_MODE=false`:
 
 ```bash
 # Fetch latest main to ensure we have current state
@@ -279,13 +309,17 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 
 Use TodoWrite: mark [MERGE] COMMIT complete, mark [MERGE] PUSH in_progress.
 
-### 5. Push Branch
+### 5. Push Branch (Skip if LOCAL_ONLY_MODE)
+
+**If LOCAL_ONLY_MODE=true**: Skip to step 10 (Memory Integration). Mark [MERGE] PUSH, [MERGE] MERGE as skipped.
+
+**If LOCAL_ONLY_MODE=false**:
 
 ```bash
 git push -u origin "$CURRENT_BRANCH"
 ```
 
-### 6. Create Pull Request
+### 6. Create Pull Request (Skip if LOCAL_ONLY_MODE)
 
 **Check for existing PR:**
 
@@ -307,7 +341,7 @@ if [[ -z "$PR_URL" ]]; then
 fi
 ```
 
-### 7. Handle --pr-only
+### 7. Handle --pr-only (Skip if LOCAL_ONLY_MODE)
 
 ```bash
 if [[ "$ARGUMENTS" == *"--pr-only"* ]]; then
@@ -321,13 +355,17 @@ fi
 
 Use TodoWrite: mark [MERGE] PUSH complete, mark [MERGE] MERGE in_progress.
 
-### 8. Merge PR
+### 8. Merge PR (Skip if LOCAL_ONLY_MODE)
 
 ```bash
 gh pr merge --squash --delete-branch
 ```
 
-### 9. Switch to Main
+### 9. Switch to Main (Skip if LOCAL_ONLY_MODE)
+
+**If LOCAL_ONLY_MODE=true**: Stay on feature branch. Phase is closed and committed locally.
+
+**If LOCAL_ONLY_MODE=false**:
 
 ```bash
 git checkout main
@@ -397,6 +435,19 @@ Use TodoWrite: mark [MERGE] MEMORY complete, mark [MERGE] DONE in_progress.
 
 ### 11. Done
 
+**If LOCAL_ONLY_MODE=true**:
+```text
+✓ Closed phase $PHASE_NUMBER (local only)
+✓ Committed changes locally
+⊘ Skipped push/PR/merge (no remote configured)
+✓ Integrated archive into memory
+
+Phase is complete locally. To push later:
+1. Configure remote: git remote add origin <url>
+2. Push: git push -u origin $CURRENT_BRANCH
+```
+
+**If LOCAL_ONLY_MODE=false**:
 ```text
 ✓ Closed phase $PHASE_NUMBER
 ✓ Committed changes
@@ -414,6 +465,7 @@ Use TodoWrite: mark [MERGE] DONE complete.
 | Error | Response |
 |-------|----------|
 | Not on feature branch | "Switch to a feature branch first" |
+| No git remote | **Ask user** - offer local-only merge or cancel |
 | Uncommitted changes | **Ask user** - show changes, offer: commit with phase, stash, review, or abort |
 | Phase close fails | Show CLI error message |
 | Merge fails | "Check for merge conflicts or required reviews" |

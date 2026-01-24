@@ -16,6 +16,30 @@ All commands support `--help` for detailed usage and `--json` for machine-readab
 
 These are the primary commands for SpecFlow v3.0. They provide rich, contextual output designed for efficient Claude Code integration.
 
+### init - Initialize New Project
+
+Create a new SpecFlow project with full 3.0 compliance.
+
+```bash
+specflow init                         # Initialize in current directory
+specflow init --name "My Project"     # With custom project name
+specflow init --force                 # Reinitialize existing project
+specflow project init                 # Same as specflow init
+```
+
+**Creates:**
+- `.specflow/` - Operational state (orchestration-state.json, manifest.json, workflows/)
+- `.specify/` - Repository knowledge (memory/, templates/, phases/, archive/, history/)
+- `ROADMAP.md` - Phase overview template
+- `BACKLOG.md` - Deferred items template
+- `specs/` - Active phase artifacts directory
+
+**Output includes:**
+- Created directories and files
+- Synced templates
+- Registry status
+- Next steps
+
 ### status - Complete Project Status
 
 Get comprehensive project status in a single call.
@@ -201,9 +225,9 @@ The following bash commands are deprecated in v3.0. They will display an error w
 | `specflow tasks mark` | `specflow mark` |
 | `specflow gate` | `specflow check --gate` |
 | `specflow reconcile` | `specflow check --fix` |
-| `specflow scaffold` | Use `/flow.init` slash command |
+| `specflow scaffold` | `specflow init` (CLI) then `/flow.init` (AI discovery) |
 | `specflow memory` | Use `/flow.memory` slash command |
-| `specflow templates` | Use `/flow.init` slash command |
+| `specflow templates` | `specflow init` syncs templates automatically |
 | `specflow dashboard` | (Removed in v3.0) |
 | `specflow git` | Use git directly |
 | `specflow roadmap` | Use `/flow.roadmap` slash command |
@@ -213,11 +237,53 @@ Running a deprecated command shows:
 ```
 ERROR: Command 'doctor' is deprecated in SpecFlow v3.0
 
-The TypeScript CLI replaces bash scripts with 6 smart commands:
+The TypeScript CLI replaces bash scripts with 7 smart commands:
+  specflow init     - Initialize new project (creates structure)
   specflow status   - Complete project status (replaces: context, doctor, detect)
   specflow next     - Next task with context (replaces: tasks incomplete)
   specflow mark     - Mark tasks done (replaces: tasks mark)
   specflow check    - Validation & auto-fix (replaces: gate, reconcile)
   specflow state    - State operations (same as before)
   specflow phase    - Phase lifecycle (open/close/status/defer/add)
+```
+
+---
+
+## Initialization Paths
+
+### New Projects
+
+For greenfield projects, the recommended initialization sequence is:
+
+```bash
+# Step 1: Create project structure (CLI)
+specflow init
+
+# Step 2: Run discovery interview (Claude Code)
+/flow.init
+
+# Step 3: Start development (Claude Code)
+/flow.orchestrate
+```
+
+- `specflow init` creates the directory structure, templates, and state files
+- `/flow.init` runs an AI-guided discovery interview and generates memory documents
+- `/flow.orchestrate` begins the development workflow
+
+### Existing v1.0/v2.0 Projects
+
+For projects migrating from older SpecFlow versions:
+
+```bash
+# Step 1: Detect and migrate (CLI)
+specflow upgrade
+
+# Step 2: Intelligent analysis (Claude Code)
+/flow.doctor migrate
+
+# Step 3: Validate and repair (CLI)
+specflow check --fix
+
+# Step 4: Resume development (Claude Code)
+/flow.orchestrate
 ```

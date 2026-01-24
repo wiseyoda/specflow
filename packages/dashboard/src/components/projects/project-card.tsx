@@ -23,9 +23,8 @@ import type { WorkflowStatus } from '@/components/design-system/status-pill'
 import { StatusButton } from '@/components/projects/action-button'
 import { ActionsMenu } from '@/components/projects/actions-menu'
 import { cn } from '@/lib/utils'
-import type { OrchestrationState, TasksData } from '@specflow/shared'
+import type { OrchestrationState, TasksData, WorkflowIndexEntry } from '@specflow/shared'
 import type { ProjectStatus as ActionProjectStatus } from '@/lib/action-definitions'
-import type { WorkflowExecution } from '@/lib/services/workflow-service'
 import type { OrchestrationExecution } from '@specflow/shared'
 
 /**
@@ -53,8 +52,8 @@ interface ProjectCardProps {
   tasks?: TasksData | null
   isUnavailable?: boolean
   isDiscovered?: boolean
-  /** Active workflow execution for this project */
-  workflowExecution?: WorkflowExecution | null
+  /** Active workflow execution for this project (from SSE) */
+  workflowExecution?: WorkflowIndexEntry | null
   /** Active orchestration execution for this project */
   activeOrchestration?: OrchestrationExecution | null
   /** Callback to start a workflow */
@@ -84,14 +83,74 @@ function formatRelativeTime(isoString: string | null | undefined): string {
 }
 
 /**
- * Check if activity is recent (within last 15 minutes)
+ * Activity indicator state based on workflow/orchestration status
  */
-function isRecentActivity(isoString: string | null | undefined): boolean {
-  if (!isoString) return false
-  const date = new Date(isoString)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  return diffMs < 15 * 60 * 1000 // 15 minutes
+type ActivityIndicator = 'running' | 'waiting' | 'merge' | 'error' | 'stale' | null
+
+/**
+ * Determine activity indicator based on workflow and orchestration state
+ */
+function getActivityIndicator(
+  workflowExecution: WorkflowIndexEntry | null | undefined,
+  activeOrchestration: OrchestrationExecution | null | undefined
+): ActivityIndicator {
+  const workflowStatus = workflowExecution?.status
+  const orchestrationStatus = activeOrchestration?.status
+
+  // Error state (workflow or orchestration failed)
+  if (workflowStatus === 'failed' || orchestrationStatus === 'failed') {
+    return 'error'
+  }
+
+  // Running state (actively executing)
+  if (workflowStatus === 'running' || orchestrationStatus === 'running') {
+    return 'running'
+  }
+
+  // Waiting for user input
+  if (
+    workflowStatus === 'waiting_for_input' ||
+    orchestrationStatus === 'paused' ||
+    orchestrationStatus === 'needs_attention'
+  ) {
+    return 'waiting'
+  }
+
+  // Ready to merge
+  if (orchestrationStatus === 'waiting_merge') {
+    return 'merge'
+  }
+
+  // Stale/detached (lost tracking)
+  if (workflowStatus === 'stale' || workflowStatus === 'detached') {
+    return 'stale'
+  }
+
+  // Idle (completed, cancelled, or no activity)
+  return null
+}
+
+/**
+ * Get activity indicator styles
+ */
+function getActivityIndicatorStyles(indicator: ActivityIndicator): {
+  className: string
+  animate: boolean
+} | null {
+  switch (indicator) {
+    case 'running':
+      return { className: 'bg-success', animate: true }
+    case 'waiting':
+      return { className: 'bg-amber-500', animate: false }
+    case 'merge':
+      return { className: 'bg-purple-500', animate: false }
+    case 'error':
+      return { className: 'bg-danger', animate: false }
+    case 'stale':
+      return { className: 'bg-zinc-500', animate: false }
+    default:
+      return null
+  }
 }
 
 /**
@@ -108,6 +167,35 @@ function getMostRecentTimestamp(...timestamps: (string | null | undefined)[]): s
   return validDates.reduce((latest, current) =>
     current.date > latest.date ? current : latest
   ).ts
+}
+
+/**
+ * Get step badge styling based on step name
+ * Steps: design → analyze → implement → verify → complete
+ */
+function getStepBadge(step: string | null | undefined): {
+  label: string
+  className: string
+} | null {
+  if (!step) return null
+
+  const normalizedStep = step.toLowerCase()
+
+  switch (normalizedStep) {
+    case 'design':
+      return { label: 'Design', className: 'bg-purple-500/15 text-purple-400' }
+    case 'analyze':
+      return { label: 'Analyze', className: 'bg-blue-500/15 text-blue-400' }
+    case 'implement':
+      return { label: 'Implement', className: 'bg-amber-500/15 text-amber-400' }
+    case 'verify':
+      return { label: 'Verify', className: 'bg-cyan-500/15 text-cyan-400' }
+    case 'complete':
+    case 'completed':
+      return { label: 'Complete', className: 'bg-success/15 text-success' }
+    default:
+      return { label: step, className: 'bg-zinc-500/15 text-zinc-400' }
+  }
 }
 
 /**
@@ -133,6 +221,12 @@ function getProjectStatus(state: OrchestrationState | null | undefined): Project
 
   if (state.health?.status === 'warning') {
     return 'warning'
+  }
+
+  // If there's active orchestration data, treat as ready even if health.status is "initializing"
+  // (health.status can be stale while orchestration is actively in progress)
+  if (state.orchestration?.phase?.number || state.orchestration?.step?.current) {
+    return 'ready'
   }
 
   if (state.health?.status === 'initializing') {
@@ -199,7 +293,7 @@ function getStatusBadge(status: ProjectStatus): {
  * Map workflow execution status to StatusPill status
  */
 function getWorkflowPillStatus(
-  execution: WorkflowExecution | null | undefined
+  execution: WorkflowIndexEntry | null | undefined
 ): WorkflowStatus {
   if (!execution?.status) return 'idle'
   switch (execution.status) {
@@ -266,12 +360,24 @@ export function ProjectCard({
   nextPhase,
 }: ProjectCardProps) {
   const phase = state?.orchestration?.phase
-  const step = state?.orchestration?.step
   const health = state?.health
 
-  const lastUpdated = getMostRecentTimestamp(state?.last_updated, state?._fileMtime)
-  const isActive = isRecentActivity(lastUpdated)
+  // Current step: prefer live orchestration data over stale state file
+  const currentStep = activeOrchestration?.currentPhase ?? state?.orchestration?.step?.current
+
+  // Last updated: prioritize workflow activity, then tasks, then state file
+  const lastUpdated = getMostRecentTimestamp(
+    workflowExecution?.updatedAt,
+    workflowExecution?.startedAt,
+    tasks?.lastUpdated,
+    state?.last_updated,
+    state?._fileMtime
+  )
   const phaseComplete = isPhaseComplete(phase?.status)
+
+  // Activity indicator based on workflow/orchestration state
+  const activityIndicator = getActivityIndicator(workflowExecution, activeOrchestration)
+  const activityStyles = getActivityIndicatorStyles(activityIndicator)
 
   // Workflow status handling
   const workflowPillStatus = getWorkflowPillStatus(workflowExecution)
@@ -298,10 +404,11 @@ export function ProjectCard({
   const hasTasks = totalTasks > 0
   const allTasksComplete = hasTasks && completedTasks === totalTasks
 
-  // Ready to merge - phase is complete AND verify step is done
+  // Ready to merge - orchestration says so, or phase complete, or all tasks done in verify
   const isReadyToMerge =
+    activeOrchestration?.status === 'waiting_merge' ||
     phase?.status === 'complete' ||
-    (allTasksComplete && step?.status === 'complete' && step?.current === 'verify')
+    (allTasksComplete && currentStep === 'verify')
 
   // Branch name
   const branchName = phase?.branch ?? 'main'
@@ -335,8 +442,14 @@ export function ProjectCard({
               )}
             />
           </div>
-          {isActive && (
-            <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-success ring-2 ring-surface-100 animate-pulse" />
+          {activityStyles && (
+            <span
+              className={cn(
+                'absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-surface-100',
+                activityStyles.className,
+                activityStyles.animate && 'animate-pulse'
+              )}
+            />
           )}
         </div>
 
@@ -354,11 +467,13 @@ export function ProjectCard({
               </span>
             )}
             {workflowPillStatus !== 'idle' && !hasActiveOrchestration && (
-              <StatusPill status={workflowPillStatus} size="sm" />
+              <span className="hidden sm:block">
+                <StatusPill status={workflowPillStatus} size="sm" />
+              </span>
             )}
             {orchestrationBadge && (
               <span className={cn(
-                'inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded',
+                'hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded',
                 orchestrationBadge.className
               )}>
                 <orchestrationBadge.icon className={cn(
@@ -391,9 +506,21 @@ export function ProjectCard({
                   >
                     {phase?.number || '—'}
                   </span>
-                  <span className="text-xs text-zinc-500 truncate">
+                  <span className="hidden sm:inline text-xs text-zinc-500 truncate">
                     {phase?.name?.replace(/-/g, ' ') || 'Unknown phase'}
                   </span>
+                  {/* Step indicator */}
+                  {!phaseComplete && !isReadyToMerge && currentStep && (() => {
+                    const stepBadge = getStepBadge(currentStep)
+                    return stepBadge ? (
+                      <span className={cn(
+                        'text-[10px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wide',
+                        stepBadge.className
+                      )}>
+                        {stepBadge.label}
+                      </span>
+                    ) : null
+                  })()}
                   {phaseComplete && (
                     <CheckCircle2 className="h-3 w-3 text-success flex-shrink-0" />
                   )}
@@ -411,12 +538,12 @@ export function ProjectCard({
                     Ready
                   </span>
                   {nextPhase && (
-                    <>
+                    <span className="hidden sm:flex items-center gap-2">
                       <span className="text-zinc-600">→</span>
                       <span className="text-xs text-zinc-500 truncate">
                         {nextPhase.name.replace(/-/g, ' ')}
                       </span>
-                    </>
+                    </span>
                   )}
                 </>
               )
@@ -464,12 +591,14 @@ export function ProjectCard({
 
           {/* Actions */}
           <div className="flex items-center gap-1" onClick={(e) => e.preventDefault()}>
-            <StatusButton
-              projectId={project.id}
-              projectPath={project.path}
-              projectStatus={projectStatus as ActionProjectStatus}
-              isAvailable={!isUnavailable}
-            />
+            <span className="hidden sm:block">
+              <StatusButton
+                projectId={project.id}
+                projectPath={project.path}
+                projectStatus={projectStatus as ActionProjectStatus}
+                isAvailable={!isUnavailable}
+              />
+            </span>
             <ActionsMenu
               projectId={project.id}
               projectName={project.name}
@@ -483,7 +612,7 @@ export function ProjectCard({
             />
           </div>
 
-          <ChevronRight className="h-4 w-4 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
+          <ChevronRight className="hidden sm:block h-4 w-4 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
         </div>
       </div>
     </Link>

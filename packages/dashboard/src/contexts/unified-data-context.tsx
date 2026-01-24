@@ -4,17 +4,14 @@
  * UNIFIED DATA CONTEXT - Single source of truth for all real-time data
  *
  * DATA SOURCES:
- * - SSE (pushed): registry, states, tasks, workflows, phases
+ * - SSE (pushed): registry, states, tasks, workflows, phases, sessionContent
  *   -> Triggered by file system changes via chokidar watcher
+ *   -> Session JSONL files in ~/.claude/projects/ are also file-watched
  *   -> See: lib/watcher.ts, hooks/use-sse.ts
- *
- * - Polling (pulled): sessionContent
- *   -> Session JSONL files live in ~/.claude/projects/ (external)
- *   -> See: lib/session-polling-manager.ts
  *
  * ADDING NEW DATA:
  * - File in project directory? -> Add to watcher.ts + SSE events
- * - External file/API? -> Add to session-polling-manager.ts
+ * - Session JSONL file? -> Already handled by watcher.ts session watching
  * - NEVER add independent polling hooks
  */
 
@@ -22,16 +19,9 @@ import {
   createContext,
   useContext,
   useState,
-  useEffect,
-  useCallback,
   type ReactNode,
 } from 'react';
 import { useSSE, type ConnectionStatus } from '@/hooks/use-sse';
-import {
-  sessionPollingManager,
-  type SessionContent,
-  type SessionUpdateEvent,
-} from '@/lib/session-polling-manager';
 import type {
   Registry,
   OrchestrationState,
@@ -39,7 +29,31 @@ import type {
   WorkflowData,
   PhasesData,
   Project,
+  SessionQuestion,
 } from '@specflow/shared';
+import type {
+  SessionMessage,
+  TodoItem,
+  WorkflowOutput,
+  AgentTaskInfo,
+} from '@/lib/session-parser';
+
+/**
+ * Session content structure (from JSONL parsing)
+ * Re-exported for convenience
+ */
+export type { SessionMessage, TodoItem, WorkflowOutput, AgentTaskInfo };
+
+export interface SessionContent {
+  messages: SessionMessage[];
+  filesModified: string[];
+  elapsedMs: number;
+  currentTodos: TodoItem[];
+  /** Final structured output from workflow completion (if any) */
+  workflowOutput?: WorkflowOutput;
+  /** Agent tasks (parallel agents) currently running or recently completed */
+  agentTasks?: AgentTaskInfo[];
+}
 
 /**
  * Unified data context value interface
@@ -53,8 +67,12 @@ interface UnifiedDataContextValue {
   phases: Map<string, PhasesData>;
   connectionStatus: ConnectionStatus;
 
-  // === Polled Data (Session content only) ===
+  // === Session Content (SSE-pushed from JSONL file watching) ===
   sessionContent: Map<string, SessionContent>;
+
+  // === Session Questions (G4.5: AskUserQuestion tool calls from SSE) ===
+  sessionQuestions: Map<string, SessionQuestion[]>;
+  clearSessionQuestions: (sessionId: string) => void;
 
   // === UI State ===
   selectedProject: Project | null;
@@ -62,8 +80,6 @@ interface UnifiedDataContextValue {
 
   // === Actions ===
   refetch: () => void;
-  subscribeToSession: (sessionId: string, projectPath: string) => void;
-  unsubscribeFromSession: (sessionId: string) => void;
 }
 
 const UnifiedDataContext = createContext<UnifiedDataContextValue | null>(null);
@@ -71,58 +87,15 @@ const UnifiedDataContext = createContext<UnifiedDataContextValue | null>(null);
 /**
  * Unified Data Provider
  *
- * Wraps SSE hook for file-watched data and integrates session polling manager.
+ * Wraps SSE hook for file-watched data including session JSONL content.
+ * No polling - all data is pushed via SSE from file watchers.
  */
 export function UnifiedDataProvider({ children }: { children: ReactNode }) {
-  // SSE data (file-watched: registry, states, tasks, workflows)
+  // SSE data (file-watched: registry, states, tasks, workflows, sessions)
   const sseData = useSSE();
 
   // UI state
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-
-  // Session content (polled)
-  const [sessionContent, setSessionContent] = useState<Map<string, SessionContent>>(
-    new Map()
-  );
-
-  // Subscribe to session polling updates
-  useEffect(() => {
-    const unsubscribe = sessionPollingManager.addListener(
-      (event: SessionUpdateEvent) => {
-        setSessionContent(prev => {
-          const next = new Map(prev);
-          next.set(event.sessionId, event.content);
-          return next;
-        });
-      }
-    );
-
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
-  // Session subscription management
-  const subscribeToSession = useCallback(
-    (sessionId: string, projectPath: string) => {
-      sessionPollingManager.subscribe(sessionId, projectPath);
-
-      // Load cached content if available
-      const cached = sessionPollingManager.getCache(sessionId);
-      if (cached) {
-        setSessionContent(prev => {
-          const next = new Map(prev);
-          next.set(sessionId, cached);
-          return next;
-        });
-      }
-    },
-    []
-  );
-
-  const unsubscribeFromSession = useCallback((sessionId: string) => {
-    sessionPollingManager.unsubscribe(sessionId);
-  }, []);
 
   const value: UnifiedDataContextValue = {
     // SSE data
@@ -133,8 +106,12 @@ export function UnifiedDataProvider({ children }: { children: ReactNode }) {
     phases: sseData.phases,
     connectionStatus: sseData.connectionStatus,
 
-    // Polled data
-    sessionContent,
+    // Session content (from SSE - pushed by session:message events)
+    sessionContent: sseData.sessionContent,
+
+    // Session questions (G4.5: from SSE - pushed by session:question events)
+    sessionQuestions: sseData.sessionQuestions,
+    clearSessionQuestions: sseData.clearSessionQuestions,
 
     // UI state
     selectedProject,
@@ -142,8 +119,6 @@ export function UnifiedDataProvider({ children }: { children: ReactNode }) {
 
     // Actions
     refetch: sseData.refetch,
-    subscribeToSession,
-    unsubscribeFromSession,
   };
 
   return (

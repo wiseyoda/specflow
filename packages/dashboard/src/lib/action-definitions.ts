@@ -22,7 +22,7 @@ export interface ActionDefinition {
   label: string;
   /** Short description for tooltips */
   description: string;
-  /** CLI command to execute (e.g., "init", "doctor") */
+  /** CLI command to execute (e.g., "init", "check", "status") */
   command: string;
   /** Default arguments to pass to the command */
   args: string[];
@@ -50,9 +50,9 @@ export interface ActionDefinition {
  * All available project actions
  *
  * SpecFlow CLI v3.0 commands:
+ * - init: Initialize a new project with full 3.0 compliance
  * - status: Get complete project status
  * - check: Deep validation with auto-fix support
- * - state init: Initialize a new state file
  * - phase: Manage phase lifecycle
  */
 export const ACTION_DEFINITIONS: ActionDefinition[] = [
@@ -60,16 +60,18 @@ export const ACTION_DEFINITIONS: ActionDefinition[] = [
   {
     id: 'init',
     label: 'Initialize',
-    description: 'Initialize SpecFlow state for this project',
-    command: 'state',
-    args: ['init'],
+    description: 'Initialize SpecFlow project with full 3.0 compliance',
+    command: 'init',
+    args: [],
     requiresConfirmation: true,
     confirmationTitle: 'Initialize Project',
-    confirmationDescription: 'This will create a new orchestration state file.',
+    confirmationDescription: 'This will create a fully compliant SpecFlow 3.0 project structure.',
     confirmationItems: [
-      '.specflow/ directory',
-      'orchestration-state.json',
-      'Project registration',
+      '.specflow/ directory (state, manifest, workflows)',
+      '.specify/ directories (memory, templates, phases, archive)',
+      'ROADMAP.md and BACKLOG.md templates',
+      'specs/ directory for phase artifacts',
+      'Project registration in global registry',
     ],
     applicableStatuses: ['not_initialized'],
     variant: 'default',

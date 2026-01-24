@@ -58,6 +58,10 @@ interface SpecflowStatus {
     tasksTotal?: number;
     tasksCompleted?: number;
   };
+  step?: {
+    current?: string;
+    status?: string;
+  };
   nextAction?: string;
 }
 
@@ -96,7 +100,9 @@ function needsDesign(status: SpecflowStatus | null): boolean {
 
 /**
  * Determine smart starting phase based on project state
- * Returns config overrides for skipDesign/skipAnalyze
+ * Returns config overrides for skipDesign/skipAnalyze/skipImplement/skipVerify
+ *
+ * Phase ordering: design → analyze → implement → verify → merge
  */
 function getSmartConfig(
   status: SpecflowStatus | null,
@@ -111,16 +117,57 @@ function getSmartConfig(
   const tasksCompleted = status.progress?.tasksCompleted ?? 0;
   const allTasksComplete = tasksTotal > 0 && tasksCompleted >= tasksTotal;
 
-  // Smart defaults based on actual state:
-  // - If design artifacts exist, skip design (unless user explicitly unchecked)
-  // - If all tasks complete, we'll start at implement but immediately transition to verify
-  const smartSkipDesign = config.skipDesign || (hasSpec && hasPlan && hasTasks);
-  const smartSkipAnalyze = config.skipAnalyze || smartSkipDesign;
+  // Check step.current to determine what phase we're at (state file may be stale)
+  const stepCurrent = status.step?.current;
+  const stepStatus = status.step?.status;
+
+  // Phase ordering for determining "past" phases
+  const phaseOrder = ['design', 'analyze', 'implement', 'verify', 'merge'];
+  const currentPhaseIndex = stepCurrent ? phaseOrder.indexOf(stepCurrent) : -1;
+
+  // Helper: is current phase at or past a given phase?
+  const isPastPhase = (phase: string) => {
+    const phaseIndex = phaseOrder.indexOf(phase);
+    return currentPhaseIndex >= 0 && currentPhaseIndex > phaseIndex;
+  };
+
+  // Helper: is current phase at a given phase and complete?
+  const isPhaseComplete = (phase: string) => {
+    return stepCurrent === phase && stepStatus === 'complete';
+  };
+
+  // Design is complete if:
+  // - Artifacts exist (spec, plan, tasks)
+  // - OR we're past design phase
+  const designComplete = (hasSpec && hasPlan && hasTasks) || isPastPhase('design');
+
+  // Analyze is complete if:
+  // - User explicitly skips it
+  // - OR we're past analyze phase (at implement, verify, or merge)
+  // - OR step.current is 'analyze' and status is 'complete'
+  // - OR all tasks are complete (implies we're past analyze - analyze happens before implement)
+  const analyzeComplete = config.skipAnalyze || isPastPhase('analyze') || isPhaseComplete('analyze') || allTasksComplete;
+
+  // Implement is complete if:
+  // - All tasks are complete
+  // - OR we're past implement phase (at verify or merge)
+  const implementComplete = allTasksComplete || isPastPhase('implement');
+
+  // Verify is complete if:
+  // - step.current is 'verify' and status is 'complete'
+  // - OR we're past verify phase (at merge)
+  // Note: verify completion also requires all tasks to be complete
+  const verifyComplete = (isPhaseComplete('verify') || isPastPhase('verify')) && allTasksComplete;
+
+  console.log(`[getSmartConfig] stepCurrent=${stepCurrent}, stepStatus=${stepStatus}, phaseIndex=${currentPhaseIndex}`);
+  console.log(`[getSmartConfig] designComplete=${designComplete}, analyzeComplete=${analyzeComplete}, implementComplete=${implementComplete}, verifyComplete=${verifyComplete}`);
 
   return {
     ...config,
-    skipDesign: smartSkipDesign,
-    skipAnalyze: smartSkipAnalyze,
+    skipDesign: config.skipDesign || designComplete,
+    skipAnalyze: config.skipAnalyze || analyzeComplete,
+    skipImplement: implementComplete,
+    skipVerify: verifyComplete,
   };
 }
 

@@ -1,4 +1,4 @@
-import { initWatcher, addListener, getCurrentRegistry, getAllStates, getAllTasks, getAllWorkflows, getAllPhases, startHeartbeat } from '@/lib/watcher';
+import { initWatcher, addListener, getCurrentRegistry, getAllStates, getAllTasks, getAllWorkflows, getAllPhases, getAllSessions, startHeartbeat } from '@/lib/watcher';
 import type { SSEEvent } from '@specflow/shared';
 
 // Initialize watcher on first request
@@ -92,6 +92,18 @@ export async function GET(): Promise<Response> {
           timestamp: new Date().toISOString(),
           projectId,
           data: phasesData,
+        });
+      }
+
+      // Send current session content for active sessions
+      const sessions = await getAllSessions();
+      for (const { projectId, sessionId, content } of sessions) {
+        send({
+          type: 'session:message',
+          timestamp: new Date().toISOString(),
+          projectId,
+          sessionId,
+          data: content,
         });
       }
 

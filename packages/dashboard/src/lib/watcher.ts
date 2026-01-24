@@ -11,9 +11,14 @@ import {
   type SSEEvent,
   type TasksData,
   type WorkflowIndex,
+  type WorkflowIndexEntry,
   type WorkflowData,
   type PhasesData,
+  type SessionContent,
+  type SessionQuestion,
 } from '@specflow/shared';
+import { readdirSync, statSync, existsSync, readFileSync } from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 import { parseTasks, type ParseTasksOptions } from './task-parser';
 import { parseRoadmapToPhasesData } from './roadmap-parser';
 import {
@@ -21,6 +26,9 @@ import {
   getStateFilePathSync,
   migrateStateFiles,
 } from './state-paths';
+import { getProjectSessionDir, getClaudeProjectsDir } from './project-hash';
+import { reconcileRunners } from './services/orchestration-runner';
+import { orchestrationService } from './services/orchestration-service';
 
 // Debounce delay in milliseconds
 const DEBOUNCE_MS = 200;
@@ -30,18 +38,26 @@ const HEARTBEAT_MS = 30000;
 
 // Global state for the watcher singleton
 let watcher: FSWatcher | null = null;
+let sessionWatcher: FSWatcher | null = null;
 let registryPath: string;
 let currentRegistry: Registry | null = null;
 let watchedStatePaths: Set<string> = new Set();
 let watchedTasksPaths: Set<string> = new Set();
 let watchedWorkflowPaths: Set<string> = new Set();
 let watchedPhasesPaths: Set<string> = new Set();
+let watchedSessionDirs: Set<string> = new Set();
 
 // Cache workflow data to detect actual changes
 const workflowCache: Map<string, string> = new Map(); // projectId -> JSON string
 
 // Cache phases data to detect actual changes
 const phasesCache: Map<string, string> = new Map(); // projectId -> JSON string
+
+// Cache session content to detect actual changes
+const sessionCache: Map<string, string> = new Map(); // sessionId -> JSON string
+
+// Session debounce (faster for real-time feel)
+const SESSION_DEBOUNCE_MS = 100;
 
 // Event listeners (SSE connections)
 type EventListener = (event: SSEEvent) => void;
@@ -54,13 +70,50 @@ const debounceTimers: Map<string, NodeJS.Timeout> = new Map();
 /**
  * Broadcast event to all connected listeners
  */
-function broadcast(event: SSEEvent): void {
+export function broadcast(event: SSEEvent): void {
   listeners.forEach((listener) => {
     try {
       listener(event);
     } catch (error) {
       console.error('[Watcher] Error broadcasting event:', error);
     }
+  });
+}
+
+/**
+ * Broadcast a session:question event for workflow-mode questions
+ * Called by workflow-service when structured_output has questions
+ */
+export function broadcastWorkflowQuestions(
+  sessionId: string,
+  projectId: string,
+  questions: Array<{
+    question: string;
+    header?: string;
+    options?: Array<{ label: string; description?: string }>;
+    multiSelect?: boolean;
+  }>
+): void {
+  if (!questions || questions.length === 0) return;
+
+  const mappedQuestions = questions.map((q) => ({
+    question: q.question,
+    header: q.header,
+    options: (q.options || []).map((opt) => ({
+      label: opt.label,
+      description: opt.description ?? '',
+    })),
+    multiSelect: q.multiSelect,
+  }));
+
+  broadcast({
+    type: 'session:question',
+    timestamp: new Date().toISOString(),
+    projectId,
+    sessionId,
+    data: {
+      questions: mappedQuestions,
+    },
   });
 }
 
@@ -112,16 +165,26 @@ async function readState(projectId: string, statePath: string): Promise<Orchestr
       fs.readFile(statePath, 'utf-8'),
       fs.stat(statePath),
     ]);
-    const parsed = OrchestrationStateSchema.parse(JSON.parse(content));
+    // Use safeParse to gracefully handle older/incompatible state file formats
+    // from other projects without spamming logs
+    const result = OrchestrationStateSchema.safeParse(JSON.parse(content));
+    if (!result.success) {
+      // Silently skip projects with incompatible state schemas
+      // These are typically older projects that haven't been updated
+      return null;
+    }
     // Add file mtime for activity tracking (more reliable than last_updated field)
     return {
-      ...parsed,
+      ...result.data,
       _fileMtime: stats.mtime.toISOString(),
     };
   } catch (error) {
-    // Silently return null for missing files (ENOENT)
-    // Only log actual errors
+    // Silently return null for missing files (ENOENT) or JSON parse errors
     if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      return null;
+    }
+    // Also silently handle JSON parse errors (corrupted files)
+    if (error instanceof SyntaxError) {
       return null;
     }
     console.error(`[Watcher] Error reading state for ${projectId}:`, error);
@@ -146,6 +209,9 @@ async function handleRegistryChange(): Promise<void> {
   // Update watched state paths
   await updateWatchedPaths(newRegistry);
   currentRegistry = newRegistry;
+
+  // Update project path map for session watching
+  updateProjectPathMap();
 }
 
 /**
@@ -245,13 +311,148 @@ function buildWorkflowData(index: WorkflowIndex): WorkflowData {
 }
 
 /**
- * Handle workflow index file change
+ * Discover CLI sessions from Claude projects directory.
+ * Scans ~/.claude/projects/{hash}/ for .jsonl files and creates WorkflowIndexEntry objects.
+ * These are sessions started from CLI that weren't tracked by the dashboard.
+ *
+ * @param projectPath - Absolute path to the project
+ * @param trackedSessionIds - Set of session IDs already tracked by dashboard (to avoid duplicates)
+ * @param limit - Maximum number of sessions to return (default 50)
+ */
+function discoverCliSessions(
+  projectPath: string,
+  trackedSessionIds: Set<string>,
+  limit: number = 50
+): WorkflowIndexEntry[] {
+  const sessionDir = getProjectSessionDir(projectPath);
+
+  if (!existsSync(sessionDir)) {
+    return [];
+  }
+
+  try {
+    const files = readdirSync(sessionDir);
+    const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
+
+    // Get file stats and create entries
+    const entries: WorkflowIndexEntry[] = [];
+
+    for (const file of jsonlFiles) {
+      const sessionId = file.replace('.jsonl', '');
+
+      // Skip if already tracked by dashboard
+      if (trackedSessionIds.has(sessionId)) {
+        continue;
+      }
+
+      const fullPath = path.join(sessionDir, file);
+      try {
+        const stats = statSync(fullPath);
+
+        // Try to extract skill from first line of JSONL (lazy - only read if needed)
+        let skill = 'CLI Session';
+        try {
+          // Read just the first few KB to find skill info
+          const fd = require('fs').openSync(fullPath, 'r');
+          const buffer = Buffer.alloc(4096);
+          require('fs').readSync(fd, buffer, 0, 4096, 0);
+          require('fs').closeSync(fd);
+
+          const firstLines = buffer.toString('utf-8').split('\n').slice(0, 5);
+          for (const line of firstLines) {
+            if (!line.trim()) continue;
+            try {
+              const msg = JSON.parse(line);
+              // Look for skill in various places
+              if (msg.skill) {
+                skill = msg.skill;
+                break;
+              }
+              if (msg.message?.content && typeof msg.message.content === 'string') {
+                // Check for /flow.* commands in first user message
+                const flowMatch = msg.message.content.match(/\/flow\.(\w+)/);
+                if (flowMatch) {
+                  skill = `flow.${flowMatch[1]}`;
+                  break;
+                }
+              }
+            } catch {
+              // Invalid JSON line, continue
+            }
+          }
+        } catch {
+          // Could not read file content, use default skill
+        }
+
+        // Determine status based on file age
+        const fileAgeMs = Date.now() - stats.mtime.getTime();
+        const isRecent = fileAgeMs < 30 * 60 * 1000; // 30 minutes
+        const status: WorkflowIndexEntry['status'] = isRecent ? 'detached' : 'completed';
+
+        entries.push({
+          sessionId,
+          executionId: uuidv4(), // Generate placeholder ID for CLI sessions
+          skill,
+          status,
+          startedAt: stats.birthtime.toISOString(),
+          updatedAt: stats.mtime.toISOString(),
+          costUsd: 0, // Unknown for CLI sessions
+        });
+      } catch {
+        // Could not stat file, skip
+      }
+    }
+
+    // Sort by updatedAt descending (newest first)
+    entries.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+    // Return limited number
+    return entries.slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Handle workflow index file change.
+ * Merges dashboard-tracked sessions with discovered CLI sessions.
  */
 async function handleWorkflowChange(projectId: string, indexPath: string): Promise<void> {
   const index = await readWorkflowIndex(indexPath);
   if (!index) return;
 
-  const data = buildWorkflowData(index);
+  // Get project path for CLI session discovery
+  const projectPath = projectPathMap.get(projectId);
+
+  // Get tracked session IDs to avoid duplicates
+  const trackedSessionIds = new Set<string>(
+    index.sessions.map(s => s.sessionId)
+  );
+
+  // Discover CLI sessions that aren't tracked by dashboard
+  const cliSessions = projectPath
+    ? discoverCliSessions(projectPath, trackedSessionIds, 50)
+    : [];
+
+  // Merge sessions: dashboard-tracked first, then CLI-discovered
+  const allSessions = [
+    ...index.sessions,
+    ...cliSessions,
+  ];
+
+  // Sort all sessions by updatedAt (newest first)
+  allSessions.sort((a, b) =>
+    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
+
+  // Build workflow data with merged sessions
+  const activeStates = ['running', 'waiting_for_input', 'detached', 'stale'];
+  const currentExecution = allSessions.find(s => activeStates.includes(s.status)) ?? null;
+
+  const data: WorkflowData = {
+    currentExecution,
+    sessions: allSessions.slice(0, 100), // Limit to 100 total sessions
+  };
 
   // Check if data actually changed (avoid duplicate broadcasts)
   const dataJson = JSON.stringify(data);
@@ -430,10 +631,32 @@ async function updateWatchedPaths(registry: Registry): Promise<void> {
       watcher.add(workflowIndexPath);
       console.log(`[Watcher] Added workflow index: ${workflowIndexPath}`);
 
-      // Broadcast initial workflow data
+      // Broadcast initial workflow data (including CLI sessions)
       const index = await readWorkflowIndex(workflowIndexPath);
       if (index) {
-        const data = buildWorkflowData(index);
+        // Get tracked session IDs to avoid duplicates
+        const trackedSessionIds = new Set<string>(
+          index.sessions.map(s => s.sessionId)
+        );
+
+        // Discover CLI sessions
+        const cliSessions = discoverCliSessions(project.path, trackedSessionIds, 50);
+
+        // Merge sessions
+        const allSessions = [...index.sessions, ...cliSessions];
+        allSessions.sort((a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+
+        // Build workflow data with merged sessions
+        const activeStates = ['running', 'waiting_for_input', 'detached', 'stale'];
+        const currentExecution = allSessions.find(s => activeStates.includes(s.status)) ?? null;
+
+        const data: WorkflowData = {
+          currentExecution,
+          sessions: allSessions.slice(0, 100),
+        };
+
         workflowCache.set(projectId, JSON.stringify(data));
         broadcast({
           type: 'workflow',
@@ -603,7 +826,21 @@ export async function initWatcher(): Promise<void> {
   currentRegistry = await readRegistry();
   if (currentRegistry) {
     await updateWatchedPaths(currentRegistry);
+    updateProjectPathMap(); // For session watching
+
+    // G5.10: Reconcile runners for all registered projects on startup
+    // This detects orphaned runner state files from crashed processes
+    for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
+      try {
+        reconcileRunners(project.path);
+      } catch (error) {
+        console.error(`[Watcher] Error reconciling runners for ${projectId}:`, error);
+      }
+    }
   }
+
+  // Initialize session file watcher
+  await initSessionWatcher();
 
   console.log('[Watcher] Initialized successfully');
 }
@@ -676,7 +913,8 @@ export async function getAllTasks(): Promise<Map<string, TasksData>> {
 }
 
 /**
- * Get all current workflow data for registered projects
+ * Get all current workflow data for registered projects.
+ * Includes both dashboard-tracked sessions AND discovered CLI sessions.
  */
 export async function getAllWorkflows(): Promise<Map<string, WorkflowData>> {
   const workflows = new Map<string, WorkflowData>();
@@ -686,12 +924,38 @@ export async function getAllWorkflows(): Promise<Map<string, WorkflowData>> {
   for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
     const workflowIndexPath = path.join(project.path, '.specflow', 'workflows', 'index.json');
     const index = await readWorkflowIndex(workflowIndexPath);
-    if (index) {
-      const data = buildWorkflowData(index);
-      workflows.set(projectId, data);
-      // Update cache
-      workflowCache.set(projectId, JSON.stringify(data));
-    }
+
+    // Get tracked session IDs to avoid duplicates
+    const trackedSessionIds = new Set<string>(
+      index?.sessions.map(s => s.sessionId) ?? []
+    );
+
+    // Discover CLI sessions that aren't tracked by dashboard
+    const cliSessions = discoverCliSessions(project.path, trackedSessionIds, 50);
+
+    // Merge sessions: dashboard-tracked first, then CLI-discovered
+    const allSessions = [
+      ...(index?.sessions ?? []),
+      ...cliSessions,
+    ];
+
+    // Sort all sessions by updatedAt (newest first)
+    allSessions.sort((a, b) =>
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+
+    // Build workflow data with merged sessions
+    const activeStates = ['running', 'waiting_for_input', 'detached', 'stale'];
+    const currentExecution = allSessions.find(s => activeStates.includes(s.status)) ?? null;
+
+    const data: WorkflowData = {
+      currentExecution,
+      sessions: allSessions.slice(0, 100), // Limit to 100 total sessions
+    };
+
+    workflows.set(projectId, data);
+    // Update cache
+    workflowCache.set(projectId, JSON.stringify(data));
   }
 
   return workflows;
@@ -719,6 +983,416 @@ export async function getAllPhases(): Promise<Map<string, PhasesData>> {
 }
 
 /**
+ * Session data with project context for initial load
+ */
+export interface SessionWithProject {
+  projectId: string;
+  sessionId: string;
+  content: SessionContent;
+}
+
+// Staleness threshold - sessions not modified in 30 minutes are considered stale
+const SESSION_STALE_MS = 30 * 60 * 1000;
+
+/**
+ * Check if a session file is stale (not modified recently)
+ */
+async function isSessionStale(sessionPath: string): Promise<boolean> {
+  try {
+    const stat = await fs.stat(sessionPath);
+    const age = Date.now() - stat.mtimeMs;
+    return age > SESSION_STALE_MS;
+  } catch {
+    return true; // File doesn't exist or can't be accessed
+  }
+}
+
+/**
+ * Get all current session content for active sessions
+ * Called on SSE connect to send initial session data
+ */
+export async function getAllSessions(): Promise<SessionWithProject[]> {
+  const sessions: SessionWithProject[] = [];
+
+  if (!currentRegistry) return sessions;
+
+  // Get workflow data to find active sessions
+  const workflows = await getAllWorkflows();
+
+  for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
+    const workflowData = workflows.get(projectId);
+    if (!workflowData) continue;
+
+    // Collect session IDs to load - current execution and recent active sessions
+    const sessionIdsToLoad: string[] = [];
+
+    // Add current execution's session if it's active
+    if (workflowData.currentExecution) {
+      const status = workflowData.currentExecution.status;
+      if (status === 'running' || status === 'waiting_for_input' || status === 'detached') {
+        sessionIdsToLoad.push(workflowData.currentExecution.sessionId);
+      }
+    }
+
+    // Also check recent sessions that might be active
+    for (const session of workflowData.sessions) {
+      const status = session.status;
+      if ((status === 'running' || status === 'waiting_for_input' || status === 'detached') &&
+          !sessionIdsToLoad.includes(session.sessionId)) {
+        sessionIdsToLoad.push(session.sessionId);
+      }
+    }
+
+    // Load content for each session (skip stale sessions)
+    const sessionDir = getSessionDirectory(project.path);
+    for (const sessionId of sessionIdsToLoad) {
+      const sessionPath = path.join(sessionDir, `${sessionId}.jsonl`);
+      try {
+        // Skip stale sessions - they're marked as "running" but haven't been modified recently
+        if (await isSessionStale(sessionPath)) {
+          console.log(`[Watcher] Skipping stale session ${sessionId} (not modified in 30+ minutes)`);
+          continue;
+        }
+
+        const content = await parseSessionContent(sessionPath);
+        if (content) {
+          // Update caches for future change detection
+          sessionProjectMap.set(sessionId, projectId);
+          sessionCache.set(sessionId, JSON.stringify(content));
+
+          sessions.push({ projectId, sessionId, content });
+        }
+      } catch (error) {
+        // Session file might not exist yet or is inaccessible
+        console.log(`[Watcher] Could not load session ${sessionId} for project ${projectId}:`, error);
+      }
+    }
+  }
+
+  return sessions;
+}
+
+// ============================================================================
+// Session File Watching (T011-T015)
+// ============================================================================
+
+import { parseSessionLines, type SessionData } from './session-parser';
+
+/**
+ * Map of projectId to projectPath for session directory lookup
+ */
+const projectPathMap: Map<string, string> = new Map();
+
+/**
+ * Map of sessionId to projectId for event broadcasting
+ */
+const sessionProjectMap: Map<string, string> = new Map();
+
+/**
+ * Get session directory path for a project
+ * T011: Uses getProjectSessionDir from project-hash.ts
+ */
+function getSessionDirectory(projectPath: string): string {
+  return getProjectSessionDir(projectPath);
+}
+
+/**
+ * Parse session JSONL file and return SessionContent for SSE
+ * T013/T014: Parse JSONL and extract messages
+ */
+async function parseSessionContent(sessionPath: string): Promise<SessionContent | null> {
+  try {
+    const content = await fs.readFile(sessionPath, 'utf-8');
+    const lines = content.split('\n').filter(line => line.trim());
+    const sessionData = parseSessionLines(lines);
+
+    if (!sessionData || sessionData.messages.length === 0) {
+      return null;
+    }
+
+    return {
+      messages: sessionData.messages,
+      filesModified: Array.from(sessionData.filesModified),
+      elapsedMs: calculateElapsedMs(sessionData.startTime),
+      currentTodos: sessionData.currentTodos,
+      workflowOutput: sessionData.workflowOutput,
+      agentTasks: sessionData.agentTasks,
+    };
+  } catch (error) {
+    console.error(`[Watcher] Error parsing session file ${sessionPath}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Calculate elapsed time from start time
+ */
+function calculateElapsedMs(startTime?: string): number {
+  if (!startTime) return 0;
+  try {
+    return Date.now() - new Date(startTime).getTime();
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Extract questions from session content for session:question events
+ * T015: Detect AskUserQuestion tool calls AND structured_output questions (CLI mode)
+ */
+function extractPendingQuestions(content: SessionContent): SessionQuestion[] {
+  const questions: SessionQuestion[] = [];
+
+  // Helper to process a questions array
+  const processQuestions = (questionList: unknown[]) => {
+    for (const q of questionList) {
+      if (typeof q === 'object' && q !== null && 'question' in q) {
+        const qObj = q as Record<string, unknown>;
+        // Map to SessionQuestion format, ensuring description has a default value
+        const options = Array.isArray(qObj.options)
+          ? qObj.options.map((opt: { label: string; description?: string }) => ({
+              label: opt.label,
+              description: opt.description ?? '', // Default to empty string
+            }))
+          : [];
+
+        questions.push({
+          question: String(qObj.question),
+          header: typeof qObj.header === 'string' ? qObj.header : undefined,
+          options,
+          multiSelect: typeof qObj.multiSelect === 'boolean' ? qObj.multiSelect : undefined,
+        });
+      }
+    }
+  };
+
+  for (const message of content.messages) {
+    // Check for AskUserQuestion tool calls (interactive mode)
+    if (message.role === 'assistant' && message.toolCalls) {
+      for (const toolCall of message.toolCalls) {
+        if (toolCall.name === 'AskUserQuestion' && toolCall.input) {
+          const input = toolCall.input as Record<string, unknown>;
+          const questionList = input?.questions;
+          if (Array.isArray(questionList)) {
+            processQuestions(questionList);
+          }
+        }
+      }
+    }
+
+    // Check for structured_output questions (CLI/workflow mode)
+    // In CLI mode, questions are in the result's structured_output when status is 'needs_input'
+    const msgAny = message as Record<string, unknown>;
+    if (msgAny.type === 'result' && msgAny.structured_output) {
+      const structured = msgAny.structured_output as Record<string, unknown>;
+      if (structured.status === 'needs_input' && Array.isArray(structured.questions)) {
+        processQuestions(structured.questions);
+      }
+    }
+  }
+
+  return questions;
+}
+
+/**
+ * Handle session file change
+ * T013: Called when JSONL file changes, parses and broadcasts events
+ */
+async function handleSessionFileChange(sessionPath: string): Promise<void> {
+  const sessionId = path.basename(sessionPath, '.jsonl');
+  const projectId = sessionProjectMap.get(sessionId);
+
+  console.log(`[Watcher] Session file change: ${sessionId}, cached projectId: ${projectId || 'none'}`);
+
+  if (!projectId) {
+    // Try to find project from path
+    const claudeProjectsDir = getClaudeProjectsDir();
+    const relativePath = sessionPath.replace(claudeProjectsDir + path.sep, '');
+    const dirName = relativePath.split(path.sep)[0];
+
+    console.log(`[Watcher] Looking up project for session ${sessionId}: dir=${dirName}, projectPathMap size=${projectPathMap.size}`);
+
+    // Find project with matching hash
+    for (const [id, projectPath] of projectPathMap.entries()) {
+      const expectedDir = path.basename(getSessionDirectory(projectPath));
+      console.log(`[Watcher]   Checking project ${id}: expectedDir=${expectedDir}, match=${dirName === expectedDir}`);
+      if (dirName === expectedDir) {
+        sessionProjectMap.set(sessionId, id);
+        console.log(`[Watcher]   Matched! Setting sessionProjectMap[${sessionId}] = ${id}`);
+        break;
+      }
+    }
+  }
+
+  const resolvedProjectId = sessionProjectMap.get(sessionId);
+  if (!resolvedProjectId) {
+    // Session from external CLI not registered with dashboard - this is expected
+    console.log(`[Watcher] Could not resolve projectId for session ${sessionId}, skipping`);
+    return;
+  }
+
+  console.log(`[Watcher] Processing session ${sessionId} for project ${resolvedProjectId}`);
+
+  const content = await parseSessionContent(sessionPath);
+  if (!content) return;
+
+  // Check if content actually changed
+  const cacheKey = sessionId;
+  const contentJson = JSON.stringify(content);
+  if (sessionCache.get(cacheKey) === contentJson) {
+    return; // No actual change
+  }
+  sessionCache.set(cacheKey, contentJson);
+
+  // G6.6: Update orchestration activity when external session activity is detected
+  const projectPath = projectPathMap.get(resolvedProjectId);
+  if (projectPath) {
+    const activeOrchestration = orchestrationService.getActive(projectPath);
+    if (activeOrchestration) {
+      orchestrationService.touchActivity(projectPath, activeOrchestration.id);
+    }
+  }
+
+  // Broadcast session:message event
+  console.log(`[Watcher] Broadcasting session:message for ${sessionId} (${content.messages.length} messages)`);
+  broadcast({
+    type: 'session:message',
+    timestamp: new Date().toISOString(),
+    projectId: resolvedProjectId,
+    sessionId,
+    data: content,
+  });
+
+  // Check for pending questions
+  const questions = extractPendingQuestions(content);
+  if (questions.length > 0) {
+    broadcast({
+      type: 'session:question',
+      timestamp: new Date().toISOString(),
+      projectId: resolvedProjectId,
+      sessionId,
+      data: { questions },
+    });
+  }
+
+  // Check for session end
+  if (content.messages.some(m => m.isSessionEnd)) {
+    broadcast({
+      type: 'session:end',
+      timestamp: new Date().toISOString(),
+      projectId: resolvedProjectId,
+      sessionId,
+    });
+  }
+}
+
+/**
+ * Find project ID for a session file path
+ * Used for emitting session:created and session:activity events (G6.4, G6.5)
+ */
+function findProjectIdForSession(sessionPath: string): string | undefined {
+  const claudeProjectsDir = getClaudeProjectsDir();
+  const relativePath = sessionPath.replace(claudeProjectsDir + path.sep, '');
+  const dirName = relativePath.split(path.sep)[0];
+
+  // Find project with matching hash
+  for (const [id, projectPath] of projectPathMap.entries()) {
+    const expectedDir = path.basename(getSessionDirectory(projectPath));
+    if (dirName === expectedDir) {
+      return id;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Initialize session file watcher
+ * T012: Watch ~/.claude/projects/{hash}/*.jsonl files
+ */
+async function initSessionWatcher(): Promise<void> {
+  if (sessionWatcher) return; // Already initialized
+
+  const claudeProjectsDir = getClaudeProjectsDir();
+  console.log(`[Watcher] Initializing session watcher for ${claudeProjectsDir}`);
+
+  // Build mapping of project paths
+  if (currentRegistry) {
+    for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
+      projectPathMap.set(projectId, project.path);
+    }
+  }
+
+  // Watch all JSONL files in the Claude projects directory
+  sessionWatcher = chokidar.watch(`${claudeProjectsDir}/**/*.jsonl`, {
+    persistent: true,
+    ignoreInitial: true, // Don't emit events for existing files
+    awaitWriteFinish: {
+      stabilityThreshold: SESSION_DEBOUNCE_MS,
+      pollInterval: 50,
+    },
+    depth: 2, // Only go 2 levels deep (project dir -> session file)
+  });
+
+  // Handle session file changes (G6.5: session:activity)
+  sessionWatcher.on('change', (filePath) => {
+    debouncedChange(filePath, async () => {
+      await handleSessionFileChange(filePath);
+      // G6.5: Emit session:activity for file modifications
+      const sessionId = path.basename(filePath, '.jsonl');
+      const projectId = sessionProjectMap.get(sessionId) || findProjectIdForSession(filePath);
+      if (projectId) {
+        broadcast({
+          type: 'session:activity',
+          timestamp: new Date().toISOString(),
+          projectId,
+          sessionId,
+        });
+      }
+    });
+  });
+
+  // Handle new session files (G6.4: session:created)
+  sessionWatcher.on('add', (filePath) => {
+    debouncedChange(filePath, async () => {
+      await handleSessionFileChange(filePath);
+      // G6.4: Emit session:created for new files
+      const sessionId = path.basename(filePath, '.jsonl');
+      const projectId = sessionProjectMap.get(sessionId) || findProjectIdForSession(filePath);
+      if (projectId) {
+        broadcast({
+          type: 'session:created',
+          timestamp: new Date().toISOString(),
+          projectId,
+          sessionId,
+        });
+      }
+    });
+  });
+
+  sessionWatcher.on('error', (error) => {
+    console.error('[Watcher] Session watcher error:', error);
+  });
+
+  console.log('[Watcher] Session watcher initialized');
+}
+
+/**
+ * Update project path mapping when registry changes
+ */
+function updateProjectPathMap(): void {
+  projectPathMap.clear();
+  if (currentRegistry) {
+    for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
+      projectPathMap.set(projectId, project.path);
+    }
+  }
+}
+
+// ============================================================================
+// End Session File Watching
+// ============================================================================
+
+/**
  * Start heartbeat timer for a listener
  */
 export function startHeartbeat(listener: EventListener): NodeJS.Timeout {
@@ -742,12 +1416,23 @@ export async function closeWatcher(): Promise<void> {
     watchedTasksPaths.clear();
     watchedWorkflowPaths.clear();
     watchedPhasesPaths.clear();
+    watchedSessionDirs.clear();
     projectTasksPaths.clear();
     workflowCache.clear();
     phasesCache.clear();
+    sessionCache.clear();
+    projectPathMap.clear();
+    sessionProjectMap.clear();
     currentRegistry = null;
     debounceTimers.forEach((timer) => clearTimeout(timer));
     debounceTimers.clear();
     console.log('[Watcher] Closed');
+  }
+
+  // Close session watcher
+  if (sessionWatcher) {
+    await sessionWatcher.close();
+    sessionWatcher = null;
+    console.log('[Watcher] Session watcher closed');
   }
 }

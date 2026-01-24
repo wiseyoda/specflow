@@ -15,6 +15,7 @@ export interface SkillOption {
 interface OmniBoxProps {
   status?: WorkflowStatus
   onSubmit?: (message: string) => void
+  onStatusClick?: () => void
   disabled?: boolean
   className?: string
   skills?: SkillOption[]
@@ -56,7 +57,7 @@ const statusConfig = {
 }
 
 export const OmniBox = forwardRef<OmniBoxHandle, OmniBoxProps>(
-  ({ status = 'idle', onSubmit, disabled = false, className, skills = [] }, ref) => {
+  ({ status = 'idle', onSubmit, onStatusClick, disabled = false, className, skills = [] }, ref) => {
     const [value, setValue] = useState('')
     const [isFocused, setIsFocused] = useState(false)
     const [showAutocomplete, setShowAutocomplete] = useState(false)
@@ -164,18 +165,22 @@ export const OmniBox = forwardRef<OmniBoxHandle, OmniBoxProps>(
                 : 'border-surface-300 group-hover:border-surface-400'
             )}
           >
-            {/* State badge */}
-            <div
+            {/* State badge - clickable when waiting */}
+            <button
+              type="button"
+              onClick={status === 'waiting' && onStatusClick ? onStatusClick : undefined}
+              disabled={status !== 'waiting' || !onStatusClick}
               className={cn(
                 'flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors mr-2',
-                config.badgeClass
+                config.badgeClass,
+                status === 'waiting' && onStatusClick && 'cursor-pointer hover:opacity-80'
               )}
             >
               <span className={cn('w-2 h-2 rounded-full', config.dotClass)} />
               <span className={cn('text-xs font-medium', config.textClass)}>
                 {config.badge}
               </span>
-            </div>
+            </button>
 
             {/* Input */}
             <input

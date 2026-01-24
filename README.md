@@ -65,22 +65,22 @@ specflow status
 
 ## Quick Start
 
-**1. Initialize your project in Claude Code:**
+**1. Create project structure:**
+
+```bash
+specflow init                    # Creates .specflow/, .specify/, ROADMAP.md, etc.
+```
+
+**2. Run discovery interview in Claude Code:**
 
 ```
-/flow.init
-```
-
-**2. Create your roadmap:**
-
-```
-/flow.roadmap
+/flow.init                       # AI-guided requirements gathering
 ```
 
 **3. Start development:**
 
 ```
-/flow.orchestrate
+/flow.orchestrate                # Full automated workflow
 ```
 
 SpecFlow guides you through design → analyze → implement → verify.
@@ -91,7 +91,7 @@ SpecFlow guides you through design → analyze → implement → verify.
 
 ```mermaid
 flowchart TD
-    A["/flow.init"] --> B["/flow.roadmap"]
+    A["specflow init"] --> B["/flow.init"]
     B --> C["/flow.orchestrate"]
     C --> D["design → analyze → implement → verify"]
     D --> E["/flow.merge"]
@@ -103,8 +103,8 @@ SpecFlow manages the full development lifecycle:
 
 | Stage | What Happens |
 |-------|--------------|
-| **Init** | Discovery interview captures requirements and decisions |
-| **Roadmap** | Break work into phased milestones |
+| **Scaffold** | `specflow init` creates project structure (.specflow/, .specify/, ROADMAP.md) |
+| **Discovery** | `/flow.init` runs AI-guided interview to capture requirements |
 | **Orchestrate** | Automated workflow: design → analyze → implement → verify |
 | **Merge** | Push, create PR, merge, cleanup branches |
 
@@ -122,6 +122,7 @@ SpecFlow has two interfaces:
 ### CLI Commands
 
 ```bash
+specflow init                # Initialize new project (full 3.0 compliance)
 specflow status              # Complete project status
 specflow next                # Next actionable task
 specflow mark T007           # Mark task complete

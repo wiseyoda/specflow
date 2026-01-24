@@ -20,7 +20,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useSessionMessages } from '@/hooks/use-session-messages';
+import { useSessionContentExtended } from '@/hooks/use-session-content';
 import { SessionMessageDisplay } from '../session/session-message';
 import { SessionPendingState } from './session-pending-state';
 import { TodoPanel } from '../session/todo-panel';
@@ -122,15 +122,18 @@ export function SessionViewerDrawer({
   onResumeSession,
   isResuming = false,
 }: SessionViewerDrawerProps) {
+  // Session content from SSE (no polling)
   const {
     messages,
     filesModified,
     elapsed,
     isLoading,
-    error,
-    activeSessionId,
     currentTodos,
-  } = useSessionMessages(projectPath, sessionId, isActive && open);
+  } = useSessionContentExtended(sessionId, projectPath);
+
+  // SSE provides real-time data - no separate error/activeSessionId needed
+  const error = null;
+  const activeSessionId = sessionId;
 
   const scrollAreaRef = React.useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = React.useState(true);
@@ -226,7 +229,7 @@ export function SessionViewerDrawer({
             </div>
             <div className="flex items-center gap-1.5 text-xs text-neutral-400">
               <FileCode className="h-3.5 w-3.5" />
-              <span>{filesModified} file{filesModified !== 1 ? 's' : ''} modified</span>
+              <span>{filesModified.length} file{filesModified.length !== 1 ? 's' : ''} modified</span>
             </div>
             {isActive && (
               <div className="flex items-center gap-1.5 text-xs">

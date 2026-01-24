@@ -4,6 +4,691 @@
 
 ---
 
+## 1057 - Orchestration Simplification
+
+**Completed**: 2026-01-24
+
+### 1057 - Orchestration Simplification
+
+**Goal**: Refactor dashboard orchestration to trust state file, fix question flow, add Claude Helper for specific recovery scenarios, eliminate race conditions, unify session tracking across dashboard and CLI.
+
+**Context**: The orchestration-runner (1,412 lines) reimplements /flow.orchestrate logic poorly instead of following the simple state ownership pattern. Questions are broken because data never reaches UI. Race conditions cause duplicate workflows. External CLI sessions are not detected.
+
+**Solution**: Simple decision loop based on `step.status`, complete batch state machine, Claude Helper for exactly 3 recovery scenarios with silent fallbacks, atomic operations to prevent races, unified session watching for dashboard/omnibox/CLI.
+
+---
+
+## Key Alignment Decisions
+
+| Topic | Decision |
+|-------|----------|
+| Auto-merge | Fully automatic when `autoMerge=true` (no confirmation) |
+| Question flow | Needs testing to verify watcher detection works first |
+| Claude Helper failures | Silent fallback (don't clutter UI) |
+| Race fixes | Must-have for this phase |
+| Stale threshold | 10 minutes fixed |
+| Batch pause/resume | Existing pause→play button, also omnibox resume |
+| Code size | Focus on simplicity, not line count |
+| External CLI | Watch `~/.claude/projects/{hash}/` for JSONL creation AND modification |
+| Testing | Both unit tests AND integration tests required |
+| Features | Keep cost tracking, heal attempts - improve, don't neuter |
+
+---
+
+## Problem Summary
+
+### 1. Orchestration runner is overcomplicated
+
+Current `isPhaseComplete()` checks artifact existence:
+```typescript
+case 'design':
+  return status.context?.hasPlan === true && status.context?.hasTasks === true;
+```
+
+Should just check `step.status`:
+```typescript
+if (step.status === 'complete') return true;
+```
+
+### 2. Questions don't display
+
+- Watcher correctly detects questions from JSONL ✓
+- SSE event broadcasts correctly ✓
+- `use-sse.ts` receives event but DROPS IT (does nothing) ✗
+- `page.tsx` has hardcoded `decisionQuestions = []` ✗
+
+### 3. Race conditions
+
+- State file write/read race (no atomic writes)
+- Workflow spawn double-fire (check and spawn not atomic)
+- Event sleep callback replacement bug
+- No persistent runner state (dashboard restart causes duplicates)
+
+### 4. Batch handling incomplete
+
+- Batch state machine scattered across codebase
+- Missing `pauseBetweenBatches` handling
+- No `initialize_batches` action when entering implement
+
+---
+
+## State Ownership Pattern (from flow.orchestrate.md)
+
+| Owner | Fields | Who Sets |
+|-------|--------|----------|
+| **Orchestrate** | `step.current`, `step.index` | Only orchestrate |
+| **Sub-command** | `step.status` | Set to `in_progress` → `complete` or `failed` |
+
+**Valid steps**: `design`, `analyze`, `implement`, `verify`, `merge`
+
+**Merge step**:
+- If `autoMerge=true` → transition to merge step, run `/flow.merge`
+- If `autoMerge=false` → `wait_merge` status, user triggers manually
+
+---
+
+## Goals
+
+1. **Trust step.status** - If sub-command set it to `complete`, step is done
+2. **Complete decision matrix** - Every state combination has explicit action
+3. **Fix question flow** - Wire SSE data to DecisionToast (3 files)
+4. **Claude Helper for 3 cases only** - With explicit fallback chains
+5. **Eliminate race conditions** - Atomic writes, spawn intent pattern
+6. **Reduce code** - Target <600 lines (from 1,412)
+
+---
+
+## Deliverables
+
+### Phase 1: Simplify Decision Logic
+
+**Pre-decision gates** (checked before matrix):
+- [ ] Budget exceeded check → `fail` action
+- [ ] Duration gate (4 hour max) → `needs_attention`
+
+**Decision matrix** (complete, no ambiguity):
+| Condition | Action |
+|-----------|--------|
+| `current === 'implement'` | Check batch state machine first |
+| `workflow.status === 'running'` + recent activity | `wait` |
+| `workflow.status === 'running'` + stale (>10min) | `recover_stale` |
+| `workflow.status === 'waiting_for_input'` | `wait` |
+| Workflow ID exists but lookup fails | `wait_with_backoff` |
+| `step.status === 'complete'` + `current === 'verify'` + USER_GATE pending | `wait_user_gate` |
+| `step.status === 'complete'` + `current === 'verify'` + `autoMerge=false` | `wait_merge` |
+| `step.status === 'complete'` + `current === 'verify'` + `autoMerge=true` | `transition` to merge |
+| `step.status === 'complete'` + `current === 'merge'` | `complete` |
+| `step.status === 'complete'` + next step exists | `transition` |
+| `step.status === 'failed'` or `'blocked'` | `recover_failed` |
+| `step.status === 'in_progress'` + no workflow | `spawn` |
+| `step.status === 'not_started'` or null | `spawn` (init batches if implement) |
+
+### Phase 2: Batch State Machine
+
+- [ ] `initialize_batches` action when entering implement with no batches
+- [ ] `spawn_batch` action for pending batch + no workflow
+- [ ] `advance_batch` action when batch completes
+- [ ] `heal_batch` action when batch fails + heal attempts remaining
+- [ ] `pause` action when `pauseBetweenBatches=true` + batch completes
+- [ ] `force_step_complete` when all batches done but step.status not updated
+
+### Phase 3: Fix Question Flow (Data Plumbing)
+
+- [ ] `use-sse.ts`: Add `sessionQuestions` state, populate on `session:question` event
+- [ ] `unified-data-context.tsx`: Export `sessionQuestions` from context
+- [ ] `page.tsx`: Replace hardcoded `[]` with `sessionQuestions.get(consoleSessionId)`
+- [ ] Clear questions after user answers
+
+### Phase 4: Add Claude Helper (3 Specific Cases)
+
+**Case 1: Recover Corrupt/Missing State File**
+- When: `readOrchestrationState()` throws error
+- Fallback: Claude Helper → heuristic recovery → return null → `needs_attention`
+- Always: Create `.bak` backup BEFORE recovery
+
+**Case 2: Recover Stale Workflow**
+- When: `workflow.status === 'running'` but no file changes for > 10 minutes
+- Fallback: If Claude Helper fails → conservative `needs_attention`
+
+**Case 3: Recover Failed Step**
+- When: `step.status === 'failed'` or `step.status === 'blocked'`
+- Pre-check: If max heal attempts reached, skip Claude Helper → `needs_attention`
+- Fallback: If Claude Helper fails → simple retry if within limits → else `needs_attention`
+
+### Phase 5: Race Condition Mitigations
+
+- [ ] Atomic state file writes (write to `.tmp`, then rename)
+- [ ] Spawn intent pattern (store intent before spawn, check before spawning)
+- [ ] Persistent runner state (`runner-{orchestrationId}.json`)
+- [ ] Reconcile orphaned runners on dashboard startup
+- [ ] Fix event sleep callback overwrite bug (use Set instead of single callback)
+
+### Phase 6: Unified Session Tracking
+
+Terminal is just the manual version of dashboard automation. Both should work identically.
+
+- [ ] Watch `~/.claude/projects/{hash}/` for JSONL creation (new sessions from CLI)
+- [ ] Watch for JSONL modification (session activity from CLI)
+- [ ] Emit `session:created` and `session:activity` SSE events
+- [ ] Orchestration detects external session activity, updates lastActivity
+- [ ] Omnibox commands in session viewer update orchestration state
+- [ ] Pause button → Play button when paused, resume via click OR omnibox
+
+### Phase 7: Consolidate Code
+
+- [ ] `orchestration-service.ts` becomes thin persistence layer
+- [ ] Remove duplicate `getNextPhase()`, `isStepComplete()` functions
+- [ ] Move shared types to @specflow/shared
+- [ ] Focus on simplicity, not line count
+
+### Phase 8: Decision Log UI
+
+- [ ] Verify decision log wires correctly to Phase Completion card
+- [ ] Make UI improvements if needed
+- [ ] Decisions from new matrix appear correctly
+
+---
+
+## State Validation
+
+Validate BOTH state files and their consistency:
+- [ ] `step.index === STEP_INDEX_MAP[step.current]`
+- [ ] `batches.items[i].index === i` (batch index matches position)
+- [ ] `batches.current < batches.total` (unless all complete)
+- [ ] `recoveryContext` exists when `status === 'needs_attention'`
+- [ ] Cross-file: `OrchestrationState.step.current === OrchestrationExecution.currentPhase`
+
+---
+
+## Verification Gate
+
+**USER GATE**: User must verify:
+
+1. Start orchestration on a test phase
+2. Orchestration advances based on `step.status` (not artifacts)
+3. Batch handling: implement with multiple batches → each spawned sequentially
+4. When workflow needs input, question toast appears
+5. Answer question, workflow resumes
+6. If step fails, Claude Helper diagnoses and recovers (silent fallback if Claude fails)
+7. With `autoMerge=false`: verify complete → `wait_merge` → user triggers
+8. With `autoMerge=true`: verify complete → merge runs automatically (no prompt)
+9. Rapid triggers don't spawn duplicate workflows
+10. Pause button → Play button when paused
+11. Omnibox command resumes paused orchestration
+12. Start session from external CLI terminal → dashboard detects it
+13. Decision log appears correctly in Phase Completion card
+14. Orchestration completes successfully
+
+---
+
+## Pre-Implementation Verification
+
+Before assuming question detection works:
+- [ ] Manually test: Start workflow that asks question → verify SSE event fires
+- [ ] Check watcher.ts actually parses questions correctly
+- [ ] If detection broken, add to scope
+
+---
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `packages/dashboard/src/lib/services/orchestration-runner.ts` | Rewrite with complete decision matrix, atomic spawning, batch state machine |
+| `packages/dashboard/src/lib/services/orchestration-service.ts` | Thin to persistence only |
+| `packages/dashboard/src/lib/watcher.ts` | Add project session watching for external CLI |
+| `packages/dashboard/src/hooks/use-sse.ts` | Add `sessionQuestions` state, handle events |
+| `packages/dashboard/src/contexts/unified-data-context.tsx` | Export `sessionQuestions` |
+| `packages/dashboard/src/app/projects/[id]/page.tsx` | Wire questions to DecisionToast |
+| `packages/dashboard/src/components/projects/session-viewer-drawer.tsx` | Verify omnibox updates orchestration |
+| `packages/dashboard/src/lib/services/claude-helper.ts` | Add silent fallback chains, backup before recovery |
+
+---
+
+## Verifiable Goals Checklist
+
+See `specs/1057-orchestration-simplification/plan.md` for full checklist with 80+ concrete verification items.
+
+### Summary by Category
+
+| Category | Items | Description |
+|----------|-------|-------------|
+| G1. Decision Matrix | 18 | Every condition→action in `makeDecision()` |
+| G2. Batch State Machine | 10 | All batch statuses in `handleImplementBatching()` |
+| G3. Claude Helper | 17 | 3 cases only, silent fallbacks, no other calls |
+| G4. Question Flow | 8 | Data plumbing: use-sse → context → page |
+| G5. Race Mitigations | 13 | Atomic writes, spawn intent, persistent runner, event fix |
+| G6. Session Tracking | 11 | CLI detection, omnibox, pause/play |
+| G7. State Validation | 7 | All invariant checks |
+| G8. Decision Log UI | 4 | Wired to Phase Completion card |
+| G9. Features Preserved | 7 | Cost tracking, heal attempts |
+| G10. Code Cleanup | 4 | Remove artifact checks, consolidate duplicates |
+| G11. Tests | 12 | Unit tests + integration tests |
+| G12. Testing Infrastructure | 35 | Pure functions, DI, fixtures, git tags, E2E harness, JSONL fixtures |
+
+**Total: 146 verifiable items**
+
+### Quick Verification Commands
+
+```bash
+# No hardcoded empty questions array
+grep -n "decisionQuestions = \[\]" packages/dashboard/src/  # Should return nothing
+
+# No artifact existence checks
+grep -n "hasPlan\|hasTasks\|hasSpec" orchestration-runner.ts  # Should return nothing
+
+# Claude Helper only in 3 places
+grep -r "claudeHelper\|claude-helper" packages/dashboard/src/lib/services/ --include="*.ts" -l
+
+# Atomic writes exist
+grep -n "\.tmp\|rename" packages/dashboard/src/lib/services/orchestration-service.ts
+```
+
+---
+
+## Dependencies
+
+- Phase 1056 (JSONL Watcher) - ✅ Complete, close before starting 1057
+- Sub-commands must set step.status correctly (verify each)
+
+---
+
+## 1056 - jsonl-watcher
+
+**Completed**: 2026-01-23
+
+### 1056 - JSONL File Watcher & Polling Elimination
+
+**Goal**: Replace all polling with file-watching. Zero polling loops when complete.
+
+**Context**: Dashboard has 9+ polling mechanisms causing 3-5s delays and ~20 subprocess calls/minute.
+
+**Solution**: File-watch everything via chokidar, including session JSONL files in `~/.claude/projects/`. Delete all polling code.
+
+**Approach**: Clean implementation - no migration code, no fallbacks, no deprecated stubs. Single user, so just build it right.
+
+---
+
+## Phase 0: Discovery (COMPLETE)
+
+See `polling-consolidation-analysis.md` for:
+- [x] All 9+ polling locations with line numbers
+- [x] Polling intervals mapped
+- [x] Race conditions identified
+- [x] Data flow documented
+- [x] Existing SSE infrastructure documented
+- [x] New event types specified
+
+**Deliverable**: `.specify/phases/polling-consolidation-analysis.md`
+
+---
+
+## Phase 0.5: Delete Polling Hooks
+
+Delete these files and fix any imports:
+- [ ] `src/hooks/use-workflow-execution.ts`
+- [ ] `src/hooks/use-workflow-list.ts`
+- [ ] `src/hooks/use-session-history.ts`
+- [ ] `src/hooks/use-session-messages.ts`
+- [ ] `src/lib/session-polling-manager.ts`
+
+Replace with SSE-based hooks (`useProjectData`, `useSessionContent`, `useUnifiedData`).
+
+---
+
+## Phase 1: Orchestration Runner Event-Driven (HIGHEST PRIORITY)
+
+**Why first**: The orchestration runner calls `specflow status --json` subprocess (~1-2s) on EVERY 3-second poll. This is the largest performance bottleneck.
+
+### 1.1 Eliminate Subprocess Calls
+
+Replace `specflow status --json` with file watching:
+
+```typescript
+// BEFORE (orchestration-runner.ts:273-284)
+function getSpecflowStatus(projectPath: string): SpecflowStatus | null {
+  const result = execSync('specflow status --json', { // ~1-2s per call!
+    cwd: projectPath,
+    timeout: 30000,
+  });
+  return JSON.parse(result);
+}
+
+// AFTER: Subscribe to file events
+function subscribeToSpecflowStatus(projectPath: string, callback: (status) => void) {
+  // Watch tasks.md for task counts
+  // Watch spec.md, plan.md for artifact existence
+  // Derive status from file state
+}
+```
+
+### 1.2 Watch Files for Status
+
+| Data | Current Source | File to Watch |
+|------|----------------|---------------|
+| Task progress | `specflow status --json` | `specs/{phase}/tasks.md` |
+| Phase artifacts | `specflow status --json` | `spec.md`, `plan.md`, `tasks.md` existence |
+| Phase number | `specflow status --json` | `ROADMAP.md` or orchestration state |
+
+### 1.3 Event-Driven Decision Loop
+
+```
+BEFORE (polling):
+  while (running):
+    sleep(3 seconds)           ← Wastes time
+    specflow status --json     ← Spawns subprocess (~1-2s)
+    load orchestration state
+    make decision
+    execute decision
+
+AFTER (event-driven):
+  subscribe to file events
+  on event:
+    derive status from files   ← Instant, no subprocess
+    make decision
+    execute decision
+  (no sleep - purely reactive)
+```
+
+### 1.4 Implementation Steps
+- [ ] Add `tasks.md` parsing to derive task counts
+- [ ] Add artifact existence checks (no subprocess)
+- [ ] Create event subscription in orchestration-runner
+- [ ] Replace `while(running) { sleep }` with event listener
+- [ ] Delete `specflow status --json` calls entirely
+
+**Impact**: Latency 3000ms → <500ms. Zero subprocess calls.
+
+---
+
+## Phase 2: Session File Watching
+
+Add session JSONL files to chokidar watcher.
+
+### 2.1 Calculate Session Directory
+
+```typescript
+// project-hash.ts (already exists)
+function calculateProjectHash(projectPath: string): string {
+  return projectPath.replace(/\//g, '-');
+}
+
+// Session directory
+const sessionDir = join(homeDir, '.claude', 'projects', calculateProjectHash(projectPath));
+```
+
+### 2.2 Add to Watcher
+
+```typescript
+// In watcher.ts - extend existing chokidar watcher
+function watchSessionFiles(projectPath: string, projectId: string) {
+  const sessionDir = getSessionDirectory(projectPath);
+
+  // Watch all JSONL files in session directory
+  watcher.add(join(sessionDir, '*.jsonl'));
+
+  watcher.on('change', (filePath) => {
+    if (filePath.endsWith('.jsonl')) {
+      const sessionId = basename(filePath, '.jsonl');
+      handleSessionFileChange(projectId, sessionId, filePath);
+    }
+  });
+}
+```
+
+### 2.3 Parse New Content
+
+```typescript
+async function handleSessionFileChange(projectId: string, sessionId: string, filePath: string) {
+  // Read file, get new lines since last read
+  const content = await readFile(filePath, 'utf-8');
+  const lines = content.trim().split('\n');
+
+  // Parse last N lines (tail behavior)
+  const newMessages = parseSessionLines(lines.slice(-100));
+
+  // Check for questions
+  const questions = extractQuestions(newMessages);
+
+  // Broadcast events
+  if (newMessages.length > 0) {
+    broadcast({ type: 'session:message', projectId, sessionId, data: newMessages });
+  }
+  if (questions.length > 0) {
+    broadcast({ type: 'session:question', projectId, sessionId, data: questions });
+  }
+
+  // Check for session end
+  if (detectSessionEnd(newMessages)) {
+    broadcast({ type: 'session:end', projectId, sessionId });
+  }
+}
+```
+
+### 2.4 Remove Session Polling Manager
+- [ ] Migrate `useSessionContent` to SSE events
+- [ ] Remove `sessionPollingManager` singleton
+- [ ] Delete `src/lib/session-polling-manager.ts`
+
+**Impact**: Session updates from 5s polling to <500ms file-watch. Instant question detection.
+
+---
+
+## Phase 3: SSE Event Type Expansion
+
+Extend existing `/api/events` endpoint with new event types.
+
+### 3.1 New Event Types
+
+```typescript
+// In packages/shared/src/schemas/events.ts
+type SSEEvent =
+  // Existing events
+  | { type: 'connected'; timestamp: string }
+  | { type: 'heartbeat'; timestamp: string }
+  | { type: 'registry'; data: Registry }
+  | { type: 'state'; projectId: string; data: OrchestrationState }
+  | { type: 'tasks'; projectId: string; data: TasksData }
+  | { type: 'workflow'; projectId: string; data: WorkflowData }
+  | { type: 'phases'; projectId: string; data: PhasesData }
+
+  // NEW: Session events
+  | { type: 'session:message'; projectId: string; sessionId: string; data: SessionMessage[] }
+  | { type: 'session:question'; projectId: string; sessionId: string; data: Question }
+  | { type: 'session:end'; projectId: string; sessionId: string }
+
+  // NEW: Orchestration events
+  | { type: 'orchestration:decision'; projectId: string; data: DecisionLogEntry }
+  | { type: 'orchestration:batch'; projectId: string; data: BatchProgress }
+  | { type: 'workflow:complete'; projectId: string; workflowId: string };
+```
+
+### 3.2 Update useSSE Hook
+
+```typescript
+// In use-sse.ts - add handlers for new events
+case 'session:message':
+  // Update session content in context
+  break;
+case 'session:question':
+  // Trigger question notification
+  break;
+case 'orchestration:decision':
+  // Update decision log display
+  break;
+```
+
+---
+
+## Phase 4: Client Hook Consolidation
+
+### 4.1 Update useSessionContent
+
+```typescript
+// BEFORE: Uses sessionPollingManager
+export function useSessionContent(sessionId, projectPath) {
+  useEffect(() => {
+    sessionPollingManager.subscribe(sessionId, projectPath);
+    return () => sessionPollingManager.unsubscribe(sessionId);
+  }, [sessionId, projectPath]);
+}
+
+// AFTER: Uses SSE events from context
+export function useSessionContent(sessionId, projectPath) {
+  const { sessionContent } = useUnifiedData();
+  return sessionContent.get(sessionId) ?? null;
+}
+```
+
+### 4.2 Update useOrchestration
+
+```typescript
+// BEFORE: Polls /api/workflow/orchestrate/status every 3s
+// AFTER: Derives from SSE state events + orchestration:* events
+```
+
+### 4.3 Connection Recovery
+
+SSE auto-reconnects on disconnect (existing behavior). No polling fallback - if SSE is down, UI shows stale data until reconnected.
+
+---
+
+## Technical Notes
+
+### Architecture Diagram
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         FILE SYSTEM                                   │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Project Files                      Session Files (EXTERNAL)         │
+│  ~/dev/myproject/                   ~/.claude/projects/{hash}/       │
+│  ├─ .specflow/orchestration.json    ├─ session1.jsonl                │
+│  ├─ specs/{phase}/tasks.md          ├─ session2.jsonl                │
+│  ├─ specs/{phase}/spec.md           └─ ...                           │
+│  └─ ROADMAP.md                                                       │
+│                                                                      │
+└──────────────────┬─────────────────────────────────┬─────────────────┘
+                   │                                 │
+                   ▼                                 ▼
+          ┌─────────────────────────────────────────────────┐
+          │         chokidar watcher (UNIFIED)              │
+          │  Watches: project files + session JSONL files   │
+          │  Debounce: 200ms                                │
+          └────────────────────┬────────────────────────────┘
+                               │
+                               ▼
+          ┌─────────────────────────────────────────────────┐
+          │              SSE Event Bus                      │
+          │  /api/events (existing endpoint)                │
+          │  Events: state, tasks, workflow, phases,        │
+          │          session:*, orchestration:*             │
+          │  Heartbeat: 30s                                 │
+          └────────────────────┬────────────────────────────┘
+                               │
+           ┌───────────────────┼───────────────────┐
+           ▼                   ▼                   ▼
+   ┌───────────────┐   ┌───────────────┐   ┌───────────────┐
+   │ Dashboard UI  │   │ Orchestration │   │ Session       │
+   │ (useSSE)      │   │ Runner        │   │ Viewer        │
+   │               │   │ (event-driven)│   │               │
+   └───────────────┘   └───────────────┘   └───────────────┘
+```
+
+### macOS File Watcher Limits
+
+**Problem**: macOS default limit is 256 file watchers.
+
+**Mitigation**: Use glob patterns instead of individual file watches:
+
+```typescript
+// GOOD: Single glob pattern covers many files
+watcher.add([
+  `${homeDir}/.specflow/**/*.json`,
+  `${homeDir}/.claude/projects/**/*.jsonl`,
+  ...projects.map(p => `${p.path}/specs/**/tasks.md`),
+]);
+
+// BAD: One watcher per file (hits limits)
+projects.forEach(p => watcher.add(`${p.path}/tasks.md`));
+```
+
+**Cleanup**: Remove watchers when:
+- Project unregistered from registry
+- Session ends (detected from JSONL content)
+- No SSE subscribers for 5 minutes
+
+### Debouncing Strategy
+
+```typescript
+const DEBOUNCE_MS = 200; // Existing value, proven stable
+
+// For session files (high write frequency during active sessions)
+const SESSION_DEBOUNCE_MS = 100; // Slightly faster for responsiveness
+```
+
+---
+
+## Files to Modify
+
+### DELETE (polling code)
+- `src/hooks/use-workflow-execution.ts`
+- `src/hooks/use-workflow-list.ts`
+- `src/hooks/use-session-history.ts`
+- `src/hooks/use-session-messages.ts`
+- `src/lib/session-polling-manager.ts`
+
+### MODIFY (event-driven)
+- `src/lib/services/orchestration-runner.ts` - Event-driven loop, no subprocess
+- `src/lib/watcher.ts` - Add session JSONL + tasks.md watching
+- `src/hooks/use-session-content.ts` - Use SSE events
+- `src/hooks/use-orchestration.ts` - Remove polling
+- `src/hooks/use-sse.ts` - Handle new event types
+- `src/contexts/unified-data-context.tsx` - Session content from SSE
+- `packages/shared/src/schemas/events.ts` - New event types
+- `src/app/api/events/route.ts` - Emit new events
+
+---
+
+## Verification Gate: USER
+
+- [ ] Session messages appear within 500ms
+- [ ] Questions appear instantly
+- [ ] Orchestration updates without polling
+- [ ] No `specflow status --json` subprocess calls
+- [ ] No `setInterval` polling loops remain
+- [ ] Connection recovers on network interruption
+
+---
+
+## Success Metrics
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Session latency | 0-5s | <500ms |
+| Question delay | 0-5s | <200ms |
+| Decision latency | 3-5s | <500ms |
+| Subprocess calls/min | ~20 | 0 |
+| Polling loops | 9+ | 0 |
+
+---
+
+## Dependencies
+
+- Phase 1055 (Smart Batching) - Stable orchestration foundation
+
+## Complexity
+
+**Medium** - Builds on existing infrastructure (SSE endpoint, chokidar watcher, event types all exist).
+
+## Risks
+
+- **File watcher limits**: Use glob patterns, not per-file watchers
+- **Rapid file changes**: 200ms debounce handles this
+
+---
+
 ## 1055 - Smart Batching & Orchestration
 
 **Completed**: 2026-01-22

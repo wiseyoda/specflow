@@ -218,8 +218,11 @@ async function runUpgrade(options: {
 
   // Handle uninitialized repos
   if (detection.version === 'uninitialized') {
-    result.errors.push('No SDD artifacts found. Run /flow.init to initialize a new project.');
-    result.nextSteps = ['Run /flow.init to initialize this project'];
+    result.errors.push('No SpecFlow artifacts found. Run "specflow init" to create project structure.');
+    result.nextSteps = [
+      'Run "specflow init" to create project structure',
+      'Then run /flow.init for AI-guided discovery (optional)',
+    ];
     return result;
   }
 
@@ -407,8 +410,8 @@ function formatHumanReadable(result: UpgradeOutput): string {
 
   // Handle special cases
   if (result.detection.version === 'uninitialized') {
-    lines.push(chalk.yellow('No SDD artifacts found.'));
-    lines.push('Run /flow.init to initialize a new project.');
+    lines.push(chalk.yellow('No SpecFlow artifacts found.'));
+    lines.push('Run "specflow init" to create project structure.');
     return lines.join('\n');
   }
 

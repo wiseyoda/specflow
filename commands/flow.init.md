@@ -69,12 +69,29 @@ Options:
 2. Run /flow.init --force to reinitialize anyway
 ```
 
-**Create project structure** if `.specify/` doesn't exist:
+**If project structure doesn't exist** (no `.specflow/` or `.specify/`):
+
+Recommend the CLI initialization first:
+```
+Project Not Initialized
+
+Run `specflow init` first to create the project structure, then run `/flow.init` for discovery.
+
+Or continue and /flow.init will create the structure for you.
+```
+
+**Create project structure** if `.specify/` doesn't exist (fallback if `specflow init` wasn't run):
 - `.specify/discovery/` - context.md, state.md, decisions.md
 - `.specify/memory/`
 - `.specify/templates/`
 - `.specify/phases/`
 - `specs/`
+
+Note: `specflow init` is the preferred way to create this structure as it also creates:
+- `.specflow/orchestration-state.json` with proper state
+- `.specflow/manifest.json` for version tracking
+- `ROADMAP.md` and `BACKLOG.md` templates
+- Registers the project in the global registry
 
 **Copy templates** from installed location to `.specify/templates/`:
 ```bash

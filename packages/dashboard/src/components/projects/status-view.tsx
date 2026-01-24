@@ -83,7 +83,7 @@ export function StatusView({
         </h3>
         <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-md">
           This project doesn&apos;t have an orchestration state file yet.
-          Run <code className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">specflow state init</code> in the project directory.
+          Run <code className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded">specflow init</code> in the project directory.
         </p>
       </div>
     )

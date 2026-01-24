@@ -32,7 +32,7 @@ export type WorkflowEvent = z.infer<typeof WorkflowEventSchema>;
  */
 export const QuestionOptionSchema = z.object({
   label: z.string(),
-  description: z.string(),
+  description: z.string().optional(),
 });
 
 export type QuestionOption = z.infer<typeof QuestionOptionSchema>;

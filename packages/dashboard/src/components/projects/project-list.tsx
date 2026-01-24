@@ -3,7 +3,6 @@
 import { useMemo, useCallback } from 'react'
 import { useProjects } from '@/hooks/use-projects'
 import { useConnection } from '@/contexts/connection-context'
-import { useWorkflowList } from '@/hooks/use-workflow-list'
 import { useProjectPhases } from '@/hooks/use-project-phases'
 import { ProjectCard } from './project-card'
 import { EmptyState } from './empty-state'
@@ -44,14 +43,7 @@ function getMostRecentTimestamp(...timestamps: (string | null | undefined)[]): D
 
 export function ProjectList() {
   const { projects, loading, error, refetch } = useProjects()
-  const { states, tasks } = useConnection()
-
-  // Get project IDs for workflow list filtering
-  const projectIds = useMemo(() => projects.map((p) => p.id), [projects])
-
-  // Fetch active workflows for all projects (with polling)
-  const { executions: workflowExecutions, refresh: refreshWorkflows } =
-    useWorkflowList(projectIds)
+  const { states, tasks, workflows, refetch: refreshWorkflows } = useConnection()
 
   // Fetch phase info for all projects (next phase from roadmap)
   const { phases: projectPhases } = useProjectPhases(projects)
@@ -191,7 +183,7 @@ export function ProjectList() {
             tasks={tasks.get(project.id)}
             isUnavailable={project.isUnavailable}
             isDiscovered={project.isDiscovered}
-            workflowExecution={workflowExecutions.get(project.id)}
+            workflowExecution={workflows.get(project.id)?.currentExecution}
             onWorkflowStart={createWorkflowStartHandler(project.id)}
             nextPhase={phaseInfo?.nextPhase}
           />

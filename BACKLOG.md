@@ -4,7 +4,7 @@
 > Review periodically to schedule into upcoming phases.
 
 **Created**: 2026-01-18
-**Last Updated**: 2026-01-18
+**Last Updated**: 2026-01-22
 
 ---
 
@@ -29,6 +29,7 @@
 
 | Item | Source | Reason Deferred | Notes |
 |------|--------|-----------------|-------|
+| [RES001] Research BMAD-METHOD for best practices | Manual | Research | Review https://github.com/bmad-code-org/BMAD-METHOD - scale-adaptive planning (5 levels), 21+ specialized agents, 34 structured workflows. Consider: complexity-based phase sizing, agent specialization patterns, execution track concepts (quick/standard/enterprise). |
 | [OE001] Over-Engineering: 5 error classes for enum-like behavior (errors.ts) | Phase 1049 | Deferred | - |
 | [OE002] Over-Engineering: Global state for output options (output.ts) | Phase 1049 | Deferred | - |
 | [OE003] Over-Engineering: Optional projectPath parameter unused (paths.ts) | Phase 1049 | Deferred | - |
@@ -50,6 +51,7 @@
 | V-064 flow.orchestrate.md exit codes | Phase 0082 | implicit (0=success) | - |
 | V-081 No new linting errors | Phase 0082 | lint unavailable | - |
 | V-083 Commit history | Phase 0082 | changes uncommitted | - |
+| I-004: Orchestration event types (orchestration:decision, orchestration:batch) - not critical for core polling elimination goals | Phase 1056 | Deferred | - |
 
 ### P3 - Low Priority
 

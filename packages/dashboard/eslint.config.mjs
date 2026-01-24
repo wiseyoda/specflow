@@ -13,6 +13,20 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  // T030: Prevent setInterval in hooks for data polling
+  // Use SSE/file watching instead of polling
+  {
+    files: ["src/hooks/**/*.ts", "src/hooks/**/*.tsx"],
+    rules: {
+      "no-restricted-globals": [
+        "warn",
+        {
+          name: "setInterval",
+          message: "Avoid setInterval in hooks for data polling. Use SSE events from useUnifiedData instead.",
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

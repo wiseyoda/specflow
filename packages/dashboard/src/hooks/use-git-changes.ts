@@ -29,10 +29,11 @@ const REFRESH_DEBOUNCE_MS = 2000;
  *
  * @param projectPath - Absolute path to the project
  * @param refreshTrigger - Optional value that triggers a refresh when changed (debounced)
+ *                         Can be a number, string, or any value - changes trigger refresh
  */
 export function useGitChanges(
   projectPath: string | null,
-  refreshTrigger?: number
+  refreshTrigger?: string | number
 ): UseGitChangesResult {
   const [files, setFiles] = useState<FileChange[]>([]);
   const [totalAdditions, setTotalAdditions] = useState(0);

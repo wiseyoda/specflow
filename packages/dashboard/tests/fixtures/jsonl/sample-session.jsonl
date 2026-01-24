@@ -1,0 +1,10 @@
+{"type":"init","timestamp":"2026-01-24T10:00:00.000Z","sessionId":"test-session-001","projectPath":"/test/project"}
+{"type":"user","timestamp":"2026-01-24T10:00:01.000Z","message":"Help me implement feature X"}
+{"type":"assistant","timestamp":"2026-01-24T10:00:02.000Z","message":"I'll help you implement feature X. Let me start by..."}
+{"type":"tool_use","timestamp":"2026-01-24T10:00:03.000Z","tool":"Read","input":{"file_path":"/test/project/src/index.ts"}}
+{"type":"tool_result","timestamp":"2026-01-24T10:00:04.000Z","tool":"Read","output":"export function main() { ... }"}
+{"type":"assistant","timestamp":"2026-01-24T10:00:05.000Z","message":"I can see the main function. Now let me add the feature..."}
+{"type":"tool_use","timestamp":"2026-01-24T10:00:06.000Z","tool":"Edit","input":{"file_path":"/test/project/src/index.ts","old_string":"export function main()","new_string":"export function main(options: Options)"}}
+{"type":"tool_result","timestamp":"2026-01-24T10:00:07.000Z","tool":"Edit","output":"File updated successfully"}
+{"type":"assistant","timestamp":"2026-01-24T10:00:08.000Z","message":"I've added the options parameter. The feature is now implemented."}
+{"type":"end","timestamp":"2026-01-24T10:00:09.000Z","reason":"completed"}

@@ -462,3 +462,90 @@ export function getBatchPlanSummary(plan: BatchPlan): string {
 
   return `${batchCount} batch${batchCount !== 1 ? 'es' : ''} from tasks.md sections (${taskCount} tasks)`;
 }
+
+/**
+ * Verify which tasks from a batch are actually complete in tasks.md
+ *
+ * @param projectPath - Path to the project root
+ * @param taskIds - List of task IDs to verify
+ * @returns Object with completed and incomplete task IDs
+ */
+export function verifyBatchTaskCompletion(
+  projectPath: string,
+  taskIds: string[]
+): { completedTasks: string[]; incompleteTasks: string[] } {
+  // Re-parse tasks.md to get current state
+  const plan = parseBatchesFromProject(projectPath);
+
+  if (!plan) {
+    // Can't verify - assume all incomplete
+    return { completedTasks: [], incompleteTasks: taskIds };
+  }
+
+  // Get all tasks from the current plan
+  const allTaskIds = new Set<string>();
+  const completedTaskIds = new Set<string>();
+
+  // We need to re-parse to get completion status, not just batch structure
+  const specsDir = join(projectPath, 'specs');
+  const { readdirSync } = require('fs');
+  const entries = readdirSync(specsDir, { withFileTypes: true });
+
+  const phaseDirs = entries
+    .filter((e: { isDirectory: () => boolean; name: string }) =>
+      e.isDirectory() && /^\d{4}-/.test(e.name)
+    )
+    .map((e: { name: string }) => e.name)
+    .sort()
+    .reverse();
+
+  if (phaseDirs.length === 0) {
+    return { completedTasks: [], incompleteTasks: taskIds };
+  }
+
+  const tasksPath = join(specsDir, phaseDirs[0], 'tasks.md');
+  if (!existsSync(tasksPath)) {
+    return { completedTasks: [], incompleteTasks: taskIds };
+  }
+
+  const content = readFileSync(tasksPath, 'utf-8');
+  const lines = content.split('\n');
+
+  // Parse all tasks and their completion status
+  for (const line of lines) {
+    const taskMatch = line.match(TASK_PATTERN);
+    if (taskMatch) {
+      const completed = taskMatch[1].toLowerCase() === 'x';
+      const id = taskMatch[2];
+      allTaskIds.add(id);
+      if (completed) {
+        completedTaskIds.add(id);
+      }
+    }
+  }
+
+  // Check which of the requested tasks are complete
+  const completedTasks: string[] = [];
+  const incompleteTasks: string[] = [];
+
+  for (const taskId of taskIds) {
+    if (completedTaskIds.has(taskId)) {
+      completedTasks.push(taskId);
+    } else {
+      incompleteTasks.push(taskId);
+    }
+  }
+
+  return { completedTasks, incompleteTasks };
+}
+
+/**
+ * Check total incomplete task count in a project
+ *
+ * @param projectPath - Path to the project root
+ * @returns Number of incomplete tasks, or null if can't determine
+ */
+export function getTotalIncompleteTasks(projectPath: string): number | null {
+  const plan = parseBatchesFromProject(projectPath);
+  return plan?.totalIncomplete ?? null;
+}

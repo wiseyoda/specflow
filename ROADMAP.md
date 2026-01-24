@@ -62,6 +62,7 @@ This allows inserting urgent work without renumbering existing phases.
 | 1055 | Smart Batching & Orchestration | ✅ Complete | **USER GATE**: Auto-batch tasks, state machine, auto-healing |
 | 1056 | JSONL Watcher (Push Updates) | ✅ Complete | **USER GATE**: SSE-based instant updates, no polling delay |
 | 1057 | Orchestration Simplification | ✅ Complete | **USER GATE**: State-driven orchestration, questions work, Claude Helper |
+| 1058 | Single State Consolidation | 🔄 In Progress | **USER GATE**: Single state file, simple decision logic, no hacks |
 | 1060  | Stats & Operations                | ⬜ Not Started | **USER GATE**: Costs on cards, operations page, basic chart        |
 | 1070  | Cost Analytics                    | ⬜ Not Started | **USER GATE**: Advanced charts, projections, export                |
 
@@ -112,6 +113,7 @@ specflow phase list --complete
 | **Gate 7**   | 1055  | Auto-batching works, state machine transitions, auto-healing attempts |
 | **Gate 7.5** | 1056  | Session updates within 500ms, questions appear instantly, SSE works   |
 | **Gate 7.6** | 1057  | Orchestration trusts step.status, questions display, Claude Helper works |
+| **Gate 7.7** | 1058  | Single state file (no OrchestrationExecution), decision logic < 100 lines, manual step override |
 | **Gate 8**   | 1060  | Costs on cards, session history, basic chart, operations page         |
 | **Gate 9**   | 1070  | Advanced charts, projections, CSV/JSON export                         |
 

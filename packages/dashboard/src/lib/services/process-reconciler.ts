@@ -24,10 +24,7 @@ import {
   type ProcessHealthResult,
 } from './process-health';
 import { WorkflowExecutionSchema, type WorkflowExecution } from './workflow-service';
-import {
-  OrchestrationExecutionSchema,
-  type OrchestrationExecution,
-} from '@specflow/shared';
+import type { OrchestrationExecution } from './orchestration-types';
 
 // Track reconciliation state
 let reconciliationDone = false;
@@ -146,7 +143,7 @@ function loadProjectOrchestrations(projectPath: string): OrchestrationExecution[
     for (const file of files) {
       try {
         const content = readFileSync(join(workflowDir, file), 'utf-8');
-        executions.push(OrchestrationExecutionSchema.parse(JSON.parse(content)));
+        executions.push(JSON.parse(content) as OrchestrationExecution);
       } catch {
         // Skip invalid files
       }

@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { RegistrySchema } from './registry.js';
 import { TasksDataSchema } from './tasks.js';
-import { WorkflowDataSchema, QuestionOptionSchema } from './workflow.js';
+import { WorkflowDataSchema, QuestionOptionSchema, DashboardWorkflowStatusSchema } from './workflow.js';
 import { PhasesDataSchema } from './phases.js';
+import { OrchestrationConfigSchema } from './orchestration-config.js';
 
 /**
  * Schema for orchestration state (simplified for SSE events)
@@ -57,6 +58,139 @@ export const UserGateStatusSchema = z.enum([
   'confirmed',
   'skipped',
 ]);
+
+/**
+ * Batch status values (matches BatchStatusSchema from batch-item.ts)
+ */
+export const DashboardBatchStatusSchema = z.enum([
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'healed',
+]);
+
+/**
+ * Orchestration status for dashboard.active
+ * Also exported as OrchestrationStatusSchema for backward compatibility
+ */
+export const DashboardOrchestrationStatusSchema = z.enum([
+  'running',
+  'paused',
+  'waiting_merge',
+  'needs_attention',
+  'completed',
+  'failed',
+  'cancelled',
+]);
+
+// Backward compatibility aliases
+export const OrchestrationStatusSchema = DashboardOrchestrationStatusSchema;
+export type OrchestrationStatus = z.infer<typeof OrchestrationStatusSchema>;
+
+/**
+ * Current phase in orchestration flow
+ * Includes merge and complete phases beyond the basic workflow steps
+ */
+export const OrchestrationPhaseSchema = z.enum([
+  'design',
+  'analyze',
+  'implement',
+  'verify',
+  'merge',
+  'complete',
+]);
+
+export type OrchestrationPhase = z.infer<typeof OrchestrationPhaseSchema>;
+
+/**
+ * Decision log entry for debugging orchestration decisions
+ * Also exported as DecisionLogEntrySchema for backward compatibility
+ */
+export const DecisionLogEntrySchema = z.object({
+  timestamp: z.string(),
+  decision: z.string(),
+  reason: z.string(),
+  data: z.record(z.unknown()).optional(),
+});
+
+export type DecisionLogEntry = z.infer<typeof DecisionLogEntrySchema>;
+
+/**
+ * Batch item in dashboard state
+ */
+export const DashboardBatchItemSchema = z.object({
+  section: z.string(),
+  taskIds: z.array(z.string()),
+  status: DashboardBatchStatusSchema,
+  workflowId: z.string().optional(),
+  healAttempts: z.number().default(0),
+});
+
+/**
+ * Decision log entry for debugging
+ */
+export const DashboardDecisionLogEntrySchema = z.object({
+  timestamp: z.string(),
+  action: z.string(),
+  reason: z.string(),
+});
+
+/**
+ * Last workflow tracking for decision logic
+ */
+export const DashboardLastWorkflowSchema = z.object({
+  id: z.string(),
+  skill: z.string(),
+  status: DashboardWorkflowStatusSchema,
+});
+
+/**
+ * Dashboard state stored in CLI state file
+ * Single source of truth for orchestration - replaces OrchestrationExecution
+ */
+export const DashboardStateSchema = z.object({
+  /** Active orchestration run (null when no orchestration active) */
+  active: z.object({
+    id: z.string(),
+    startedAt: z.string(),
+    status: DashboardOrchestrationStatusSchema.default('running'),
+    config: OrchestrationConfigSchema,
+  }).nullable().default(null),
+
+  /** Batch tracking for implement phase */
+  batches: z.object({
+    total: z.number().default(0),
+    current: z.number().default(0),
+    items: z.array(DashboardBatchItemSchema).default([]),
+  }).default({ total: 0, current: 0, items: [] }),
+
+  /** Cost tracking */
+  cost: z.object({
+    total: z.number().default(0),
+    perBatch: z.array(z.number()).default([]),
+  }).default({ total: 0, perBatch: [] }),
+
+  /** Decision log for debugging */
+  decisionLog: z.array(DashboardDecisionLogEntrySchema).default([]),
+
+  /** Last workflow that was spawned (for decision logic) */
+  lastWorkflow: DashboardLastWorkflowSchema.nullable().default(null),
+
+  /** Recovery context when status is 'needs_attention' */
+  recoveryContext: z.object({
+    issue: z.string(),
+    options: z.array(z.enum(['retry', 'skip', 'abort'])),
+    failedWorkflowId: z.string().optional(),
+  }).optional(),
+});
+
+export type DashboardState = z.infer<typeof DashboardStateSchema>;
+export type DashboardBatchItem = z.infer<typeof DashboardBatchItemSchema>;
+export type DashboardDecisionLogEntry = z.infer<typeof DashboardDecisionLogEntrySchema>;
+export type DashboardLastWorkflow = z.infer<typeof DashboardLastWorkflowSchema>;
+export type DashboardBatchStatus = z.infer<typeof DashboardBatchStatusSchema>;
+export type DashboardOrchestrationStatus = z.infer<typeof DashboardOrchestrationStatusSchema>;
 
 export const OrchestrationStateSchema = z.object({
   schema_version: z.string(),
@@ -113,6 +247,8 @@ export const OrchestrationStateSchema = z.object({
       tasks_total: z.number().nullish(),
       percentage: z.number().nullish(),
     }).nullish(),
+    // Dashboard state - single source of truth for orchestration (FR-001)
+    dashboard: DashboardStateSchema.optional(),
   }).passthrough().nullish(),
   health: z.object({
     status: z.string().nullish(), // Values: ready, healthy, warning, error, initializing, migrated

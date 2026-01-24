@@ -25,7 +25,7 @@ import { ActionsMenu } from '@/components/projects/actions-menu'
 import { cn } from '@/lib/utils'
 import type { OrchestrationState, TasksData, WorkflowIndexEntry } from '@specflow/shared'
 import type { ProjectStatus as ActionProjectStatus } from '@/lib/action-definitions'
-import type { OrchestrationExecution } from '@specflow/shared'
+import type { OrchestrationExecution } from '@/lib/services/orchestration-types'
 
 /**
  * Project initialization status

@@ -5,12 +5,12 @@
 
 import { vi } from 'vitest';
 import type {
-  OrchestrationExecution,
   OrchestrationConfig,
   OrchestrationPhase,
   BatchTracking,
   BatchItem,
 } from '@specflow/shared';
+import type { OrchestrationExecution } from '../../../src/lib/services/orchestration-types';
 import type { OrchestrationDeps } from '../../../src/lib/services/orchestration-runner';
 
 // =============================================================================

@@ -18,17 +18,19 @@ import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
 import { readPidFile, isPidAlive, killProcess, cleanupPidFile } from './process-spawner';
 import {
-  type OrchestrationExecution,
   type OrchestrationConfig,
   type OrchestrationPhase,
   type OrchestrationStatus,
   type BatchTracking,
   type BatchPlan,
   type DecisionLogEntry,
-  OrchestrationExecutionSchema,
-  createOrchestrationExecution,
+  type DashboardState,
+  type OrchestrationState,
+  OrchestrationStateSchema,
+  DashboardStateSchema,
 } from '@specflow/shared';
 import { parseBatchesFromProject, createBatchTracking } from './batch-parser';
+import type { OrchestrationExecution } from './orchestration-types';
 
 // =============================================================================
 // Constants
@@ -37,8 +39,202 @@ import { parseBatchesFromProject, createBatchTracking } from './batch-parser';
 const ORCHESTRATION_FILE_PREFIX = 'orchestration-';
 
 // =============================================================================
-// State Persistence (FR-023)
+// CLI State File Helpers (FR-001 - Single Source of Truth)
 // =============================================================================
+
+/**
+ * Get the CLI state file path for a project
+ */
+function getCliStateFilePath(projectPath: string): string {
+  // Try .specflow first (v3), then .specify (v2)
+  const v3Path = join(projectPath, '.specflow', 'orchestration-state.json');
+  const v2Path = join(projectPath, '.specify', 'orchestration-state.json');
+  return existsSync(v3Path) ? v3Path : existsSync(v2Path) ? v2Path : v3Path;
+}
+
+/**
+ * Read the full CLI state file
+ */
+function readCliState(projectPath: string): OrchestrationState | null {
+  const statePath = getCliStateFilePath(projectPath);
+  if (!existsSync(statePath)) {
+    return null;
+  }
+  try {
+    const content = readFileSync(statePath, 'utf-8');
+    return OrchestrationStateSchema.parse(JSON.parse(content));
+  } catch (error) {
+    console.warn('[orchestration-service] Failed to read CLI state:', error);
+    return null;
+  }
+}
+
+/**
+ * Read dashboard state from CLI state file
+ * Returns the orchestration.dashboard section or null if not present
+ */
+export function readDashboardState(projectPath: string): DashboardState | null {
+  const state = readCliState(projectPath);
+  if (!state?.orchestration?.dashboard) {
+    return null;
+  }
+  try {
+    return DashboardStateSchema.parse(state.orchestration.dashboard);
+  } catch (error) {
+    console.warn('[orchestration-service] Invalid dashboard state:', error);
+    return null;
+  }
+}
+
+/**
+ * Write dashboard state to CLI state file
+ * Uses specflow state set for atomic, validated writes
+ */
+export async function writeDashboardState(
+  projectPath: string,
+  updates: Partial<DashboardState>
+): Promise<void> {
+  const commands: string[] = [];
+
+  // Build specflow state set commands for each field
+  if (updates.active !== undefined) {
+    if (updates.active === null) {
+      commands.push('orchestration.dashboard.active=null');
+    } else {
+      if (updates.active.id) commands.push(`orchestration.dashboard.active.id=${updates.active.id}`);
+      if (updates.active.startedAt) commands.push(`orchestration.dashboard.active.startedAt=${updates.active.startedAt}`);
+      if (updates.active.status) commands.push(`orchestration.dashboard.active.status=${updates.active.status}`);
+      // Config is a complex object - serialize to JSON
+      if (updates.active.config) {
+        const configJson = JSON.stringify(updates.active.config).replace(/"/g, '\\"');
+        commands.push(`orchestration.dashboard.active.config="${configJson}"`);
+      }
+    }
+  }
+
+  if (updates.batches !== undefined) {
+    commands.push(`orchestration.dashboard.batches.total=${updates.batches.total}`);
+    commands.push(`orchestration.dashboard.batches.current=${updates.batches.current}`);
+    // Items array needs special handling - serialize to JSON
+    const itemsJson = JSON.stringify(updates.batches.items).replace(/"/g, '\\"');
+    commands.push(`orchestration.dashboard.batches.items="${itemsJson}"`);
+  }
+
+  if (updates.cost !== undefined) {
+    commands.push(`orchestration.dashboard.cost.total=${updates.cost.total}`);
+    const perBatchJson = JSON.stringify(updates.cost.perBatch);
+    commands.push(`orchestration.dashboard.cost.perBatch="${perBatchJson}"`);
+  }
+
+  if (updates.lastWorkflow !== undefined) {
+    if (updates.lastWorkflow === null) {
+      commands.push('orchestration.dashboard.lastWorkflow=null');
+    } else {
+      commands.push(`orchestration.dashboard.lastWorkflow.id=${updates.lastWorkflow.id}`);
+      commands.push(`orchestration.dashboard.lastWorkflow.skill=${updates.lastWorkflow.skill}`);
+      commands.push(`orchestration.dashboard.lastWorkflow.status=${updates.lastWorkflow.status}`);
+    }
+  }
+
+  if (updates.decisionLog !== undefined) {
+    const logJson = JSON.stringify(updates.decisionLog).replace(/"/g, '\\"');
+    commands.push(`orchestration.dashboard.decisionLog="${logJson}"`);
+  }
+
+  if (updates.recoveryContext !== undefined) {
+    if (!updates.recoveryContext) {
+      // Clear recovery context by setting to empty object
+      commands.push('orchestration.dashboard.recoveryContext=null');
+    } else {
+      commands.push(`orchestration.dashboard.recoveryContext.issue=${updates.recoveryContext.issue}`);
+      const optionsJson = JSON.stringify(updates.recoveryContext.options);
+      commands.push(`orchestration.dashboard.recoveryContext.options="${optionsJson}"`);
+      if (updates.recoveryContext.failedWorkflowId) {
+        commands.push(`orchestration.dashboard.recoveryContext.failedWorkflowId=${updates.recoveryContext.failedWorkflowId}`);
+      }
+    }
+  }
+
+  if (commands.length === 0) {
+    return; // Nothing to update
+  }
+
+  // Execute specflow state set with all updates
+  const fullCommand = `specflow state set ${commands.join(' ')}`;
+  try {
+    execSync(fullCommand, {
+      cwd: projectPath,
+      encoding: 'utf-8',
+      timeout: 30000,
+    });
+  } catch (error) {
+    console.error('[orchestration-service] Failed to write dashboard state:', error);
+    throw error;
+  }
+}
+
+/**
+ * Helper to add a decision log entry via CLI state
+ */
+export async function logDashboardDecision(
+  projectPath: string,
+  action: string,
+  reason: string
+): Promise<void> {
+  const state = readDashboardState(projectPath);
+  const currentLog = state?.decisionLog || [];
+  const newEntry = {
+    timestamp: new Date().toISOString(),
+    action,
+    reason,
+  };
+  await writeDashboardState(projectPath, {
+    decisionLog: [...currentLog, newEntry],
+  });
+}
+
+// =============================================================================
+// State Persistence (FR-023) - Legacy OrchestrationExecution file support
+// =============================================================================
+
+/**
+ * Get the starting phase based on config skip settings
+ */
+function getStartingPhase(config: OrchestrationConfig): OrchestrationPhase {
+  if (!config.skipDesign) return 'design';
+  if (!config.skipAnalyze) return 'analyze';
+  if (!config.skipImplement) return 'implement';
+  if (!config.skipVerify) return 'verify';
+  return 'merge';
+}
+
+/**
+ * Create a new orchestration execution with defaults
+ */
+function createOrchestrationExecution(
+  id: string,
+  projectId: string,
+  config: OrchestrationConfig,
+  batches: BatchTracking
+): OrchestrationExecution {
+  const now = new Date().toISOString();
+  return {
+    id,
+    projectId,
+    status: 'running',
+    config,
+    currentPhase: getStartingPhase(config),
+    batches,
+    executions: {
+      implement: [],
+      healers: [],
+    },
+    startedAt: now,
+    updatedAt: now,
+    decisionLog: [],
+    totalCostUsd: 0,
+  };
+}
 
 /**
  * Get the orchestration directory for a project
@@ -129,7 +325,7 @@ function loadOrchestration(projectPath: string, id: string): OrchestrationExecut
   }
   try {
     const content = readFileSync(filePath, 'utf-8');
-    return OrchestrationExecutionSchema.parse(JSON.parse(content));
+    return JSON.parse(content) as OrchestrationExecution;
   } catch {
     return null;
   }
@@ -150,7 +346,7 @@ function listOrchestrations(projectPath: string): OrchestrationExecution[] {
     for (const file of files) {
       try {
         const content = readFileSync(join(dir, file), 'utf-8');
-        const execution = OrchestrationExecutionSchema.parse(JSON.parse(content));
+        const execution = JSON.parse(content) as OrchestrationExecution;
         orchestrations.push(execution);
       } catch {
         // Skip invalid files
@@ -278,43 +474,39 @@ function getSpecflowStatus(projectPath: string): SpecflowStatus | null {
 export function isPhaseComplete(status: SpecflowStatus | null, phase: OrchestrationPhase): boolean {
   if (!status) return false;
 
+  // FR-001: Trust step.status as single source of truth
+  // Sub-commands set step.status=complete when they finish
+  // No artifact checks needed - we trust the state file
+  const currentStep = status.orchestration?.step?.current;
+  const stepStatus = status.orchestration?.step?.status;
+
   switch (phase) {
     case 'design':
-      // Design is complete when plan.md and tasks.md exist
-      return status.context?.hasPlan === true && status.context?.hasTasks === true;
+      // Design complete when step moved past design OR status is complete
+      return currentStep !== 'design' ||
+        (currentStep === 'design' && stepStatus === 'complete');
 
     case 'analyze':
-      // Analyze doesn't produce artifacts - check orchestration state
-      // step.current must have moved past analyze (to 'implement' or later)
-      // OR step.status is 'complete' when current step is analyze
-      const analyzeStepComplete =
-        status.orchestration?.step?.current === 'implement' ||
-        status.orchestration?.step?.current === 'verify' ||
-        (status.orchestration?.step?.current === 'analyze' &&
-          status.orchestration?.step?.status === 'complete');
-      return analyzeStepComplete ?? false;
+      // Analyze complete when step moved past analyze OR status is complete
+      return currentStep === 'implement' ||
+        currentStep === 'verify' ||
+        currentStep === 'merge' ||
+        (currentStep === 'analyze' && stepStatus === 'complete');
 
     case 'implement':
-      // All tasks complete
-      return (
-        status.progress?.tasksComplete === status.progress?.tasksTotal &&
-        (status.progress?.tasksTotal ?? 0) > 0
-      );
+      // Implement complete when step moved past implement OR status is complete
+      return currentStep === 'verify' ||
+        currentStep === 'merge' ||
+        (currentStep === 'implement' && stepStatus === 'complete');
 
     case 'verify':
-      // Verify is complete when step.current has moved past verify (to merge)
-      // OR when step.status is 'complete' with current step as verify
-      const verifyStepComplete =
-        status.orchestration?.step?.current === 'merge' ||
-        (status.orchestration?.step?.current === 'verify' &&
-          status.orchestration?.step?.status === 'complete');
-      return verifyStepComplete ?? false;
+      // Verify complete when step moved past verify OR status is complete
+      return currentStep === 'merge' ||
+        (currentStep === 'verify' && stepStatus === 'complete');
 
     case 'merge':
-      // Merge is complete when orchestration marks it so
-      return status.orchestration?.step?.status === 'complete' &&
-        (status.orchestration?.step?.current === 'merge' ||
-          status.orchestration?.step?.current === undefined);
+      // Merge is complete when step.status is complete at merge step
+      return currentStep === 'merge' && stepStatus === 'complete';
 
     case 'complete':
       return true;
@@ -462,8 +654,39 @@ class OrchestrationService {
       }
     );
 
-    // Save initial state
+    // Save initial state to legacy file (for backwards compatibility during migration)
     saveOrchestration(projectPath, execution);
+
+    // FR-001: Write to CLI state as single source of truth
+    await writeDashboardState(projectPath, {
+      active: {
+        id,
+        startedAt: execution.startedAt,
+        status: 'running',
+        config,
+      },
+      batches: {
+        total: batches.total,
+        current: batches.current,
+        items: batches.items.map((b) => ({
+          section: b.section,
+          taskIds: b.taskIds,
+          status: b.status,
+          workflowId: b.workflowExecutionId,
+          healAttempts: b.healAttempts,
+        })),
+      },
+      cost: {
+        total: 0,
+        perBatch: [],
+      },
+      decisionLog: [{
+        timestamp: new Date().toISOString(),
+        action: 'start',
+        reason: batchPlan ? 'User initiated orchestration' : 'User initiated orchestration (phase will be opened first)',
+      }],
+      lastWorkflow: null,
+    });
 
     // Sync initial phase to state file for UI consistency
     syncPhaseToStateFile(projectPath, execution.currentPhase);
@@ -502,16 +725,104 @@ class OrchestrationService {
 
   /**
    * Get orchestration by ID
+   * FR-001: Primarily reads from CLI state, falls back to legacy file
    */
   get(projectPath: string, id: string): OrchestrationExecution | null {
+    // First try CLI state (single source of truth)
+    const dashboardState = readDashboardState(projectPath);
+    if (dashboardState?.active?.id === id) {
+      // Convert CLI state to OrchestrationExecution format for compatibility
+      return this.convertDashboardStateToExecution(projectPath, dashboardState);
+    }
+
+    // Fall back to legacy file for backwards compatibility
     return loadOrchestration(projectPath, id);
   }
 
   /**
    * Get active orchestration for a project
+   * FR-001: Primarily reads from CLI state, falls back to legacy file
    */
   getActive(projectPath: string): OrchestrationExecution | null {
+    // First try CLI state (single source of truth)
+    const dashboardState = readDashboardState(projectPath);
+    if (dashboardState?.active) {
+      return this.convertDashboardStateToExecution(projectPath, dashboardState);
+    }
+
+    // Fall back to legacy finder
     return findActiveOrchestration(projectPath);
+  }
+
+  /**
+   * Convert CLI dashboard state to OrchestrationExecution format
+   * Used during migration period for backwards compatibility
+   */
+  private convertDashboardStateToExecution(
+    projectPath: string,
+    dashboardState: DashboardState
+  ): OrchestrationExecution | null {
+    if (!dashboardState.active) return null;
+
+    // Read project ID from registry
+    const cliState = readCliState(projectPath);
+    const projectId = cliState?.project?.id || 'unknown';
+
+    // Map dashboard status to orchestration status
+    const statusMap: Record<string, OrchestrationStatus> = {
+      'running': 'running',
+      'paused': 'paused',
+      'waiting_merge': 'waiting_merge',
+      'needs_attention': 'needs_attention',
+      'completed': 'completed',
+      'failed': 'failed',
+      'cancelled': 'cancelled',
+    };
+
+    // Get current phase from CLI state step
+    const step = cliState?.orchestration?.step;
+    const phaseMap: Record<string, OrchestrationPhase> = {
+      'design': 'design',
+      'analyze': 'analyze',
+      'implement': 'implement',
+      'verify': 'verify',
+    };
+    const currentPhase: OrchestrationPhase = step?.current && phaseMap[step.current]
+      ? phaseMap[step.current]
+      : 'design';
+
+    return {
+      id: dashboardState.active.id,
+      projectId,
+      status: statusMap[dashboardState.active.status] || 'running',
+      config: dashboardState.active.config,
+      currentPhase,
+      batches: {
+        total: dashboardState.batches?.total || 0,
+        current: dashboardState.batches?.current || 0,
+        items: (dashboardState.batches?.items || []).map((b, i) => ({
+          index: i,
+          section: b.section,
+          taskIds: b.taskIds,
+          status: b.status,
+          healAttempts: b.healAttempts || 0,
+          workflowExecutionId: b.workflowId,
+        })),
+      },
+      executions: {
+        implement: [],
+        healers: [],
+      },
+      startedAt: dashboardState.active.startedAt,
+      updatedAt: new Date().toISOString(),
+      decisionLog: (dashboardState.decisionLog || []).map((d) => ({
+        timestamp: d.timestamp,
+        decision: d.action,
+        reason: d.reason,
+      })),
+      totalCostUsd: dashboardState.cost?.total || 0,
+      recoveryContext: dashboardState.recoveryContext,
+    };
   }
 
   /**
@@ -694,6 +1005,7 @@ class OrchestrationService {
     currentBatch.status = 'healed';
     currentBatch.healerExecutionId = healerExecutionId;
     currentBatch.completedAt = new Date().toISOString();
+    if (!execution.executions.healers) execution.executions.healers = [];
     execution.executions.healers.push(healerExecutionId);
 
     logDecision(execution, 'batch_healed', `Batch ${execution.batches.current + 1} healed`, {
@@ -779,6 +1091,84 @@ class OrchestrationService {
     logDecision(execution, 'resume', 'User requested resume');
     saveOrchestration(projectPath, execution);
     return execution;
+  }
+
+  /**
+   * Go back to a previous step (FR-004 - UI Step Override)
+   *
+   * This allows the UI to let users click a step to go back to it.
+   * Sets step.current to the target step and step.status to not_started.
+   *
+   * @param projectPath - Project path for CLI commands
+   * @param orchestrationId - Active orchestration ID
+   * @param targetStep - The step to go back to (design, analyze, implement, verify)
+   * @returns Updated orchestration execution or null if failed
+   */
+  async goBackToStep(
+    projectPath: string,
+    orchestrationId: string,
+    targetStep: string
+  ): Promise<OrchestrationExecution | null> {
+    const validSteps = ['design', 'analyze', 'implement', 'verify'];
+    if (!validSteps.includes(targetStep)) {
+      console.error(`[orchestration-service] Invalid target step: ${targetStep}`);
+      return null;
+    }
+
+    const execution = loadOrchestration(projectPath, orchestrationId);
+    if (!execution) return null;
+
+    // Pause the orchestration if running
+    if (execution.status === 'running') {
+      // Kill any active workflow
+      const currentWorkflowId = this.getCurrentWorkflowId(execution);
+      if (currentWorkflowId) {
+        const workflowDir = join(projectPath, '.specflow', 'workflows', currentWorkflowId);
+        const pids = readPidFile(workflowDir);
+        if (pids) {
+          if (pids.claudePid && isPidAlive(pids.claudePid)) {
+            killProcess(pids.claudePid, false);
+          }
+          if (pids.bashPid && isPidAlive(pids.bashPid)) {
+            killProcess(pids.bashPid, false);
+          }
+          cleanupPidFile(workflowDir);
+        }
+      }
+    }
+
+    // Update CLI state via specflow state set
+    try {
+      const stepIndex = validSteps.indexOf(targetStep);
+      execSync(
+        `specflow state set orchestration.step.current=${targetStep} orchestration.step.status=not_started orchestration.step.index=${stepIndex}`,
+        {
+          cwd: projectPath,
+          encoding: 'utf-8',
+          timeout: 30000,
+        }
+      );
+
+      // Update dashboard state
+      await writeDashboardState(projectPath, {
+        lastWorkflow: null, // Clear last workflow when going back
+      });
+
+      // Update local execution state
+      execution.currentPhase = targetStep as OrchestrationPhase;
+      execution.status = 'running';
+      logDecision(execution, 'go_back_to_step', `User navigated back to ${targetStep} step`);
+      saveOrchestration(projectPath, execution);
+
+      // Sync phase to state file
+      syncPhaseToStateFile(projectPath, targetStep as OrchestrationPhase);
+
+      console.log(`[orchestration-service] Went back to step: ${targetStep}`);
+      return execution;
+    } catch (error) {
+      console.error(`[orchestration-service] Failed to go back to step: ${error}`);
+      return null;
+    }
   }
 
   /**

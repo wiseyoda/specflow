@@ -5,7 +5,8 @@ import { execSync } from 'child_process';
 import { orchestrationService } from '@/lib/services/orchestration-service';
 import { parseBatchesFromProject } from '@/lib/services/batch-parser';
 import { workflowService } from '@/lib/services/workflow-service';
-import type { OrchestrationExecution, OrchestrationPhase } from '@specflow/shared';
+import type { OrchestrationPhase } from '@specflow/shared';
+import type { OrchestrationExecution } from '@/lib/services/orchestration-types';
 
 // =============================================================================
 // Types

@@ -16,10 +16,10 @@ import { OrchestrationControls } from './orchestration-controls';
 import { MergeReadyPanel } from './merge-ready-panel';
 import { RecoveryPanel, type RecoveryOption } from './recovery-panel';
 import type {
-  OrchestrationExecution,
   OrchestrationPhase,
   DecisionLogEntry,
 } from '@specflow/shared';
+import type { OrchestrationExecution } from '@/lib/services/orchestration-types';
 
 // =============================================================================
 // Types

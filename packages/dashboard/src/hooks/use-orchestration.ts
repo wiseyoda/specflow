@@ -9,7 +9,8 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { OrchestrationExecution, OrchestrationConfig } from '@specflow/shared';
+import type { OrchestrationConfig } from '@specflow/shared';
+import type { OrchestrationExecution } from '@/lib/services/orchestration-types';
 import type { BatchPlanInfo } from '@/components/orchestration/start-orchestration-modal';
 import type { RecoveryOption } from '@/components/orchestration/recovery-panel';
 import { useUnifiedData } from '@/contexts/unified-data-context';
@@ -75,6 +76,10 @@ export interface UseOrchestrationReturn {
   fetchBatchPlan: () => Promise<void>;
   /** Refresh status */
   refresh: () => Promise<void>;
+  /** Go back to a previous step (FR-004) */
+  goBackToStep: (step: string) => Promise<void>;
+  /** Whether going back to step is in progress */
+  isGoingBackToStep: boolean;
 }
 
 // =============================================================================
@@ -98,6 +103,7 @@ export function useOrchestration({
   const [isWaitingForInput, setIsWaitingForInput] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
   const [recoveryAction, setRecoveryAction] = useState<RecoveryOption | null>(null);
+  const [isGoingBackToStep, setIsGoingBackToStep] = useState(false);
 
   const lastStatusRef = useRef<OrchestrationExecution['status'] | null>(null);
 
@@ -399,6 +405,32 @@ export function useOrchestration({
     }
   }, [orchestration, projectId, refresh]);
 
+  // Go back to a previous step (FR-004)
+  const goBackToStep = useCallback(async (step: string) => {
+    if (!orchestration) return;
+
+    setIsGoingBackToStep(true);
+    try {
+      const response = await fetch('/api/workflow/orchestrate/go-back', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, id: orchestration.id, step }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to go back to step');
+      }
+
+      await refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
+    } finally {
+      setIsGoingBackToStep(false);
+    }
+  }, [orchestration, projectId, refresh]);
+
   // T028: Event-driven refresh via SSE instead of polling
   // When workflow or state SSE events come in, refresh orchestration status
   // This replaces the previous setInterval polling
@@ -445,12 +477,14 @@ export function useOrchestration({
     isWaitingForInput,
     isRecovering,
     recoveryAction,
+    isGoingBackToStep,
     start,
     pause,
     resume,
     cancel,
     triggerMerge,
     recover,
+    goBackToStep,
     fetchBatchPlan,
     refresh,
   };

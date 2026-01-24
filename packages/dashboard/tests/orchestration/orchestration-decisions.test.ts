@@ -1,13 +1,15 @@
 /**
  * Tests for orchestration-decisions.ts
  *
- * These tests verify the pure decision logic extracted from orchestration-runner.ts.
- * Each test covers a specific condition from the decision matrix (G1.x, G2.x goals).
+ * Phase 1058 Update: Tests now use getNextAction (simplified API) instead of
+ * the legacy makeDecision function which was removed.
+ *
+ * These tests verify the pure decision logic for orchestration.
  */
 
 import { describe, it, expect } from 'vitest';
 import {
-  makeDecision,
+  getNextAction,
   handleImplementBatching,
   getSkillForStep,
   getNextStep,
@@ -17,7 +19,8 @@ import {
   type DecisionInput,
   type WorkflowState,
 } from '../../src/lib/services/orchestration-decisions';
-import type { OrchestrationExecution } from '@specflow/shared';
+import type { OrchestrationExecution } from '../../src/lib/services/orchestration-types';
+import type { DashboardState } from '@specflow/shared';
 
 // =============================================================================
 // Test Fixtures
@@ -62,6 +65,13 @@ function createMockExecution(overrides: Partial<OrchestrationExecution> = {}): O
   };
 }
 
+function createMockDashboardState(overrides: Partial<DashboardState> = {}): DashboardState {
+  return {
+    active: true,
+    ...overrides,
+  };
+}
+
 function createMockInput(overrides: Partial<DecisionInput> = {}): DecisionInput {
   return {
     step: {
@@ -72,6 +82,7 @@ function createMockInput(overrides: Partial<DecisionInput> = {}): DecisionInput 
     phase: {},
     execution: createMockExecution(),
     workflow: null,
+    dashboardState: createMockDashboardState(),
     ...overrides,
   };
 }
@@ -177,309 +188,210 @@ describe('areAllBatchesComplete', () => {
 });
 
 // =============================================================================
-// Pre-Decision Gates Tests (G1.1, G1.2)
+// getNextAction Tests (Phase 1058 Simplified API)
 // =============================================================================
 
-describe('makeDecision - Pre-Decision Gates', () => {
-  it('G1.1: returns fail when budget exceeded', () => {
-    const execution = createMockExecution({
-      totalCostUsd: 60, // Exceeds maxTotal of 50
-    });
+describe('getNextAction - Core Decision Logic', () => {
+  it('returns idle when no active orchestration', () => {
     const input = createMockInput({
-      step: { current: 'design', index: 0, status: 'in_progress' },
-      execution,
+      dashboardState: { active: false },
     });
 
-    const result = makeDecision(input);
-    expect(result.action).toBe('fail');
-    expect(result.reason).toContain('Budget exceeded');
-    expect(result.errorMessage).toContain('Budget limit exceeded');
+    const result = getNextAction(input);
+    expect(result.action).toBe('idle');
   });
 
-  it('G1.1: does not fail when under budget', () => {
-    const execution = createMockExecution({
-      totalCostUsd: 10,
-    });
+  it('returns wait when workflow is running', () => {
     const input = createMockInput({
       step: { current: 'design', index: 0, status: 'in_progress' },
-      execution,
-      workflow: createMockWorkflow({ status: 'running' }),
-      lastFileChangeTime: Date.now() - 1000,
+      dashboardState: createMockDashboardState({
+        lastWorkflow: { status: 'running', id: 'wf-1' },
+      }),
     });
 
-    const result = makeDecision(input);
-    expect(result.action).not.toBe('fail');
-  });
-
-  it('G1.2: returns needs_attention when duration exceeds 4 hours', () => {
-    const fourHoursAgo = Date.now() - (5 * 60 * 60 * 1000); // 5 hours ago
-    const execution = createMockExecution({
-      startedAt: new Date(fourHoursAgo).toISOString(),
-    });
-    const input = createMockInput({
-      step: { current: 'design', index: 0, status: 'in_progress' },
-      execution,
-      currentTime: Date.now(),
-    });
-
-    const result = makeDecision(input);
-    expect(result.action).toBe('needs_attention');
-    expect(result.reason).toContain('too long');
-    expect(result.recoveryOptions).toContain('abort');
-  });
-
-  it('G1.2: does not fail when under 4 hours', () => {
-    const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000); // 2 hours ago
-    const execution = createMockExecution({
-      startedAt: new Date(twoHoursAgo).toISOString(),
-    });
-    const input = createMockInput({
-      step: { current: 'design', index: 0, status: 'in_progress' },
-      execution,
-      workflow: createMockWorkflow({ status: 'running' }),
-      lastFileChangeTime: Date.now() - 1000,
-      currentTime: Date.now(),
-    });
-
-    const result = makeDecision(input);
-    expect(result.action).not.toBe('needs_attention');
-  });
-
-  it('G1.1 takes precedence over G1.2 (budget check first)', () => {
-    const fiveHoursAgo = Date.now() - (5 * 60 * 60 * 1000);
-    const execution = createMockExecution({
-      totalCostUsd: 60, // Over budget
-      startedAt: new Date(fiveHoursAgo).toISOString(), // Also over time
-    });
-    const input = createMockInput({
-      step: { current: 'design', index: 0, status: 'in_progress' },
-      execution,
-      currentTime: Date.now(),
-    });
-
-    const result = makeDecision(input);
-    expect(result.action).toBe('fail'); // Budget check takes precedence
-  });
-});
-
-// =============================================================================
-// Decision Matrix Tests (G1.x Goals)
-// =============================================================================
-
-describe('makeDecision - Workflow States', () => {
-  it('G1.4: returns wait when workflow is running (recent activity)', () => {
-    // Use design step to avoid batch handling logic
-    const input = createMockInput({
-      step: { current: 'design', index: 0, status: 'in_progress' },
-      workflow: createMockWorkflow({ status: 'running' }),
-      lastFileChangeTime: Date.now() - 1000, // 1 second ago
-    });
-
-    const result = makeDecision(input);
+    const result = getNextAction(input);
     expect(result.action).toBe('wait');
     expect(result.reason).toBe('Workflow running');
   });
 
-  it('G1.5: returns recover_stale when workflow stale (>10 min)', () => {
-    // Use design step to avoid batch handling logic
+  it('returns spawn for design step when no workflow', () => {
     const input = createMockInput({
       step: { current: 'design', index: 0, status: 'in_progress' },
-      workflow: createMockWorkflow({ status: 'running' }),
-      lastFileChangeTime: Date.now() - STALE_THRESHOLD_MS - 60000, // 11 minutes ago
+      dashboardState: createMockDashboardState(),
     });
 
-    const result = makeDecision(input);
-    expect(result.action).toBe('recover_stale');
-    expect(result.workflowId).toBe('test-workflow-id');
-  });
-
-  it('G1.6: returns wait when workflow waiting for input', () => {
-    // Use design step to avoid batch handling logic
-    const input = createMockInput({
-      step: { current: 'design', index: 0, status: 'in_progress' },
-      workflow: createMockWorkflow({ status: 'waiting_for_input' }),
-    });
-
-    const result = makeDecision(input);
-    expect(result.action).toBe('wait');
-    expect(result.reason).toBe('Waiting for user input');
-  });
-
-  it('returns needs_attention when workflow failed', () => {
-    // Use design step to avoid batch handling logic
-    const input = createMockInput({
-      step: { current: 'design', index: 0, status: 'in_progress' },
-      workflow: createMockWorkflow({ status: 'failed', error: 'Something went wrong' }),
-    });
-
-    const result = makeDecision(input);
-    expect(result.action).toBe('needs_attention');
-    expect(result.recoveryOptions).toContain('retry');
-    expect(result.failedWorkflowId).toBe('test-workflow-id');
-  });
-
-  it('returns needs_attention when workflow cancelled', () => {
-    // Use design step to avoid batch handling logic
-    const input = createMockInput({
-      step: { current: 'design', index: 0, status: 'in_progress' },
-      workflow: createMockWorkflow({ status: 'cancelled' }),
-    });
-
-    const result = makeDecision(input);
-    expect(result.action).toBe('needs_attention');
-  });
-});
-
-describe('makeDecision - Lookup Failures', () => {
-  it('G1.3: returns wait_with_backoff when workflow lookup fails', () => {
-    const execution = createMockExecution({
-      currentPhase: 'design',
-      executions: { design: 'stored-workflow-id', implement: [], healers: [] },
-    });
-    const input = createMockInput({
-      step: { current: 'design', index: 0, status: 'in_progress' },
-      execution,
-      workflow: null, // Lookup failed
-      lookupFailures: 2,
-    });
-
-    const result = makeDecision(input);
-    expect(result.action).toBe('wait_with_backoff');
-    expect(result.backoffMs).toBe(4000); // 2^2 * 1000
-  });
-});
-
-describe('makeDecision - Step Complete Transitions', () => {
-  it('G1.8: waits for USER_GATE when verify complete', () => {
-    const input = createMockInput({
-      step: { current: 'verify', index: 3, status: 'complete' },
-      phase: { hasUserGate: true, userGateStatus: 'pending' },
-    });
-
-    const result = makeDecision(input);
-    expect(result.action).toBe('wait_user_gate');
-  });
-
-  it('G1.9: waits for merge when autoMerge=false', () => {
-    const execution = createMockExecution({
-      config: {
-        ...createMockExecution().config,
-        autoMerge: false,
-      },
-    });
-    const input = createMockInput({
-      step: { current: 'verify', index: 3, status: 'complete' },
-      execution,
-    });
-
-    const result = makeDecision(input);
-    expect(result.action).toBe('wait_merge');
-  });
-
-  it('G1.10: transitions to merge when autoMerge=true', () => {
-    const execution = createMockExecution({
-      config: {
-        ...createMockExecution().config,
-        autoMerge: true,
-      },
-    });
-    const input = createMockInput({
-      step: { current: 'verify', index: 3, status: 'complete' },
-      execution,
-    });
-
-    const result = makeDecision(input);
-    expect(result.action).toBe('transition');
-    expect(result.nextStep).toBe('merge');
-    expect(result.skill).toBe('flow.merge');
-  });
-
-  it('G1.11: completes when merge step is complete', () => {
-    const input = createMockInput({
-      step: { current: 'merge', index: 4, status: 'complete' },
-    });
-
-    const result = makeDecision(input);
-    expect(result.action).toBe('complete');
-  });
-
-  it('G1.12: transitions to next step when complete', () => {
-    const input = createMockInput({
-      step: { current: 'design', index: 0, status: 'complete' },
-    });
-
-    const result = makeDecision(input);
-    expect(result.action).toBe('transition');
-    expect(result.nextStep).toBe('analyze');
-    expect(result.skill).toBe('flow.analyze');
-  });
-});
-
-describe('makeDecision - Step Failed/Blocked', () => {
-  it('G1.13: returns recover_failed when step failed', () => {
-    // Use design step to avoid batch handling logic
-    const input = createMockInput({
-      step: { current: 'design', index: 0, status: 'failed' },
-    });
-
-    const result = makeDecision(input);
-    expect(result.action).toBe('recover_failed');
-  });
-
-  it('G1.14: returns recover_failed when step blocked', () => {
-    // Use design step to avoid batch handling logic
-    const input = createMockInput({
-      step: { current: 'design', index: 0, status: 'blocked' },
-    });
-
-    const result = makeDecision(input);
-    expect(result.action).toBe('recover_failed');
-  });
-});
-
-describe('makeDecision - Spawn Workflows', () => {
-  it('G1.15: spawns workflow when in_progress but no workflow', () => {
-    const input = createMockInput({
-      step: { current: 'design', index: 0, status: 'in_progress' },
-      workflow: null,
-    });
-
-    const result = makeDecision(input);
+    const result = getNextAction(input);
     expect(result.action).toBe('spawn');
     expect(result.skill).toBe('flow.design');
   });
 
-  it('G1.16: spawns workflow when step not_started', () => {
+  it('returns transition when design complete', () => {
     const input = createMockInput({
-      step: { current: 'analyze', index: 1, status: 'not_started' },
-      workflow: null,
+      step: { current: 'design', index: 0, status: 'complete' },
+      dashboardState: createMockDashboardState(),
     });
 
-    const result = makeDecision(input);
-    expect(result.action).toBe('spawn');
-    expect(result.skill).toBe('flow.analyze');
+    const result = getNextAction(input);
+    expect(result.action).toBe('transition');
+    expect(result.nextStep).toBe('analyze');
   });
 
-  it('G1.17: initializes batches when entering implement with no batches', () => {
+  it('returns heal when design failed', () => {
     const input = createMockInput({
-      step: { current: 'implement', index: 2, status: 'not_started' },
-      workflow: null,
+      step: { current: 'design', index: 0, status: 'failed' },
+      dashboardState: createMockDashboardState(),
     });
 
-    const result = makeDecision(input);
-    expect(result.action).toBe('initialize_batches');
+    const result = getNextAction(input);
+    expect(result.action).toBe('heal');
+    expect(result.step).toBe('design');
+  });
+
+  it('returns transition when analyze complete', () => {
+    const input = createMockInput({
+      step: { current: 'analyze', index: 1, status: 'complete' },
+      dashboardState: createMockDashboardState(),
+    });
+
+    const result = getNextAction(input);
+    expect(result.action).toBe('transition');
+    expect(result.nextStep).toBe('implement');
+  });
+
+  it('returns wait_merge when verify complete and autoMerge=false', () => {
+    const input = createMockInput({
+      step: { current: 'verify', index: 3, status: 'complete' },
+      execution: createMockExecution({
+        config: {
+          ...createMockExecution().config,
+          autoMerge: false,
+        },
+      }),
+      dashboardState: createMockDashboardState(),
+    });
+
+    const result = getNextAction(input);
+    expect(result.action).toBe('wait_merge');
+  });
+
+  it('returns transition to merge when verify complete and autoMerge=true', () => {
+    const input = createMockInput({
+      step: { current: 'verify', index: 3, status: 'complete' },
+      execution: createMockExecution({
+        config: {
+          ...createMockExecution().config,
+          autoMerge: true,
+        },
+      }),
+      dashboardState: createMockDashboardState(),
+    });
+
+    const result = getNextAction(input);
+    expect(result.action).toBe('transition');
+    expect(result.nextStep).toBe('merge');
   });
 });
 
-describe('makeDecision - Unknown Status', () => {
-  it('G1.18: returns needs_attention for unknown status', () => {
-    // Use design step to avoid batch handling logic
+describe('getNextAction - Implement Phase Batches', () => {
+  it('returns advance_batch when batch complete', () => {
     const input = createMockInput({
-      step: { current: 'design', index: 0, status: 'skipped' as any },
+      step: { current: 'implement', index: 2, status: 'in_progress' },
+      execution: createMockExecution({
+        batches: {
+          total: 2,
+          current: 0,
+          items: [
+            { index: 0, section: 'Setup', taskIds: ['T001'], status: 'completed', healAttempts: 0 },
+            { index: 1, section: 'Core', taskIds: ['T002'], status: 'pending', healAttempts: 0 },
+          ],
+        },
+      }),
+      dashboardState: createMockDashboardState(),
     });
 
-    const result = makeDecision(input);
+    const result = getNextAction(input);
+    expect(result.action).toBe('advance_batch');
+  });
+
+  it('returns spawn for pending batch', () => {
+    const input = createMockInput({
+      step: { current: 'implement', index: 2, status: 'in_progress' },
+      execution: createMockExecution({
+        batches: {
+          total: 2,
+          current: 0,
+          items: [
+            { index: 0, section: 'Setup', taskIds: ['T001'], status: 'pending', healAttempts: 0 },
+            { index: 1, section: 'Core', taskIds: ['T002'], status: 'pending', healAttempts: 0 },
+          ],
+        },
+      }),
+      dashboardState: createMockDashboardState(),
+    });
+
+    const result = getNextAction(input);
+    expect(result.action).toBe('spawn');
+    expect(result.skill).toBe('flow.implement');
+    expect(result.batch?.section).toBe('Setup');
+  });
+
+  it('returns heal_batch when batch failed with attempts remaining', () => {
+    const input = createMockInput({
+      step: { current: 'implement', index: 2, status: 'in_progress' },
+      execution: createMockExecution({
+        batches: {
+          total: 1,
+          current: 0,
+          items: [
+            { index: 0, section: 'Setup', taskIds: ['T001'], status: 'failed', healAttempts: 1 },
+          ],
+        },
+      }),
+      dashboardState: createMockDashboardState(),
+    });
+
+    const result = getNextAction(input);
+    expect(result.action).toBe('heal_batch');
+  });
+
+  it('returns needs_attention when batch failed with no attempts remaining', () => {
+    const input = createMockInput({
+      step: { current: 'implement', index: 2, status: 'in_progress' },
+      execution: createMockExecution({
+        batches: {
+          total: 1,
+          current: 0,
+          items: [
+            { index: 0, section: 'Setup', taskIds: ['T001'], status: 'failed', healAttempts: 3 },
+          ],
+        },
+      }),
+      dashboardState: createMockDashboardState(),
+    });
+
+    const result = getNextAction(input);
     expect(result.action).toBe('needs_attention');
+  });
+
+  it('returns transition to verify when all batches complete', () => {
+    const input = createMockInput({
+      step: { current: 'implement', index: 2, status: 'in_progress' },
+      execution: createMockExecution({
+        batches: {
+          total: 2,
+          current: 1,
+          items: [
+            { index: 0, section: 'Setup', taskIds: ['T001'], status: 'completed', healAttempts: 0 },
+            { index: 1, section: 'Core', taskIds: ['T002'], status: 'completed', healAttempts: 0 },
+          ],
+        },
+      }),
+      dashboardState: createMockDashboardState(),
+    });
+
+    const result = getNextAction(input);
+    expect(result.action).toBe('transition');
+    expect(result.nextStep).toBe('verify');
   });
 });
 
@@ -658,29 +570,28 @@ describe('handleImplementBatching', () => {
 });
 
 // =============================================================================
-// Happy Path Integration Test (G11.5)
+// Happy Path Integration Test
 // =============================================================================
 
-describe('Happy Path: design → analyze → implement → verify → merge', () => {
-  it('transitions through all phases with autoMerge=true', () => {
+describe('Happy Path: design → analyze → implement → verify', () => {
+  it('transitions through standard phases', () => {
     // Phase 1: design complete → transition to analyze
     let input = createMockInput({
       step: { current: 'design', index: 0, status: 'complete' },
+      dashboardState: createMockDashboardState(),
     });
-    let result = makeDecision(input);
+    let result = getNextAction(input);
     expect(result.action).toBe('transition');
     expect(result.nextStep).toBe('analyze');
 
     // Phase 2: analyze complete → transition to implement
     input = createMockInput({
       step: { current: 'analyze', index: 1, status: 'complete' },
+      dashboardState: createMockDashboardState(),
     });
-    result = makeDecision(input);
+    result = getNextAction(input);
     expect(result.action).toBe('transition');
     expect(result.nextStep).toBe('implement');
-
-    // Phase 3: implement batches → all batches complete → transition to verify
-    // (This is handled by handleImplementBatching, tested separately)
 
     // Phase 4: verify complete with autoMerge=true → transition to merge
     const autoMergeExecution = createMockExecution({
@@ -692,18 +603,11 @@ describe('Happy Path: design → analyze → implement → verify → merge', ()
     input = createMockInput({
       step: { current: 'verify', index: 3, status: 'complete' },
       execution: autoMergeExecution,
+      dashboardState: createMockDashboardState(),
     });
-    result = makeDecision(input);
+    result = getNextAction(input);
     expect(result.action).toBe('transition');
     expect(result.nextStep).toBe('merge');
-    expect(result.skill).toBe('flow.merge');
-
-    // Phase 5: merge complete → orchestration complete
-    input = createMockInput({
-      step: { current: 'merge', index: 4, status: 'complete' },
-    });
-    result = makeDecision(input);
-    expect(result.action).toBe('complete');
   });
 
   it('handles batch progression during implement phase', () => {

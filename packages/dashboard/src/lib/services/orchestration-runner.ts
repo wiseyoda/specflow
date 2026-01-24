@@ -19,17 +19,18 @@
 import { join } from 'path';
 import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync, type Dirent } from 'fs';
 import { z } from 'zod';
-import { orchestrationService, getNextPhase, isPhaseComplete } from './orchestration-service';
+import { orchestrationService, getNextPhase, isPhaseComplete, readDashboardState, writeDashboardState } from './orchestration-service';
 import { workflowService, type WorkflowExecution } from './workflow-service';
 import { attemptHeal, getHealingSummary } from './auto-healing-service';
 import { quickDecision } from './claude-helper';
 import { parseBatchesFromProject, verifyBatchTaskCompletion, getTotalIncompleteTasks } from './batch-parser';
-import { isClaudeHelperError, type OrchestrationExecution, type OrchestrationPhase, type SSEEvent } from '@specflow/shared';
+import { isClaudeHelperError, type OrchestrationPhase, type SSEEvent, type DashboardState } from '@specflow/shared';
+import type { OrchestrationExecution } from './orchestration-types';
 // G2 Compliance: Import pure decision functions from orchestration-decisions module
 import {
-  makeDecision as makeDecisionPure,
+  getNextAction,
   type DecisionInput,
-  type DecisionResult as PureDecisionResult,
+  type Decision,
   type WorkflowState,
   getSkillForStep,
   STALE_THRESHOLD_MS,
@@ -202,6 +203,15 @@ async function spawnWorkflowWithIntent(
     // Link workflow to orchestration for backwards compatibility
     orchestrationService.linkWorkflowExecution(ctx.projectPath, ctx.orchestrationId, workflow.id);
 
+    // FR-003: Update dashboard lastWorkflow state for auto-heal tracking
+    await writeDashboardState(ctx.projectPath, {
+      lastWorkflow: {
+        id: workflow.id,
+        skill: skill,
+        status: 'running',
+      },
+    });
+
     console.log(`[orchestration-runner] Spawned workflow ${workflow.id} for ${skill} (linked to orchestration ${ctx.orchestrationId})`);
 
     return workflow;
@@ -265,6 +275,137 @@ function clearRunnerState(projectPath: string, orchestrationId: string): void {
   } catch {
     // Ignore errors during cleanup
   }
+}
+
+// =============================================================================
+// Auto-Heal Logic (FR-003) - Trust Sub-Commands
+// =============================================================================
+
+/**
+ * Map skill names to expected step names
+ */
+function getExpectedStepForSkill(skill: string): string {
+  const map: Record<string, string> = {
+    'flow.design': 'design',
+    'flow.analyze': 'analyze',
+    'flow.implement': 'implement',
+    'flow.verify': 'verify',
+    'flow.merge': 'merge',
+    '/flow.design': 'design',
+    '/flow.analyze': 'analyze',
+    '/flow.implement': 'implement',
+    '/flow.verify': 'verify',
+    '/flow.merge': 'merge',
+  };
+  return map[skill] || 'unknown';
+}
+
+/**
+ * Auto-heal state after workflow completes (FR-003)
+ *
+ * When a workflow ends, check if state matches expectations and fix if needed.
+ * This allows sub-commands to update step.status, with dashboard as backup.
+ *
+ * Rules:
+ * - Workflow completed: If step.status != complete, set it to complete
+ * - Workflow failed: If step.status != failed, set it to failed
+ *
+ * Only use Claude helper for truly ambiguous cases:
+ * 1. State file corrupted/unparseable
+ * 2. Workflow ended but step.current doesn't match expected skill
+ * 3. Multiple conflicting signals
+ *
+ * @param projectPath - Project path for CLI commands
+ * @param completedSkill - The skill that just completed (e.g., 'flow.design')
+ * @param workflowStatus - How the workflow ended
+ * @returns true if healing was performed
+ */
+export async function autoHealAfterWorkflow(
+  projectPath: string,
+  completedSkill: string,
+  workflowStatus: 'completed' | 'failed'
+): Promise<boolean> {
+  const expectedStep = getExpectedStepForSkill(completedSkill);
+
+  // Read current state from CLI state file
+  const dashboardState = readDashboardState(projectPath);
+
+  // If no active orchestration, nothing to heal
+  if (!dashboardState?.active) {
+    console.log('[auto-heal] No active orchestration, skipping heal');
+    return false;
+  }
+
+  // Read specflow status to get step info
+  const specflowStatus = getSpecflowStatus(projectPath);
+  const currentStep = specflowStatus?.orchestration?.step?.current;
+  const stepStatus = specflowStatus?.orchestration?.step?.status;
+
+  console.log(`[auto-heal] Workflow ${completedSkill} ${workflowStatus}`);
+  console.log(`[auto-heal]   Expected step: ${expectedStep}`);
+  console.log(`[auto-heal]   Current step: ${currentStep}, status: ${stepStatus}`);
+
+  // Workflow completed successfully
+  if (workflowStatus === 'completed') {
+    // Check if step matches and status needs updating
+    if (currentStep === expectedStep && stepStatus !== 'complete') {
+      console.log(`[auto-heal] Setting ${expectedStep}.status = complete`);
+      try {
+        const { execSync } = await import('child_process');
+        execSync(`specflow state set orchestration.step.status=complete`, {
+          cwd: projectPath,
+          encoding: 'utf-8',
+          timeout: 30000,
+        });
+
+        // Also update dashboard lastWorkflow status
+        await writeDashboardState(projectPath, {
+          lastWorkflow: {
+            id: dashboardState.lastWorkflow?.id || 'unknown',
+            skill: completedSkill,
+            status: 'completed',
+          },
+        });
+
+        console.log(`[auto-heal] Successfully healed step.status to complete`);
+        return true;
+      } catch (error) {
+        console.error(`[auto-heal] Failed to heal state: ${error}`);
+        return false;
+      }
+    }
+  }
+
+  // Workflow failed - mark step as failed if not already
+  if (workflowStatus === 'failed' && stepStatus !== 'failed') {
+    console.log(`[auto-heal] Setting ${expectedStep}.status = failed`);
+    try {
+      const { execSync } = await import('child_process');
+      execSync(`specflow state set orchestration.step.status=failed`, {
+        cwd: projectPath,
+        encoding: 'utf-8',
+        timeout: 30000,
+      });
+
+      // Also update dashboard lastWorkflow status
+      await writeDashboardState(projectPath, {
+        lastWorkflow: {
+          id: dashboardState.lastWorkflow?.id || 'unknown',
+          skill: completedSkill,
+          status: 'failed',
+        },
+      });
+
+      console.log(`[auto-heal] Successfully healed step.status to failed`);
+      return true;
+    } catch (error) {
+      console.error(`[auto-heal] Failed to heal state: ${error}`);
+      return false;
+    }
+  }
+
+  console.log('[auto-heal] No healing needed');
+  return false;
 }
 
 /**
@@ -863,20 +1004,36 @@ function getSkillForPhase(phase: OrchestrationPhase): string {
 /**
  * Convert runner context to DecisionInput for the pure makeDecision function
  * This adapter bridges the old runner patterns with the new pure decision module
+ *
+ * FR-001: Now also reads from CLI state dashboard section as single source of truth
  */
 function createDecisionInput(
   orchestration: OrchestrationExecution,
   workflow: WorkflowExecution | undefined,
   specflowStatus: SpecflowStatus | null,
-  lastFileChangeTime?: number
+  lastFileChangeTime?: number,
+  dashboardState?: DashboardState | null
 ): DecisionInput {
   // Convert workflow to WorkflowState (simplified interface)
-  const workflowState: WorkflowState | null = workflow ? {
-    id: workflow.id,
-    status: workflow.status as WorkflowState['status'],
-    error: workflow.error,
-    lastActivityAt: workflow.updatedAt,
-  } : null;
+  // FR-001: If dashboard state has lastWorkflow, prefer that
+  let workflowState: WorkflowState | null = null;
+
+  if (dashboardState?.lastWorkflow) {
+    // Use dashboard state as source of truth for workflow tracking
+    workflowState = {
+      id: dashboardState.lastWorkflow.id,
+      status: dashboardState.lastWorkflow.status as WorkflowState['status'],
+      error: undefined,
+      lastActivityAt: new Date().toISOString(),
+    };
+  } else if (workflow) {
+    workflowState = {
+      id: workflow.id,
+      status: workflow.status as WorkflowState['status'],
+      error: workflow.error,
+      lastActivityAt: workflow.updatedAt,
+    };
+  }
 
   // Extract step info from specflow status and orchestration
   // IMPORTANT: The state file tracks the PROJECT's current step, which may differ from
@@ -910,250 +1067,58 @@ function createDecisionInput(
     lastFileChangeTime,
     lookupFailures: 0,
     currentTime: Date.now(),
+    // FR-001: Include dashboard state for future decision logic enhancements
+    dashboardState: dashboardState ?? undefined,
   };
 }
 
 /**
- * Adapt pure DecisionResult to the legacy action names where needed
- * The executeDecision function will be updated to handle all new action types
+ * Convert new Decision type to legacy DecisionResult
  */
-function adaptDecisionResult(result: PureDecisionResult): DecisionResult {
-  // Map new action names to ensure compatibility
-  const actionMap: Record<string, DecisionResult['action']> = {
-    'wait': 'continue',           // wait → continue (legacy)
-    'spawn': 'spawn_workflow',    // spawn → spawn_workflow (legacy)
-    'heal_batch': 'heal',         // heal_batch → heal (legacy)
+function adaptNewDecisionToLegacy(decision: Decision): DecisionResult {
+  const actionMap: Record<Decision['action'], DecisionResult['action']> = {
+    'idle': 'continue',
+    'wait': 'continue',
+    'spawn': 'spawn_workflow',
+    'transition': 'transition',
+    'heal': 'heal',
+    'heal_batch': 'heal',
+    'advance_batch': 'advance_batch',
+    'wait_merge': 'pause',
+    'error': 'fail',
+    'needs_attention': 'needs_attention',
   };
-
-  const action = actionMap[result.action] ?? result.action;
 
   return {
-    action: action as DecisionResult['action'],
-    reason: result.reason,
-    skill: result.skill,
-    batchContext: result.batchContext,
-    errorMessage: result.errorMessage,
-    recoveryOptions: result.recoveryOptions,
-    failedWorkflowId: result.failedWorkflowId,
-    // For transition actions, extract the skill
-    ...(result.action === 'transition' && result.skill ? { skill: result.skill } : {}),
+    action: actionMap[decision.action] || 'continue',
+    reason: decision.reason,
+    skill: decision.skill ? `/${decision.skill}` : undefined,
+    // Convert batch object to string for legacy compatibility
+    batchContext: decision.batch ? decision.batch.section : undefined,
+    batchIndex: decision.batchIndex,
   };
 }
 
 /**
- * Make a decision using the pure decision module (G2 compliant)
- * Falls back to legacy makeDecision if pure module fails
+ * Make a decision using the simplified getNextAction function (FR-002)
+ *
+ * FR-001: Uses dashboardState as single source of truth
+ * FR-002: Always uses getNextAction (<100 lines)
  */
 function makeDecisionWithAdapter(
   orchestration: OrchestrationExecution,
   workflow: WorkflowExecution | undefined,
   specflowStatus: SpecflowStatus | null,
-  lastFileChangeTime?: number
+  lastFileChangeTime?: number,
+  dashboardState?: DashboardState | null
 ): DecisionResult {
-  // Create input for pure decision function
-  const input = createDecisionInput(orchestration, workflow, specflowStatus, lastFileChangeTime);
+  // Create input for decision function (FR-001: includes dashboard state)
+  const input = createDecisionInput(orchestration, workflow, specflowStatus, lastFileChangeTime, dashboardState);
 
-  // Get decision from pure function
-  const pureResult = makeDecisionPure(input);
-
-  // Adapt to legacy format
-  return adaptDecisionResult(pureResult);
-}
-
-/**
- * Make a decision about what to do next
- * @deprecated Use makeDecisionWithAdapter instead - this is kept for reference during transition
- */
-function makeDecision(
-  orchestration: OrchestrationExecution,
-  workflow: WorkflowExecution | undefined,
-  specflowStatus: SpecflowStatus | null
-): DecisionResult {
-  const { currentPhase, config, batches } = orchestration;
-
-  // Check budget first
-  if (orchestration.totalCostUsd >= config.budget.maxTotal) {
-    return {
-      action: 'fail',
-      reason: `Budget exceeded: $${orchestration.totalCostUsd.toFixed(2)} >= $${config.budget.maxTotal}`,
-      errorMessage: 'Budget limit exceeded',
-    };
-  }
-
-  // Check if workflow is still running
-  if (workflow && ['running', 'waiting_for_input'].includes(workflow.status)) {
-    return {
-      action: 'continue',
-      reason: `Workflow ${workflow.id} still ${workflow.status}`,
-    };
-  }
-
-  // Check if workflow failed or was cancelled
-  if (workflow && ['failed', 'cancelled'].includes(workflow.status)) {
-    // If cancelled by user, don't auto-heal, go to needs_attention
-    if (workflow.status === 'cancelled') {
-      return {
-        action: 'needs_attention',
-        reason: `Workflow was cancelled by user`,
-        errorMessage: 'Workflow cancelled',
-        recoveryOptions: ['retry', 'skip', 'abort'],
-        failedWorkflowId: workflow.id,
-      };
-    }
-
-    // If failed in implement phase, try auto-healing first
-    if (currentPhase === 'implement' && config.autoHealEnabled) {
-      const currentBatch = batches.items[batches.current];
-      if (currentBatch && currentBatch.healAttempts < config.maxHealAttempts) {
-        return {
-          action: 'heal',
-          reason: `Workflow failed, attempting heal (attempt ${currentBatch.healAttempts + 1}/${config.maxHealAttempts})`,
-        };
-      }
-    }
-
-    // Instead of immediately failing, go to needs_attention for user decision
-    return {
-      action: 'needs_attention',
-      reason: `Workflow failed: ${workflow.error}`,
-      errorMessage: workflow.error,
-      recoveryOptions: ['retry', 'skip', 'abort'],
-      failedWorkflowId: workflow.id,
-    };
-  }
-
-  // Check if current phase is complete
-  const phaseComplete = isPhaseComplete(specflowStatus, currentPhase);
-
-  // Handle implement phase batches
-  if (currentPhase === 'implement') {
-    // ROBUST CHECK: Must have batches AND all must be completed/healed
-    const completedCount = batches.items.filter(
-      (b) => b.status === 'completed' || b.status === 'healed'
-    ).length;
-    const allBatchesComplete = batches.items.length > 0 && completedCount === batches.items.length;
-
-    // DEBUG: Log batch state when checking completion
-    console.log(`[orchestration-runner] Implement batch check: ${completedCount}/${batches.items.length} complete, current=${batches.current}, allComplete=${allBatchesComplete}`);
-
-    if (allBatchesComplete) {
-      // All batches done, move to verify
-      const nextPhase = getNextPhase(currentPhase, config);
-      console.log(`[orchestration-runner] ALL BATCHES COMPLETE - transitioning to ${nextPhase}`);
-      if (nextPhase === 'merge' && !config.autoMerge) {
-        return {
-          action: 'wait_merge',
-          reason: 'All batches complete, waiting for user to trigger merge',
-        };
-      }
-      return {
-        action: 'spawn_workflow',
-        reason: `All batches complete, transitioning to ${nextPhase}`,
-        skill: nextPhase ? getSkillForPhase(nextPhase) : undefined,
-      };
-    }
-
-    // Check if current batch is done
-    const currentBatch = batches.items[batches.current];
-    if (currentBatch?.status === 'running' && workflow?.status === 'completed') {
-      // Mark batch complete and check for more
-      return {
-        action: 'spawn_batch',
-        reason: `Batch ${batches.current + 1} complete, starting next batch`,
-      };
-    }
-
-    if (currentBatch?.status === 'pending') {
-      // Start this batch
-      const batchContext = `Execute only the "${currentBatch.section}" section (${currentBatch.taskIds.join(', ')}). Do NOT work on tasks from other sections.`;
-      const fullContext = config.additionalContext
-        ? `${batchContext}\n\n${config.additionalContext}`
-        : batchContext;
-
-      return {
-        action: 'spawn_workflow',
-        reason: `Starting batch ${batches.current + 1}/${batches.total}: ${currentBatch.section}`,
-        skill: `flow.implement ${fullContext}`,
-        batchContext: fullContext,
-      };
-    }
-  }
-
-  // For non-implement phases, check if complete and transition
-  // CRITICAL: Skip this for implement phase - batch logic above handles transitions
-  // CRITICAL: For design phase, require BOTH workflow completion AND artifacts exist
-  // This prevents auto-advancing when workflow completes without producing required artifacts
-  const workflowComplete = workflow?.status === 'completed';
-  // Analyze and verify don't produce artifacts - workflow completion is enough
-  const canAdvance = (currentPhase === 'analyze' || currentPhase === 'verify')
-    ? workflowComplete  // No artifacts, workflow completion is enough
-    : (phaseComplete && workflowComplete);  // Other phases need artifacts AND workflow done
-
-  if (currentPhase !== 'implement' && canAdvance) {
-    const nextPhase = getNextPhase(currentPhase, config);
-
-    if (!nextPhase || nextPhase === 'complete') {
-      return {
-        action: 'complete',
-        reason: 'All phases complete',
-      };
-    }
-
-    if (nextPhase === 'merge' && !config.autoMerge) {
-      return {
-        action: 'wait_merge',
-        reason: 'Verify complete, waiting for user to trigger merge',
-      };
-    }
-
-    return {
-      action: 'spawn_workflow',
-      reason: `Phase ${currentPhase} complete, transitioning to ${nextPhase}`,
-      skill: getSkillForPhase(nextPhase),
-    };
-  }
-
-  // If no workflow exists for current phase, check if we should spawn one
-  // GUARD: Don't re-spawn if we already have a workflow ID for this phase
-  // This prevents spawning duplicate workflows when the lookup fails
-  if (!workflow) {
-    // Check if we already have a workflow ID for this phase
-    let existingWorkflowId: string | undefined;
-    if (currentPhase === 'implement') {
-      const implExecutions = orchestration.executions.implement;
-      existingWorkflowId = implExecutions?.length ? implExecutions[implExecutions.length - 1] : undefined;
-    } else if (currentPhase === 'design') {
-      existingWorkflowId = orchestration.executions.design;
-    } else if (currentPhase === 'analyze') {
-      existingWorkflowId = orchestration.executions.analyze;
-    } else if (currentPhase === 'verify') {
-      existingWorkflowId = orchestration.executions.verify;
-    } else if (currentPhase === 'merge') {
-      existingWorkflowId = orchestration.executions.merge;
-    }
-    if (existingWorkflowId && typeof existingWorkflowId === 'string') {
-      // We have a workflow ID but couldn't find it - something is wrong
-      // Don't spawn another, wait for manual intervention or the workflow to reappear
-      console.log(`[orchestration-runner] WARNING: Workflow ${existingWorkflowId} for ${currentPhase} not found in lookup, but ID exists in state. Waiting...`);
-      return {
-        action: 'continue',
-        reason: `Workflow ${existingWorkflowId} lookup failed, waiting for it to complete or reappear`,
-      };
-    }
-
-    // Truly no workflow exists - spawn one (first time for this phase)
-    return {
-      action: 'spawn_workflow',
-      reason: `No workflow found for ${currentPhase} phase, spawning one`,
-      skill: getSkillForPhase(currentPhase),
-    };
-  }
-
-  // Default: continue waiting
-  return {
-    action: 'continue',
-    reason: 'Waiting for current workflow to complete',
-  };
+  // FR-002: Use simplified getNextAction
+  const decision = getNextAction(input);
+  console.log(`[orchestration-runner] DEBUG: getNextAction returned: ${decision.action} - ${decision.reason}`);
+  return adaptNewDecisionToLegacy(decision);
 }
 
 // =============================================================================
@@ -1420,8 +1385,27 @@ export async function runOrchestration(
         }
       }
 
+      // FR-003: Auto-heal when workflow transitions to completed/failed
+      // Check if dashboard lastWorkflow was running but workflow is now complete/failed
+      const previousWorkflowStatus = readDashboardState(projectPath)?.lastWorkflow?.status;
+      const currentWorkflowStatus = workflow?.status;
+      const lastWorkflowSkill = readDashboardState(projectPath)?.lastWorkflow?.skill;
+
+      if (previousWorkflowStatus === 'running' &&
+          currentWorkflowStatus &&
+          ['completed', 'failed', 'cancelled'].includes(currentWorkflowStatus)) {
+        console.log(`[orchestration-runner] Workflow status changed: ${previousWorkflowStatus} → ${currentWorkflowStatus}`);
+        if (lastWorkflowSkill) {
+          const healStatus = currentWorkflowStatus === 'completed' ? 'completed' : 'failed';
+          await autoHealAfterWorkflow(projectPath, lastWorkflowSkill, healStatus);
+        }
+      }
+
       // Get specflow status (now direct file access, no subprocess - T021-T024)
       const specflowStatus = getSpecflowStatus(projectPath);
+
+      // FR-001: Read dashboard state from CLI state file (single source of truth)
+      const dashboardState = readDashboardState(projectPath);
 
       // Get last file change time for staleness detection
       const lastFileChangeTime = getLastFileChangeTime(projectPath);
@@ -1431,9 +1415,11 @@ export async function runOrchestration(
       console.log(`[orchestration-runner] DEBUG:   currentPhase=${orchestration.currentPhase}`);
       console.log(`[orchestration-runner] DEBUG:   workflow.id=${workflow?.id ?? 'none'}, workflow.status=${workflow?.status ?? 'none'}`);
       console.log(`[orchestration-runner] DEBUG:   specflowStatus.step=${specflowStatus?.orchestration?.step?.current ?? 'none'}, stepStatus=${specflowStatus?.orchestration?.step?.status ?? 'none'}`);
+      console.log(`[orchestration-runner] DEBUG:   dashboardState.active=${dashboardState?.active?.id ?? 'none'}, lastWorkflow=${dashboardState?.lastWorkflow?.id ?? 'none'}`);
 
       // Make decision using the G2-compliant pure decision module
-      let decision = makeDecisionWithAdapter(orchestration, workflow, specflowStatus, lastFileChangeTime);
+      // FR-001: Now includes dashboard state for single source of truth
+      let decision = makeDecisionWithAdapter(orchestration, workflow, specflowStatus, lastFileChangeTime, dashboardState);
 
       // Track consecutive "continue" (unclear/waiting) decisions
       // Only count as "unclear" if NO workflow is actively running
@@ -1447,8 +1433,13 @@ export async function runOrchestration(
           ctx.consecutiveUnclearChecks++;
         }
 
-        // After MAX_UNCLEAR_CHECKS_BEFORE_CLAUDE consecutive TRULY unclear waits, spawn Claude analyzer
-        if (ctx.consecutiveUnclearChecks >= MAX_UNCLEAR_CHECKS_BEFORE_CLAUDE) {
+        // FR-003: Only use Claude analyzer as LAST RESORT when dashboard state is not available
+        // With single source of truth (dashboard state), unclear states should be rare
+        // Claude analyzer should only be needed for truly ambiguous cases like:
+        // - State file corrupted/unparseable
+        // - Workflow ended but step doesn't match expected
+        if (!dashboardState?.active && ctx.consecutiveUnclearChecks >= MAX_UNCLEAR_CHECKS_BEFORE_CLAUDE) {
+          console.log('[orchestration-runner] No dashboard state, falling back to Claude analyzer');
           decision = await analyzeStateWithClaude(ctx, orchestration, workflow, specflowStatus);
           ctx.consecutiveUnclearChecks = 0; // Reset counter after Claude analysis
         }
@@ -1569,6 +1560,8 @@ async function executeDecision(
 
       // GUARD: Never transition OUT of implement phase while batches are incomplete
       // This prevents Claude analyzer or other decisions from prematurely jumping to verify/merge
+      // NOTE: This guard is redundant with getNextAction (which checks areAllBatchesComplete)
+      // but kept as defense-in-depth for the legacy decision path
       const completedBatchCount = orchestration.batches.items.filter(
         (b) => b.status === 'completed' || b.status === 'healed'
       ).length;

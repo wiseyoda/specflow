@@ -20,9 +20,10 @@ import {
   FolderOpen,
   FolderClosed,
 } from 'lucide-react'
-import type { OrchestrationState, Task, TasksData } from '@specflow/shared'
+import type { OrchestrationState, OrchestrationPhase, Task, TasksData } from '@specflow/shared'
 import { FileViewerModal } from '@/components/session/file-viewer-modal'
 import { useActivityFeed, type ActivityType, type ActivityItem as FeedActivityItem } from '@/hooks/use-activity-feed'
+import { StepOverride } from '@/components/orchestration/step-override'
 
 interface FileChange {
   path: string
@@ -54,6 +55,12 @@ interface ContextDrawerProps {
   /** Project path for constructing absolute file paths */
   projectPath?: string
   className?: string
+  /** FR-004: Callback to go back to a previous step */
+  onGoBackToStep?: (step: string) => void
+  /** FR-004: Whether a go-back action is in progress */
+  isGoingBackToStep?: boolean
+  /** FR-004: Whether workflow is currently running (disables step override) */
+  isWorkflowRunning?: boolean
 }
 
 type TabType = 'context' | 'activity'
@@ -112,6 +119,9 @@ export function ContextDrawer({
   projectId,
   projectPath,
   className,
+  onGoBackToStep,
+  isGoingBackToStep = false,
+  isWorkflowRunning = false,
 }: ContextDrawerProps) {
   // Use current task if in progress, otherwise show next task
   const displayTask = currentTask ?? nextTask
@@ -360,6 +370,16 @@ export function ContextDrawer({
                   })}
                 </div>
               </div>
+            )}
+
+            {/* FR-004: Step Override - Go Back to Previous Step */}
+            {hasOrchestration && currentStep && onGoBackToStep && (
+              <StepOverride
+                currentPhase={currentStep as OrchestrationPhase}
+                onGoBack={onGoBackToStep}
+                disabled={isWorkflowRunning}
+                isLoading={isGoingBackToStep}
+              />
             )}
 
             {/* Touched Files */}

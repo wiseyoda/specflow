@@ -14,8 +14,9 @@
  * - Cross-file consistency
  */
 
-import type { OrchestrationExecution, OrchestrationState, StepStatus } from '@specflow/shared';
+import type { OrchestrationState, StepStatus } from '@specflow/shared';
 import { STEP_INDEX_MAP } from '@specflow/shared';
+import type { OrchestrationExecution } from './orchestration-types';
 
 // =============================================================================
 // Types

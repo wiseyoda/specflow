@@ -124,7 +124,12 @@ When a workflow ends, check if state matches expectations:
 | flow.implement | batch.status=completed | batch not updated → mark complete |
 | flow.verify | step.current=verify, step.status=complete | status != complete → set complete |
 
-Only use Claude helper for truly ambiguous cases (e.g., state is completely corrupted).
+Only use Claude helper for these specific ambiguous cases:
+1. State file is corrupted/unparseable (cannot read step.current or step.status)
+2. Workflow ended but step.current doesn't match the expected skill (e.g., ran flow.design but step.current=verify)
+3. Multiple conflicting signals (workflow completed + session failed + state says in_progress)
+
+For all other cases, use simple rules or set `needs_attention` for user intervention.
 
 ### FR-004: Remove Hacks
 

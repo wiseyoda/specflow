@@ -12,13 +12,14 @@
  */
 
 import type {
-  OrchestrationExecution,
   OrchestrationPhase,
   OrchestrationState,
   StepStatus,
   BatchItem,
+  DashboardState,
 } from '@specflow/shared';
 import { STEP_INDEX_MAP } from '@specflow/shared';
+import type { OrchestrationExecution } from './orchestration-types';
 
 // =============================================================================
 // Types
@@ -112,6 +113,8 @@ export interface DecisionInput {
   lookupFailures?: number;
   /** Current timestamp (for duration checks) */
   currentTime?: number;
+  /** FR-001: Dashboard state from CLI state file (single source of truth) */
+  dashboardState?: DashboardState;
 }
 
 // =============================================================================
@@ -319,321 +322,154 @@ export function handleImplementBatching(
 }
 
 // =============================================================================
-// Main Decision Function (Pure) - FR-001, FR-002
+// Simplified Decision Function (FR-002) - NEW Single Source of Truth
 // =============================================================================
 
 /**
- * Make a decision about what to do next
- *
- * This is the complete decision matrix from FR-002. Every possible state
- * combination has an explicit action - no ambiguous cases.
- *
- * Key principle (FR-001): Trust step.status from state file. Sub-commands
- * set step.status=complete when done. We don't check for artifacts.
- *
- * @param input - All state needed to make a decision
- * @returns Decision result with action and reason
+ * Decision type for simplified getNextAction
  */
-export function makeDecision(input: DecisionInput): DecisionResult {
-  const { step, phase, execution, workflow, lastFileChangeTime, lookupFailures, currentTime } = input;
-  const { config, batches } = execution;
-  const currentStep = step.current || 'design';
-
-  // ═══════════════════════════════════════════════════════════════════
-  // PRE-DECISION GATES (G1.1, G1.2)
-  // ═══════════════════════════════════════════════════════════════════
-
-  // G1.1: Budget gate - fail if budget exceeded
-  if (execution.totalCostUsd >= config.budget.maxTotal) {
-    return {
-      action: 'fail',
-      reason: `Budget exceeded: $${execution.totalCostUsd.toFixed(2)} >= $${config.budget.maxTotal}`,
-      errorMessage: 'Budget limit exceeded',
-    };
-  }
-
-  // G1.2: Duration gate - needs_attention if running too long (4 hours)
-  if (currentTime !== undefined) {
-    const startTime = new Date(execution.startedAt).getTime();
-    const duration = currentTime - startTime;
-    if (duration > MAX_ORCHESTRATION_DURATION_MS) {
-      return {
-        action: 'needs_attention',
-        reason: `Orchestration running too long: ${Math.round(duration / (60 * 60 * 1000))} hours`,
-        errorMessage: 'Orchestration duration exceeded 4 hours',
-        recoveryOptions: ['retry', 'abort'],
-      };
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // IMPLEMENT PHASE: BATCH HANDLING (checked first) - FR-003
-  // ═══════════════════════════════════════════════════════════════════
-  if (currentStep === 'implement') {
-    const batchDecision = handleImplementBatching(step, execution, workflow);
-    if (batchDecision) return batchDecision;
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // WORKFLOW IS RUNNING (G1.4, G1.5)
-  // ═══════════════════════════════════════════════════════════════════
-  if (workflow?.status === 'running') {
-    // Check for stale workflow (G1.5)
-    // Use the workflow's lastActivityAt, NOT project file changes
-    // A workflow is stale if it's been running but hasn't had any activity
-    if (workflow.lastActivityAt) {
-      const workflowActivityTime = new Date(workflow.lastActivityAt).getTime();
-      const staleDuration = Date.now() - workflowActivityTime;
-      if (staleDuration > STALE_THRESHOLD_MS) {
-        return {
-          action: 'recover_stale',
-          reason: `No activity for ${Math.round(staleDuration / 60000)} minutes`,
-          workflowId: workflow.id,
-        };
-      }
-    }
-
-    // Active workflow (G1.4)
-    return {
-      action: 'wait',
-      reason: 'Workflow running',
-    };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // WORKFLOW NEEDS INPUT (G1.6, G1.7)
-  // ═══════════════════════════════════════════════════════════════════
-  if (workflow?.status === 'waiting_for_input') {
-    return {
-      action: 'wait',
-      reason: 'Waiting for user input',
-    };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // WORKFLOW DETACHED OR STALE - Intermediate Health States
-  // These are monitoring states that indicate the workflow might be stuck
-  // We treat 'stale' as needing recovery and 'detached' as waiting
-  // ═══════════════════════════════════════════════════════════════════
-  if (workflow?.status === 'stale') {
-    console.log(`[orchestration-decisions] DEBUG: Workflow ${workflow.id} is stale`);
-    return {
-      action: 'recover_stale',
-      reason: `Workflow ${workflow.id} appears stale - no recent activity`,
-      workflowId: workflow.id,
-    };
-  }
-
-  if (workflow?.status === 'detached') {
-    // Detached means process was orphaned but might still be running
-    // Wait a bit and let the health checker determine final state
-    console.log(`[orchestration-decisions] DEBUG: Workflow ${workflow.id} is detached, waiting`);
-    return {
-      action: 'wait',
-      reason: `Workflow ${workflow.id} detached, waiting for health check`,
-    };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // WORKFLOW FAILED OR CANCELLED
-  // ═══════════════════════════════════════════════════════════════════
-  if (workflow?.status === 'failed' || workflow?.status === 'cancelled') {
-    // If cancelled by user, don't auto-heal
-    if (workflow.status === 'cancelled') {
-      return {
-        action: 'needs_attention',
-        reason: 'Workflow was cancelled by user',
-        errorMessage: 'Workflow cancelled',
-        recoveryOptions: ['retry', 'skip', 'abort'],
-        failedWorkflowId: workflow.id,
-      };
-    }
-
-    // If failed in implement phase, try auto-healing first (G2.9)
-    if (currentStep === 'implement' && config.autoHealEnabled) {
-      const currentBatch = batches.items[batches.current];
-      if (currentBatch && currentBatch.healAttempts < config.maxHealAttempts) {
-        return {
-          action: 'heal_batch',
-          reason: `Workflow failed, attempting heal (attempt ${currentBatch.healAttempts + 1}/${config.maxHealAttempts})`,
-          batchIndex: batches.current,
-        };
-      }
-    }
-
-    // Otherwise, needs user attention
-    return {
-      action: 'needs_attention',
-      reason: `Workflow ${workflow.status}: ${workflow.error || 'Unknown error'}`,
-      errorMessage: workflow.error,
-      recoveryOptions: ['retry', 'skip', 'abort'],
-      failedWorkflowId: workflow.id,
-    };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // WORKFLOW ID EXISTS BUT LOOKUP FAILS (G1.3)
-  // ═══════════════════════════════════════════════════════════════════
-  const storedWorkflowId = getStoredWorkflowId(execution, currentStep);
-  if (storedWorkflowId && !workflow) {
-    return {
-      action: 'wait_with_backoff',
-      reason: `Workflow ${storedWorkflowId} lookup failed, waiting...`,
-      backoffMs: calculateExponentialBackoff(lookupFailures || 0),
-    };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // WORKFLOW COMPLETED - INFER STEP COMPLETION (G1.7)
-  // For non-implement phases, workflow completion means step is done.
-  // Implement phase uses batch logic instead (handled separately).
-  // ═══════════════════════════════════════════════════════════════════
-  console.log(`[orchestration-decisions] DEBUG: workflow=${workflow?.id ?? 'none'}, status=${workflow?.status ?? 'none'}, currentStep=${currentStep}`);
-  if (workflow?.status === 'completed' && currentStep !== 'implement') {
-    console.log(`[orchestration-decisions] DEBUG: Workflow completed for ${currentStep}, transitioning...`);
-    const nextStep = getNextStep(currentStep);
-
-    // All steps done - after merge completes
-    if (nextStep === null) {
-      return {
-        action: 'complete',
-        reason: 'All steps finished (workflow completed)',
-      };
-    }
-
-    // Verify complete → check USER_GATE before merge
-    if (currentStep === 'verify' && nextStep === 'merge') {
-      if (phase.hasUserGate && phase.userGateStatus !== 'confirmed') {
-        return {
-          action: 'wait_user_gate',
-          reason: 'USER_GATE requires confirmation',
-        };
-      }
-      if (!config.autoMerge) {
-        return {
-          action: 'wait_merge',
-          reason: 'Verify workflow complete, waiting for user to trigger merge',
-        };
-      }
-      return {
-        action: 'transition',
-        nextStep: 'merge',
-        nextIndex: STEP_INDEX_MAP.verify + 1,
-        skill: getSkillForStep('merge'),
-        reason: 'Verify workflow complete, auto-merge enabled',
-      };
-    }
-
-    // Normal step transition when workflow completes
-    return {
-      action: 'transition',
-      nextStep,
-      nextIndex: STEP_INDEX_MAP[nextStep as keyof typeof STEP_INDEX_MAP],
-      skill: getSkillForStep(nextStep),
-      reason: `${currentStep} workflow complete, advancing to ${nextStep}`,
-    };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // STEP IS COMPLETE - DETERMINE NEXT ACTION (G1.8 - G1.12)
-  // ═══════════════════════════════════════════════════════════════════
-  if (step.status === 'complete') {
-    const nextStep = getNextStep(currentStep);
-
-    // All steps done - after merge completes (G1.11)
-    if (nextStep === null) {
-      return {
-        action: 'complete',
-        reason: 'All steps finished',
-      };
-    }
-
-    // Verify complete → check USER_GATE before merge (G1.8)
-    if (currentStep === 'verify' && nextStep === 'merge') {
-      // USER_GATE requires explicit confirmation
-      if (phase.hasUserGate && phase.userGateStatus !== 'confirmed') {
-        return {
-          action: 'wait_user_gate',
-          reason: 'USER_GATE requires confirmation',
-        };
-      }
-      // autoMerge disabled → wait for user to trigger (G1.9)
-      if (!config.autoMerge) {
-        return {
-          action: 'wait_merge',
-          reason: 'Auto-merge disabled, waiting for user',
-        };
-      }
-      // autoMerge enabled → transition to merge step (G1.10)
-      return {
-        action: 'transition',
-        nextStep: 'merge',
-        nextIndex: STEP_INDEX_MAP.verify + 1, // merge is after verify
-        skill: getSkillForStep('merge'),
-        reason: 'Verify complete, auto-merge enabled',
-      };
-    }
-
-    // Normal step transition (G1.12)
-    return {
-      action: 'transition',
-      nextStep,
-      nextIndex: STEP_INDEX_MAP[nextStep as keyof typeof STEP_INDEX_MAP],
-      skill: getSkillForStep(nextStep),
-      reason: `${currentStep} complete, advancing to ${nextStep}`,
-    };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // STEP FAILED OR BLOCKED (G1.13, G1.14)
-  // ═══════════════════════════════════════════════════════════════════
-  if (step.status === 'failed' || step.status === 'blocked') {
-    return {
-      action: 'recover_failed',
-      reason: `Step ${currentStep} is ${step.status}`,
-    };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // STEP IN PROGRESS BUT NO WORKFLOW (G1.15)
-  // ═══════════════════════════════════════════════════════════════════
-  if (step.status === 'in_progress' && !workflow) {
-    return {
-      action: 'spawn',
-      skill: getSkillForStep(currentStep),
-      reason: `Step ${currentStep} in_progress but no active workflow`,
-    };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // STEP NOT STARTED - SPAWN WORKFLOW (G1.16, G1.17)
-  // ═══════════════════════════════════════════════════════════════════
-  if (step.status === 'not_started' || step.status === null || step.status === undefined) {
-    // Initialize batches when entering implement (G1.17)
-    if (currentStep === 'implement' && batches.total === 0) {
-      return {
-        action: 'initialize_batches',
-        reason: 'Entering implement, need to populate batches',
-      };
-    }
-    return {
-      action: 'spawn',
-      skill: getSkillForStep(currentStep),
-      reason: `Step ${currentStep} not started, spawning workflow`,
-    };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // UNKNOWN STATUS - SHOULD NOT HAPPEN (G1.18)
-  // ═══════════════════════════════════════════════════════════════════
-  console.error(`[orchestration-decisions] Unknown step.status: ${step.status}`);
-  return {
-    action: 'needs_attention',
-    reason: `Unknown status: ${step.status}`,
-    errorMessage: `Unexpected step status: ${step.status}`,
-    recoveryOptions: ['retry', 'abort'],
-  };
+export interface Decision {
+  action: 'idle' | 'wait' | 'spawn' | 'transition' | 'heal' | 'heal_batch' | 'advance_batch' | 'wait_merge' | 'error' | 'needs_attention';
+  reason: string;
+  nextStep?: string;
+  step?: string;
+  skill?: string;
+  batch?: { section: string; taskIds: string[] };
+  batchIndex?: number;
 }
+
+/**
+ * Get next action using simplified decision logic (FR-002)
+ *
+ * Target: < 100 lines of decision logic
+ * Principle: Trust CLI state (step.status, dashboard.lastWorkflow)
+ *
+ * @param input Decision input with state from CLI
+ * @returns Simplified decision
+ */
+export function getNextAction(input: DecisionInput): Decision {
+  const { step, execution, dashboardState } = input;
+  const { config, batches } = execution;
+
+  // No active orchestration (check dashboard state first)
+  if (!dashboardState?.active) {
+    return { action: 'idle', reason: 'No active orchestration' };
+  }
+
+  // Workflow running - wait
+  if (dashboardState.lastWorkflow?.status === 'running') {
+    return { action: 'wait', reason: 'Workflow running' };
+  }
+
+  // Decision based on step
+  const currentStep = step.current || 'design';
+  const stepStatus = step.status || 'not_started';
+
+  switch (currentStep) {
+    case 'design':
+      return handleStep('design', 'analyze', stepStatus, dashboardState, config);
+
+    case 'analyze':
+      return handleStep('analyze', 'implement', stepStatus, dashboardState, config);
+
+    case 'implement':
+      return handleImplement(stepStatus, batches, dashboardState, config);
+
+    case 'verify':
+      return handleVerify(stepStatus, dashboardState, config);
+
+    default:
+      return { action: 'error', reason: `Unknown step: ${currentStep}` };
+  }
+}
+
+/**
+ * Handle standard step transition (design, analyze)
+ */
+function handleStep(
+  current: string,
+  next: string,
+  stepStatus: StepStatus | null,
+  dashboard: DashboardState,
+  config: OrchestrationExecution['config']
+): Decision {
+  if (stepStatus === 'complete') {
+    return { action: 'transition', nextStep: next, reason: `${current} complete` };
+  }
+  if (stepStatus === 'failed') {
+    return { action: 'heal', step: current, reason: `${current} failed` };
+  }
+  if (!dashboard.lastWorkflow) {
+    return { action: 'spawn', skill: `flow.${current}`, reason: `Start ${current}` };
+  }
+  return { action: 'wait', reason: `${current} in progress` };
+}
+
+/**
+ * Handle implement phase with batches
+ */
+function handleImplement(
+  stepStatus: StepStatus | null,
+  batches: OrchestrationExecution['batches'],
+  dashboard: DashboardState,
+  config: OrchestrationExecution['config']
+): Decision {
+  // All batches done
+  if (areAllBatchesComplete(batches)) {
+    return { action: 'transition', nextStep: 'verify', reason: 'All batches complete' };
+  }
+
+  const currentBatch = batches.items[batches.current];
+  if (!currentBatch) {
+    return { action: 'error', reason: 'No current batch' };
+  }
+
+  if (currentBatch.status === 'completed' || currentBatch.status === 'healed') {
+    return { action: 'advance_batch', batchIndex: batches.current, reason: 'Batch complete' };
+  }
+  if (currentBatch.status === 'failed') {
+    if (config.autoHealEnabled && currentBatch.healAttempts < config.maxHealAttempts) {
+      return { action: 'heal_batch', batchIndex: batches.current, reason: 'Attempting heal' };
+    }
+    return { action: 'needs_attention', reason: `Batch failed after ${currentBatch.healAttempts} attempts` };
+  }
+  if (currentBatch.status === 'pending' && !dashboard.lastWorkflow) {
+    return {
+      action: 'spawn',
+      skill: 'flow.implement',
+      batch: { section: currentBatch.section, taskIds: currentBatch.taskIds },
+      reason: `Start batch ${batches.current}`,
+    };
+  }
+
+  return { action: 'wait', reason: 'Batch in progress' };
+}
+
+/**
+ * Handle verify phase
+ */
+function handleVerify(
+  stepStatus: StepStatus | null,
+  dashboard: DashboardState,
+  config: OrchestrationExecution['config']
+): Decision {
+  if (stepStatus === 'complete') {
+    if (config.autoMerge) {
+      return { action: 'transition', nextStep: 'merge', reason: 'Verify complete, auto-merge' };
+    }
+    return { action: 'wait_merge', reason: 'Verify complete, waiting for user' };
+  }
+  if (stepStatus === 'failed') {
+    return { action: 'heal', step: 'verify', reason: 'Verify failed' };
+  }
+  if (!dashboard.lastWorkflow) {
+    return { action: 'spawn', skill: 'flow.verify', reason: 'Start verify' };
+  }
+  return { action: 'wait', reason: 'Verify in progress' };
+}
+
+// NOTE: The legacy makeDecision function was removed in Phase 1058 (T012)
+// Use getNextAction instead for simplified decision logic (<100 lines)
 
 // =============================================================================
 // Internal Helpers

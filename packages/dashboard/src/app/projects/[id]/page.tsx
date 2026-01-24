@@ -135,6 +135,8 @@ export default function ProjectDetailPage() {
     activeSessionId: orchestrationSessionId,  // Session ID from orchestration polling
     pause: pauseOrchestration,
     resume: resumeOrchestration,
+    goBackToStep,       // FR-004: Go back to previous step
+    isGoingBackToStep,  // FR-004: Loading state for go-back
   } = useOrchestration({ projectId })
 
   // Check if there's an active orchestration that can be paused
@@ -845,6 +847,9 @@ export default function ProjectDetailPage() {
       totalDeletions={totalDeletions}
       projectId={projectId}
       projectPath={project.path}
+      onGoBackToStep={goBackToStep}
+      isGoingBackToStep={isGoingBackToStep}
+      isWorkflowRunning={workflowStatus === 'running'}
     />
   )
 

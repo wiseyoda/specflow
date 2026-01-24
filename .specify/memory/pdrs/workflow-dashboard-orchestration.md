@@ -1,14 +1,15 @@
 # PDR: Workflow Dashboard Orchestration
 
-> **Product Design Record** for phases 1048-1070
+> **Product Design Record** for phases 1048-1070 + 1057-1058
 >
 > This document provides the holistic architecture and design decisions for the
 > workflow dashboard integration feature set. Individual phase files contain
 > implementation details; this document provides the "why" and overall vision.
 
 **Created**: 2026-01-18
+**Updated**: 2026-01-24 (Phase 1058 architectural simplification)
 **Status**: Approved
-**Phases**: 1048, 1050, 1051, 1052, 1055, 1060, 1070
+**Phases**: 1048, 1050, 1051, 1052, 1055, 1057, 1058, 1060, 1070
 **POC Reference**: `/debug/workflow` (commit 5dc79dd)
 
 ---
@@ -22,6 +23,136 @@ from the dashboard and have them run to completion with minimal intervention.
 **Northstar**: A user clicks "Start Orchestrate" and walks away. The system
 handles batching, questions (via notifications), failures (via auto-healing),
 and transitions between phases. The user returns to find their feature implemented.
+
+---
+
+## Phase 1058 Architecture Update: Single State Consolidation
+
+> **CRITICAL**: This section documents architectural decisions from Phase 1058 that
+> supersede earlier designs. All future orchestration work MUST follow these patterns.
+
+### Problem Statement
+
+After initial implementation (phases 1048-1055), the orchestration system accumulated
+technical debt from edge case handling:
+
+- **Multiple sources of truth**: CLI state file vs dashboard's `OrchestrationExecution`
+- **Reconciliation hacks**: Code to sync parallel state sources
+- **Guard code**: Checks that fixed state after it was already wrong
+- **Claude analyzer fallback**: AI to interpret "unclear" state
+- **Complex decision logic**: 700+ lines of conditional handling
+
+This pattern is toxic. Each hack requires another hack to handle its edge cases.
+
+### Architectural Principles (Binding)
+
+#### 1. CLI State File is THE Single Source of Truth
+
+```
+.specflow/orchestration-state.json
+├── orchestration.step.current      → Current step (design/analyze/implement/verify)
+├── orchestration.step.status       → Step status (not_started/in_progress/complete/failed)
+├── orchestration.step.index        → Step index (0-3)
+├── orchestration.phase.*           → Phase metadata
+└── orchestration.dashboard.*       → Dashboard-specific data (batches, cost, etc.)
+```
+
+**Dashboard reads this file. Dashboard does NOT maintain separate state.**
+
+If you find yourself creating a parallel state object, STOP. Use CLI state.
+
+#### 2. Sub-Commands Own Their State
+
+| Command | State Responsibility |
+|---------|---------------------|
+| `/flow.design` | Sets `step.status=complete` when design artifacts created |
+| `/flow.analyze` | Sets `step.status=complete` when analysis done |
+| `/flow.implement` | Sets `step.status=complete` when tasks done |
+| `/flow.verify` | Sets `step.status=complete` when verification passes |
+
+**Dashboard trusts these settings.** It does NOT verify by checking artifacts exist.
+
+#### 3. Simple Decision Logic (<100 lines)
+
+```typescript
+function getNextAction(state): Decision {
+  const { step, dashboard } = state.orchestration;
+
+  // Trust the state file. Period.
+  if (!dashboard?.active) return { action: 'idle' };
+  if (dashboard.lastWorkflow?.status === 'running') return { action: 'wait' };
+
+  switch (step.current) {
+    case 'design':    return step.status === 'complete' ? transition('analyze') : spawn('flow.design');
+    case 'analyze':   return step.status === 'complete' ? transition('implement') : spawn('flow.analyze');
+    case 'implement': return handleBatches(state);
+    case 'verify':    return step.status === 'complete' ? mergeOrWait(state) : spawn('flow.verify');
+  }
+}
+```
+
+If decision logic exceeds 100 lines, the STATE MODEL is too complex. Simplify state, not add more conditionals.
+
+#### 4. Auto-Heal Pattern (Not Reconciliation)
+
+When a workflow completes, apply simple healing rules:
+
+```typescript
+function autoHealAfterWorkflow(skill: string, status: string): void {
+  if (status !== 'completed') return;  // Only heal on success
+
+  const expectedStep = skillToStep(skill);  // flow.design → design
+  if (state.step.current === expectedStep && state.step.status !== 'complete') {
+    state.step.status = 'complete';  // Simple, targeted fix
+    log(`Auto-healed: ${expectedStep} marked complete after ${skill} succeeded`);
+  }
+}
+```
+
+**This is NOT reconciliation.** Reconciliation syncs parallel sources. Auto-heal fixes
+known edge cases in a SINGLE source.
+
+#### 5. UI Step Override (User Escape Hatch)
+
+Users can manually go back to a previous step:
+
+- Click "Go back to Design" → `step.current=design`, `step.status=not_started`
+- Orchestration resumes from that step
+
+This provides escape from any stuck state without code changes.
+
+### Anti-Patterns (FORBIDDEN)
+
+| Anti-Pattern | Why It's Bad | What To Do Instead |
+|--------------|--------------|-------------------|
+| Separate `OrchestrationExecution` type | Parallel state source | Use CLI state's `orchestration.dashboard` |
+| State reconciliation code | Masks root cause, adds complexity | Fix why state diverges |
+| "Guard" code that checks then fixes | State shouldn't need guarding | Fix upstream code that creates bad state |
+| Claude/AI to interpret unclear state | If state is unclear, schema is wrong | Simplify state schema |
+| Decision logic > 100 lines | Complexity breeds bugs | Simplify state model |
+| Comments like `// HACK:` or `// WORKAROUND:` | Documents but doesn't fix problem | Find and fix root cause |
+
+### File Locations
+
+| File | Purpose | Notes |
+|------|---------|-------|
+| `packages/dashboard/src/lib/services/orchestration-service.ts` | State operations | Uses CLI state, NOT separate execution files |
+| `packages/dashboard/src/lib/services/orchestration-runner.ts` | Main loop | Calls `getNextAction()`, trusts state |
+| `packages/dashboard/src/lib/services/orchestration-decisions.ts` | Decision logic | <100 lines, pure functions |
+| `packages/dashboard/src/lib/services/orchestration-types.ts` | Type definitions | `OrchestrationExecution` is LOCAL, not shared |
+| `.specflow/orchestration-state.json` | THE state file | Single source of truth |
+
+### Migration Notes
+
+Phase 1058 removed:
+- `packages/shared/src/schemas/orchestration-execution.ts` (parallel state type)
+- Legacy `makeDecision()` function (700+ lines → replaced by `getNextAction()` ~80 lines)
+- All reconciliation/guard code from runner
+
+If you need `OrchestrationExecution` type, import from `orchestration-types.ts` (dashboard-local),
+NOT from `@specflow/shared`.
+
+---
 
 ## Key Principles
 
@@ -681,3 +812,11 @@ Each phase has a dedicated implementation file with specific deliverables:
 | Auto-healing | Single retry | Prevents loops, usually succeeds |
 | Follow-up input | Free-form text | Maximum flexibility |
 | Start workflow | Both card + detail | User preference, quick access |
+| **Phase 1058 Updates** | | |
+| State source | CLI state file only | Multiple sources led to sync bugs |
+| OrchestrationExecution | Dashboard-local type | Removed from shared, now internal |
+| Decision logic | <100 lines | Complex logic = wrong state model |
+| Claude fallback | REMOVED | If state is unclear, fix state schema |
+| Reconciliation code | REMOVED | Fix root cause, don't mask it |
+| Step status ownership | Sub-commands | flow.* sets complete, dashboard trusts |
+| UI escape hatch | Step override | User can manually go back to any step |

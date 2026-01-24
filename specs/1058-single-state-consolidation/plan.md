@@ -315,6 +315,7 @@ async function goBackToStep(step: string) {
 - T023: Add goBackToStep() to orchestration-service
 - T024: Add StepOverride UI component
 - T025: Wire up to project detail page
+- T026: Integration test for external CLI runs
 
 ---
 
@@ -327,9 +328,9 @@ async function goBackToStep(step: string) {
 | 3 | T010-T013 | Simplify decision logic |
 | 4 | T014-T016 | Add auto-heal |
 | 5 | T017-T022 | Remove hacks |
-| 6 | T023-T025 | UI step override |
+| 6 | T023-T026 | UI step override + integration test |
 
-**Total**: 25 tasks
+**Total**: 26 tasks
 
 ## Execution Order
 

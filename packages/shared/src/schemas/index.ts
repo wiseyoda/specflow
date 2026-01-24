@@ -35,6 +35,17 @@ export {
   SessionQuestionSchema,
   WorkflowOutputSchema,
   SessionContentSchema,
+  // Dashboard state schemas (Phase 1058 - Single Source of Truth)
+  DashboardStateSchema,
+  DashboardBatchStatusSchema,
+  DashboardOrchestrationStatusSchema,
+  DashboardBatchItemSchema,
+  DashboardDecisionLogEntrySchema,
+  DashboardLastWorkflowSchema,
+  // Backward compatibility exports (moved from orchestration-execution.ts)
+  OrchestrationStatusSchema,
+  OrchestrationPhaseSchema,
+  DecisionLogEntrySchema,
   type SSEEventType,
   type SSEEvent,
   type ConnectedEvent,
@@ -58,6 +69,17 @@ export {
   type SessionQuestion,
   type WorkflowOutput,
   type SessionContent,
+  // Dashboard state types (Phase 1058)
+  type DashboardState,
+  type DashboardBatchItem,
+  type DashboardDecisionLogEntry,
+  type DashboardLastWorkflow,
+  type DashboardBatchStatus,
+  type DashboardOrchestrationStatus,
+  // Backward compatibility type exports
+  type OrchestrationStatus,
+  type OrchestrationPhase,
+  type DecisionLogEntry,
 } from './events.js';
 
 export {
@@ -146,19 +168,8 @@ export {
   type BatchPlan,
 } from './batch-item.js';
 
-export {
-  OrchestrationStatusSchema,
-  OrchestrationPhaseSchema,
-  DecisionLogEntrySchema,
-  OrchestrationExecutionsSchema,
-  OrchestrationExecutionSchema,
-  createOrchestrationExecution,
-  type OrchestrationStatus,
-  type OrchestrationPhase,
-  type DecisionLogEntry,
-  type OrchestrationExecutions,
-  type OrchestrationExecution,
-} from './orchestration-execution.js';
+// OrchestrationStatusSchema, OrchestrationPhaseSchema, DecisionLogEntrySchema
+// are now exported from events.ts (above)
 
 export {
   ClaudeModelSchema,

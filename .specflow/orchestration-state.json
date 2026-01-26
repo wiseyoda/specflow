@@ -5,7 +5,7 @@
     "name": "specflow",
     "path": "/Users/ppatterson/dev/specflow"
   },
-  "last_updated": "2026-01-24T22:20:24.650Z",
+  "last_updated": "2026-01-26T00:56:05.074Z",
   "orchestration": {
     "phase": {
       "id": null,
@@ -21,7 +21,8 @@
         "Eliminate race conditions - Atomic writes, spawn intent pattern",
         "Reduce code - Target simplicity"
       ],
-      "hasUserGate": true
+      "hasUserGate": true,
+      "userGateStatus": "confirmed"
     },
     "next_phase": {
       "number": "1060",
@@ -45,8 +46,7 @@
       "tasks_total": 0,
       "percentage": 0
     },
-    "steps": {},
-    "dashboard": null
+    "steps": {}
   },
   "health": {
     "status": "healthy",

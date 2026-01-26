@@ -248,7 +248,7 @@ export const OrchestrationStateSchema = z.object({
       percentage: z.number().nullish(),
     }).nullish(),
     // Dashboard state - single source of truth for orchestration (FR-001)
-    dashboard: DashboardStateSchema.optional(),
+    dashboard: DashboardStateSchema.nullish(),
   }).passthrough().nullish(),
   health: z.object({
     status: z.string().nullish(), // Values: ready, healthy, warning, error, initializing, migrated

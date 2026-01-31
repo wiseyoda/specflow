@@ -1,5 +1,3 @@
-import { mkdir, writeFile as fsWriteFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { STEP_INDEX_MAP } from '@specflow/shared';
 import { output } from '../../lib/output.js';
 import { readState, writeState, setStateValue } from '../../lib/state.js';
@@ -10,22 +8,9 @@ import {
   calculateNextHotfix,
   insertPhaseRow,
 } from '../../lib/roadmap.js';
-import { findProjectRoot, getPhasesDir, pathExists } from '../../lib/paths.js';
+import { findProjectRoot } from '../../lib/paths.js';
+import { phaseSlug, createPhaseDetailFile } from '../../lib/phases.js';
 import { handleError, NotFoundError, ValidationError } from '../../lib/errors.js';
-
-/**
- * Sanitize a string for use as a git branch name segment.
- * Only allows alphanumeric characters and hyphens.
- * Collapses multiple hyphens and trims hyphens from ends.
- */
-function sanitizeBranchSegment(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/\s+/g, '-') // Spaces to hyphens
-    .replace(/[^a-z0-9-]/g, '') // Remove unsafe characters
-    .replace(/-+/g, '-') // Collapse multiple hyphens
-    .replace(/^-|-$/g, ''); // Trim leading/trailing hyphens
-}
 
 /**
  * Phase open output
@@ -39,60 +24,6 @@ export interface PhaseOpenOutput {
   };
   isHotfix: boolean;
   message: string;
-}
-
-/**
- * Create a phase detail file in .specify/phases/
- */
-async function createPhaseDetailFile(
-  phaseNumber: string,
-  phaseName: string,
-  projectPath: string,
-): Promise<string> {
-  const phasesDir = getPhasesDir(projectPath);
-
-  // Ensure phases directory exists
-  if (!pathExists(phasesDir)) {
-    await mkdir(phasesDir, { recursive: true });
-  }
-
-  const slug = sanitizeBranchSegment(phaseName);
-  const fileName = `${phaseNumber}-${slug}.md`;
-  const filePath = join(phasesDir, fileName);
-
-  const today = new Date().toISOString().split('T')[0];
-
-  const content = `# Phase ${phaseNumber}: ${phaseName}
-
-**Created**: ${today}
-**Status**: In Progress
-
-## Goal
-
-[Describe the goal of this phase]
-
-## Scope
-
-- [List scope items]
-
-## Deliverables
-
-- [ ] [Deliverable 1]
-- [ ] [Deliverable 2]
-
-## Verification Gate
-
-[Define success criteria]
-
----
-
-## Notes
-
-[Add any notes or context]
-`;
-
-  await fsWriteFile(filePath, content);
-  return filePath;
 }
 
 /**
@@ -132,7 +63,7 @@ async function openExistingPhase(
   }
 
   // Create branch name with sanitized slug
-  const slug = sanitizeBranchSegment(phase.name);
+  const slug = phaseSlug(phase.name);
   const branch = `${phase.number}-${slug}`;
 
   // Update state
@@ -209,10 +140,15 @@ async function createHotfixPhase(
   }
 
   // Create phase detail file
-  await createPhaseDetailFile(hotfixNumber, phaseName, projectRoot);
+  await createPhaseDetailFile({
+    phaseNumber: hotfixNumber,
+    phaseName,
+    projectPath: projectRoot,
+    status: 'in_progress',
+  });
 
   // Create branch name with sanitized slug
-  const slug = sanitizeBranchSegment(phaseName);
+  const slug = phaseSlug(phaseName);
   const branch = `${hotfixNumber}-${slug}`;
 
   // Update state

@@ -270,8 +270,8 @@ Proceed to completion.
    - Size phases for agentic sessions (~200k tokens)
    - Place USER GATES at key verification points
 
-3. Create `ROADMAP.md` at project root
-4. Create phase detail files in `.specify/phases/`
+3. Create `ROADMAP.md` at project root using `specflow phase add` for each phase (this auto-creates `.specify/phases/NNNN-name.md` files)
+4. Enhance each phase detail file with goals, scope, and deliverables from discovery context
 
 ---
 

@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { output } from '../../lib/output.js';
 import { insertPhaseRow, readRoadmap, type PhaseStatus } from '../../lib/roadmap.js';
 import { findProjectRoot } from '../../lib/paths.js';
+import { createPhaseDetailFile } from '../../lib/phases.js';
 import { handleError, NotFoundError, ValidationError, StateError } from '../../lib/errors.js';
 
 /**
@@ -17,15 +18,17 @@ export interface AddOutput {
   };
   filePath: string;
   line: number;
+  phaseDetailPath: string | null;
+  phaseDetailCreated: boolean;
 }
 
 /**
- * Add action - insert a new phase into ROADMAP.md
+ * Add action - insert a new phase into ROADMAP.md and create phase detail file
  */
 export async function addAction(
   number: string,
   name: string,
-  options: { json?: boolean; gate?: string; userGate?: boolean },
+  options: { json?: boolean; gate?: string; userGate?: boolean; file?: boolean },
 ): Promise<void> {
   try {
     const projectRoot = findProjectRoot();
@@ -79,6 +82,19 @@ export async function addAction(
       );
     }
 
+    // Create phase detail file (unless --no-file)
+    let phaseDetailPath: string | null = null;
+    const shouldCreateFile = options.file !== false;
+
+    if (shouldCreateFile) {
+      phaseDetailPath = await createPhaseDetailFile({
+        phaseNumber: number,
+        phaseName: name,
+        projectPath: projectRoot,
+        verificationGate,
+      });
+    }
+
     const addOutput: AddOutput = {
       success: true,
       phase: {
@@ -89,12 +105,20 @@ export async function addAction(
       },
       filePath: result.filePath,
       line: result.line,
+      phaseDetailPath,
+      phaseDetailCreated: phaseDetailPath !== null,
     };
 
     if (options.json) {
       output(addOutput);
     } else {
-      output(addOutput, `Added phase ${number}: ${name}`);
+      const lines = [`Added phase ${number}: ${name}`];
+      if (phaseDetailPath) {
+        lines.push(`  Phase detail file: ${phaseDetailPath}`);
+      } else if (shouldCreateFile) {
+        lines.push('  Phase detail file already exists');
+      }
+      output(addOutput, lines.join('\n'));
     }
   } catch (err) {
     handleError(err);
@@ -105,10 +129,11 @@ export async function addAction(
  * Add command definition
  */
 export const addCommand = new Command('add')
-  .description('Add a new phase to ROADMAP.md')
+  .description('Add a new phase to ROADMAP.md and create phase detail file')
   .argument('<number>', 'Phase number (4 digits, e.g., 0010)')
   .argument('<name>', 'Phase name (kebab-case, e.g., core-engine)')
   .option('--json', 'Output as JSON')
   .option('--gate <text>', 'Verification gate description')
   .option('--user-gate', 'Mark as USER GATE (requires user verification)')
+  .option('--no-file', 'Skip creating phase detail file')
   .action(addAction);

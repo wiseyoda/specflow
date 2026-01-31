@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathExists, getSpecsDir, getTemplatesDir } from './paths.js';
+import { phaseSlug } from './phases.js';
 
 /**
  * Backlog and deferred item handling
@@ -31,7 +32,7 @@ export function getDeferredPath(
   phaseName: string,
   projectPath: string = process.cwd(),
 ): string {
-  const slug = phaseName.toLowerCase().replace(/\s+/g, '-');
+  const slug = phaseSlug(phaseName);
   return join(getSpecsDir(projectPath), `${phaseNumber}-${slug}`, 'checklists', 'deferred.md');
 }
 
@@ -139,7 +140,7 @@ export async function scanDeferredItems(
   phaseName: string,
   projectPath: string = process.cwd(),
 ): Promise<DeferredSummary> {
-  const slug = phaseName.toLowerCase().replace(/\s+/g, '-');
+  const slug = phaseSlug(phaseName);
   const specsDir = getSpecsDir(projectPath);
   const checklistDir = join(specsDir, `${phaseNumber}-${slug}`, 'checklists');
 

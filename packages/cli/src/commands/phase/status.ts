@@ -2,6 +2,7 @@ import { output } from '../../lib/output.js';
 import { readState } from '../../lib/state.js';
 import { readRoadmap, getPhaseByNumber } from '../../lib/roadmap.js';
 import { findProjectRoot, getSpecsDir, pathExists } from '../../lib/paths.js';
+import { phaseSlug, getPhaseDetailPath } from '../../lib/phases.js';
 import { handleError, NotFoundError } from '../../lib/errors.js';
 import { join } from 'node:path';
 
@@ -52,7 +53,7 @@ async function getPhaseStatus(): Promise<PhaseStatusOutput> {
   let hasTasks = false;
 
   if (phase.number && phase.name) {
-    const slug = phase.name.toLowerCase().replace(/\s+/g, '-');
+    const slug = phaseSlug(phase.name);
     specDir = join(getSpecsDir(projectRoot), `${phase.number}-${slug}`);
 
     if (pathExists(specDir)) {
@@ -65,8 +66,7 @@ async function getPhaseStatus(): Promise<PhaseStatusOutput> {
   // Get phase file path
   let phaseFile: string | null = null;
   if (phase.number && phase.name) {
-    const slug = phase.name.toLowerCase().replace(/\s+/g, '-');
-    const phasePath = join(projectRoot, '.specify', 'phases', `${phase.number}-${slug}.md`);
+    const phasePath = getPhaseDetailPath(phase.number, phase.name, projectRoot);
     if (pathExists(phasePath)) {
       phaseFile = phasePath;
     }

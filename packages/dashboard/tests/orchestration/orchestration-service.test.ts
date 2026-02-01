@@ -104,6 +104,8 @@ describe('OrchestrationService', () => {
   const defaultConfig: OrchestrationConfig = {
     skipDesign: true,
     skipAnalyze: true,
+    skipImplement: false,
+    skipVerify: false,
     autoMerge: false,
     additionalContext: '',
     autoHealEnabled: true,

@@ -3,7 +3,6 @@
  * T121/G12.5-9: Centralized test utilities
  */
 
-import { vi } from 'vitest';
 import type {
   OrchestrationConfig,
   OrchestrationPhase,
@@ -11,7 +10,6 @@ import type {
   BatchItem,
 } from '@specflow/shared';
 import type { OrchestrationExecution } from '../../../src/lib/services/orchestration-types';
-import type { OrchestrationDeps } from '../../../src/lib/services/orchestration-runner';
 
 // =============================================================================
 // Default Configurations
@@ -239,119 +237,4 @@ export function createAllTasksCompleteStatus(): MockSpecflowStatus {
   });
 }
 
-// =============================================================================
-// Decision Input Fixtures
-// =============================================================================
-
-export interface MockDecisionInput {
-  step: { current: string; status: string };
-  phase: { hasUserGate?: boolean; userGateStatus?: string };
-  execution: OrchestrationExecution;
-  workflow?: MockWorkflow;
-  lastFileChangeTime?: number;
-  lookupFailures?: number;
-  currentTime?: number;
-}
-
-/**
- * Create a decision input for testing makeDecision
- */
-export function createDecisionInput(overrides: Partial<MockDecisionInput> = {}): MockDecisionInput {
-  return {
-    step: { current: 'design', status: 'in_progress' },
-    phase: {},
-    execution: createOrchestration(),
-    ...overrides,
-  };
-}
-
-// =============================================================================
-// Mock Dependencies (G12.9)
-// =============================================================================
-
-/**
- * Create a complete mock of OrchestrationDeps for testing
- *
- * @param overrides - Optional overrides to customize specific mock functions
- * @returns A fully mocked OrchestrationDeps object
- *
- * @example
- * ```typescript
- * const deps = createMockDeps({
- *   readState: vi.fn().mockResolvedValue(customState),
- * });
- * ```
- */
-export function createMockDeps(
-  overrides: Partial<OrchestrationDeps> = {}
-): OrchestrationDeps {
-  // Default mock orchestration service with all methods
-  const mockOrchestrationService = {
-    get: vi.fn().mockReturnValue(createOrchestration()),
-    create: vi.fn().mockReturnValue(createOrchestration()),
-    update: vi.fn(),
-    updateBatches: vi.fn(),
-    completeBatch: vi.fn(),
-    incrementHealAttempt: vi.fn(),
-    healBatch: vi.fn(),
-    canHealBatch: vi.fn().mockReturnValue(true),
-    fail: vi.fn(),
-    pause: vi.fn(),
-    resume: vi.fn(),
-    cancel: vi.fn(),
-    addCost: vi.fn(),
-    transitionToNextPhase: vi.fn(),
-    triggerMerge: vi.fn(),
-    linkWorkflowExecution: vi.fn(),
-    setNeedsAttention: vi.fn(),
-    list: vi.fn().mockReturnValue([]),
-    delete: vi.fn(),
-  };
-
-  // Default mock workflow service with all methods
-  const mockWorkflowService = {
-    start: vi.fn().mockResolvedValue(createWorkflow()),
-    get: vi.fn().mockReturnValue(createWorkflow()),
-    list: vi.fn().mockReturnValue([]),
-    cancel: vi.fn(),
-    hasActiveWorkflow: vi.fn().mockReturnValue(false),
-    findActiveByOrchestration: vi.fn().mockReturnValue([]),
-    cleanup: vi.fn(),
-  };
-
-  return {
-    // Required dependencies
-    orchestrationService: {
-      ...mockOrchestrationService,
-      ...overrides.orchestrationService,
-    } as unknown as OrchestrationDeps['orchestrationService'],
-
-    workflowService: {
-      ...mockWorkflowService,
-      ...overrides.workflowService,
-    } as unknown as OrchestrationDeps['workflowService'],
-
-    getNextPhase: overrides.getNextPhase ?? vi.fn().mockReturnValue('implement'),
-
-    isPhaseComplete: overrides.isPhaseComplete ?? vi.fn().mockReturnValue(false),
-
-    // Optional dependencies with sensible defaults
-    attemptHeal: overrides.attemptHeal ?? vi.fn().mockResolvedValue({
-      success: true,
-      cost: 0.01,
-      result: { status: 'fixed' },
-    }),
-
-    quickDecision: overrides.quickDecision ?? vi.fn().mockResolvedValue({
-      result: { action: 'wait', reason: 'Test decision' },
-      cost: 0.01,
-    }),
-
-    parseBatchesFromProject: overrides.parseBatchesFromProject ?? vi.fn().mockReturnValue({
-      batches: [
-        { section: 'Test Section', taskIds: ['T001', 'T002'], incomplete: 2 },
-      ],
-      totalIncomplete: 2,
-    }),
-  };
-}
+// Decision input and OrchestrationDeps fixtures removed in Phase 1058

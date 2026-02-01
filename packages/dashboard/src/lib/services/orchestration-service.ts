@@ -152,6 +152,17 @@ export function readDashboardState(projectPath: string): DashboardState | null {
 }
 
 /**
+ * Read orchestration step info from CLI state file
+ * Returns the orchestration.step object or null if not present
+ */
+export function readOrchestrationStep(
+  projectPath: string
+): OrchestrationState['orchestration'] extends { step?: infer Step } ? Step | null : null {
+  const state = readCliState(projectPath);
+  return state?.orchestration?.step ?? null;
+}
+
+/**
  * Write dashboard state to CLI state file
  * Uses specflow state set for atomic, validated writes
  */

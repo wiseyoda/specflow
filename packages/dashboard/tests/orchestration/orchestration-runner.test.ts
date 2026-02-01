@@ -19,9 +19,9 @@ const {
   mockOrchestrationServiceFns,
   mockWorkflowServiceFns,
   mockAttemptHealFn,
-  mockQuickDecision,
-  mockExecSync,
-  mockIsPhaseComplete,
+  mockReadDashboardState,
+  mockReadOrchestrationStep,
+  mockWriteDashboardState,
 } = vi.hoisted(() => ({
   mockOrchestrationServiceFns: {
     get: vi.fn(),
@@ -40,6 +40,7 @@ const {
     triggerMerge: vi.fn(),
     updateBatches: vi.fn(),
     setNeedsAttention: vi.fn(),
+    logDecision: vi.fn(),
   },
   mockWorkflowServiceFns: {
     get: vi.fn(),
@@ -48,26 +49,9 @@ const {
     hasActiveWorkflow: vi.fn(() => false),
   },
   mockAttemptHealFn: vi.fn(),
-  mockQuickDecision: vi.fn(() =>
-    Promise.resolve({
-      success: true,
-      result: {
-        action: 'wait',
-        reason: 'Continue waiting for workflow completion',
-        confidence: 'medium',
-      },
-      cost: 0.01,
-      duration: 100,
-    })
-  ),
-  mockExecSync: vi.fn(() =>
-    JSON.stringify({
-      phase: { number: 1055, name: 'smart-batching' },
-      context: { hasSpec: true, hasPlan: true, hasTasks: true },
-      progress: { tasksTotal: 10, tasksComplete: 0, percentage: 0 },
-    })
-  ),
-  mockIsPhaseComplete: vi.fn(() => false),
+  mockReadDashboardState: vi.fn(),
+  mockReadOrchestrationStep: vi.fn(),
+  mockWriteDashboardState: vi.fn(),
 }));
 
 // Mock fs operations (updated for direct file reading in T021-T024)
@@ -144,12 +128,9 @@ vi.mock('fs', () => ({
 // Mock orchestration service
 vi.mock('@/lib/services/orchestration-service', () => ({
   orchestrationService: mockOrchestrationServiceFns,
-  getNextPhase: vi.fn((current: string) => {
-    const phases = ['design', 'analyze', 'implement', 'verify', 'merge', 'complete'];
-    const idx = phases.indexOf(current);
-    return idx >= 0 && idx < phases.length - 1 ? phases[idx + 1] : null;
-  }),
-  isPhaseComplete: mockIsPhaseComplete,
+  readDashboardState: mockReadDashboardState,
+  writeDashboardState: mockWriteDashboardState,
+  readOrchestrationStep: mockReadOrchestrationStep,
 }));
 
 // Mock workflow service
@@ -161,14 +142,6 @@ vi.mock('@/lib/services/workflow-service', () => ({
 vi.mock('@/lib/services/auto-healing-service', () => ({
   attemptHeal: mockAttemptHealFn,
   getHealingSummary: vi.fn(() => 'Healed'),
-}));
-
-// Mock claude-helper for fallback analyzer
-vi.mock('@/lib/services/claude-helper', () => ({
-  quickDecision: mockQuickDecision,
-  claudeHelper: vi.fn(),
-  verifyWithClaude: vi.fn(),
-  healWithClaude: vi.fn(),
 }));
 
 // Import after mocking
@@ -188,6 +161,8 @@ describe('OrchestrationRunner', () => {
     additionalContext: '',
     skipDesign: false,
     skipAnalyze: false,
+    skipImplement: false,
+    skipVerify: false,
     autoHealEnabled: true,
     maxHealAttempts: 1,
     batchSizeFallback: 15,
@@ -228,6 +203,23 @@ describe('OrchestrationRunner', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     stopRunner(orchestrationId); // Ensure clean state
+    mockReadDashboardState.mockReturnValue({
+      active: {
+        id: orchestrationId,
+        startedAt: new Date().toISOString(),
+        status: 'running',
+        config: defaultConfig,
+      },
+      lastWorkflow: {
+        id: 'wf-1',
+        skill: 'flow.design',
+        status: 'running',
+      },
+    });
+    mockReadOrchestrationStep.mockReturnValue({
+      current: 'design',
+      status: 'in_progress',
+    });
   });
 
   afterEach(() => {
@@ -268,8 +260,6 @@ describe('OrchestrationRunner', () => {
       });
       mockOrchestrationService.get.mockReturnValue(orch);
       mockWorkflowService.get.mockReturnValue({ id: 'wf-1', status: 'completed' });
-
-      mockIsPhaseComplete.mockReturnValue(true);
 
       const promise = runOrchestration(projectId, orchestrationId, 50, 2);
       await new Promise(resolve => setTimeout(resolve, 150));
@@ -445,7 +435,7 @@ describe('OrchestrationRunner', () => {
       expect(mockAttemptHeal).toHaveBeenCalled();
     });
 
-    it('should fail orchestration when healing fails and max attempts reached', async () => {
+    it('should mark needs_attention when healing attempts are exhausted', async () => {
       const orch = createOrchestration({
         currentPhase: 'implement',
         config: { ...defaultConfig, maxHealAttempts: 1 },
@@ -466,13 +456,30 @@ describe('OrchestrationRunner', () => {
         cost: 0.50,
         duration: 5000,
       });
+      mockReadDashboardState.mockReturnValue({
+        active: {
+          id: orchestrationId,
+          startedAt: new Date().toISOString(),
+          status: 'running',
+          config: { ...defaultConfig, maxHealAttempts: 1 },
+        },
+        lastWorkflow: {
+          id: 'wf-1',
+          skill: 'flow.implement',
+          status: 'running',
+        },
+      });
+      mockReadOrchestrationStep.mockReturnValue({
+        current: 'implement',
+        status: 'in_progress',
+      });
 
       const promise = runOrchestration(projectId, orchestrationId, 50, 2);
       await new Promise(resolve => setTimeout(resolve, 150));
       stopRunner(orchestrationId);
       await promise;
 
-      expect(mockOrchestrationService.fail).toHaveBeenCalled();
+      expect(mockOrchestrationService.setNeedsAttention).toHaveBeenCalled();
     });
 
     it.skip('should mark batch as healed after successful healing', async () => {
@@ -837,76 +844,4 @@ describe('OrchestrationRunner', () => {
     });
   });
 
-  // Phase 1058: Claude fallback analyzer should be rare with single source of truth.
-  // Per constitution Principle IX, unclear state means state schema is wrong, not that
-  // we need Claude fallback. These tests are kept for historical reference but skipped.
-  describe('Claude Fallback Analyzer', () => {
-    // Note: The actual Claude analyzer is mocked in these tests
-    // Phase 1058: With single source of truth, Claude fallback should only trigger when
-    // dashboard state is unavailable (rare edge case).
-
-    it.skip('should track consecutive unclear/waiting decisions', async () => {
-      // TODO: This test needs updating - with Phase 1058's simplified decision logic,
-      // "unclear" states are rare and decision log may not be populated the same way.
-      // The new getNextAction returns 'idle' when no active orchestration.
-      const orch = createOrchestration({
-        currentPhase: 'design',
-        status: 'running',
-      });
-
-      // Workflow running - decision will be "wait" not "continue"
-      mockOrchestrationService.get.mockReturnValue(orch);
-      mockWorkflowService.get.mockReturnValue({ id: 'wf-1', status: 'running' });
-
-      const promise = runOrchestration(projectId, orchestrationId, 50, 5);
-      await new Promise(resolve => setTimeout(resolve, 300));
-      stopRunner(orchestrationId);
-      await promise;
-
-      expect(orch.decisionLog.length).toBeGreaterThan(0);
-    });
-
-    it('should reset unclear count when non-continue decision is made', async () => {
-      let callCount = 0;
-      const orch = createOrchestration({
-        currentPhase: 'design',
-        status: 'running',
-      });
-
-      mockOrchestrationService.get.mockReturnValue(orch);
-
-      // First 2 calls: running (continue), then completed (transition)
-      mockWorkflowService.get.mockImplementation(() => {
-        callCount++;
-        if (callCount <= 2) {
-          return { id: 'wf-1', status: 'running' };
-        }
-        return { id: 'wf-1', status: 'completed' };
-      });
-
-      const promise = runOrchestration(projectId, orchestrationId, 50, 4);
-      await new Promise(resolve => setTimeout(resolve, 250));
-      stopRunner(orchestrationId);
-      await promise;
-
-      // Should have transitioned after completion, resetting the unclear counter
-      // This means Claude analyzer should not have been called
-      // (would only be called after 3 consecutive continues)
-    });
-
-    it('should not trigger Claude analyzer for paused orchestrations', async () => {
-      const orch = createOrchestration({
-        status: 'paused',
-      });
-      mockOrchestrationService.get.mockReturnValue(orch);
-
-      const promise = runOrchestration(projectId, orchestrationId, 50, 3);
-      await new Promise(resolve => setTimeout(resolve, 200));
-      stopRunner(orchestrationId);
-      await promise;
-
-      // Paused orchestrations don't make decisions, so Claude analyzer isn't triggered
-      // The runner just waits with longer polling
-    });
-  });
 });

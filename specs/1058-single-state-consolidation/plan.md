@@ -6,14 +6,18 @@ This plan consolidates orchestration state into a single, debuggable source of t
 
 ## Status (2026-02-01)
 
-- Phase 0: Immediate stabilization — completed locally (pending commit).
-- Phase 1: Canonical runtime aggregator — completed locally (pending commit).
-- Phase 2: CLI state schema extension + dashboard migration — in progress.
+- Phase 0: Immediate stabilization — DONE.
+- Phase 1: Canonical runtime aggregator — DONE.
+- Phase 2: CLI state schema extension + dashboard migration — DONE.
   - Dashboard defaults now seeded in CLI state init.
-  - Orchestration service no longer reads/writes legacy orchestration files.
+  - Orchestration service reads/writes only CLI dashboard state.
   - Runner + API routes updated to await CLI-backed orchestration writes.
-- Remaining work starts at Phase 3 (decision simplification + auto-heal).
-- Current behavior: merge step shows correctly, Running indicator is accurate, status API is read-only (no polling feedback loops), phantom sessions eliminated.
+- Phase 3: CLI-state runner simplification — DONE (kept OrchestrationExecution for UI compatibility).
+- Phase 4: Decision logic simplification — DONE (getNextAction matrix + runner wiring).
+- Phase 5: Auto-heal simplification — DONE (CLI step status healing).
+- Phase 6: Hack removal — DONE (Claude fallback + workflow lookup fallback + batch guards removed).
+- Phase 7: UI step override — TODO.
+- Current behavior: merge step shows correctly, Running indicator is accurate, status API is read-only, phantom sessions eliminated, decision flow is deterministic.
 
 ---
 
@@ -54,7 +58,7 @@ This plan consolidates orchestration state into a single, debuggable source of t
 
 ---
 
-### Phase 2: Extend CLI State Schema
+### Phase 2: Extend CLI State Schema (DONE)
 
 **Goal**: Add `orchestration.dashboard` section to state file.
 
@@ -69,21 +73,21 @@ This plan consolidates orchestration state into a single, debuggable source of t
 
 ---
 
-### Phase 3: Migrate Dashboard to CLI State
+### Phase 3: Migrate Dashboard to CLI State (PARTIAL)
 
-**Goal**: Remove OrchestrationExecution; read/write CLI state directly.
+**Goal**: Read/write CLI state directly.
 
 **Tasks**:
 - T004: Add helpers to read/write dashboard state via CLI.
 - T005: Update orchestration-service start() to CLI state.
 - T006: Update orchestration-service get() to CLI state.
 - T007: Update runner to use CLI state for decisions.
-- T008: Remove OrchestrationExecution references.
-- T009: Remove orchestration-execution schema.
+- T008: Remove OrchestrationExecution references (deferred; UI compatibility layer kept).
+- T009: Remove orchestration-execution schema (deferred).
 
 ---
 
-### Phase 4: Simplify Decision Logic
+### Phase 4: Simplify Decision Logic (DONE)
 
 **Goal**: Replace decision logic with < 100 line state-based matrix.
 
@@ -95,7 +99,7 @@ This plan consolidates orchestration state into a single, debuggable source of t
 
 ---
 
-### Phase 5: Auto-Heal Logic
+### Phase 5: Auto-Heal Logic (DONE)
 
 **Goal**: Simple rules to correct step status after workflow completion.
 
@@ -106,7 +110,7 @@ This plan consolidates orchestration state into a single, debuggable source of t
 
 ---
 
-### Phase 6: Remove Hacks
+### Phase 6: Remove Hacks (DONE)
 
 **Goal**: Delete all reconciler/guard hacks that mask state drift.
 
@@ -138,11 +142,11 @@ This plan consolidates orchestration state into a single, debuggable source of t
 |-------|-------|-------------|--------|
 | 0 | S001-S006 | Immediate stabilization | DONE |
 | 1 | S101-S103 | Canonical runtime aggregator | DONE |
-| 2 | T001-T003 | Extend CLI state schema | IN PROGRESS |
-| 3 | T004-T009 | Migrate to CLI state | TODO |
-| 4 | T010-T013 | Simplify decision logic | TODO |
-| 5 | T014-T016 | Auto-heal logic | TODO |
-| 6 | T017-T022 | Remove hacks | TODO |
+| 2 | T001-T003 | Extend CLI state schema | DONE |
+| 3 | T004-T009 | Migrate to CLI state | PARTIAL |
+| 4 | T010-T013 | Simplify decision logic | DONE |
+| 5 | T014-T016 | Auto-heal logic | DONE |
+| 6 | T017-T022 | Remove hacks | DONE |
 | 7 | T023-T026 | UI step override | TODO |
 
 ## Execution Order

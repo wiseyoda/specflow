@@ -2,83 +2,57 @@
 
 Last updated: 2026-02-01
 Branch: 1058-single-state-consolidation
-Last commit: 8c517ce ("chore: checkpoint local changes")
 Remote: origin/1058-single-state-consolidation (pushed)
-Working tree: dirty (Phase 0/1 fixes implemented, Phase 2 started, not yet committed)
+Working tree: dirty (Phase 3-6 refactor in progress)
 
 ## Why this file exists
-This is a compact, actionable plan so work can resume quickly after context compaction or interruption.
+Compact, actionable context so work can resume quickly after interruption.
 
-## Context / Problem Summary
-Observed UI issues in the dashboard after restart:
-- Current phase displays as **Design** even when the actual step is **Merge**.
-- Top header shows **Running** with a green indicator and a timer, even when no session is active.
-- Session viewer shows an "active" session when there isn't one.
-- Selecting a completed session flips UI to "Ready" (correct), which reveals mismatch between session JSONL and workflow index state.
+## Current State (after Phase 6 refactor)
+### ✅ Stabilization & runtime aggregation complete
+- Phase 0/1 fixes are in place (merge step mapping, running indicator accuracy, index rebuild, session end handling).
+- Runtime aggregator uses JSONL/metadata health (no stale `index.json` reliance).
 
-Root causes (confirmed by code trace):
-1) Orchestration phase mapping drops `merge` (falls back to design).
-2) Workflow "active" status is derived from `.specflow/workflows/index.json` and includes `detached/stale`, so stale entries show as running.
-3) Session JSONL end detection emits `session:end` but does **not** update workflow index.
-4) Reconciliation updates workflow metadata but does **not** rebuild `index.json`, so stale running entries persist.
+### ✅ CLI state is the single source of truth
+- Orchestration dashboard state lives under `orchestration.dashboard` in CLI state.
+- Dashboard service reads/writes only CLI state (no legacy orchestration files).
+- Runner + API routes use CLI state-backed updates.
 
-## Completed Fixes (Phase 0 + Phase 1)
-These are already implemented locally to stop UI bugs and make runtime state coherent.
+### ✅ Decision logic simplified
+- `orchestration-decisions.ts` rewritten to a small, state-based decision matrix.
+- Removed legacy decision adapters, staleness backoff, Claude analyzer fallback.
+- Removed workflow lookup fallback and batch completion guards.
+- Runner now uses `readOrchestrationStep()` + `readDashboardState()` for inputs.
 
-### Phase 0 (stability)
-- Phase mapping includes `merge` + `complete` (no default to `design`).
-- All step syncs use `specflow state set` (no direct writes from status API).
-- Dismiss no longer throws when no workflow id/session id is present.
-- Active execution only when status is `running` or `waiting_for_input`.
-- Session end is treated as completed when JSONL ends.
-- Reconciliation rebuilds workflow index to avoid stale running entries.
+### ✅ Auto-heal simplified
+- `autoHealAfterWorkflow` now reads CLI step state and only updates when step matches the workflow skill.
+- State healing is deterministic (no Claude fallback).
 
-### Phase 1 (runtime aggregator)
-- Added `runtime-state.ts` to compute workflow sessions from metadata + JSONL + health.
-- Moved CLI discovery to `workflow-discovery.ts`.
-- Watcher now emits workflow state from `buildWorkflowData()` (no direct index.json read).
+### ✅ Tests updated
+- Decision tests rewritten for the simplified matrix.
+- Runner tests updated to mock `readDashboardState` + `readOrchestrationStep`.
+- Removed obsolete Claude fallback test block and old OrchestrationDeps fixtures.
 
-Acceptance criteria met:
-- If CLI state says `merge`, UI displays Merge step in sidebar and progress bar.
-- "Running" indicator only appears when a workflow is actually active.
-- Session viewer does not show phantom active sessions.
+## Remaining Work
+1) **Phase 7 UI Step Override**
+   - Add `goBackToStep()` (CLI state set).
+   - Create StepOverride UI.
+   - Wire into project detail page.
+   - Add integration check for external `/flow.*` runs.
 
-## Remaining Refactor Plan (Phases 2+)
-This refactor simplifies state management and makes it debuggable.
+2) **Deferred cleanup (optional)**
+   - Remove `OrchestrationExecution` compatibility layer and schema once UI is migrated.
 
-### Phase 2: Orchestration Single Source of Truth
-- Use CLI state as the canonical orchestration state.
-- Replace remaining direct JSON edits with `specflow state set`.
-- Make orchestration transitions go through a single helper in `orchestration-service`.
-
-Phase 2 started:
-- Added dashboard defaults to CLI `createInitialState()` so new projects include `orchestration.dashboard`.
-- Orchestration service now reads/writes ONLY CLI dashboard state (legacy orchestration files removed).
-- Process reconciler no longer reads orchestration-*.json files.
-- Runner + orchestration API routes updated to await CLI-backed orchestration writes.
-
-### Phase 3: Simplify decision logic + auto-heal
-- Replace complex guards with a short state-based decision matrix.
-- Auto-heal after workflow completion with deterministic rules.
-
-### Phase 4: Tests
-- Add unit tests for runtime-state, session end detection, and phase mapping.
-
-## Files to Touch (most relevant)
-- `packages/dashboard/src/lib/services/orchestration-service.ts`
-- `packages/dashboard/src/lib/watcher.ts`
-- `packages/dashboard/src/lib/services/process-reconciler.ts`
-- `packages/dashboard/src/lib/services/workflow-service.ts`
-- `packages/dashboard/src/lib/services/process-health.ts`
+## Key Files (recently touched)
+- `packages/dashboard/src/lib/services/orchestration-decisions.ts`
 - `packages/dashboard/src/lib/services/orchestration-runner.ts`
+- `packages/dashboard/src/lib/services/orchestration-service.ts`
+- `packages/dashboard/tests/orchestration/orchestration-decisions.test.ts`
+- `packages/dashboard/tests/orchestration/orchestration-runner.test.ts`
+- `packages/dashboard/tests/fixtures/orchestration/helpers.ts`
 
-## Notes / Gotchas
-- `orchestrationService.getActive()` reads `orchestration.dashboard.active` (CLI state), which is currently out of sync with legacy orchestration files.
-- `convertDashboardStateToExecution()` currently defaults unknown steps to `design`.
-- `index.json` is treated as “truth” for currentExecution in watcher; this is what produces stale running sessions after restarts.
-- Process reconciliation updates metadata but does not update `index.json`.
-
-## When resuming
-1) Commit and push Phase 0/1 fixes.
-2) Validate UI behavior in dashboard.
-3) Start Phase 2 (single source-of-truth refactor).
+## How to Resume
+1) Run quick sanity checks (lint/tests) if desired.
+2) Implement Phase 7 UI step override.
+3) Decide whether to remove `OrchestrationExecution` compatibility layer.
+4) Update plan/status docs and commit/push.

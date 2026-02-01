@@ -356,27 +356,31 @@ export function getNextAction(input: DecisionInput): Decision {
     return { action: 'idle', reason: 'No active orchestration' };
   }
 
-  // Workflow running - wait
-  if (dashboardState.lastWorkflow?.status === 'running') {
-    return { action: 'wait', reason: 'Workflow running' };
-  }
-
   // Decision based on step
   const currentStep = step.current || 'design';
   const stepStatus = step.status || 'not_started';
 
+  // Workflow running - wait, BUT only if the step isn't already complete/failed.
+  // The CLI sets step.status=complete when the skill finishes its work, even while
+  // the workflow process is still winding down. Step completion is the source of truth.
+  if (dashboardState.lastWorkflow?.status === 'running' && input.workflow) {
+    if (stepStatus !== 'complete' && stepStatus !== 'failed') {
+      return { action: 'wait', reason: 'Workflow running' };
+    }
+  }
+
   switch (currentStep) {
     case 'design':
-      return handleStep('design', 'analyze', stepStatus, dashboardState, config);
+      return handleStep('design', 'analyze', stepStatus, dashboardState, config, input.workflow);
 
     case 'analyze':
-      return handleStep('analyze', 'implement', stepStatus, dashboardState, config);
+      return handleStep('analyze', 'implement', stepStatus, dashboardState, config, input.workflow);
 
     case 'implement':
-      return handleImplement(stepStatus, batches, dashboardState, config);
+      return handleImplement(stepStatus, batches, dashboardState, config, input.workflow);
 
     case 'verify':
-      return handleVerify(stepStatus, dashboardState, config);
+      return handleVerify(stepStatus, dashboardState, config, input.workflow);
 
     default:
       return { action: 'error', reason: `Unknown step: ${currentStep}` };
@@ -391,15 +395,18 @@ function handleStep(
   next: string,
   stepStatus: StepStatus | null,
   dashboard: DashboardState,
-  config: OrchestrationExecution['config']
+  config: OrchestrationExecution['config'],
+  workflow: WorkflowState | null = null
 ): Decision {
   if (stepStatus === 'complete') {
-    return { action: 'transition', nextStep: next, reason: `${current} complete` };
+    return { action: 'transition', nextStep: next, skill: `flow.${next}`, reason: `${current} complete` };
   }
   if (stepStatus === 'failed') {
     return { action: 'heal', step: current, reason: `${current} failed` };
   }
-  if (!dashboard.lastWorkflow) {
+  // Spawn if no active workflow (check the actual workflow, not stale dashboard state)
+  const hasActiveWorkflow = workflow && (workflow.status === 'running' || workflow.status === 'waiting_for_input');
+  if (!hasActiveWorkflow) {
     return { action: 'spawn', skill: `flow.${current}`, reason: `Start ${current}` };
   }
   return { action: 'wait', reason: `${current} in progress` };
@@ -412,11 +419,21 @@ function handleImplement(
   stepStatus: StepStatus | null,
   batches: OrchestrationExecution['batches'],
   dashboard: DashboardState,
-  config: OrchestrationExecution['config']
+  config: OrchestrationExecution['config'],
+  workflow: WorkflowState | null = null
 ): Decision {
-  // All batches done
+  // Step-level status is the source of truth (FR-001)
+  // CLI sets step.status=complete when all tasks are done, regardless of batch tracking
+  if (stepStatus === 'complete') {
+    return { action: 'transition', nextStep: 'verify', skill: 'flow.verify', reason: 'Implement complete' };
+  }
+  if (stepStatus === 'failed') {
+    return { action: 'heal', step: 'implement', reason: 'Implement failed' };
+  }
+
+  // All batches done (redundant with stepStatus check above, but covers edge cases)
   if (areAllBatchesComplete(batches)) {
-    return { action: 'transition', nextStep: 'verify', reason: 'All batches complete' };
+    return { action: 'transition', nextStep: 'verify', skill: 'flow.verify', reason: 'All batches complete' };
   }
 
   const currentBatch = batches.items[batches.current];
@@ -433,7 +450,8 @@ function handleImplement(
     }
     return { action: 'needs_attention', reason: `Batch failed after ${currentBatch.healAttempts} attempts` };
   }
-  if (currentBatch.status === 'pending' && !dashboard.lastWorkflow) {
+  const hasActiveWorkflow = workflow && (workflow.status === 'running' || workflow.status === 'waiting_for_input');
+  if (currentBatch.status === 'pending' && !hasActiveWorkflow) {
     return {
       action: 'spawn',
       skill: 'flow.implement',
@@ -451,18 +469,21 @@ function handleImplement(
 function handleVerify(
   stepStatus: StepStatus | null,
   dashboard: DashboardState,
-  config: OrchestrationExecution['config']
+  config: OrchestrationExecution['config'],
+  workflow: WorkflowState | null = null
 ): Decision {
   if (stepStatus === 'complete') {
     if (config.autoMerge) {
-      return { action: 'transition', nextStep: 'merge', reason: 'Verify complete, auto-merge' };
+      return { action: 'transition', nextStep: 'merge', skill: 'flow.merge', reason: 'Verify complete, auto-merge' };
     }
     return { action: 'wait_merge', reason: 'Verify complete, waiting for user' };
   }
   if (stepStatus === 'failed') {
     return { action: 'heal', step: 'verify', reason: 'Verify failed' };
   }
-  if (!dashboard.lastWorkflow) {
+  // Spawn if no active workflow
+  const hasActiveWorkflow = workflow && (workflow.status === 'running' || workflow.status === 'waiting_for_input');
+  if (!hasActiveWorkflow) {
     return { action: 'spawn', skill: 'flow.verify', reason: 'Start verify' };
   }
   return { action: 'wait', reason: 'Verify in progress' };

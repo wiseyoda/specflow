@@ -29,6 +29,7 @@ export const WorkflowStepSchema = z.enum([
   'analyze',
   'implement',
   'verify',
+  'merge',
 ]);
 
 /**
@@ -39,6 +40,7 @@ export const STEP_INDEX_MAP = {
   analyze: 1,
   implement: 2,
   verify: 3,
+  merge: 4,
 } as const;
 
 /**

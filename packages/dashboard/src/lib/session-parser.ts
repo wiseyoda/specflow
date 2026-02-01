@@ -405,7 +405,7 @@ export function isCommandInjection(content: string): {
     /^\*\*NEVER edit tasks\.md directly\*\*/,
     /\$ARGUMENTS/,
     /## Execution/,
-    /\[IMPL\] INITIALIZE/,
+    /\[(IMPL|DESIGN|VERIFY|MERGE|ANALYZE|ORCH|REVIEW)\]/,
     /## Memory Protocol/,
     /## Phase Lifecycle/,
     /# @\w+ Agent/,
@@ -426,14 +426,17 @@ export function isCommandInjection(content: string): {
   // Extract command name from content
   // Order matters - more specific patterns first
   const namePatterns = [
-    // Most specific: explicit command header or description line
-    { pattern: /^# \/flow\.(\w+)/m, prefix: 'flow.' },
-    { pattern: /^description:\s*.*flow\.(\w+)/im, prefix: 'flow.' },
-    // Phase-specific patterns
-    { pattern: /\[IMPL\]/i, prefix: '', name: 'flow.implement' },
-    { pattern: /\[MERGE\]/i, prefix: '', name: 'flow.merge' },
-    { pattern: /\[VERIFY\]/i, prefix: '', name: 'flow.verify' },
-    { pattern: /\[DESIGN\]/i, prefix: '', name: 'flow.design' },
+    // Most specific: explicit command header (with or without /)
+    { pattern: /^# \/?flow\.(\w+)/m, prefix: 'flow.' },
+    { pattern: /^description:\s*.*?flow\.(\w+)/im, prefix: 'flow.' },
+    // Phase-specific patterns (each skill has unique [TAG] markers)
+    { pattern: /\[IMPL\]/, prefix: '', name: 'flow.implement' },
+    { pattern: /\[MERGE\]/, prefix: '', name: 'flow.merge' },
+    { pattern: /\[VERIFY\]/, prefix: '', name: 'flow.verify' },
+    { pattern: /\[DESIGN\]/, prefix: '', name: 'flow.design' },
+    { pattern: /\[ANALYZE\]/, prefix: '', name: 'flow.analyze' },
+    { pattern: /\[ORCH\]/, prefix: '', name: 'flow.orchestrate' },
+    { pattern: /\[REVIEW\]/, prefix: '', name: 'flow.review' },
     { pattern: /## Design Phase/i, prefix: '', name: 'flow.design' },
     { pattern: /## Verify Phase/i, prefix: '', name: 'flow.verify' },
     { pattern: /## Memory Protocol/i, prefix: '', name: 'flow.memory' },
@@ -454,7 +457,7 @@ export function isCommandInjection(content: string): {
     }
   }
 
-  return { isCommand: true, commandName: 'Command' };
+  return { isCommand: true, commandName: 'Workflow' };
 }
 
 /**

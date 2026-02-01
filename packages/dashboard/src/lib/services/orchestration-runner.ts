@@ -16,7 +16,7 @@
  * - Claude fallback analyzer (after 3 unclear state checks)
  */
 
-import { join } from 'path';
+import { join, basename } from 'path';
 import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync, type Dirent } from 'fs';
 import { z } from 'zod';
 import { orchestrationService, getNextPhase, isPhaseComplete, readDashboardState, writeDashboardState } from './orchestration-service';
@@ -47,6 +47,13 @@ interface RunnerContext {
   pollingInterval: number;
   maxPollingAttempts: number;
   consecutiveUnclearChecks: number;
+  /** Short repo name for log readability (e.g., "arrs-mcp-server") */
+  repoName: string;
+}
+
+/** Log prefix with repo name for readability */
+function runnerLog(ctx: RunnerContext | { repoName: string }): string {
+  return `[orchestration-runner][${ctx.repoName}]`;
 }
 
 /**
@@ -177,13 +184,13 @@ async function spawnWorkflowWithIntent(
 
   // G5.4: Check for existing spawn intent
   if (hasSpawnIntent(ctx.projectPath, ctx.orchestrationId)) {
-    console.log(`[orchestration-runner] Spawn intent already exists for orchestration ${ctx.orchestrationId}, skipping spawn`);
+    console.log(`${runnerLog(ctx)} Spawn intent already exists for orchestration ${ctx.orchestrationId}, skipping spawn`);
     return null;
   }
 
   // G5.5: Check if there's already an active workflow
   if (workflowService.hasActiveWorkflow(ctx.projectId, ctx.orchestrationId)) {
-    console.log(`[orchestration-runner] Workflow already active for orchestration ${ctx.orchestrationId}, skipping spawn`);
+    console.log(`${runnerLog(ctx)} Workflow already active for orchestration ${ctx.orchestrationId}, skipping spawn`);
     return null;
   }
 
@@ -212,7 +219,7 @@ async function spawnWorkflowWithIntent(
       },
     });
 
-    console.log(`[orchestration-runner] Spawned workflow ${workflow.id} for ${skill} (linked to orchestration ${ctx.orchestrationId})`);
+    console.log(`${runnerLog(ctx)} Spawned workflow ${workflow.id} for ${skill} (linked to orchestration ${ctx.orchestrationId})`);
 
     return workflow;
   } finally {
@@ -423,11 +430,14 @@ function isProcessAlive(pid: number): boolean {
 
 /**
  * Reconcile runners on dashboard startup (G5.10)
- * Detects orphaned runner state files where the process is no longer running
+ * Detects orphaned runner state files where the process is no longer running.
+ * Returns IDs of orchestrations that had runner state files cleaned up
+ * (i.e., were previously managed by this dashboard instance).
  */
-export function reconcileRunners(projectPath: string): void {
+export function reconcileRunners(projectPath: string): Set<string> {
+  const cleanedUpIds = new Set<string>();
   const workflowsDir = join(projectPath, '.specflow', 'workflows');
-  if (!existsSync(workflowsDir)) return;
+  if (!existsSync(workflowsDir)) return cleanedUpIds;
 
   try {
     const files = readdirSync(workflowsDir);
@@ -439,17 +449,20 @@ export function reconcileRunners(projectPath: string): void {
         const content = readFileSync(filePath, 'utf-8');
         const state = JSON.parse(content) as RunnerState;
 
-        if (!isProcessAlive(state.pid)) {
-          // Process is dead but state file exists - orphaned runner
-          console.log(`[orchestration-runner] Detected orphaned runner for ${state.orchestrationId} (PID ${state.pid} is dead), cleaning up`);
+        if (state.pid !== process.pid) {
+          // PID doesn't match current server — runner is from a previous instance.
+          // Don't use isProcessAlive() because PIDs can be reused by unrelated processes.
+          console.log(`[orchestration-runner] Detected orphaned runner for ${state.orchestrationId} (PID ${state.pid} vs current ${process.pid}), cleaning up`);
           unlinkSync(filePath);
+          cleanedUpIds.add(state.orchestrationId);
 
           // Also clear from in-memory map if present
           activeRunners.delete(state.orchestrationId);
         } else {
-          // Process is alive - mark as active in memory
-          console.log(`[orchestration-runner] Runner for ${state.orchestrationId} is still active (PID ${state.pid})`);
-          activeRunners.set(state.orchestrationId, true);
+          // PID matches current process — runner is ours (shouldn't happen on fresh startup)
+          console.log(`[orchestration-runner] Runner for ${state.orchestrationId} belongs to current process (PID ${state.pid})`);
+          runnerGeneration++;
+          activeRunners.set(state.orchestrationId, runnerGeneration);
         }
       } catch {
         // Corrupted file, remove it
@@ -464,6 +477,8 @@ export function reconcileRunners(projectPath: string): void {
   } catch (error) {
     console.error(`[orchestration-runner] Failed to reconcile runners: ${error}`);
   }
+
+  return cleanedUpIds;
 }
 
 // =============================================================================
@@ -498,7 +513,7 @@ async function analyzeStateWithClaude(
   workflow: WorkflowExecution | undefined,
   specflowStatus: SpecflowStatus | null
 ): Promise<DecisionResult> {
-  console.log(`[orchestration-runner] State unclear after ${ctx.consecutiveUnclearChecks} checks, spawning Claude analyzer`);
+  console.log(`${runnerLog(ctx)} State unclear after ${ctx.consecutiveUnclearChecks} checks, spawning Claude analyzer`);
 
   const prompt = `You are analyzing orchestration state to determine the next action.
 
@@ -552,7 +567,7 @@ Provide a clear reason for your decision.`;
     );
 
     if (isClaudeHelperError(response)) {
-      console.error(`[orchestration-runner] Claude analyzer failed: ${response.errorMessage}`);
+      console.error(`${runnerLog(ctx)} Claude analyzer failed: ${response.errorMessage}`);
       return {
         action: 'fail',
         reason: `Claude analyzer failed after ${ctx.consecutiveUnclearChecks} unclear checks: ${response.errorMessage}`,
@@ -568,12 +583,12 @@ Provide a clear reason for your decision.`;
     }
 
     // Log Claude decision
-    console.log(`[orchestration-runner] Claude analyzer decision: ${decision.action} (${decision.confidence}) - ${decision.reason}`);
+    console.log(`${runnerLog(ctx)} Claude analyzer decision: ${decision.action} (${decision.confidence}) - ${decision.reason}`);
 
     // Map Claude decision to DecisionResult
     return mapClaudeDecision(decision);
   } catch (error) {
-    console.error(`[orchestration-runner] Error in Claude analyzer: ${error}`);
+    console.error(`${runnerLog(ctx)} Error in Claude analyzer: ${error}`);
     return {
       action: 'fail',
       reason: `Claude analyzer error after ${ctx.consecutiveUnclearChecks} unclear checks: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -1019,13 +1034,32 @@ function createDecisionInput(
   let workflowState: WorkflowState | null = null;
 
   if (dashboardState?.lastWorkflow) {
-    // Use dashboard state as source of truth for workflow tracking
-    workflowState = {
-      id: dashboardState.lastWorkflow.id,
-      status: dashboardState.lastWorkflow.status as WorkflowState['status'],
-      error: undefined,
-      lastActivityAt: new Date().toISOString(),
-    };
+    // Check if lastWorkflow is for the CURRENT step. If the skill doesn't match
+    // the current phase, it's stale from a previous step and should be ignored.
+    // e.g., lastWorkflow.skill='flow.implement' but currentPhase='verify'
+    const lastSkill = (dashboardState.lastWorkflow.skill || '').replace(/^\//, '');
+    const expectedSkill = `flow.${orchestration.currentPhase}`;
+    const isCurrentStep = lastSkill === '' || lastSkill === expectedSkill;
+
+    if (isCurrentStep) {
+      // lastWorkflow matches current phase — use it as source of truth
+      const claimedRunning = dashboardState.lastWorkflow.status === 'running';
+      if (claimedRunning && !workflow) {
+        // Dashboard claims running but no actual workflow exists — stale
+        workflowState = null;
+      } else {
+        workflowState = {
+          id: dashboardState.lastWorkflow.id,
+          status: dashboardState.lastWorkflow.status as WorkflowState['status'],
+          error: undefined,
+          lastActivityAt: new Date().toISOString(),
+        };
+      }
+    } else {
+      // lastWorkflow is from a PREVIOUS step — ignore it entirely.
+      // Any workflow linked to this orchestration is likely from the previous step too.
+      workflowState = null;
+    }
   } else if (workflow) {
     workflowState = {
       id: workflow.id,
@@ -1084,7 +1118,7 @@ function adaptNewDecisionToLegacy(decision: Decision): DecisionResult {
     'heal': 'heal',
     'heal_batch': 'heal',
     'advance_batch': 'advance_batch',
-    'wait_merge': 'pause',
+    'wait_merge': 'wait_merge',
     'error': 'fail',
     'needs_attention': 'needs_attention',
   };
@@ -1093,6 +1127,7 @@ function adaptNewDecisionToLegacy(decision: Decision): DecisionResult {
     action: actionMap[decision.action] || 'continue',
     reason: decision.reason,
     skill: decision.skill ? `/${decision.skill}` : undefined,
+    nextStep: decision.nextStep,
     // Convert batch object to string for legacy compatibility
     batchContext: decision.batch ? decision.batch.section : undefined,
     batchIndex: decision.batchIndex,
@@ -1117,7 +1152,6 @@ function makeDecisionWithAdapter(
 
   // FR-002: Use simplified getNextAction
   const decision = getNextAction(input);
-  console.log(`[orchestration-runner] DEBUG: getNextAction returned: ${decision.action} - ${decision.reason}`);
   return adaptNewDecisionToLegacy(decision);
 }
 
@@ -1184,23 +1218,8 @@ function subscribeToFileEvents(
     }
 
     // Wake up runner on relevant events
-    switch (event.type) {
-      case 'tasks':
-        // Task file changed - might have new completions
-        console.log(`[orchestration-runner] Tasks event for ${projectId}, waking runner`);
-        wakeUp(orchestrationId);
-        break;
-      case 'workflow':
-        // Workflow index changed - workflow might have completed
-        console.log(`[orchestration-runner] Workflow event for ${projectId}, waking runner`);
-        wakeUp(orchestrationId);
-        break;
-      case 'state':
-        // Orchestration state changed - might need to react
-        console.log(`[orchestration-runner] State event for ${projectId}, waking runner`);
-        wakeUp(orchestrationId);
-        break;
-      // Ignore: registry, phases, heartbeat, session events
+    if (event.type === 'tasks' || event.type === 'workflow' || event.type === 'state') {
+      wakeUp(orchestrationId);
     }
   });
 
@@ -1268,7 +1287,8 @@ function eventDrivenSleep(ms: number, orchestrationId: string): Promise<void> {
 /**
  * Active runners tracked by orchestration ID
  */
-const activeRunners = new Map<string, boolean>();
+const activeRunners = new Map<string, number>();
+let runnerGeneration = 0;
 
 /**
  * Run the orchestration state machine loop
@@ -1285,8 +1305,8 @@ const activeRunners = new Map<string, boolean>();
 export async function runOrchestration(
   projectId: string,
   orchestrationId: string,
-  pollingInterval: number = 3000,
-  maxPollingAttempts: number = 1000,
+  pollingInterval: number = 5000,
+  maxPollingAttempts: number = 500,
   deps: OrchestrationDeps = defaultDeps
 ): Promise<void> {
   const projectPath = getProjectPath(projectId);
@@ -1295,18 +1315,22 @@ export async function runOrchestration(
     return;
   }
 
-  // Prevent duplicate runners
-  if (activeRunners.get(orchestrationId)) {
+  // Prevent duplicate runners (unless force-restarted via stopRunner + runOrchestration)
+  if (activeRunners.has(orchestrationId)) {
     console.log(`[orchestration-runner] Runner already active for ${orchestrationId}`);
     return;
   }
 
-  activeRunners.set(orchestrationId, true);
+  runnerGeneration++;
+  const myGeneration = runnerGeneration;
+  activeRunners.set(orchestrationId, myGeneration);
 
   // G5.8: Persist runner state to file for cross-process detection
   persistRunnerState(projectPath, orchestrationId);
 
-  console.log(`[orchestration-runner] Starting event-driven runner for ${orchestrationId}`);
+  const repoName = basename(projectPath);
+
+  console.log(`[orchestration-runner][${repoName}] Starting event-driven runner for ${orchestrationId}`);
 
   const ctx: RunnerContext = {
     projectId,
@@ -1315,6 +1339,7 @@ export async function runOrchestration(
     pollingInterval,
     maxPollingAttempts,
     consecutiveUnclearChecks: 0,
+    repoName,
   };
 
   // T025: Subscribe to file events for event-driven wake-up
@@ -1323,49 +1348,50 @@ export async function runOrchestration(
     eventCleanup = subscribeToFileEvents(orchestrationId, projectId, () => {
       // Wake-up callback is set by eventDrivenSleep
     });
-    console.log(`[orchestration-runner] Subscribed to file events for ${projectId}`);
+    console.log(`${runnerLog(ctx)} Subscribed to file events for ${projectId}`);
   } catch (error) {
-    console.log(`[orchestration-runner] Event subscription not available, using polling fallback: ${error}`);
+    console.log(`${runnerLog(ctx)} Event subscription not available, using polling fallback: ${error}`);
   }
 
   let attempts = 0;
+  let lastLoggedStatus: string | null = null;
+  let lastFallbackWorkflowId: string | null = null;
 
   try {
     // T026: Event-driven loop - wake on file events OR timeout
     while (attempts < maxPollingAttempts) {
       attempts++;
 
+      // Check if this runner has been superseded (force-restarted via Resume)
+      if (activeRunners.get(orchestrationId) !== myGeneration) {
+        console.log(`${runnerLog(ctx)} Runner ${orchestrationId} superseded by newer runner, exiting`);
+        return; // Return early — don't run finally cleanup (new runner owns it now)
+      }
+
       // Load current orchestration state
       const orchestration = orchestrationService.get(projectPath, orchestrationId);
       if (!orchestration) {
-        console.error(`[orchestration-runner] Orchestration not found: ${orchestrationId}`);
+        console.error(`${runnerLog(ctx)} Orchestration not found: ${orchestrationId}`);
         break;
       }
 
       // Check for terminal states
       if (['completed', 'failed', 'cancelled'].includes(orchestration.status)) {
-        console.log(`[orchestration-runner] Orchestration ${orchestrationId} reached terminal state: ${orchestration.status}`);
+        console.log(`${runnerLog(ctx)} Orchestration ${orchestrationId} reached terminal state: ${orchestration.status}`);
         break;
       }
 
       // Check for paused/waiting states - use longer wait, still event-driven
-      if (orchestration.status === 'needs_attention') {
-        console.log(`[orchestration-runner] Orchestration ${orchestrationId} needs attention, waiting for user action...`);
+      // Only log once per state to avoid repeating on every poll cycle
+      if (['needs_attention', 'paused', 'waiting_merge'].includes(orchestration.status)) {
+        if (lastLoggedStatus !== orchestration.status) {
+          lastLoggedStatus = orchestration.status;
+          console.log(`${runnerLog(ctx)} Status: ${orchestration.status}, waiting...`);
+        }
         await eventDrivenSleep(ctx.pollingInterval * 2, orchestrationId);
         continue;
       }
-
-      if (orchestration.status === 'paused') {
-        console.log(`[orchestration-runner] Orchestration ${orchestrationId} is paused, waiting...`);
-        await eventDrivenSleep(ctx.pollingInterval * 2, orchestrationId);
-        continue;
-      }
-
-      if (orchestration.status === 'waiting_merge') {
-        console.log(`[orchestration-runner] Orchestration ${orchestrationId} waiting for merge trigger`);
-        await eventDrivenSleep(ctx.pollingInterval * 2, orchestrationId);
-        continue;
-      }
+      lastLoggedStatus = null;
 
       // Get the current workflow (if any)
       // First try the stored workflow ID, then fallback to querying by orchestrationId
@@ -1380,8 +1406,19 @@ export async function runOrchestration(
       if (!workflow || !['running', 'waiting_for_input'].includes(workflow.status)) {
         const activeWorkflows = workflowService.findActiveByOrchestration(projectId, orchestrationId);
         if (activeWorkflows.length > 0) {
-          workflow = activeWorkflows[0];
-          console.log(`[orchestration-runner] Found active workflow via orchestration link: ${workflow.id}`);
+          // Call get() to trigger runtime health checking — findActiveByOrchestration
+          // only reads index files and doesn't detect dead processes. get() checks
+          // if the process is still alive and updates status accordingly.
+          const healthChecked = workflowService.get(activeWorkflows[0].id, projectId);
+          if (healthChecked && ['running', 'waiting_for_input'].includes(healthChecked.status)) {
+            workflow = healthChecked;
+            if (lastFallbackWorkflowId !== workflow.id) {
+              lastFallbackWorkflowId = workflow.id;
+              console.log(`${runnerLog(ctx)} Found active workflow via orchestration link: ${workflow.id}`);
+            }
+          } else {
+            console.log(`${runnerLog(ctx)} Workflow ${activeWorkflows[0].id} health-checked to ${healthChecked?.status ?? 'not found'}, ignoring`);
+          }
         }
       }
 
@@ -1394,7 +1431,7 @@ export async function runOrchestration(
       if (previousWorkflowStatus === 'running' &&
           currentWorkflowStatus &&
           ['completed', 'failed', 'cancelled'].includes(currentWorkflowStatus)) {
-        console.log(`[orchestration-runner] Workflow status changed: ${previousWorkflowStatus} → ${currentWorkflowStatus}`);
+        console.log(`${runnerLog(ctx)} Workflow status changed: ${previousWorkflowStatus} → ${currentWorkflowStatus}`);
         if (lastWorkflowSkill) {
           const healStatus = currentWorkflowStatus === 'completed' ? 'completed' : 'failed';
           await autoHealAfterWorkflow(projectPath, lastWorkflowSkill, healStatus);
@@ -1409,13 +1446,6 @@ export async function runOrchestration(
 
       // Get last file change time for staleness detection
       const lastFileChangeTime = getLastFileChangeTime(projectPath);
-
-      // DEBUG: Log state before decision
-      console.log(`[orchestration-runner] DEBUG: Making decision for ${orchestrationId}`);
-      console.log(`[orchestration-runner] DEBUG:   currentPhase=${orchestration.currentPhase}`);
-      console.log(`[orchestration-runner] DEBUG:   workflow.id=${workflow?.id ?? 'none'}, workflow.status=${workflow?.status ?? 'none'}`);
-      console.log(`[orchestration-runner] DEBUG:   specflowStatus.step=${specflowStatus?.orchestration?.step?.current ?? 'none'}, stepStatus=${specflowStatus?.orchestration?.step?.status ?? 'none'}`);
-      console.log(`[orchestration-runner] DEBUG:   dashboardState.active=${dashboardState?.active?.id ?? 'none'}, lastWorkflow=${dashboardState?.lastWorkflow?.id ?? 'none'}`);
 
       // Make decision using the G2-compliant pure decision module
       // FR-001: Now includes dashboard state for single source of truth
@@ -1439,7 +1469,7 @@ export async function runOrchestration(
         // - State file corrupted/unparseable
         // - Workflow ended but step doesn't match expected
         if (!dashboardState?.active && ctx.consecutiveUnclearChecks >= MAX_UNCLEAR_CHECKS_BEFORE_CLAUDE) {
-          console.log('[orchestration-runner] No dashboard state, falling back to Claude analyzer');
+          console.log(`${runnerLog(ctx)} No dashboard state, falling back to Claude analyzer`);
           decision = await analyzeStateWithClaude(ctx, orchestration, workflow, specflowStatus);
           ctx.consecutiveUnclearChecks = 0; // Reset counter after Claude analysis
         }
@@ -1449,7 +1479,6 @@ export async function runOrchestration(
       }
 
       // Log decision
-      console.log(`[orchestration-runner] DEBUG:   DECISION: action=${decision.action}, skill=${decision.skill ?? 'none'}, reason=${decision.reason}`);
       logDecision(ctx, orchestration, decision);
 
       // Execute decision
@@ -1461,11 +1490,11 @@ export async function runOrchestration(
     }
 
     if (attempts >= maxPollingAttempts) {
-      console.error(`[orchestration-runner] Max polling attempts reached for ${orchestrationId}`);
+      console.error(`${runnerLog(ctx)} Max polling attempts reached for ${orchestrationId}`);
       orchestrationService.fail(projectPath, orchestrationId, 'Max polling attempts exceeded');
     }
   } catch (error) {
-    console.error(`[orchestration-runner] Error in runner: ${error}`);
+    console.error(`${runnerLog(ctx)} Error in runner: ${error}`);
     orchestrationService.fail(
       projectPath,
       orchestrationId,
@@ -1475,14 +1504,18 @@ export async function runOrchestration(
     // Cleanup event subscription
     if (eventCleanup) {
       eventCleanup();
-      console.log(`[orchestration-runner] Unsubscribed from file events for ${projectId}`);
+      console.log(`${runnerLog(ctx)} Unsubscribed from file events for ${projectId}`);
     }
 
-    // G5.9: Clear runner state file when exiting
-    clearRunnerState(projectPath, orchestrationId);
-
-    activeRunners.delete(orchestrationId);
-    console.log(`[orchestration-runner] Runner stopped for ${orchestrationId}`);
+    // Only clean up runner state if this runner is still the active one.
+    // If superseded by a newer runner (force-restart), the new runner owns cleanup.
+    if (activeRunners.get(orchestrationId) === myGeneration) {
+      clearRunnerState(projectPath, orchestrationId);
+      activeRunners.delete(orchestrationId);
+      console.log(`${runnerLog(ctx)} Runner stopped for ${orchestrationId}`);
+    } else {
+      console.log(`${runnerLog(ctx)} Superseded runner exiting for ${orchestrationId}`);
+    }
   }
 }
 
@@ -1529,10 +1562,12 @@ function logDecision(
     },
   });
 
-  // Console log for debugging
-  console.log(
-    `[orchestration-runner] Decision: ${decision.action} - ${decision.reason}`
-  );
+  // Console log for non-trivial decisions (skip 'continue' to reduce noise)
+  if (decision.action !== 'continue') {
+    console.log(
+      `${runnerLog(ctx)} [${orchestration.currentPhase}] Decision: ${decision.action} - ${decision.reason}`
+    );
+  }
 }
 
 /**
@@ -1551,7 +1586,7 @@ async function executeDecision(
 
     case 'spawn_workflow': {
       if (!decision.skill) {
-        console.error('[orchestration-runner] No skill specified for spawn_workflow');
+        console.error(`${runnerLog(ctx)} No skill specified for spawn_workflow`);
         return;
       }
 
@@ -1569,9 +1604,9 @@ async function executeDecision(
         completedBatchCount === orchestration.batches.items.length;
 
       if (orchestration.currentPhase === 'implement' && nextPhase !== 'implement') {
-        console.log(`[orchestration-runner] GUARD CHECK: implement→${nextPhase}, batches=${completedBatchCount}/${orchestration.batches.items.length}, allComplete=${allBatchesComplete}`);
+        console.log(`${runnerLog(ctx)} GUARD CHECK: implement→${nextPhase}, batches=${completedBatchCount}/${orchestration.batches.items.length}, allComplete=${allBatchesComplete}`);
         if (!allBatchesComplete) {
-          console.log(`[orchestration-runner] BLOCKED: Cannot transition from implement to ${nextPhase} - batches incomplete`);
+          console.log(`${runnerLog(ctx)} BLOCKED: Cannot transition from implement to ${nextPhase} - batches incomplete`);
           return;
         }
       }
@@ -1583,9 +1618,9 @@ async function executeDecision(
           const batchPlan = parseBatchesFromProject(ctx.projectPath, orchestration.config.batchSizeFallback);
           if (batchPlan && batchPlan.totalIncomplete > 0) {
             orchestrationService.updateBatches(ctx.projectPath, ctx.orchestrationId, batchPlan);
-            console.log(`[orchestration-runner] Populated batches: ${batchPlan.batches.length} batches, ${batchPlan.totalIncomplete} tasks`);
+            console.log(`${runnerLog(ctx)} Populated batches: ${batchPlan.batches.length} batches, ${batchPlan.totalIncomplete} tasks`);
           } else {
-            console.error('[orchestration-runner] No tasks found after design phase');
+            console.error(`${runnerLog(ctx)} No tasks found after design phase`);
             orchestrationService.fail(ctx.projectPath, ctx.orchestrationId, 'No tasks found after design phase completed');
             return;
           }
@@ -1621,14 +1656,14 @@ async function executeDecision(
       // Get the current batch (which is pending)
       const currentBatch = orchestration.batches.items[orchestration.batches.current];
       if (!currentBatch || currentBatch.status !== 'pending') {
-        console.error(`[orchestration-runner] spawn_batch called but current batch is not pending: ${currentBatch?.status}`);
+        console.error(`${runnerLog(ctx)} spawn_batch called but current batch is not pending: ${currentBatch?.status}`);
         break;
       }
 
       // Check for pause between batches (only applies after first batch)
       if (orchestration.batches.current > 0 && orchestration.config.pauseBetweenBatches) {
         orchestrationService.pause(ctx.projectPath, ctx.orchestrationId);
-        console.log(`[orchestration-runner] Paused between batches (configured)`);
+        console.log(`${runnerLog(ctx)} Paused between batches (configured)`);
         break;
       }
 
@@ -1641,7 +1676,7 @@ async function executeDecision(
       // Use spawn intent pattern (G5.3-G5.7) to prevent race conditions
       const workflow = await spawnWorkflowWithIntent(ctx, 'flow.implement', fullContext);
       if (workflow) {
-        console.log(`[orchestration-runner] Spawned batch ${orchestration.batches.current + 1}/${orchestration.batches.total}: "${currentBatch.section}" (linked to orchestration ${ctx.orchestrationId})`);
+        console.log(`${runnerLog(ctx)} Spawned batch ${orchestration.batches.current + 1}/${orchestration.batches.total}: "${currentBatch.section}" (linked to orchestration ${ctx.orchestrationId})`);
       }
       break;
     }
@@ -1649,7 +1684,7 @@ async function executeDecision(
     case 'heal': {
       const batch = orchestration.batches.items[orchestration.batches.current];
       if (!batch) {
-        console.error('[orchestration-runner] No current batch to heal');
+        console.error(`${runnerLog(ctx)} No current batch to heal`);
         return;
       }
 
@@ -1669,7 +1704,7 @@ async function executeDecision(
       // Track healing cost
       orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, healResult.cost);
 
-      console.log(`[orchestration-runner] Heal result: ${getHealingSummary(healResult)}`);
+      console.log(`${runnerLog(ctx)} Heal result: ${getHealingSummary(healResult)}`);
 
       if (healResult.success && healResult.result?.status === 'fixed') {
         // Healing successful - mark batch as healed and continue
@@ -1701,7 +1736,7 @@ async function executeDecision(
 
       // Transition to merge phase but in waiting status
       orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
-      console.log(`[orchestration-runner] Waiting for user to trigger merge`);
+      console.log(`${runnerLog(ctx)} Waiting for user to trigger merge`);
       break;
     }
 
@@ -1722,7 +1757,7 @@ async function executeDecision(
           reason: 'All phases completed successfully',
         });
       }
-      console.log(`[orchestration-runner] Orchestration complete!`);
+      console.log(`${runnerLog(ctx)} Orchestration complete!`);
       break;
     }
 
@@ -1736,13 +1771,13 @@ async function executeDecision(
         decision.recoveryOptions || ['retry', 'abort'],
         decision.failedWorkflowId
       );
-      console.log(`[orchestration-runner] Orchestration needs attention: ${decision.errorMessage}`);
+      console.log(`${runnerLog(ctx)} Orchestration needs attention: ${decision.errorMessage}`);
       break;
     }
 
     case 'fail': {
       orchestrationService.fail(ctx.projectPath, ctx.orchestrationId, decision.errorMessage || 'Unknown error');
-      console.error(`[orchestration-runner] Orchestration failed: ${decision.errorMessage}`);
+      console.error(`${runnerLog(ctx)} Orchestration failed: ${decision.errorMessage}`);
       break;
     }
 
@@ -1752,16 +1787,27 @@ async function executeDecision(
 
     case 'transition': {
       // Transition to next step (G2.3)
-      if (!decision.skill) {
-        console.error('[orchestration-runner] No skill specified for transition');
-        return;
-      }
       orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
-      const workflow = await spawnWorkflowWithIntent(ctx, decision.skill);
+
+      // Clear stale lastWorkflow so the new step starts clean.
+      // Without this, the new step could see a "running" workflow from the previous step.
+      await writeDashboardState(ctx.projectPath, {
+        lastWorkflow: {
+          id: readDashboardState(ctx.projectPath)?.lastWorkflow?.id || 'none',
+          skill: decision.skill || 'transition',
+          status: 'completed',
+        },
+      });
+
       if (currentWorkflow?.costUsd) {
         orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
       }
-      console.log(`[orchestration-runner] Transitioned to ${decision.nextStep}`);
+      if (decision.skill) {
+        // Transition + spawn in one go (spawnWorkflowWithIntent writes new lastWorkflow)
+        await spawnWorkflowWithIntent(ctx, decision.skill);
+      }
+      // If no skill, the next loop iteration will see the new phase and spawn
+      console.log(`${runnerLog(ctx)} Transitioned to ${decision.nextStep ?? 'next phase'}`);
       break;
     }
 
@@ -1775,11 +1821,11 @@ async function executeDecision(
           currentBatch.taskIds
         );
 
-        console.log(`[orchestration-runner] Batch ${orchestration.batches.current + 1} verification: ${completedTasks.length}/${currentBatch.taskIds.length} tasks complete`);
+        console.log(`${runnerLog(ctx)} Batch ${orchestration.batches.current + 1} verification: ${completedTasks.length}/${currentBatch.taskIds.length} tasks complete`);
 
         if (incompleteTasks.length > 0) {
           // Tasks still incomplete - re-spawn the batch workflow to continue
-          console.log(`[orchestration-runner] Batch has ${incompleteTasks.length} incomplete tasks, re-spawning workflow`);
+          console.log(`${runnerLog(ctx)} Batch has ${incompleteTasks.length} incomplete tasks, re-spawning workflow`);
           orchestrationService.logDecision(
             ctx.projectPath,
             ctx.orchestrationId,
@@ -1811,7 +1857,7 @@ async function executeDecision(
       if (currentWorkflow?.costUsd) {
         orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
       }
-      console.log(`[orchestration-runner] Batch complete, advancing to batch ${decision.batchIndex}`);
+      console.log(`${runnerLog(ctx)} Batch complete, advancing to batch ${decision.batchIndex}`);
       break;
     }
 
@@ -1820,9 +1866,9 @@ async function executeDecision(
       const batchPlan = parseBatchesFromProject(ctx.projectPath, orchestration.config.batchSizeFallback);
       if (batchPlan && batchPlan.totalIncomplete > 0) {
         orchestrationService.updateBatches(ctx.projectPath, ctx.orchestrationId, batchPlan);
-        console.log(`[orchestration-runner] Initialized batches: ${batchPlan.batches.length} batches, ${batchPlan.totalIncomplete} tasks`);
+        console.log(`${runnerLog(ctx)} Initialized batches: ${batchPlan.batches.length} batches, ${batchPlan.totalIncomplete} tasks`);
       } else {
-        console.error('[orchestration-runner] No tasks found to create batches');
+        console.error(`${runnerLog(ctx)} No tasks found to create batches`);
         orchestrationService.setNeedsAttention(
           ctx.projectPath,
           ctx.orchestrationId,
@@ -1840,7 +1886,7 @@ async function executeDecision(
 
       if (totalIncomplete !== null && totalIncomplete > 0) {
         // Tasks still incomplete - don't transition, re-initialize batches
-        console.log(`[orchestration-runner] Still ${totalIncomplete} incomplete tasks, re-initializing batches`);
+        console.log(`${runnerLog(ctx)} Still ${totalIncomplete} incomplete tasks, re-initializing batches`);
         orchestrationService.logDecision(
           ctx.projectPath,
           ctx.orchestrationId,
@@ -1852,27 +1898,27 @@ async function executeDecision(
         const batchPlan = parseBatchesFromProject(ctx.projectPath, orchestration.config.batchSizeFallback);
         if (batchPlan && batchPlan.totalIncomplete > 0) {
           orchestrationService.updateBatches(ctx.projectPath, ctx.orchestrationId, batchPlan);
-          console.log(`[orchestration-runner] Re-initialized batches: ${batchPlan.batches.length} batches, ${batchPlan.totalIncomplete} tasks`);
+          console.log(`${runnerLog(ctx)} Re-initialized batches: ${batchPlan.batches.length} batches, ${batchPlan.totalIncomplete} tasks`);
         }
         break;
       }
 
       // All tasks complete - transition to next phase
       orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
-      console.log(`[orchestration-runner] All tasks complete, transitioning to next phase`);
+      console.log(`${runnerLog(ctx)} All tasks complete, transitioning to next phase`);
       break;
     }
 
     case 'pause': {
       // Pause orchestration (G2.6)
       orchestrationService.pause(ctx.projectPath, ctx.orchestrationId);
-      console.log(`[orchestration-runner] Paused: ${decision.reason}`);
+      console.log(`${runnerLog(ctx)} Paused: ${decision.reason}`);
       break;
     }
 
     case 'recover_stale': {
       // Recover from stale workflow (G1.5, G3.7-G3.10)
-      console.log(`[orchestration-runner] Workflow appears stale: ${decision.reason}`);
+      console.log(`${runnerLog(ctx)} Workflow appears stale: ${decision.reason}`);
       orchestrationService.setNeedsAttention(
         ctx.projectPath,
         ctx.orchestrationId,
@@ -1885,7 +1931,7 @@ async function executeDecision(
 
     case 'recover_failed': {
       // Recover from failed step/workflow (G1.13, G1.14, G2.10, G3.11-G3.16)
-      console.log(`[orchestration-runner] Step/batch failed: ${decision.reason}`);
+      console.log(`${runnerLog(ctx)} Step/batch failed: ${decision.reason}`);
       orchestrationService.setNeedsAttention(
         ctx.projectPath,
         ctx.orchestrationId,
@@ -1898,14 +1944,14 @@ async function executeDecision(
 
     case 'wait_with_backoff': {
       // Wait with exponential backoff (G1.7)
-      console.log(`[orchestration-runner] Waiting with backoff: ${decision.reason}`);
+      console.log(`${runnerLog(ctx)} Waiting with backoff: ${decision.reason}`);
       // The backoff is handled by the main loop, not here
       break;
     }
 
     case 'wait_user_gate': {
       // Wait for USER_GATE confirmation (G1.8)
-      console.log(`[orchestration-runner] Waiting for USER_GATE confirmation`);
+      console.log(`${runnerLog(ctx)} Waiting for USER_GATE confirmation`);
       // Update orchestration status to indicate waiting for user gate
       const orchToUpdate = orchestrationService.get(ctx.projectPath, ctx.orchestrationId);
       if (orchToUpdate) {
@@ -1916,7 +1962,7 @@ async function executeDecision(
 
     default: {
       // Unknown action - log error but don't crash
-      console.error(`[orchestration-runner] Unknown decision action: ${decision.action}`);
+      console.error(`${runnerLog(ctx)} Unknown decision action: ${decision.action}`);
       break;
     }
   }
@@ -2013,7 +2059,7 @@ export async function triggerMerge(
  * Check if a runner is active for an orchestration
  */
 export function isRunnerActive(orchestrationId: string): boolean {
-  return activeRunners.get(orchestrationId) === true;
+  return activeRunners.has(orchestrationId);
 }
 
 /**

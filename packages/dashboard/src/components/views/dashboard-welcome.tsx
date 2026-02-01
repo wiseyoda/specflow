@@ -73,6 +73,7 @@ export function DashboardWelcome({
     triggerMerge,
     isLoading: orchestrationLoading,
     isWaitingForInput,
+    isRunnerStalled,
   } = useOrchestration({
     projectId: projectId ?? '',
     onComplete: () => {
@@ -141,6 +142,7 @@ export function DashboardWelcome({
             hasActiveSession={!!activeSessionId && orchestration.status === 'running'}
             controlsDisabled={orchestrationLoading}
             isWaitingForInput={isWaitingForInput}
+            isRunnerStalled={isRunnerStalled}
           />
         </div>
       </div>

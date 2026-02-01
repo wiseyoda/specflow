@@ -204,6 +204,7 @@ describe('getNextAction - Core Decision Logic', () => {
   it('returns wait when workflow is running', () => {
     const input = createMockInput({
       step: { current: 'design', index: 0, status: 'in_progress' },
+      workflow: { id: 'wf-1', status: 'running' },
       dashboardState: createMockDashboardState({
         lastWorkflow: { status: 'running', id: 'wf-1' },
       }),
@@ -212,6 +213,20 @@ describe('getNextAction - Core Decision Logic', () => {
     const result = getNextAction(input);
     expect(result.action).toBe('wait');
     expect(result.reason).toBe('Workflow running');
+  });
+
+  it('does not wait when dashboard says running but workflow is gone', () => {
+    const input = createMockInput({
+      step: { current: 'design', index: 0, status: 'complete' },
+      workflow: null,
+      dashboardState: createMockDashboardState({
+        lastWorkflow: { status: 'running', id: 'wf-1' },
+      }),
+    });
+
+    const result = getNextAction(input);
+    expect(result.action).toBe('transition');
+    expect(result.reason).toBe('design complete');
   });
 
   it('returns spawn for design step when no workflow', () => {

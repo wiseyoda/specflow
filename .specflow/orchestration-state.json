@@ -5,7 +5,7 @@
     "name": "specflow",
     "path": "/Users/ppatterson/dev/specflow"
   },
-  "last_updated": "2026-01-26T00:56:05.074Z",
+  "last_updated": "2026-02-01T02:37:50.597Z",
   "orchestration": {
     "phase": {
       "id": null,
@@ -31,7 +31,7 @@
     "step": {
       "current": "analyze",
       "index": 1,
-      "status": "in_progress"
+      "status": "complete"
     },
     "analyze": {
       "iteration": null,
@@ -46,7 +46,12 @@
       "tasks_total": 0,
       "percentage": 0
     },
-    "steps": {}
+    "steps": {},
+    "dashboard": {
+      "active": {
+        "status": "waiting_merge"
+      }
+    }
   },
   "health": {
     "status": "healthy",

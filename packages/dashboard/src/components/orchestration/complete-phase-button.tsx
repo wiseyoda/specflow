@@ -198,6 +198,8 @@ export const CompletePhaseButton = React.forwardRef<CompletePhaseButtonRef, Comp
       }
     } catch {
       // Error is handled by useOrchestration
+      // Only keep modal open on error so user can retry
+      return;
     } finally {
       setIsStarting(false);
     }

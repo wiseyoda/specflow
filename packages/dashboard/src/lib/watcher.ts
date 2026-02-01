@@ -27,8 +27,8 @@ import {
   migrateStateFiles,
 } from './state-paths';
 import { getProjectSessionDir, getClaudeProjectsDir } from './project-hash';
-import { reconcileRunners } from './services/orchestration-runner';
-import { orchestrationService } from './services/orchestration-service';
+import { reconcileRunners, runOrchestration, isRunnerActive } from './services/orchestration-runner';
+import { orchestrationService, readDashboardState } from './services/orchestration-service';
 
 // Debounce delay in milliseconds
 const DEBOUNCE_MS = 200;
@@ -349,30 +349,57 @@ function discoverCliSessions(
       try {
         const stats = statSync(fullPath);
 
-        // Try to extract skill from first line of JSONL (lazy - only read if needed)
+        // Try to extract skill from JSONL content
         let skill = 'CLI Session';
         try {
-          // Read just the first few KB to find skill info
+          // Read enough to get past system messages to user prompt
+          // Skill prompts can be large, so read generously
           const fd = require('fs').openSync(fullPath, 'r');
-          const buffer = Buffer.alloc(4096);
-          require('fs').readSync(fd, buffer, 0, 4096, 0);
+          const buffer = Buffer.alloc(32768);
+          const bytesRead = require('fs').readSync(fd, buffer, 0, 32768, 0);
           require('fs').closeSync(fd);
 
-          const firstLines = buffer.toString('utf-8').split('\n').slice(0, 5);
-          for (const line of firstLines) {
+          const content = buffer.toString('utf-8', 0, bytesRead);
+          const lines = content.split('\n').slice(0, 20);
+          for (const line of lines) {
             if (!line.trim()) continue;
             try {
               const msg = JSON.parse(line);
-              // Look for skill in various places
+              // Check for explicit skill field
               if (msg.skill) {
                 skill = msg.skill;
                 break;
               }
-              if (msg.message?.content && typeof msg.message.content === 'string') {
-                // Check for /flow.* commands in first user message
-                const flowMatch = msg.message.content.match(/\/flow\.(\w+)/);
-                if (flowMatch) {
-                  skill = `flow.${flowMatch[1]}`;
+
+              // Only check user messages for skill detection — assistant messages
+              // may reference other skills (e.g., "after /flow.design completed")
+              if (msg.type !== 'user') continue;
+
+              // Extract text from message content (string or array format)
+              let textContent = '';
+              const msgContent = msg.message?.content;
+              if (typeof msgContent === 'string') {
+                textContent = msgContent;
+              } else if (Array.isArray(msgContent)) {
+                textContent = msgContent
+                  .filter((b: { type: string }) => b.type === 'text')
+                  .map((b: { text: string }) => b.text)
+                  .join('\n');
+              }
+
+              if (textContent) {
+                // Use isCommandInjection for robust skill detection — it has
+                // content-specific patterns (e.g., [IMPL] → flow.implement)
+                // that work even when skill prompts reference other skills
+                const commandInfo = isCommandInjection(textContent);
+                if (commandInfo.isCommand && commandInfo.commandName) {
+                  skill = commandInfo.commandName;
+                  break;
+                }
+                // Fallback: explicit header (e.g., "# flow.analyze")
+                const headerMatch = textContent.match(/^# \/?flow\.(\w+)/m);
+                if (headerMatch) {
+                  skill = `flow.${headerMatch[1]}`;
                   break;
                 }
               }
@@ -384,10 +411,11 @@ function discoverCliSessions(
           // Could not read file content, use default skill
         }
 
-        // Determine status based on file age
-        const fileAgeMs = Date.now() - stats.mtime.getTime();
-        const isRecent = fileAgeMs < 30 * 60 * 1000; // 30 minutes
-        const status: WorkflowIndexEntry['status'] = isRecent ? 'detached' : 'completed';
+        // CLI-discovered sessions are always 'completed' — "detached" means the
+        // dashboard lost track of a session it was actively monitoring, which doesn't
+        // apply to sessions the dashboard never started. Marking recent CLI sessions
+        // as 'detached' caused false "Session May Still Be Running" banners.
+        const status: WorkflowIndexEntry['status'] = 'completed';
 
         entries.push({
           sessionId,
@@ -832,7 +860,36 @@ export async function initWatcher(): Promise<void> {
     // This detects orphaned runner state files from crashed processes
     for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
       try {
-        reconcileRunners(project.path);
+        const cleanedUpIds = reconcileRunners(project.path);
+        const repoName = project.path.split('/').pop();
+
+        // Use CLI dashboard state as single source of truth for orchestration status.
+        // The legacy orchestration file can be out of sync (e.g., saying 'running'
+        // when the CLI has moved to 'waiting_merge'). Dashboard state is more reliable.
+        const dashboardState = readDashboardState(project.path);
+        const activeId = dashboardState?.active?.id;
+        const dashboardStatus = dashboardState?.active?.status;
+
+        // Fallback to legacy file only if dashboard state is unavailable
+        const legacyActive = orchestrationService.getActive(project.path);
+        const effectiveId = activeId || legacyActive?.id;
+        const effectiveStatus = dashboardStatus || legacyActive?.status;
+
+        console.log(`[Watcher] Checking ${repoName}: id=${effectiveId ?? 'none'}, dashboardStatus=${dashboardStatus ?? 'none'}, legacyStatus=${legacyActive?.status ?? 'none'}, runnerActive=${effectiveId ? isRunnerActive(effectiveId) : 'n/a'}`);
+
+        if (effectiveId && effectiveStatus === 'running' && !isRunnerActive(effectiveId)) {
+          // Only auto-restart if we found a runner state file (= dashboard was managing it).
+          // If no runner state file exists, this was likely CLI-managed or the server was
+          // stopped gracefully. User can click "Resume" to restart manually.
+          if (cleanedUpIds.has(effectiveId)) {
+            console.log(`[Watcher] Restarting runner for orchestration ${effectiveId} in ${repoName} (previous runner was orphaned)`);
+            runOrchestration(projectId, effectiveId).catch(error => {
+              console.error(`[Watcher] Failed to restart runner for ${effectiveId}:`, error);
+            });
+          } else {
+            console.log(`[Watcher] Active orchestration in ${repoName} has no previous runner state (manual resume available)`);
+          }
+        }
       } catch (error) {
         console.error(`[Watcher] Error reconciling runners for ${projectId}:`, error);
       }
@@ -1076,7 +1133,7 @@ export async function getAllSessions(): Promise<SessionWithProject[]> {
 // Session File Watching (T011-T015)
 // ============================================================================
 
-import { parseSessionLines, type SessionData } from './session-parser';
+import { parseSessionLines, isCommandInjection, type SessionData } from './session-parser';
 
 /**
  * Map of projectId to projectPath for session directory lookup
@@ -1197,12 +1254,11 @@ function extractPendingQuestions(content: SessionContent): SessionQuestion[] {
 /**
  * Handle session file change
  * T013: Called when JSONL file changes, parses and broadcasts events
+ * Returns true if content actually changed and was broadcast
  */
-async function handleSessionFileChange(sessionPath: string): Promise<void> {
+async function handleSessionFileChange(sessionPath: string): Promise<boolean> {
   const sessionId = path.basename(sessionPath, '.jsonl');
   const projectId = sessionProjectMap.get(sessionId);
-
-  console.log(`[Watcher] Session file change: ${sessionId}, cached projectId: ${projectId || 'none'}`);
 
   if (!projectId) {
     // Try to find project from path
@@ -1210,15 +1266,11 @@ async function handleSessionFileChange(sessionPath: string): Promise<void> {
     const relativePath = sessionPath.replace(claudeProjectsDir + path.sep, '');
     const dirName = relativePath.split(path.sep)[0];
 
-    console.log(`[Watcher] Looking up project for session ${sessionId}: dir=${dirName}, projectPathMap size=${projectPathMap.size}`);
-
     // Find project with matching hash
     for (const [id, projectPath] of projectPathMap.entries()) {
       const expectedDir = path.basename(getSessionDirectory(projectPath));
-      console.log(`[Watcher]   Checking project ${id}: expectedDir=${expectedDir}, match=${dirName === expectedDir}`);
       if (dirName === expectedDir) {
         sessionProjectMap.set(sessionId, id);
-        console.log(`[Watcher]   Matched! Setting sessionProjectMap[${sessionId}] = ${id}`);
         break;
       }
     }
@@ -1226,23 +1278,26 @@ async function handleSessionFileChange(sessionPath: string): Promise<void> {
 
   const resolvedProjectId = sessionProjectMap.get(sessionId);
   if (!resolvedProjectId) {
-    // Session from external CLI not registered with dashboard - this is expected
-    console.log(`[Watcher] Could not resolve projectId for session ${sessionId}, skipping`);
-    return;
+    return false;
   }
-
-  console.log(`[Watcher] Processing session ${sessionId} for project ${resolvedProjectId}`);
 
   const content = await parseSessionContent(sessionPath);
-  if (!content) return;
+  if (!content) return false;
 
-  // Check if content actually changed
+  // Check if content actually changed (exclude volatile fields like elapsedMs
+  // which change on every parse due to Date.now(), causing false cache misses)
   const cacheKey = sessionId;
-  const contentJson = JSON.stringify(content);
-  if (sessionCache.get(cacheKey) === contentJson) {
-    return; // No actual change
+  const stableContent = {
+    messageCount: content.messages.length,
+    lastMessage: content.messages.at(-1)?.content?.slice(0, 200),
+    filesModified: content.filesModified,
+    todoCount: content.currentTodos?.length ?? 0,
+  };
+  const contentFingerprint = JSON.stringify(stableContent);
+  if (sessionCache.get(cacheKey) === contentFingerprint) {
+    return false; // No actual change
   }
-  sessionCache.set(cacheKey, contentJson);
+  sessionCache.set(cacheKey, contentFingerprint);
 
   // G6.6: Update orchestration activity when external session activity is detected
   const projectPath = projectPathMap.get(resolvedProjectId);
@@ -1254,7 +1309,6 @@ async function handleSessionFileChange(sessionPath: string): Promise<void> {
   }
 
   // Broadcast session:message event
-  console.log(`[Watcher] Broadcasting session:message for ${sessionId} (${content.messages.length} messages)`);
   broadcast({
     type: 'session:message',
     timestamp: new Date().toISOString(),
@@ -1284,6 +1338,8 @@ async function handleSessionFileChange(sessionPath: string): Promise<void> {
       sessionId,
     });
   }
+
+  return true;
 }
 
 /**
@@ -1336,7 +1392,8 @@ async function initSessionWatcher(): Promise<void> {
   // Handle session file changes (G6.5: session:activity)
   sessionWatcher.on('change', (filePath) => {
     debouncedChange(filePath, async () => {
-      await handleSessionFileChange(filePath);
+      const changed = await handleSessionFileChange(filePath);
+      if (!changed) return; // Content unchanged, skip activity broadcast
       // G6.5: Emit session:activity for file modifications
       const sessionId = path.basename(filePath, '.jsonl');
       const projectId = sessionProjectMap.get(sessionId) || findProjectIdForSession(filePath);
@@ -1365,6 +1422,15 @@ async function initSessionWatcher(): Promise<void> {
           projectId,
           sessionId,
         });
+
+        // Refresh workflow data so new session appears in dropdown immediately.
+        // The workflow index may not have been updated yet (sessionId assigned later),
+        // but discoverCliSessions will find the new JSONL and merge it.
+        const projectPath = projectPathMap.get(projectId);
+        if (projectPath) {
+          const indexPath = path.join(projectPath, '.specflow', 'workflows', 'index.json');
+          await handleWorkflowChange(projectId, indexPath);
+        }
       }
     });
   });

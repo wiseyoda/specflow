@@ -54,6 +54,7 @@ function getCliStateFilePath(projectPath: string): string {
 
 /**
  * Read the full CLI state file
+ * Uses safeParse to handle schema mismatches gracefully
  */
 function readCliState(projectPath: string): OrchestrationState | null {
   const statePath = getCliStateFilePath(projectPath);
@@ -62,7 +63,14 @@ function readCliState(projectPath: string): OrchestrationState | null {
   }
   try {
     const content = readFileSync(statePath, 'utf-8');
-    return OrchestrationStateSchema.parse(JSON.parse(content));
+    const parsed = JSON.parse(content);
+    const result = OrchestrationStateSchema.safeParse(parsed);
+    if (result.success) {
+      return result.data;
+    }
+    // Return the raw parsed data with type assertion for graceful degradation
+    // The dashboard state extraction will handle any missing fields
+    return parsed as OrchestrationState;
   } catch (error) {
     console.warn('[orchestration-service] Failed to read CLI state:', error);
     return null;
@@ -72,6 +80,7 @@ function readCliState(projectPath: string): OrchestrationState | null {
 /**
  * Read dashboard state from CLI state file
  * Returns the orchestration.dashboard section or null if not present
+ * Uses safeParse for graceful handling of partial/incomplete state
  */
 export function readDashboardState(projectPath: string): DashboardState | null {
   const state = readCliState(projectPath);
@@ -79,7 +88,43 @@ export function readDashboardState(projectPath: string): DashboardState | null {
     return null;
   }
   try {
-    return DashboardStateSchema.parse(state.orchestration.dashboard);
+    const result = DashboardStateSchema.safeParse(state.orchestration.dashboard);
+    if (result.success) {
+      return result.data;
+    }
+    // Extract what we can from the raw data for graceful degradation
+    const raw = state.orchestration.dashboard as Record<string, unknown>;
+    const active = raw.active as Record<string, unknown> | null;
+
+    // Build active object with defaults for missing required fields
+    type ActiveType = NonNullable<DashboardState['active']>;
+    const defaultConfig: ActiveType['config'] = {
+      autoMerge: false,
+      additionalContext: '',
+      skipDesign: false,
+      skipAnalyze: false,
+      skipImplement: false,
+      skipVerify: false,
+      autoHealEnabled: true,
+      maxHealAttempts: 3,
+      pauseBetweenBatches: false,
+      batchSizeFallback: 5,
+      budget: { maxPerBatch: 10.0, maxTotal: 50.0, healingBudget: 1.0, decisionBudget: 0.5 },
+    };
+
+    return {
+      active: active ? {
+        id: (active.id as string) || 'unknown',
+        startedAt: (active.startedAt as string) || new Date().toISOString(),
+        status: ((active.status as string) || 'running') as ActiveType['status'],
+        config: (active.config as ActiveType['config']) || defaultConfig,
+      } : null,
+      batches: { total: 0, current: 0, items: [] },
+      cost: { total: 0, perBatch: [] },
+      decisionLog: [],
+      lastWorkflow: (raw.lastWorkflow as DashboardState['lastWorkflow']) || null,
+      recoveryContext: undefined,
+    };
   } catch (error) {
     console.warn('[orchestration-service] Invalid dashboard state:', error);
     return null;
@@ -191,6 +236,23 @@ export async function logDashboardDecision(
   await writeDashboardState(projectPath, {
     decisionLog: [...currentLog, newEntry],
   });
+}
+
+/**
+ * Sync orchestration status to dashboard state in CLI state file.
+ * Called after any status mutation to keep dashboard state consistent with
+ * the legacy orchestration file. Without this, getActive() reads stale
+ * dashboard state while the legacy file has the real status.
+ */
+function syncStatusToDashboard(projectPath: string, status: string): void {
+  try {
+    execSync(
+      `specflow state set orchestration.dashboard.active.status=${status}`,
+      { cwd: projectPath, encoding: 'utf-8', timeout: 10000 }
+    );
+  } catch {
+    // Non-fatal — legacy file is still the source of truth for the runner
+  }
 }
 
 // =============================================================================
@@ -900,6 +962,7 @@ class OrchestrationService {
       execution.completedAt = new Date().toISOString();
       logDecision(execution, 'complete', 'All phases finished');
       saveOrchestration(projectPath, execution);
+      syncStatusToDashboard(projectPath, 'completed');
       return execution;
     }
 
@@ -909,6 +972,7 @@ class OrchestrationService {
       execution.status = 'waiting_merge';
       logDecision(execution, 'waiting_merge', 'Auto-merge disabled, waiting for user');
       saveOrchestration(projectPath, execution);
+      syncStatusToDashboard(projectPath, 'waiting_merge');
       // Sync to state file for UI consistency
       syncPhaseToStateFile(projectPath, nextPhase);
       return execution;
@@ -1077,6 +1141,7 @@ class OrchestrationService {
     execution.status = 'paused';
     logDecision(execution, 'pause', 'User requested pause');
     saveOrchestration(projectPath, execution);
+    syncStatusToDashboard(projectPath, 'paused');
     return execution;
   }
 
@@ -1216,6 +1281,7 @@ class OrchestrationService {
     execution.status = 'cancelled';
     logDecision(execution, 'cancel', 'User cancelled orchestration');
     saveOrchestration(projectPath, execution);
+    syncStatusToDashboard(projectPath, 'cancelled');
     return execution;
   }
 
@@ -1257,6 +1323,7 @@ class OrchestrationService {
     execution.errorMessage = errorMessage;
     logDecision(execution, 'fail', errorMessage);
     saveOrchestration(projectPath, execution);
+    syncStatusToDashboard(projectPath, 'failed');
     return execution;
   }
 
@@ -1282,6 +1349,7 @@ class OrchestrationService {
     };
     logDecision(execution, 'needs_attention', issue);
     saveOrchestration(projectPath, execution);
+    syncStatusToDashboard(projectPath, 'needs_attention');
     return execution;
   }
 
@@ -1328,6 +1396,7 @@ class OrchestrationService {
     }
 
     saveOrchestration(projectPath, execution);
+    syncStatusToDashboard(projectPath, execution.status);
     return execution;
   }
 

@@ -50,6 +50,8 @@ export interface OrchestrationProgressProps {
   isRecovering?: boolean;
   /** Which recovery action is loading */
   recoveryAction?: RecoveryOption;
+  /** Whether the runner is stalled (status running but process dead) */
+  isRunnerStalled?: boolean;
 }
 
 // =============================================================================
@@ -164,6 +166,7 @@ export function OrchestrationProgress({
   isWaitingForInput = false,
   isRecovering = false,
   recoveryAction,
+  isRunnerStalled = false,
 }: OrchestrationProgressProps) {
   const elapsedMs = React.useMemo(() => {
     const start = new Date(orchestration.startedAt).getTime();
@@ -298,10 +301,21 @@ export function OrchestrationProgress({
         defaultCollapsed={true}
       />
 
+      {/* Runner Stalled Warning */}
+      {isRunnerStalled && !isPaused && !isTerminal && (
+        <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+          <div className="text-sm text-amber-700 dark:text-amber-300">
+            Runner process is not active. Click <strong>Resume</strong> to restart.
+          </div>
+        </div>
+      )}
+
       {/* Controls */}
       {!isTerminal && !isWaitingMerge && (
         <OrchestrationControls
           isPaused={isPaused}
+          isRunnerStalled={isRunnerStalled}
           onPause={onPause}
           onResume={onResume}
           onCancel={onCancel}

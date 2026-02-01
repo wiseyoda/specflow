@@ -59,11 +59,11 @@ export function CommandChip({ commandName, fullContent, className }: CommandChip
             <div className="flex items-center gap-3">
               <Terminal className="w-5 h-5 text-accent" />
               <DialogTitle className="text-white">
-                {commandName} Command
+                {commandName}
               </DialogTitle>
             </div>
             <p className="text-xs text-surface-500 mt-1">
-              Workflow command injected into the session
+              Skill prompt injected into the session
             </p>
           </DialogHeader>
 

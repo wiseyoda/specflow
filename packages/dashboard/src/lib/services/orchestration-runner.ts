@@ -24,6 +24,7 @@ import { parseBatchesFromProject } from './batch-parser';
 import { type OrchestrationPhase, type SSEEvent, type StepStatus } from '@specflow/shared';
 import type { OrchestrationExecution } from './orchestration-types';
 import { getNextAction, type DecisionInput, type Decision, type WorkflowState } from './orchestration-decisions';
+import { getSpecflowEnv } from '@/lib/specflow-env';
 
 // =============================================================================
 // Types
@@ -332,6 +333,7 @@ export async function autoHealAfterWorkflow(
           cwd: projectPath,
           encoding: 'utf-8',
           timeout: 30000,
+          env: getSpecflowEnv(),
         });
 
         console.log(`[auto-heal] Successfully healed step.status to complete`);
@@ -363,6 +365,7 @@ export async function autoHealAfterWorkflow(
           cwd: projectPath,
           encoding: 'utf-8',
           timeout: 30000,
+          env: getSpecflowEnv(),
         });
 
         console.log(`[auto-heal] Successfully healed step.status to failed`);

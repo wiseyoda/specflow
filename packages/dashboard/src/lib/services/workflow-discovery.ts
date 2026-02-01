@@ -1,8 +1,9 @@
 import path from 'path';
-import { existsSync, readdirSync, statSync, openSync, readSync, closeSync } from 'fs';
+import { existsSync, readdirSync, statSync, openSync, readSync, closeSync, readFileSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { getProjectSessionDir } from '@/lib/project-hash';
 import { isCommandInjection } from '@/lib/session-parser';
+import { didSessionEndGracefully, STALENESS_THRESHOLD_MS } from './process-health';
 import type { WorkflowIndexEntry } from '@specflow/shared';
 
 /**
@@ -106,11 +107,29 @@ export function discoverCliSessions(
           // Could not read file content, use default skill
         }
 
-        // CLI-discovered sessions are always 'completed' — "detached" means the
-        // dashboard lost track of a session it was actively monitoring, which doesn't
-        // apply to sessions the dashboard never started. Marking recent CLI sessions
-        // as 'detached' caused false "Session May Still Be Running" banners.
-        const status: WorkflowIndexEntry['status'] = 'completed';
+        const endedGracefully = didSessionEndGracefully(projectPath, sessionId);
+
+        // Treat CLI sessions as completed unless they're clearly active or awaiting input.
+        // This avoids false "detached" warnings for historical CLI runs.
+        let status: WorkflowIndexEntry['status'] = 'completed';
+        if (!endedGracefully) {
+          // Detect pending questions from CLI structured output (needs_input)
+          let needsInput = false;
+          try {
+            const content = readFileSync(fullPath, 'utf-8');
+            const tail = content.slice(-10000);
+            needsInput = tail.includes('"status":"needs_input"');
+          } catch {
+            // Ignore tail read failures
+          }
+
+          if (needsInput) {
+            status = 'waiting_for_input';
+          } else {
+            const ageMs = Date.now() - stats.mtime.getTime();
+            status = ageMs <= STALENESS_THRESHOLD_MS ? 'running' : 'stale';
+          }
+        }
 
         entries.push({
           sessionId,

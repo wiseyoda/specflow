@@ -282,13 +282,14 @@ export async function migrateState(
     // Check new location first, then legacy location
     if (pathExists(statePath)) {
       const content = await readFile(statePath, 'utf-8');
-      existingState = JSON.parse(content);
+      const existingStateData = JSON.parse(content) as Record<string, unknown>;
+      existingState = existingStateData;
 
       // Check if already v3.0 with existing history
-      const existingActions = existingState.actions as Record<string, unknown> | undefined;
+      const existingActions = existingStateData.actions as Record<string, unknown> | undefined;
       const existingHistory = (existingActions?.history as PhaseHistoryItem[]) || [];
 
-      if (existingState.schema_version === '3.0' && existingHistory.length > 0) {
+      if (existingStateData.schema_version === '3.0' && existingHistory.length > 0) {
         return {
           success: true,
           action: 'skipped',

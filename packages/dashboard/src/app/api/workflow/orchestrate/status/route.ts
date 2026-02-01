@@ -7,6 +7,7 @@ import { parseBatchesFromProject } from '@/lib/services/batch-parser';
 import { workflowService } from '@/lib/services/workflow-service';
 import { isRunnerActive } from '@/lib/services/orchestration-runner';
 import type { OrchestrationExecution } from '@/lib/services/orchestration-types';
+import { getSpecflowEnv } from '@/lib/specflow-env';
 
 // =============================================================================
 // Types
@@ -101,6 +102,7 @@ function getPreflightStatus(projectPath: string): PreflightStatus {
       cwd: projectPath,
       encoding: 'utf-8',
       timeout: 30000,
+      env: getSpecflowEnv(),
     });
     const status: SpecflowStatus = JSON.parse(result);
 

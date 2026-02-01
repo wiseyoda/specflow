@@ -5,6 +5,7 @@ import { OrchestrationConfigSchema, type OrchestrationPhase, type OrchestrationC
 import { orchestrationService } from '@/lib/services/orchestration-service';
 import { parseBatchesFromProject, getBatchPlanSummary } from '@/lib/services/batch-parser';
 import { runOrchestration } from '@/lib/services/orchestration-runner';
+import { getSpecflowEnv } from '@/lib/specflow-env';
 
 // =============================================================================
 // Skill Mapping
@@ -74,6 +75,7 @@ function getSpecflowStatus(projectPath: string): SpecflowStatus | null {
       cwd: projectPath,
       encoding: 'utf-8',
       timeout: 30000,
+      env: getSpecflowEnv(),
     });
     return JSON.parse(result);
   } catch {
@@ -250,19 +252,28 @@ export async function POST(request: Request) {
 
     // Get specflow status for smart decisions
     const specflowStatus = getSpecflowStatus(projectPath);
+    const statusUnavailable = !specflowStatus;
+
+    if (statusUnavailable) {
+      console.warn('[orchestrate] specflow status unavailable, defaulting to design flow');
+    }
 
     // Check if phase needs to be opened first
-    const phaseNeedsOpen = needsPhaseOpen(specflowStatus);
+    const phaseNeedsOpen = statusUnavailable || needsPhaseOpen(specflowStatus);
 
     // Check if design needs to run (phase open but no artifacts)
-    const designNeeded = needsDesign(specflowStatus);
+    const designNeeded = statusUnavailable || needsDesign(specflowStatus);
 
     // Apply smart config based on actual project state
     // This auto-skips design/analyze if artifacts already exist
-    const smartConfig = getSmartConfig(specflowStatus, config);
+    const smartConfig = statusUnavailable
+      ? { ...config, skipDesign: false }
+      : getSmartConfig(specflowStatus, config);
 
     // Parse batch plan (T025) - only required if design is complete
-    const batchPlan = parseBatchesFromProject(projectPath, smartConfig.batchSizeFallback);
+    const batchPlan = (!phaseNeedsOpen && !designNeeded)
+      ? parseBatchesFromProject(projectPath, smartConfig.batchSizeFallback)
+      : null;
 
     if (!phaseNeedsOpen && !designNeeded && !batchPlan) {
       // Phase is open, design is done, but no tasks.md found

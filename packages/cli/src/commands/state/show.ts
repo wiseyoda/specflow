@@ -39,9 +39,7 @@ export const show = new Command('show')
             ? 'ok'
             : phaseStatus === 'in_progress'
               ? 'pending'
-              : phaseStatus === 'failed' || phaseStatus === 'blocked'
-                ? 'error'
-                : 'pending';
+              : 'pending';
         status('Status', statusType, phaseStatus);
       } else {
         console.log(chalk.dim('  No phase active'));
@@ -54,7 +52,7 @@ export const show = new Command('show')
         keyValue('Step', step.current);
         const stepStatus = step.status ?? 'unknown';
         const stepStatusType =
-          stepStatus === 'completed'
+          stepStatus === 'complete'
             ? 'ok'
             : stepStatus === 'in_progress'
               ? 'pending'

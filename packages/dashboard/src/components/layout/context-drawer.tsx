@@ -50,6 +50,10 @@ interface ContextDrawerProps {
   touchedFiles?: FileChange[]
   totalAdditions?: number
   totalDeletions?: number
+  /** Optional override for current step (useful when orchestration drives state) */
+  currentStepOverride?: OrchestrationPhase | null
+  /** Optional override for step status */
+  stepStatusOverride?: string | null
   /** Project ID for fetching activity feed */
   projectId?: string
   /** Project path for constructing absolute file paths */
@@ -70,6 +74,7 @@ const phaseSteps = [
   { id: 'analyze', label: 'Analyze', icon: Search },
   { id: 'implement', label: 'Implement', icon: Code },
   { id: 'verify', label: 'Verify', icon: TestTube2 },
+  { id: 'merge', label: 'Merge', icon: GitMerge },
 ]
 
 /** Design phase sub-steps */
@@ -116,6 +121,8 @@ export function ContextDrawer({
   touchedFiles = [],
   totalAdditions = 0,
   totalDeletions = 0,
+  currentStepOverride,
+  stepStatusOverride,
   projectId,
   projectPath,
   className,
@@ -148,10 +155,10 @@ export function ContextDrawer({
     }
   }, [projectPath])
 
-  // Get current step from state - only if we have orchestration data
-  const hasOrchestration = !!state?.orchestration?.phase?.number
-  const currentStep = state?.orchestration?.step?.current
-  const stepStatus = state?.orchestration?.step?.status
+  // Get current step from state - use override when orchestration drives state
+  const hasOrchestration = !!(currentStepOverride || state?.orchestration?.phase?.number)
+  const currentStep = currentStepOverride ?? state?.orchestration?.step?.current
+  const stepStatus = stepStatusOverride ?? state?.orchestration?.step?.status
   // If step.status is 'complete', the current step is done - show next step as active
   const stepComplete = stepStatus === 'complete'
   const baseStepIndex = currentStep ? phaseSteps.findIndex((s) => s.id === currentStep) : -1

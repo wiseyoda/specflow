@@ -31,7 +31,7 @@ import {
   toastWorkflowError,
 } from "@/lib/toast-helpers"
 import type { ProjectStatus } from "@/lib/action-definitions"
-import type { OrchestrationState, Task } from "@specflow/shared"
+import type { OrchestrationPhase, OrchestrationState, Task } from "@specflow/shared"
 import { useWorkflowSkills, type WorkflowSkill } from "@/hooks/use-workflow-skills"
 import { useOrchestration } from "@/hooks/use-orchestration"
 
@@ -138,6 +138,17 @@ export default function ProjectDetailPage() {
     goBackToStep,       // FR-004: Go back to previous step
     isGoingBackToStep,  // FR-004: Loading state for go-back
   } = useOrchestration({ projectId })
+
+  // Derive a single, consistent step for UI (orchestration overrides state)
+  const effectiveStep = useMemo<OrchestrationPhase | null>(() => {
+    if (orchestration?.status === 'waiting_merge') return 'merge'
+    return orchestration?.currentPhase ?? state?.orchestration?.step?.current ?? null
+  }, [orchestration, state])
+
+  const effectiveStepStatus = useMemo(() => {
+    if (orchestration?.status === 'waiting_merge') return 'not_started'
+    return state?.orchestration?.step?.status ?? null
+  }, [orchestration, state])
 
   // Check if there's an active orchestration that can be paused
   const hasActiveOrchestration = !!(
@@ -376,6 +387,24 @@ export default function ProjectDetailPage() {
     }
     return polledStatus
   }, [workflowExecution, hasSessionEnded, selectedConsoleSession])
+
+  const layoutStatus: WorkflowStatus = useMemo(() => {
+    if (workflowStatus !== 'idle') return workflowStatus
+    if (!orchestration) return 'idle'
+
+    switch (orchestration.status) {
+      case 'running':
+        return 'running'
+      case 'paused':
+      case 'waiting_merge':
+      case 'needs_attention':
+        return 'waiting'
+      case 'failed':
+        return 'failed'
+      default:
+        return 'idle'
+    }
+  }, [workflowStatus, orchestration])
 
   // Proactively update workflow metadata when session ends externally
   // This ensures the workflow index reflects reality even if user ends session via CLI
@@ -856,6 +885,8 @@ export default function ProjectDetailPage() {
       touchedFiles={touchedFiles}
       totalAdditions={totalAdditions}
       totalDeletions={totalDeletions}
+      currentStepOverride={effectiveStep}
+      stepStatusOverride={effectiveStepStatus}
       projectId={projectId}
       projectPath={project.path}
       onGoBackToStep={goBackToStep}
@@ -869,6 +900,7 @@ export default function ProjectDetailPage() {
       projectPath={project.path}
       branchName={branchName}
       workflowStatus={workflowStatus}
+      layoutStatus={layoutStatus}
       workflowStartTime={workflowExecution?.startedAt ? new Date(workflowExecution.startedAt) : null}
       activeView={activeView}
       onViewChange={setActiveView}

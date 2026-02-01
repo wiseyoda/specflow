@@ -156,9 +156,9 @@ async function closePhase(options: CloseOptions = {}): Promise<PhaseCloseOutput>
 
   // Read current state
   const state = await readState(projectRoot);
-  const { phase } = state.orchestration;
+  const phase = state.orchestration?.phase;
 
-  if (!phase.number || !phase.name) {
+  if (!phase?.number || !phase?.name) {
     throw new ValidationError(
       'No active phase',
       'Use "specflow phase open" to start a phase first',
@@ -267,8 +267,8 @@ async function closePhase(options: CloseOptions = {}): Promise<PhaseCloseOutput>
     phase_name: phase.name,
     branch: phase.branch,
     completed_at: new Date().toISOString(),
-    tasks_completed: state.orchestration.progress?.tasks_completed ?? 0,
-    tasks_total: state.orchestration.progress?.tasks_total ?? 0,
+    tasks_completed: state.orchestration?.progress?.tasks_completed ?? 0,
+    tasks_total: state.orchestration?.progress?.tasks_total ?? 0,
   };
 
   // Get existing history or create empty array

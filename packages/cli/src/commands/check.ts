@@ -411,9 +411,10 @@ async function applyFixes(
           // Fix step.index if it's a string
           if (step && typeof step.index === 'string') {
             const stepCurrent = step.current as string | undefined;
-            const correctIndex = stepCurrent && STEP_INDEX_MAP[stepCurrent] !== undefined
-              ? STEP_INDEX_MAP[stepCurrent]
+            const stepKey = stepCurrent && stepCurrent in STEP_INDEX_MAP
+              ? (stepCurrent as keyof typeof STEP_INDEX_MAP)
               : null;
+            const correctIndex = stepKey ? STEP_INDEX_MAP[stepKey] : null;
             step.index = correctIndex;
             fixCount++;
           }

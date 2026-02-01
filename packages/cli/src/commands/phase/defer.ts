@@ -28,10 +28,10 @@ async function deferItems(
 ): Promise<PhaseDeferOutput> {
   // Read current state to get phase context
   const state = await readState(projectRoot);
-  const { phase } = state.orchestration;
+  const phase = state.orchestration?.phase;
 
   // Determine source - current phase or "manual"
-  const source = phase.number ? `Phase ${phase.number}` : 'Manual';
+  const source = phase?.number ? `Phase ${phase.number}` : 'Manual';
 
   // Build deferred items
   const deferredItems: DeferredItem[] = items.map(description => ({
@@ -42,7 +42,7 @@ async function deferItems(
   }));
 
   // Add to backlog
-  await addToBacklog(deferredItems, phase.number || 'manual', projectRoot);
+  await addToBacklog(deferredItems, phase?.number || 'manual', projectRoot);
 
   return {
     action: 'deferred',

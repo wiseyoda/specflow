@@ -1,10 +1,10 @@
 # Resume Plan - Single State Consolidation (Phase 1058)
 
-Last updated: 2026-02-01
+Last updated: 2026-02-01 (Phase 2 fixes in progress)
 Branch: 1058-single-state-consolidation
 Last commit: 6063985 (phase7: guard step override and restart runner)
 Remote: origin/1058-single-state-consolidation (pushed)
-Working tree: clean
+Working tree: dirty (dashboard + CLI state fixes)
 
 ## Why this file exists
 Compact, actionable context so work can resume quickly after interruption.
@@ -39,8 +39,17 @@ Compact, actionable context so work can resume quickly after interruption.
 - `goBackToStep` uses CLI state set and clears last workflow.
 - API now blocks when an external workflow is active and restarts the runner if needed.
 
+### ✅ Phase 2 state consistency fixes (in progress)
+- Header/session indicator now reflects orchestration status when no workflow is active.
+- Step override resets batches/cost when going back to design/analyze/implement.
+- Orchestration start treats `specflow status` failures as needing design/open to avoid tasks.md errors.
+- CLI session discovery now marks stale instead of “completed” after inactivity.
+- Session cancel by sessionId attempts SIGINT → SIGTERM/SIGKILL and surfaces warning toast when forced.
+
 ## Remaining Work
-1) **Deferred cleanup (optional)**
+1) **Finish Phase 2 validation + commit/push**
+   - Run targeted dashboard checks if desired.
+2) **Deferred cleanup (optional)**
    - Remove `OrchestrationExecution` compatibility layer and schema once UI is migrated.
 
 ## Key Files (recently touched)

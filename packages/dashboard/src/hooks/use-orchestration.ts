@@ -111,7 +111,7 @@ export function useOrchestration({
   const lastStatusRef = useRef<OrchestrationExecution['status'] | null>(null);
 
   // SSE data for event-driven refresh (T028: replaces polling)
-  const { workflows, states } = useUnifiedData();
+  const { workflows, states, connectionStatus } = useUnifiedData();
 
   // Use refs for callbacks to avoid recreating fetchStatus on every render
   const onStatusChangeRef = useRef(onStatusChange);
@@ -257,8 +257,9 @@ export function useOrchestration({
         sessionPollAbortRef.current = abortController;
 
         (async () => {
-          const maxAttempts = 90;
-          const pollInterval = 1000;
+          const isConnected = connectionStatus === 'connected';
+          const maxAttempts = isConnected ? 12 : 20;
+          const pollInterval = isConnected ? 2000 : 3000;
 
           for (let attempt = 0; attempt < maxAttempts; attempt++) {
             if (abortController.signal.aborted) return;
@@ -293,7 +294,7 @@ export function useOrchestration({
         setIsLoading(false);
       }
     },
-    [projectId, refresh]
+    [projectId, refresh, connectionStatus]
   );
 
   // Pause orchestration

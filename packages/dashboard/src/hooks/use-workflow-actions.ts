@@ -24,6 +24,7 @@ import {
   requestNotificationPermission,
   hasRequestedPermission,
 } from '@/lib/notifications';
+import { toastWarning } from '@/lib/toast-helpers';
 
 interface StartWorkflowOptions {
   /** Optional session ID to resume an existing session */
@@ -88,12 +89,18 @@ async function cancelWorkflowApi(
     method: 'POST',
   });
 
+  const data = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
     // Not found is okay - workflow already cancelled/completed
     if (!data.error?.includes('not found')) {
       throw new Error(data.error || `Failed to cancel workflow: ${res.status}`);
     }
+    return;
+  }
+
+  if (data.warning) {
+    toastWarning('Cancellation warning', data.warning);
   }
 }
 

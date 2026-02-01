@@ -70,6 +70,19 @@ Set [VERIFY] CONTEXT to in_progress.
 
 ## Step 1: Get Project Context
 
+**Ensure step is initialized (standalone mode):**
+
+```bash
+CURRENT_STEP=$(specflow state get orchestration.step.current 2>/dev/null)
+
+# Only set step.current if missing or different (standalone mode)
+if [[ -z "$CURRENT_STEP" || "$CURRENT_STEP" == "null" || "$CURRENT_STEP" != "verify" ]]; then
+  specflow state set orchestration.step.current=verify orchestration.step.index=3
+fi
+
+specflow state set orchestration.step.status=in_progress
+```
+
 ```bash
 specflow status --json
 ```

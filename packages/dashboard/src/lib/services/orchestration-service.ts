@@ -31,6 +31,7 @@ import {
 } from '@specflow/shared';
 import { createBatchTracking } from './batch-parser';
 import type { OrchestrationExecution } from './orchestration-types';
+import { getSpecflowEnv } from '@/lib/specflow-env';
 
 
 // =============================================================================
@@ -107,31 +108,6 @@ export function readDashboardState(projectPath: string): DashboardState | null {
       budget: { maxPerBatch: 10.0, maxTotal: 50.0, healingBudget: 1.0, decisionBudget: 0.5 },
     };
 
-    const executions: OrchestrationExecution['executions'] = {
-      implement: [],
-      healers: [],
-    };
-
-    if (dashboardState.lastWorkflow?.id) {
-      switch (currentPhase) {
-        case 'design':
-          executions.design = dashboardState.lastWorkflow.id;
-          break;
-        case 'analyze':
-          executions.analyze = dashboardState.lastWorkflow.id;
-          break;
-        case 'implement':
-          executions.implement = [dashboardState.lastWorkflow.id];
-          break;
-        case 'verify':
-          executions.verify = dashboardState.lastWorkflow.id;
-          break;
-        case 'merge':
-          executions.merge = dashboardState.lastWorkflow.id;
-          break;
-      }
-    }
-
     return {
       active: active ? {
         id: (active.id as string) || 'unknown',
@@ -143,7 +119,7 @@ export function readDashboardState(projectPath: string): DashboardState | null {
       cost: { total: 0, perBatch: [] },
       decisionLog: [],
       lastWorkflow: (raw.lastWorkflow as DashboardState['lastWorkflow']) || null,
-      recoveryContext: undefined,
+      recoveryContext: raw.recoveryContext as DashboardState['recoveryContext'],
     };
   } catch (error) {
     console.warn('[orchestration-service] Invalid dashboard state:', error);
@@ -242,6 +218,7 @@ export async function writeDashboardState(
       cwd: projectPath,
       encoding: 'utf-8',
       timeout: 30000,
+      env: getSpecflowEnv(),
     });
   } catch (error) {
     console.error('[orchestration-service] Failed to write dashboard state:', error);
@@ -339,6 +316,7 @@ function syncPhaseToStateFile(
       cwd: projectPath,
       encoding: 'utf-8',
       timeout: 10000,
+      env: getSpecflowEnv(),
     });
   } catch {
     // Non-critical: log but don't fail orchestration
@@ -410,6 +388,7 @@ function getSpecflowStatus(projectPath: string): SpecflowStatus | null {
       cwd: projectPath,
       encoding: 'utf-8',
       timeout: 30000,
+      env: getSpecflowEnv(),
     });
     return JSON.parse(result);
   } catch {
@@ -588,7 +567,7 @@ class OrchestrationService {
     const startedAt = new Date().toISOString();
     const startingPhase = getStartingPhase(config);
 
-    const dashboardState: DashboardState = {
+  const dashboardState: DashboardState = {
       active: {
         id,
         startedAt,
@@ -730,9 +709,53 @@ class OrchestrationService {
       'merge': 'merge',
       'complete': 'complete',
     };
-    const currentPhase: OrchestrationPhase = step?.current && phaseMap[step.current]
+    let currentPhase: OrchestrationPhase = step?.current && phaseMap[step.current]
       ? phaseMap[step.current]
       : 'design';
+
+    if (dashboardState.active.status === 'waiting_merge') {
+      currentPhase = 'merge';
+    } else if (!step?.current && dashboardState.lastWorkflow?.skill) {
+      const skillPhase = dashboardState.lastWorkflow.skill.replace(/^\/?flow\./, '');
+      if (phaseMap[skillPhase]) {
+        currentPhase = phaseMap[skillPhase];
+      }
+    }
+
+    const executions: OrchestrationExecution['executions'] = {
+      implement: [],
+      healers: [],
+    };
+
+    const batchWorkflowIds = (dashboardState.batches?.items || [])
+      .map((b) => b.workflowId)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+    if (batchWorkflowIds.length > 0) {
+      executions.implement = Array.from(new Set(batchWorkflowIds));
+    }
+
+    const lastWorkflowId = dashboardState.lastWorkflow?.id;
+    if (lastWorkflowId) {
+      switch (currentPhase) {
+        case 'design':
+          executions.design = lastWorkflowId;
+          break;
+        case 'analyze':
+          executions.analyze = lastWorkflowId;
+          break;
+        case 'implement':
+          if (!executions.implement.includes(lastWorkflowId)) {
+            executions.implement = [lastWorkflowId, ...executions.implement];
+          }
+          break;
+        case 'verify':
+          executions.verify = lastWorkflowId;
+          break;
+        case 'merge':
+          executions.merge = lastWorkflowId;
+          break;
+      }
+    }
 
     return {
       id: dashboardState.active.id,
@@ -1194,6 +1217,14 @@ class OrchestrationService {
     const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
     if (!dashboardState?.active) return null;
 
+    const shouldResetBatches = ['design', 'analyze', 'implement'].includes(targetStep);
+    const resetBatches: DashboardState['batches'] = shouldResetBatches
+      ? { total: 0, current: 0, items: [] }
+      : dashboardState.batches;
+    const resetCost: DashboardState['cost'] = shouldResetBatches
+      ? { total: 0, perBatch: [] }
+      : dashboardState.cost;
+
     // Pause the orchestration if running
     if (dashboardState.active.status === 'running') {
       // Kill any active workflow
@@ -1222,12 +1253,15 @@ class OrchestrationService {
           cwd: projectPath,
           encoding: 'utf-8',
           timeout: 30000,
+          env: getSpecflowEnv(),
         }
       );
 
       // Update dashboard state
       await writeDashboardState(projectPath, {
         lastWorkflow: null, // Clear last workflow when going back
+        batches: resetBatches,
+        cost: resetCost,
       });
 
       const nextState: DashboardState = {
@@ -1236,13 +1270,17 @@ class OrchestrationService {
           ...dashboardState.active,
           status: 'running',
         },
+        batches: resetBatches,
+        cost: resetCost,
         lastWorkflow: null,
         decisionLog: [
           ...(dashboardState.decisionLog || []),
           {
             timestamp: new Date().toISOString(),
             action: 'go_back_to_step',
-            reason: `User navigated back to ${targetStep} step`,
+            reason: shouldResetBatches
+              ? `User navigated back to ${targetStep} step (reset batches)`
+              : `User navigated back to ${targetStep} step`,
           },
         ],
       };

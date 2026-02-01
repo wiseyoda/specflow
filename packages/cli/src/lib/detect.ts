@@ -229,7 +229,7 @@ export async function detectRepoVersion(projectPath: string): Promise<DetectionR
       version: 'v3.0',
       confidence: v3Indicators.length >= 2 ? 'high' : 'medium',
       indicators: v3Indicators,
-      manifest,
+      manifest: manifest ?? undefined,
       stateSchemaVersion: state?.schema_version,
     };
   }
@@ -240,7 +240,7 @@ export async function detectRepoVersion(projectPath: string): Promise<DetectionR
       version: 'v2.0',
       confidence: v2Indicators.length >= 2 ? 'high' : 'medium',
       indicators: v2Indicators,
-      manifest,
+      manifest: manifest ?? undefined,
       stateSchemaVersion: state?.schema_version,
     };
   }
@@ -251,7 +251,7 @@ export async function detectRepoVersion(projectPath: string): Promise<DetectionR
       version: 'v1.0',
       confidence: v1Indicators.length >= 2 ? 'high' : 'medium',
       indicators: v1Indicators,
-      manifest,
+      manifest: manifest ?? undefined,
       stateSchemaVersion: state?.schema_version,
     };
   }
@@ -261,7 +261,7 @@ export async function detectRepoVersion(projectPath: string): Promise<DetectionR
     version: 'v1.0',
     confidence: 'low',
     indicators: ['Has artifacts but version unclear - assuming v1.0'],
-    manifest,
+    manifest: manifest ?? undefined,
     stateSchemaVersion: state?.schema_version,
   };
 }

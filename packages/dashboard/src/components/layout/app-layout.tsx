@@ -11,6 +11,7 @@ interface AppLayoutProps {
   projectPath?: string
   branchName?: string
   workflowStatus?: WorkflowStatus
+  layoutStatus?: WorkflowStatus
   workflowStartTime?: Date | null
   activeView?: ViewType
   onViewChange?: (view: ViewType) => void
@@ -24,6 +25,7 @@ export function AppLayout({
   projectPath,
   branchName,
   workflowStatus = 'idle',
+  layoutStatus,
   workflowStartTime,
   activeView: controlledActiveView,
   onViewChange,
@@ -36,12 +38,13 @@ export function AppLayout({
 
   const activeView = controlledActiveView ?? internalActiveView
   const handleViewChange = onViewChange ?? setInternalActiveView
+  const statusForLayout = layoutStatus ?? workflowStatus
 
   // Determine session indicator based on workflow status
   const sessionIndicator =
-    workflowStatus === 'running'
+    statusForLayout === 'running'
       ? 'live'
-      : workflowStatus === 'waiting'
+      : statusForLayout === 'waiting'
       ? 'warning'
       : null
 
@@ -98,7 +101,7 @@ export function AppLayout({
         <RedesignedHeader
           projectPath={projectPath}
           branchName={branchName}
-          workflowStatus={workflowStatus}
+          workflowStatus={statusForLayout}
           workflowStartTime={workflowStartTime}
           isContextDrawerOpen={isContextDrawerOpen}
           onToggleContextDrawer={() => setIsContextDrawerOpen(!isContextDrawerOpen)}

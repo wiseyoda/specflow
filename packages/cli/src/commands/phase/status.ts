@@ -40,7 +40,7 @@ async function getPhaseStatus(): Promise<PhaseStatusOutput> {
 
   // Read state
   const state = await readState(projectRoot);
-  const { phase } = state.orchestration;
+  const phase = state.orchestration?.phase;
 
   // Read roadmap for next phase
   const roadmap = await readRoadmap(projectRoot);
@@ -52,7 +52,7 @@ async function getPhaseStatus(): Promise<PhaseStatusOutput> {
   let hasPlan = false;
   let hasTasks = false;
 
-  if (phase.number && phase.name) {
+  if (phase?.number && phase?.name) {
     const slug = phaseSlug(phase.name);
     specDir = join(getSpecsDir(projectRoot), `${phase.number}-${slug}`);
 
@@ -65,7 +65,7 @@ async function getPhaseStatus(): Promise<PhaseStatusOutput> {
 
   // Get phase file path
   let phaseFile: string | null = null;
-  if (phase.number && phase.name) {
+  if (phase?.number && phase?.name) {
     const phasePath = getPhaseDetailPath(phase.number, phase.name, projectRoot);
     if (pathExists(phasePath)) {
       phaseFile = phasePath;
@@ -74,10 +74,10 @@ async function getPhaseStatus(): Promise<PhaseStatusOutput> {
 
   return {
     phase: {
-      number: phase.number,
-      name: phase.name,
-      status: phase.status,
-      branch: phase.branch,
+      number: phase?.number ?? null,
+      name: phase?.name ?? null,
+      status: phase?.status ?? 'not_started',
+      branch: phase?.branch ?? null,
     },
     artifacts: {
       specDir,

@@ -2,7 +2,7 @@
 
 Last updated: 2026-02-01
 Branch: 1058-single-state-consolidation
-Last commit: a3f0309 (phase3-6: simplify orchestration runner decisions)
+Last commit: 6063985 (phase7: guard step override and restart runner)
 Remote: origin/1058-single-state-consolidation (pushed)
 Working tree: clean
 

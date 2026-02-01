@@ -2,8 +2,9 @@
 
 Last updated: 2026-02-01
 Branch: 1058-single-state-consolidation
+Last commit: a3f0309 (phase3-6: simplify orchestration runner decisions)
 Remote: origin/1058-single-state-consolidation (pushed)
-Working tree: dirty (Phase 3-6 refactor in progress)
+Working tree: clean
 
 ## Why this file exists
 Compact, actionable context so work can resume quickly after interruption.

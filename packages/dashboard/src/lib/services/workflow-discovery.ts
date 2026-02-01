@@ -1,9 +1,9 @@
 import path from 'path';
-import { existsSync, readdirSync, statSync, openSync, readSync, closeSync, readFileSync } from 'fs';
+import { existsSync, readdirSync, statSync, openSync, readSync, closeSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { getProjectSessionDir } from '@/lib/project-hash';
 import { isCommandInjection } from '@/lib/session-parser';
-import { didSessionEndGracefully, STALENESS_THRESHOLD_MS } from './process-health';
+import { getSessionStatus, readFileTail } from './process-health';
 import type { WorkflowIndexEntry } from '@specflow/shared';
 
 /**
@@ -30,8 +30,13 @@ export function discoverCliSessions(
     const files = readdirSync(sessionDir);
     const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
 
-    // Get file stats and create entries
-    const entries: WorkflowIndexEntry[] = [];
+    // Phase 1: Get file stats quickly and filter to candidates
+    interface SessionCandidate {
+      sessionId: string;
+      fullPath: string;
+      stats: { mtime: Date; birthtime: Date };
+    }
+    const candidates: SessionCandidate[] = [];
 
     for (const file of jsonlFiles) {
       const sessionId = file.replace('.jsonl', '');
@@ -44,6 +49,21 @@ export function discoverCliSessions(
       const fullPath = path.join(sessionDir, file);
       try {
         const stats = statSync(fullPath);
+        candidates.push({ sessionId, fullPath, stats });
+      } catch {
+        // Could not stat file, skip
+      }
+    }
+
+    // Phase 2: Sort by mtime and limit BEFORE doing expensive content reads
+    candidates.sort((a, b) => b.stats.mtime.getTime() - a.stats.mtime.getTime());
+    const topCandidates = candidates.slice(0, limit);
+
+    // Phase 3: Process only the top candidates (expensive operations)
+    const entries: WorkflowIndexEntry[] = [];
+
+    for (const { sessionId, fullPath, stats } of topCandidates) {
+      try {
 
         // Try to extract skill from JSONL content
         let skill = 'CLI Session';
@@ -107,29 +127,18 @@ export function discoverCliSessions(
           // Could not read file content, use default skill
         }
 
-        const endedGracefully = didSessionEndGracefully(projectPath, sessionId);
+        const ageMs = Date.now() - stats.mtime.getTime();
 
-        // Treat CLI sessions as completed unless they're clearly active or awaiting input.
-        // This avoids false "detached" warnings for historical CLI runs.
-        let status: WorkflowIndexEntry['status'] = 'completed';
-        if (!endedGracefully) {
-          // Detect pending questions from CLI structured output (needs_input)
-          let needsInput = false;
-          try {
-            const content = readFileSync(fullPath, 'utf-8');
-            const tail = content.slice(-10000);
-            needsInput = tail.includes('"status":"needs_input"');
-          } catch {
-            // Ignore tail read failures
-          }
-
-          if (needsInput) {
-            status = 'waiting_for_input';
-          } else {
-            const ageMs = Date.now() - stats.mtime.getTime();
-            status = ageMs <= STALENESS_THRESHOLD_MS ? 'running' : 'stale';
-          }
+        // Read tail and get status from single source of truth
+        let tail = '';
+        try {
+          tail = readFileTail(fullPath, 10000);
+        } catch {
+          // Ignore tail read failures
         }
+
+        // Use centralized status detection (process-health.ts is the single source of truth)
+        const status = getSessionStatus(tail, ageMs);
 
         entries.push({
           sessionId,
@@ -141,15 +150,12 @@ export function discoverCliSessions(
           costUsd: 0, // Unknown for CLI sessions
         });
       } catch {
-        // Could not stat file, skip
+        // Could not process file, skip
       }
     }
 
-    // Sort by updatedAt descending (newest first)
-    entries.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-
-    // Return limited number
-    return entries.slice(0, limit);
+    // Already sorted by mtime in Phase 2, just return entries
+    return entries;
   } catch {
     return [];
   }

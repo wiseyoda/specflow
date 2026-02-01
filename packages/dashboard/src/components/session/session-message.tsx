@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import type { SessionMessage, ToolCallInfo, QuestionInfo, AgentTaskInfo } from '@/lib/session-parser'
 import { CommandChip } from './command-chip'
+import { LocalCommandChip } from './local-command-chip'
 import { FileChipGroup } from './file-chip'
 import { FileViewerModal } from './file-viewer-modal'
 import { MarkdownContent } from '@/components/ui/markdown-content'
@@ -82,12 +83,22 @@ function extractAgentName(content: string): string | null {
  * Check if a user message is an answer to Claude's questions and extract the answer(s)
  */
 function extractUserAnswers(content: string): string[] | null {
-  // Pattern 1: "# User Answers\nThe user has answered the questions:\n- 0: Answer"
-  if (content.startsWith('# User Answers')) {
+  const isAnswerBlock =
+    content.startsWith('# User Answers') ||
+    content.startsWith('# Answers to your questions')
+  if (isAnswerBlock) {
     const answers: string[] = []
-    const answerPattern = /- \d+:\s*(.+?)(?:\n|$)/g
+    // Prefer key/value style: "- Question: Answer"
+    const keyValuePattern = /- (.+?):\s*(.+?)(?:\n|$)/g
     let match
-    while ((match = answerPattern.exec(content)) !== null) {
+    while ((match = keyValuePattern.exec(content)) !== null) {
+      answers.push(match[2].trim())
+    }
+    if (answers.length > 0) return answers
+
+    // Fallback: indexed answers "- 0: Answer"
+    const indexPattern = /- \d+:\s*(.+?)(?:\n|$)/g
+    while ((match = indexPattern.exec(content)) !== null) {
       answers.push(match[1].trim())
     }
     if (answers.length > 0) return answers
@@ -177,7 +188,26 @@ export function SessionMessageDisplay({
   }
 
   if (isUser) {
-    // Check if this is a command injection
+    // Check if this is a local CLI command (e.g., /clear, /help)
+    if (message.localCommand) {
+      return (
+        <div
+          className={cn(
+            'relative pl-6 border-l-2 border-zinc-500/50',
+            className
+          )}
+        >
+          <div className="absolute -left-[5px] top-0 w-2 h-2 rounded-full bg-zinc-500 shadow-lg shadow-zinc-500/50" />
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-zinc-400 font-bold">You</span>
+            {timeStr && <span className="text-xs text-zinc-500">{timeStr}</span>}
+          </div>
+          <LocalCommandChip data={message.localCommand} />
+        </div>
+      )
+    }
+
+    // Check if this is a command injection (workflow command)
     if (message.isCommandInjection && message.commandName) {
       return (
         <div

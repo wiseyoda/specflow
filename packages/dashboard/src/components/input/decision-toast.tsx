@@ -1,8 +1,9 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { HelpCircle, MessageSquare, X } from 'lucide-react'
-import { useState } from 'react'
+import { Check, HelpCircle, MessageSquare, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { MarkdownContent } from '@/components/ui/markdown-content'
 
 interface Question {
   question: string
@@ -10,6 +11,7 @@ interface Question {
     label: string
     description?: string
   }>
+  multiSelect?: boolean
 }
 
 interface DecisionToastProps {
@@ -35,15 +37,22 @@ export function DecisionToast({
 }: DecisionToastProps) {
   const [showCustomInput, setShowCustomInput] = useState(false)
   const [customValue, setCustomValue] = useState('')
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([])
 
   const currentQuestion = questions[currentIndex]
+
+  useEffect(() => {
+    setShowCustomInput(false)
+    setCustomValue('')
+    setSelectedOptions([])
+  }, [currentIndex, currentQuestion?.question])
 
   // Show loading state when waiting for questions
   if (isLoading && !currentQuestion) {
     return (
       <div
         className={cn(
-          'fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-lg z-50 animate-slide-up',
+          'fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-3xl z-50 animate-slide-up',
           className
         )}
       >
@@ -83,10 +92,24 @@ export function DecisionToast({
     }
   }
 
+  const isMultiSelect = !!currentQuestion?.multiSelect
+
+  const toggleOption = (label: string) => {
+    setSelectedOptions((prev) =>
+      prev.includes(label) ? prev.filter((item) => item !== label) : [...prev, label]
+    )
+  }
+
+  const handleMultiSelectSubmit = () => {
+    if (selectedOptions.length > 0) {
+      onAnswer(selectedOptions.join(', '))
+    }
+  }
+
   return (
     <div
       className={cn(
-        'fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-lg z-50 animate-slide-up',
+        'fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-3xl z-50 animate-slide-up',
         className
       )}
     >
@@ -96,9 +119,9 @@ export function DecisionToast({
       </div>
 
       {/* Toast content */}
-      <div className="glass rounded-b-lg p-4">
-        {/* Header */}
-        <div className="flex items-center gap-2 mb-3">
+      <div className="glass rounded-b-lg p-4 max-h-[60vh] flex flex-col">
+        {/* Header - fixed */}
+        <div className="flex items-center gap-2 mb-3 flex-shrink-0">
           <HelpCircle className="w-5 h-5 text-warning" />
           <span className="font-medium text-white">Decision Required</span>
           {questions.length > 1 && (
@@ -117,26 +140,65 @@ export function DecisionToast({
           )}
         </div>
 
-        {/* Question text */}
-        <p className="text-sm text-zinc-400 mb-4">{currentQuestion.question}</p>
+        {/* Question text - scrollable area */}
+        <div className="text-sm text-zinc-400 mb-4 overflow-y-auto flex-1 min-h-0">
+          <MarkdownContent content={currentQuestion.question} className="prose-p:mb-2 prose-p:last:mb-0" />
+        </div>
+        {isMultiSelect && (
+          <div className="text-xs text-zinc-500 mb-3">Select all that apply.</div>
+        )}
 
-        {/* Option buttons */}
+        {/* Option buttons - fixed at bottom */}
         {!showCustomInput && (
-          <>
+          <div className="flex-shrink-0">
             <div className="grid grid-cols-2 gap-2 mb-3">
               {currentQuestion.options.map((option, index) => (
                 <button
                   key={index}
-                  onClick={() => onAnswer(option.label)}
-                  className="p-3 rounded-xl border border-surface-300 bg-surface-200/50 hover:bg-surface-200 hover:border-accent/30 transition-all text-left"
+                  onClick={() => (isMultiSelect ? toggleOption(option.label) : onAnswer(option.label))}
+                  className={cn(
+                    'p-3 rounded-xl border border-surface-300 bg-surface-200/50 hover:bg-surface-200 hover:border-accent/30 transition-all text-left',
+                    isMultiSelect && selectedOptions.includes(option.label) && 'border-accent/50 bg-surface-200'
+                  )}
                 >
-                  <div className="text-sm font-medium text-white">{option.label}</div>
+                  <div className="flex items-start gap-2 text-sm font-medium text-white">
+                    {isMultiSelect && (
+                      <span
+                        className={cn(
+                          'mt-0.5 inline-flex h-4 w-4 items-center justify-center rounded border',
+                          selectedOptions.includes(option.label)
+                            ? 'border-accent/50 bg-accent/20 text-accent'
+                            : 'border-surface-400 text-transparent'
+                        )}
+                      >
+                        <Check className="h-3 w-3" />
+                      </span>
+                    )}
+                    <span>{option.label}</span>
+                  </div>
                   {option.description && (
-                    <div className="text-xs text-zinc-500 mt-1">{option.description}</div>
+                    <div className="text-xs text-zinc-500 mt-1">
+                      <MarkdownContent content={option.description} className="prose-p:mb-0 prose-sm" />
+                    </div>
                   )}
                 </button>
               ))}
             </div>
+
+            {isMultiSelect && (
+              <button
+                onClick={handleMultiSelectSubmit}
+                disabled={selectedOptions.length === 0}
+                className={cn(
+                  'w-full mb-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                  selectedOptions.length > 0
+                    ? 'bg-accent text-white hover:bg-accent-dark'
+                    : 'bg-surface-300 text-surface-500 cursor-not-allowed'
+                )}
+              >
+                Submit selections
+              </button>
+            )}
 
             {/* Custom answer link */}
             <button
@@ -146,12 +208,12 @@ export function DecisionToast({
               <MessageSquare className="w-4 h-4" />
               <span>Provide custom instructions</span>
             </button>
-          </>
+          </div>
         )}
 
-        {/* Custom input */}
+        {/* Custom input - fixed at bottom */}
         {showCustomInput && (
-          <div className="space-y-3">
+          <div className="space-y-3 flex-shrink-0">
             <textarea
               value={customValue}
               onChange={(e) => setCustomValue(e.target.value)}

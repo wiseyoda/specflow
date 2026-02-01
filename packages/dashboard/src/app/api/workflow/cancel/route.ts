@@ -151,6 +151,15 @@ export async function POST(request: Request) {
 
         // If execution not found but we have session info, try session-based update
         if (message.includes('not found') && sessionId && projectId) {
+          // Check if project exists first
+          const projectPath = getProjectPath(projectId);
+          if (!projectPath) {
+            return NextResponse.json(
+              { error: `Project not found in registry: ${projectId}` },
+              { status: 404 }
+            );
+          }
+
           const cancelled = workflowService.cancelBySession(sessionId, projectId, finalStatus);
           if (cancelled) {
             const killResult = finalStatus === 'cancelled'
@@ -172,6 +181,15 @@ export async function POST(request: Request) {
 
     // No execution ID - try session-based update
     if (sessionId && projectId) {
+      // Check if project exists first for better error message
+      const projectPath = getProjectPath(projectId);
+      if (!projectPath) {
+        return NextResponse.json(
+          { error: `Project not found in registry: ${projectId}` },
+          { status: 404 }
+        );
+      }
+
       const cancelled = workflowService.cancelBySession(sessionId, projectId, finalStatus);
       if (cancelled) {
         const killResult = finalStatus === 'cancelled'
@@ -185,7 +203,7 @@ export async function POST(request: Request) {
         });
       }
       return NextResponse.json(
-        { error: `Session not found or not in updatable state: ${sessionId}` },
+        { error: `Session not in updatable state: ${sessionId}` },
         { status: 404 }
       );
     }

@@ -28,6 +28,16 @@ export interface WorkflowOutput {
 }
 
 /**
+ * Local CLI command data (e.g., /clear, /help)
+ */
+export interface LocalCommandData {
+  command: string;
+  message?: string;
+  args?: string;
+  stdout?: string;
+}
+
+/**
  * Session message from Claude JSONL files.
  * Only user and assistant messages are displayed; tool calls are parsed for metrics.
  */
@@ -47,6 +57,8 @@ export interface SessionMessage {
   questions?: QuestionInfo[];
   /** Agent tasks launched from this message */
   agentTasks?: AgentTaskInfo[];
+  /** Local CLI command data (e.g., /clear, /help) */
+  localCommand?: LocalCommandData;
 }
 
 /**
@@ -289,16 +301,26 @@ function extractToolCallInfos(content: unknown): {
             if (Array.isArray(questionItems)) {
               for (const q of questionItems) {
                 if (typeof q === 'object' && q !== null && typeof q.question === 'string') {
+                  const multiSelectValue = typeof q.multiSelect === 'boolean'
+                    ? q.multiSelect
+                    : typeof (q as { multiselect?: unknown }).multiselect === 'boolean'
+                      ? (q as { multiselect?: boolean }).multiselect
+                      : false;
                   const questionInfo: QuestionInfo = {
                     question: q.question,
                     header: typeof q.header === 'string' ? q.header : undefined,
                     options: [],
-                    multiSelect: typeof q.multiSelect === 'boolean' ? q.multiSelect : false,
+                    multiSelect: multiSelectValue ?? false,
                   };
                   // Extract options
                   if (Array.isArray(q.options)) {
                     for (const opt of q.options) {
-                      if (typeof opt === 'object' && opt !== null && typeof opt.label === 'string') {
+                      if (typeof opt === 'string') {
+                        questionInfo.options.push({
+                          label: opt,
+                          description: undefined,
+                        });
+                      } else if (typeof opt === 'object' && opt !== null && typeof opt.label === 'string') {
                         questionInfo.options.push({
                           label: opt.label,
                           description: typeof opt.description === 'string' ? opt.description : undefined,
@@ -390,6 +412,37 @@ function extractToolCallInfos(content: unknown): {
   }
 
   return { toolCalls, todos, questions, workflowOutput, agentTasks };
+}
+
+/**
+ * Parse the XML-like format from local CLI commands.
+ * Returns null if content is not a local command.
+ */
+export function parseLocalCommand(content: string): LocalCommandData | null {
+  // Check for the caveat marker
+  if (!content.includes('<local-command-caveat>')) {
+    return null;
+  }
+
+  // Extract command name (strip leading /)
+  const commandMatch = content.match(/<command-name>\/?([^<]+)<\/command-name>/);
+  if (!commandMatch) {
+    return null;
+  }
+
+  const command = commandMatch[1].trim();
+
+  // Extract optional fields
+  const messageMatch = content.match(/<command-message>([^<]*)<\/command-message>/);
+  const argsMatch = content.match(/<command-args>([^<]*)<\/command-args>/);
+  const stdoutMatch = content.match(/<local-command-stdout>([^<]*)<\/local-command-stdout>/);
+
+  return {
+    command,
+    message: messageMatch?.[1]?.trim() || undefined,
+    args: argsMatch?.[1]?.trim() || undefined,
+    stdout: stdoutMatch?.[1]?.trim() || undefined,
+  };
 }
 
 /**
@@ -490,6 +543,18 @@ export function parseSessionLine(line: string): ParseResult {
       }
     }
 
+    // Detect CLI result messages (session completed normally)
+    if (data.type === 'result') {
+      return {
+        message: {
+          role: 'system',
+          content: 'Session Ended',
+          timestamp: data.timestamp,
+          isSessionEnd: true,
+        },
+      };
+    }
+
     // User and assistant messages are in data.message.content
     if (data.type === 'user' || data.type === 'assistant') {
       const messageContent = data.message?.content;
@@ -530,9 +595,10 @@ export function parseSessionLine(line: string): ParseResult {
       // Also extract any tool calls for metrics
       const toolCallMetrics = extractToolCallMetrics(messageContent);
 
-      // Check if user message is a command injection
+      // Check if user message is a command injection or local command
       const isUser = data.type === 'user';
       const commandInfo = isUser ? isCommandInjection(textContent) : null;
+      const localCommandData = isUser ? parseLocalCommand(textContent) : null;
 
       return {
         message: {
@@ -544,6 +610,7 @@ export function parseSessionLine(line: string): ParseResult {
           commandName: commandInfo?.commandName ?? undefined,
           questions: questions.length > 0 ? questions : undefined,
           agentTasks: agentTasks.length > 0 ? agentTasks : undefined,
+          localCommand: localCommandData ?? undefined,
         },
         toolCall: toolCallMetrics.length > 0 ? toolCallMetrics[0] : undefined,
         toolCalls: detailedToolCalls.length > 0 ? detailedToolCalls : undefined,

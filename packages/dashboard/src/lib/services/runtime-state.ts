@@ -1,55 +1,62 @@
 import type { WorkflowData, WorkflowIndexEntry } from '@specflow/shared';
 import type { WorkflowExecution } from './workflow-service';
 import { workflowService } from './workflow-service';
-import { checkProcessHealth, didSessionEndGracefully } from './process-health';
+import {
+  checkProcessHealth,
+  getSessionStatus,
+  readFileTail,
+  getSessionFileMtime,
+} from './process-health';
+import { getProjectSessionDir } from '@/lib/project-hash';
+import { join } from 'path';
 import { discoverCliSessions } from './workflow-discovery';
 
 const ACTIVE_STATUSES: WorkflowIndexEntry['status'][] = ['running', 'waiting_for_input'];
-const HEALTH_CHECK_STATUSES: WorkflowIndexEntry['status'][] = ['running', 'detached', 'stale'];
 
+/**
+ * Derive session status using the SINGLE SOURCE OF TRUTH (getSessionStatus).
+ * Process health checks are only used as fallback for edge cases.
+ */
 function deriveExecutionStatus(
   execution: WorkflowExecution,
   projectPath: string
 ): WorkflowIndexEntry['status'] {
-  const status = execution.status as WorkflowIndexEntry['status'];
+  const persistedStatus = execution.status as WorkflowIndexEntry['status'];
 
   if (!execution.sessionId) {
-    return status;
+    return persistedStatus;
   }
 
-  if (status === 'failed' && didSessionEndGracefully(projectPath, execution.sessionId)) {
-    return 'completed';
-  }
+  // Get session file status - this is the SINGLE SOURCE OF TRUTH
+  const sessionDir = getProjectSessionDir(projectPath);
+  const sessionFile = join(sessionDir, `${execution.sessionId}.jsonl`);
+  const mtime = getSessionFileMtime(projectPath, execution.sessionId);
 
-  if (!HEALTH_CHECK_STATUSES.includes(status)) {
-    return status;
-  }
+  if (mtime) {
+    const ageMs = Date.now() - mtime.getTime();
+    const tail = readFileTail(sessionFile, 10000);
+    const fileStatus = getSessionStatus(tail, ageMs);
 
-  // If the session ended gracefully, treat it as completed for UI purposes.
-  if (didSessionEndGracefully(projectPath, execution.sessionId)) {
-    return 'completed';
-  }
-
-  const health = checkProcessHealth(execution, projectPath);
-  if (health.healthStatus === 'dead') {
-    return 'failed';
-  }
-  if (health.healthStatus === 'stale') {
-    return 'stale';
-  }
-  if (health.healthStatus === 'running' && status === 'stale') {
-    return 'running';
-  }
-  if (health.healthStatus === 'unknown') {
-    if (health.isStale) {
-      return 'stale';
+    // File-based status takes precedence
+    if (fileStatus === 'completed' || fileStatus === 'waiting_for_input') {
+      return fileStatus;
     }
-    if (health.sessionFileMtime) {
-      return 'running';
+
+    // For running/stale, also check process health for tracked sessions
+    // (we have PID info that CLI sessions don't have)
+    const health = checkProcessHealth(execution, projectPath);
+
+    if (health.healthStatus === 'dead') {
+      // Process died but file doesn't show completion - failed
+      return 'failed';
     }
+
+    // Use file-based status (running or stale)
+    return fileStatus;
   }
 
-  return status;
+  // No session file - fall back to persisted status
+  return persistedStatus;
 }
 
 function toWorkflowIndexEntry(
@@ -79,7 +86,7 @@ export async function buildWorkflowData(
     .filter((entry): entry is WorkflowIndexEntry => Boolean(entry));
 
   const trackedSessionIds = new Set<string>(trackedSessions.map((s) => s.sessionId));
-  const cliSessions = discoverCliSessions(projectPath, trackedSessionIds, 50);
+  const cliSessions = discoverCliSessions(projectPath, trackedSessionIds, 10);
 
   const allSessions = [...trackedSessions, ...cliSessions];
   allSessions.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -88,6 +95,33 @@ export async function buildWorkflowData(
 
   return {
     currentExecution,
-    sessions: allSessions.slice(0, 100),
+    sessions: allSessions.slice(0, 10),
+  };
+}
+
+/**
+ * Fast version of buildWorkflowData that skips expensive CLI session discovery.
+ * Used for initial SSE connection to minimize latency.
+ * Full session discovery happens on subsequent file change events.
+ */
+export async function buildWorkflowDataFast(
+  projectId: string,
+  projectPath: string
+): Promise<WorkflowData> {
+  const executions = workflowService.list(projectId);
+  const trackedSessions = executions
+    .map((execution) => toWorkflowIndexEntry(execution, projectPath))
+    .filter((entry): entry is WorkflowIndexEntry => Boolean(entry));
+
+  // Skip discoverCliSessions() - this is the expensive operation
+  // CLI sessions will be discovered on subsequent file change events
+
+  trackedSessions.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+  const currentExecution = trackedSessions.find((s) => ACTIVE_STATUSES.includes(s.status)) ?? null;
+
+  return {
+    currentExecution,
+    sessions: trackedSessions.slice(0, 10),
   };
 }

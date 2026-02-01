@@ -26,7 +26,7 @@ import { getProjectSessionDir, getClaudeProjectsDir } from './project-hash';
 import { reconcileRunners, runOrchestration, isRunnerActive } from './services/orchestration-runner';
 import { orchestrationService, readDashboardState } from './services/orchestration-service';
 import { workflowService } from './services/workflow-service';
-import { buildWorkflowData } from './services/runtime-state';
+import { buildWorkflowData, buildWorkflowDataFast } from './services/runtime-state';
 
 // Debounce delay in milliseconds
 const DEBOUNCE_MS = 200;
@@ -712,11 +712,19 @@ export async function getAllStates(): Promise<Map<string, OrchestrationState>> {
 
   if (!currentRegistry) return states;
 
-  for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
-    const statePath = await getStateFilePath(project.path);
-    const state = await readState(projectId, statePath);
-    if (state) {
-      states.set(projectId, state);
+  // Load states for all projects in parallel
+  const projectEntries = Object.entries(currentRegistry.projects);
+  const results = await Promise.all(
+    projectEntries.map(async ([projectId, project]) => {
+      const statePath = await getStateFilePath(project.path);
+      const state = await readState(projectId, statePath);
+      return state ? { projectId, state } : null;
+    })
+  );
+
+  for (const result of results) {
+    if (result) {
+      states.set(result.projectId, result.state);
     }
   }
 
@@ -726,24 +734,38 @@ export async function getAllStates(): Promise<Map<string, OrchestrationState>> {
 /**
  * Get all current tasks data for registered projects
  * Also reads state to get current in-progress tasks for status derivation
+ * @param cachedStates Optional pre-loaded states to avoid redundant reads
  */
-export async function getAllTasks(): Promise<Map<string, TasksData>> {
+export async function getAllTasks(
+  cachedStates?: Map<string, OrchestrationState>
+): Promise<Map<string, TasksData>> {
   const tasks = new Map<string, TasksData>();
 
   if (!currentRegistry) return tasks;
 
-  for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
-    const statePath = await getStateFilePath(project.path);
-    const tasksPath = await getTasksPathForProject(project.path, statePath);
-    if (tasksPath) {
-      // Read state to get current_tasks for in_progress status
-      const state = await readState(projectId, statePath);
+  // Load tasks for all projects in parallel
+  const projectEntries = Object.entries(currentRegistry.projects);
+  const results = await Promise.all(
+    projectEntries.map(async ([projectId, project]) => {
+      const statePath = await getStateFilePath(project.path);
+      const tasksPath = await getTasksPathForProject(project.path, statePath);
+      if (!tasksPath) return null;
+
+      // Use cached state if available, otherwise read
+      let state = cachedStates?.get(projectId);
+      if (!state) {
+        state = (await readState(projectId, statePath)) ?? undefined;
+      }
       const currentTasks = state?.orchestration?.implement?.current_tasks as string[] | undefined;
 
       const projectTasks = await readTasks(projectId, tasksPath, { currentTasks });
-      if (projectTasks) {
-        tasks.set(projectId, projectTasks);
-      }
+      return projectTasks ? { projectId, tasks: projectTasks } : null;
+    })
+  );
+
+  for (const result of results) {
+    if (result) {
+      tasks.set(result.projectId, result.tasks);
     }
   }
 
@@ -753,14 +775,25 @@ export async function getAllTasks(): Promise<Map<string, TasksData>> {
 /**
  * Get all current workflow data for registered projects.
  * Includes both dashboard-tracked sessions AND discovered CLI sessions.
+ * @param fastMode If true, skips expensive session discovery for faster initial load
  */
-export async function getAllWorkflows(): Promise<Map<string, WorkflowData>> {
+export async function getAllWorkflows(fastMode = false): Promise<Map<string, WorkflowData>> {
   const workflows = new Map<string, WorkflowData>();
 
   if (!currentRegistry) return workflows;
 
-  for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
-    const data = await buildWorkflowData(projectId, project.path);
+  // Load workflows for all projects in parallel
+  const projectEntries = Object.entries(currentRegistry.projects);
+  const results = await Promise.all(
+    projectEntries.map(async ([projectId, project]) => {
+      const data = fastMode
+        ? await buildWorkflowDataFast(projectId, project.path)
+        : await buildWorkflowData(projectId, project.path);
+      return { projectId, data };
+    })
+  );
+
+  for (const { projectId, data } of results) {
     workflows.set(projectId, data);
     // Update cache
     workflowCache.set(projectId, JSON.stringify(data));
@@ -777,17 +810,57 @@ export async function getAllPhases(): Promise<Map<string, PhasesData>> {
 
   if (!currentRegistry) return phases;
 
-  for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
-    const roadmapPath = path.join(project.path, 'ROADMAP.md');
-    const data = await readPhases(projectId, roadmapPath);
-    if (data) {
-      phases.set(projectId, data);
+  // Load phases for all projects in parallel
+  const projectEntries = Object.entries(currentRegistry.projects);
+  const results = await Promise.all(
+    projectEntries.map(async ([projectId, project]) => {
+      const roadmapPath = path.join(project.path, 'ROADMAP.md');
+      const data = await readPhases(projectId, roadmapPath);
+      return data ? { projectId, data } : null;
+    })
+  );
+
+  for (const result of results) {
+    if (result) {
+      phases.set(result.projectId, result.data);
       // Update cache
-      phasesCache.set(projectId, JSON.stringify(data));
+      phasesCache.set(result.projectId, JSON.stringify(result.data));
     }
   }
 
   return phases;
+}
+
+/**
+ * Load all data in parallel for fast initial SSE connection.
+ * Optimizes by:
+ * 1. Running states, workflows (fast), and phases in parallel
+ * 2. Passing cached states to tasks loading (avoids redundant reads)
+ * 3. Passing cached workflows to sessions loading (avoids redundant calls)
+ */
+export async function getAllDataParallel(): Promise<{
+  states: Map<string, OrchestrationState>;
+  tasks: Map<string, TasksData>;
+  workflows: Map<string, WorkflowData>;
+  phases: Map<string, PhasesData>;
+  sessions: SessionWithProject[];
+}> {
+  // Phase 1: Load states, workflows (fast mode), and phases in parallel
+  // These have no dependencies on each other
+  const [states, workflows, phases] = await Promise.all([
+    getAllStates(),
+    getAllWorkflows(true), // Fast mode: skip expensive session discovery
+    getAllPhases(),
+  ]);
+
+  // Phase 2: Load tasks and sessions in parallel
+  // Tasks uses cached states, sessions uses cached workflows
+  const [tasks, sessions] = await Promise.all([
+    getAllTasks(states), // Pass cached states to avoid re-reading
+    getAllSessions(workflows), // Pass cached workflows to avoid re-computing
+  ]);
+
+  return { states, tasks, workflows, phases, sessions };
 }
 
 /**
@@ -818,14 +891,18 @@ async function isSessionStale(sessionPath: string): Promise<boolean> {
 /**
  * Get all current session content for active sessions
  * Called on SSE connect to send initial session data
+ * @param cachedWorkflows Optional pre-loaded workflows to avoid redundant calls
  */
-export async function getAllSessions(): Promise<SessionWithProject[]> {
-  const sessions: SessionWithProject[] = [];
+export async function getAllSessions(
+  cachedWorkflows?: Map<string, WorkflowData>
+): Promise<SessionWithProject[]> {
+  if (!currentRegistry) return [];
 
-  if (!currentRegistry) return sessions;
+  // Use cached workflows or load them (fast mode since we only need session IDs)
+  const workflows = cachedWorkflows ?? await getAllWorkflows(true);
 
-  // Get workflow data to find active sessions
-  const workflows = await getAllWorkflows();
+  // Collect all session load tasks to run in parallel
+  const sessionLoadTasks: Promise<SessionWithProject | null>[] = [];
 
   for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
     const workflowData = workflows.get(projectId);
@@ -851,33 +928,37 @@ export async function getAllSessions(): Promise<SessionWithProject[]> {
       }
     }
 
-    // Load content for each session (skip stale sessions)
+    // Create parallel load tasks for each session
     const sessionDir = getSessionDirectory(project.path);
     for (const sessionId of sessionIdsToLoad) {
-      const sessionPath = path.join(sessionDir, `${sessionId}.jsonl`);
-      try {
-        // Skip stale sessions - they're marked as "running" but haven't been modified recently
-        if (await isSessionStale(sessionPath)) {
-          console.log(`[Watcher] Skipping stale session ${sessionId} (not modified in 30+ minutes)`);
-          continue;
-        }
+      sessionLoadTasks.push(
+        (async (): Promise<SessionWithProject | null> => {
+          const sessionPath = path.join(sessionDir, `${sessionId}.jsonl`);
+          try {
+            // Skip stale sessions - they're marked as "running" but haven't been modified recently
+            if (await isSessionStale(sessionPath)) {
+              return null;
+            }
 
-        const content = await parseSessionContent(sessionPath);
-        if (content) {
-          // Update caches for future change detection
-          sessionProjectMap.set(sessionId, projectId);
-          sessionCache.set(sessionId, JSON.stringify(content));
-
-          sessions.push({ projectId, sessionId, content });
-        }
-      } catch (error) {
-        // Session file might not exist yet or is inaccessible
-        console.log(`[Watcher] Could not load session ${sessionId} for project ${projectId}:`, error);
-      }
+            const content = await parseSessionContent(sessionPath);
+            if (content) {
+              // Update caches for future change detection
+              sessionProjectMap.set(sessionId, projectId);
+              sessionCache.set(sessionId, JSON.stringify(content));
+              return { projectId, sessionId, content };
+            }
+          } catch {
+            // Session file might not exist yet or is inaccessible
+          }
+          return null;
+        })()
+      );
     }
   }
 
-  return sessions;
+  // Run all session loads in parallel
+  const results = await Promise.all(sessionLoadTasks);
+  return results.filter((r): r is SessionWithProject => r !== null);
 }
 
 // ============================================================================
@@ -949,32 +1030,62 @@ function calculateElapsedMs(startTime?: string): number {
  * T015: Detect AskUserQuestion tool calls AND structured_output questions (CLI mode)
  */
 function extractPendingQuestions(content: SessionContent): SessionQuestion[] {
-  const questions: SessionQuestion[] = [];
+  let latestQuestions: SessionQuestion[] = [];
+  let latestQuestionIndex = -1;
 
-  // Helper to process a questions array
-  const processQuestions = (questionList: unknown[]) => {
+  const normalizeOptions = (
+    options: unknown
+  ): Array<{ label: string; description?: string }> => {
+    if (!Array.isArray(options)) {
+      return [];
+    }
+    const normalized: Array<{ label: string; description?: string }> = [];
+    for (const opt of options) {
+      if (typeof opt === 'string') {
+        normalized.push({ label: opt, description: '' });
+      } else if (typeof opt === 'object' && opt !== null && 'label' in opt) {
+        const optObj = opt as { label?: unknown; description?: unknown };
+        if (typeof optObj.label === 'string') {
+          normalized.push({
+            label: optObj.label,
+            description: typeof optObj.description === 'string' ? optObj.description : '',
+          });
+        }
+      }
+    }
+    return normalized;
+  };
+
+  // Helper to process a questions array (replace latest question set)
+  const processQuestions = (questionList: unknown[], messageIndex: number) => {
+    const processed: SessionQuestion[] = [];
     for (const q of questionList) {
       if (typeof q === 'object' && q !== null && 'question' in q) {
         const qObj = q as Record<string, unknown>;
-        // Map to SessionQuestion format, ensuring description has a default value
-        const options = Array.isArray(qObj.options)
-          ? qObj.options.map((opt: { label: string; description?: string }) => ({
-              label: opt.label,
-              description: opt.description ?? '', // Default to empty string
-            }))
-          : [];
+        const options = normalizeOptions(qObj.options);
+        const multiSelectValue = typeof qObj.multiSelect === 'boolean'
+          ? qObj.multiSelect
+          : typeof qObj.multiselect === 'boolean'
+            ? qObj.multiselect
+            : undefined;
 
-        questions.push({
+        processed.push({
           question: String(qObj.question),
           header: typeof qObj.header === 'string' ? qObj.header : undefined,
           options,
-          multiSelect: typeof qObj.multiSelect === 'boolean' ? qObj.multiSelect : undefined,
+          multiSelect: multiSelectValue,
         });
       }
     }
+
+    if (processed.length > 0) {
+      latestQuestions = processed;
+      latestQuestionIndex = messageIndex;
+    }
   };
 
-  for (const message of content.messages) {
+  for (let i = 0; i < content.messages.length; i++) {
+    const message = content.messages[i];
     // Check for AskUserQuestion tool calls (interactive mode)
     if (message.role === 'assistant' && message.toolCalls) {
       for (const toolCall of message.toolCalls) {
@@ -982,7 +1093,7 @@ function extractPendingQuestions(content: SessionContent): SessionQuestion[] {
           const input = toolCall.input as Record<string, unknown>;
           const questionList = input?.questions;
           if (Array.isArray(questionList)) {
-            processQuestions(questionList);
+            processQuestions(questionList, i);
           }
         }
       }
@@ -994,12 +1105,21 @@ function extractPendingQuestions(content: SessionContent): SessionQuestion[] {
     if (msgAny.type === 'result' && msgAny.structured_output) {
       const structured = msgAny.structured_output as Record<string, unknown>;
       if (structured.status === 'needs_input' && Array.isArray(structured.questions)) {
-        processQuestions(structured.questions);
+        processQuestions(structured.questions, i);
       }
     }
   }
 
-  return questions;
+  if (latestQuestionIndex >= 0) {
+    const hasUserResponse = content.messages
+      .slice(latestQuestionIndex + 1)
+      .some((msg) => msg.role === 'user');
+    if (hasUserResponse) {
+      return [];
+    }
+  }
+
+  return latestQuestions;
 }
 
 /**
@@ -1071,6 +1191,8 @@ async function handleSessionFileChange(sessionPath: string): Promise<boolean> {
   // Check for pending questions
   const questions = extractPendingQuestions(content);
   if (questions.length > 0) {
+    // Align workflow status with AskUserQuestion-driven waits
+    workflowService.markWaitingForInput(sessionId, resolvedProjectId, questions);
     broadcast({
       type: 'session:question',
       timestamp: new Date().toISOString(),
@@ -1080,15 +1202,10 @@ async function handleSessionFileChange(sessionPath: string): Promise<boolean> {
     });
   }
 
-  // Check for session end
+  // Check for session end (explicit markers)
   if (content.messages.some(m => m.isSessionEnd)) {
     // Ensure workflow index reflects graceful completion
     workflowService.cancelBySession(sessionId, resolvedProjectId, 'completed');
-    // Recompute workflow data in case index updates lag or are missing
-    if (projectPath) {
-      const indexPath = path.join(projectPath, '.specflow', 'workflows', 'index.json');
-      await handleWorkflowChange(resolvedProjectId, indexPath);
-    }
 
     broadcast({
       type: 'session:end',
@@ -1096,6 +1213,25 @@ async function handleSessionFileChange(sessionPath: string): Promise<boolean> {
       projectId: resolvedProjectId,
       sessionId,
     });
+  }
+
+  // Always refresh workflow data on session change - this catches:
+  // - Session ending with assistant text (no explicit end marker)
+  // - Session transitioning to/from waiting_for_input
+  // - Any other status changes based on file content
+  if (projectPath) {
+    const data = await buildWorkflowData(resolvedProjectId, projectPath);
+    const dataJson = JSON.stringify(data);
+    const cached = workflowCache.get(resolvedProjectId);
+    if (cached !== dataJson) {
+      workflowCache.set(resolvedProjectId, dataJson);
+      broadcast({
+        type: 'workflow',
+        timestamp: new Date().toISOString(),
+        projectId: resolvedProjectId,
+        data,
+      });
+    }
   }
 
   return true;
@@ -1218,15 +1354,61 @@ function updateProjectPathMap(): void {
 // ============================================================================
 
 /**
+ * Refresh workflow data for all projects.
+ * Called periodically to catch sessions that become stale over time.
+ */
+async function refreshAllWorkflowData(): Promise<void> {
+  if (!currentRegistry) return;
+
+  for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
+    try {
+      const data = await buildWorkflowData(projectId, project.path);
+      const dataJson = JSON.stringify(data);
+      const cached = workflowCache.get(projectId);
+
+      // Only broadcast if data changed
+      if (cached !== dataJson) {
+        workflowCache.set(projectId, dataJson);
+        broadcast({
+          type: 'workflow',
+          timestamp: new Date().toISOString(),
+          projectId,
+          data,
+        });
+      }
+    } catch {
+      // Ignore errors during periodic refresh
+    }
+  }
+}
+
+/**
  * Start heartbeat timer for a listener
  */
 export function startHeartbeat(listener: EventListener): NodeJS.Timeout {
-  return setInterval(() => {
+  return setInterval(async () => {
     listener({
       type: 'heartbeat',
       timestamp: new Date().toISOString(),
     });
+
+    // Refresh workflow data to catch sessions that become stale
+    await refreshAllWorkflowData();
   }, HEARTBEAT_MS);
+}
+
+// Delay before running full workflow refresh after initial connection
+const INITIAL_FULL_REFRESH_DELAY_MS = 1500;
+
+/**
+ * Schedule a full workflow refresh shortly after initial connection.
+ * Called after fast initial data is sent to populate CLI sessions
+ * without waiting for the 30-second heartbeat.
+ */
+export function scheduleFullWorkflowRefresh(): void {
+  setTimeout(async () => {
+    await refreshAllWorkflowData();
+  }, INITIAL_FULL_REFRESH_DELAY_MS);
 }
 
 /**

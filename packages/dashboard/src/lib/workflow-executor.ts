@@ -45,54 +45,6 @@ export interface WorkflowExecution {
 }
 
 /**
- * JSON Schema for workflow structured output
- */
-const WORKFLOW_SCHEMA = {
-  type: 'object',
-  properties: {
-    status: {
-      type: 'string',
-      enum: ['completed', 'needs_input', 'error'],
-    },
-    phase: { type: 'string' },
-    message: { type: 'string' },
-    questions: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          question: { type: 'string' },
-          header: { type: 'string' },
-          options: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                label: { type: 'string' },
-                description: { type: 'string' },
-              },
-            },
-          },
-          multiSelect: { type: 'boolean' },
-        },
-        required: ['question'],
-      },
-    },
-    artifacts: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          path: { type: 'string' },
-          action: { type: 'string' },
-        },
-      },
-    },
-  },
-  required: ['status'],
-};
-
-/**
  * Load a skill file content
  */
 function loadSkillContent(skill: string): string | null {
@@ -118,14 +70,9 @@ function buildInitialPrompt(skill: string): string | null {
   return `# CLI Mode Instructions
 
 You are running in non-interactive CLI mode. IMPORTANT:
-1. You CANNOT use AskUserQuestion tool - it is disabled
-2. When you need user input, output questions in the JSON structured_output
-3. Set status to "needs_input" and include a questions array
-4. Use the SAME format as AskUserQuestion tool input:
-   - question: The question text
-   - header: Short label (max 12 chars)
-   - options: Array of {label, description} choices
-   - multiSelect: true if multiple selections allowed
+1. When you need user input, use the AskUserQuestion tool with a questions array
+2. Prefer asking all required questions in a single AskUserQuestion call
+3. After asking, wait for the user response before continuing
 
 # Skill Instructions
 
@@ -142,17 +89,12 @@ function buildResumePrompt(answers: Record<string, string>): string {
     .map(([key, value]) => `- ${key}: ${value}`)
     .join('\n');
 
-  return `# User Answers
-
-The user has answered the questions:
+  return `# Answers to your questions
 
 ${answerText}
 
-Continue the workflow using these answers. Remember:
-- You CANNOT use AskUserQuestion tool - it is disabled
-- If you need more input, set status to "needs_input" with questions array
-- If the workflow is complete, set status to "completed"
-- Use the structured_output JSON format`;
+Continue the workflow using these answers.
+If you need more input, ask via AskUserQuestion.`;
 }
 
 /**
@@ -351,15 +293,12 @@ ${claudePath} -p --output-format json "Say hello" < /dev/null > "${outputFile}" 
       const promptFile = join(specifyDir, 'resume-prompt.txt');
       writeFileSync(promptFile, resumePrompt);
 
-      const schemaFile = join(specifyDir, 'schema.json');
-      writeFileSync(schemaFile, JSON.stringify(WORKFLOW_SCHEMA));
-
       execution.logs.push(`[RESUME] Session: ${execution.sessionId}`);
       execution.logs.push(`[INFO] Resume prompt (${resumePrompt.length} chars)`);
 
       scriptContent = `#!/bin/bash
 cd "${execution.projectPath}"
-${claudePath} -p --output-format json --resume "${execution.sessionId}" --dangerously-skip-permissions --disallowedTools "AskUserQuestion" --json-schema "$(cat ${schemaFile})" < "${promptFile}" > "${outputFile}" 2>&1
+${claudePath} -p --output-format json --resume "${execution.sessionId}" --dangerously-skip-permissions < "${promptFile}" > "${outputFile}" 2>&1
 `;
     } else {
       // Initial run
@@ -377,12 +316,9 @@ ${claudePath} -p --output-format json --resume "${execution.sessionId}" --danger
       writeFileSync(promptFile, prompt);
       execution.logs.push(`[INFO] Initial prompt (${prompt.length} chars)`);
 
-      const schemaFile = join(specifyDir, 'schema.json');
-      writeFileSync(schemaFile, JSON.stringify(WORKFLOW_SCHEMA));
-
       scriptContent = `#!/bin/bash
 cd "${execution.projectPath}"
-${claudePath} -p --output-format json --dangerously-skip-permissions --disallowedTools "AskUserQuestion" --json-schema "$(cat ${schemaFile})" < "${promptFile}" > "${outputFile}" 2>&1
+${claudePath} -p --output-format json --dangerously-skip-permissions < "${promptFile}" > "${outputFile}" 2>&1
 `;
     }
 

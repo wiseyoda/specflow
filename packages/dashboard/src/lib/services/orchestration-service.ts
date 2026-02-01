@@ -21,14 +21,25 @@ import {
   type OrchestrationConfig,
   type OrchestrationPhase,
   type OrchestrationStatus,
+  type DashboardOrchestrationStatus,
   type BatchTracking,
   type BatchPlan,
   type DashboardState,
   type OrchestrationState,
+  type StepStatus,
   OrchestrationStateSchema,
   DashboardStateSchema,
   STEP_INDEX_MAP,
 } from '@specflow/shared';
+
+/**
+ * Type for orchestration step info from CLI state file
+ */
+export interface OrchestrationStepInfo {
+  current?: string | null;
+  index?: number | null;
+  status?: StepStatus | null;
+}
 import { createBatchTracking } from './batch-parser';
 import type { OrchestrationExecution } from './orchestration-types';
 import { getSpecflowEnv } from '@/lib/specflow-env';
@@ -133,7 +144,7 @@ export function readDashboardState(projectPath: string): DashboardState | null {
  */
 export function readOrchestrationStep(
   projectPath: string
-): OrchestrationState['orchestration'] extends { step?: infer Step } ? Step | null : null {
+): OrchestrationStepInfo | null {
   const state = readCliState(projectPath);
   return state?.orchestration?.step ?? null;
 }
@@ -541,8 +552,10 @@ class OrchestrationService {
     batchPlan: BatchPlan | null = null
   ): Promise<OrchestrationExecution> {
     // Check for existing active orchestration (FR-024)
+    // Terminal states (completed, failed, cancelled) don't block new orchestrations
     const existing = getActiveDashboardState(projectPath);
-    if (existing?.active) {
+    const terminalStatuses = ['completed', 'failed', 'cancelled'];
+    if (existing?.active && !terminalStatuses.includes(existing.active.status)) {
       throw new Error(
         `Orchestration already in progress: ${existing.active.id}. Cancel it first or wait for completion.`
       );
@@ -1482,7 +1495,7 @@ class OrchestrationService {
     if (dashboardState.active.status !== 'needs_attention') return null;
 
     const decisionLog = [...(dashboardState.decisionLog || [])];
-    let status = dashboardState.active.status;
+    let status: DashboardOrchestrationStatus = dashboardState.active.status;
 
     if (action === 'retry') {
       status = 'running';

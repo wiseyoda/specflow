@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { orchestrationService } from '@/lib/services/orchestration-service';
+import { workflowService } from '@/lib/services/workflow-service';
+import { isRunnerActive, runOrchestration } from '@/lib/services/orchestration-runner';
 
 // =============================================================================
 // Registry Lookup
@@ -69,6 +71,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Block step override if an external workflow is running
+    const activeStatuses = new Set(['running', 'waiting_for_input']);
+    const activeWorkflows = workflowService
+      .list(projectId)
+      .filter((workflow) => activeStatuses.has(workflow.status));
+    const externalWorkflow = activeWorkflows.find(
+      (workflow) => workflow.orchestrationId !== id
+    );
+
+    if (externalWorkflow) {
+      return NextResponse.json(
+        {
+          error: 'Active workflow detected outside this orchestration. Finish or cancel it before overriding steps.',
+        },
+        { status: 409 }
+      );
+    }
+
     // Go back to the step
     const result = await orchestrationService.goBackToStep(projectPath, id, step);
 
@@ -77,6 +97,12 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to go back to step' },
         { status: 500 }
       );
+    }
+
+    if (!isRunnerActive(id)) {
+      runOrchestration(projectId, id).catch((error) => {
+        console.error('[API] Failed to restart orchestration runner after go-back:', error);
+      });
     }
 
     return NextResponse.json({

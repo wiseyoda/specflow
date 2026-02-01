@@ -16,7 +16,7 @@ This plan consolidates orchestration state into a single, debuggable source of t
 - Phase 4: Decision logic simplification — DONE (getNextAction matrix + runner wiring).
 - Phase 5: Auto-heal simplification — DONE (CLI step status healing).
 - Phase 6: Hack removal — DONE (Claude fallback + workflow lookup fallback + batch guards removed).
-- Phase 7: UI step override — TODO.
+- Phase 7: UI step override — DONE.
 - Current behavior: merge step shows correctly, Running indicator is accurate, status API is read-only, phantom sessions eliminated, decision flow is deterministic.
 
 ---
@@ -124,7 +124,7 @@ This plan consolidates orchestration state into a single, debuggable source of t
 
 ---
 
-### Phase 7: UI Step Override
+### Phase 7: UI Step Override (DONE)
 
 **Goal**: Manual override to move orchestration to a prior step.
 
@@ -147,14 +147,14 @@ This plan consolidates orchestration state into a single, debuggable source of t
 | 4 | T010-T013 | Simplify decision logic | DONE |
 | 5 | T014-T016 | Auto-heal logic | DONE |
 | 6 | T017-T022 | Remove hacks | DONE |
-| 7 | T023-T026 | UI step override | TODO |
+| 7 | T023-T026 | UI step override | DONE |
 
 ## Execution Order
 
 1. Phase 2 (schema) enables dashboard migration.
 2. Phase 3 (migration) unlocks simplified decision logic.
 3. Phases 4–6 in order (each builds on prior).
-4. Phase 7 last (UX-only change).
+4. Phase 7 last (UX-only change) — complete.
 
 ## Verification
 

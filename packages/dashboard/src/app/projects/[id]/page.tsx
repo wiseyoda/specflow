@@ -860,7 +860,7 @@ export default function ProjectDetailPage() {
       projectPath={project.path}
       onGoBackToStep={goBackToStep}
       isGoingBackToStep={isGoingBackToStep}
-      isWorkflowRunning={workflowStatus === 'running'}
+      isWorkflowRunning={workflowStatus === 'running' || workflowStatus === 'waiting'}
     />
   )
 

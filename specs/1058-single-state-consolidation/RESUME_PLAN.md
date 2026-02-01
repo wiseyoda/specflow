@@ -34,14 +34,13 @@ Compact, actionable context so work can resume quickly after interruption.
 - Runner tests updated to mock `readDashboardState` + `readOrchestrationStep`.
 - Removed obsolete Claude fallback test block and old OrchestrationDeps fixtures.
 
-## Remaining Work
-1) **Phase 7 UI Step Override**
-   - Add `goBackToStep()` (CLI state set).
-   - Create StepOverride UI.
-   - Wire into project detail page.
-   - Add integration check for external `/flow.*` runs.
+### ✅ UI Step Override complete
+- StepOverride UI is wired in context drawer.
+- `goBackToStep` uses CLI state set and clears last workflow.
+- API now blocks when an external workflow is active and restarts the runner if needed.
 
-2) **Deferred cleanup (optional)**
+## Remaining Work
+1) **Deferred cleanup (optional)**
    - Remove `OrchestrationExecution` compatibility layer and schema once UI is migrated.
 
 ## Key Files (recently touched)

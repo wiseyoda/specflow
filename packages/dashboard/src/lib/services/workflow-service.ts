@@ -909,6 +909,24 @@ class WorkflowService {
         execution.updatedAt = new Date().toISOString();
         execution.logs.push(`[HEALTH] Process recovered - session file updated`);
         saveExecution(execution, projectPath);
+      } else if (health.healthStatus === 'unknown') {
+        if (didSessionEndGracefully(projectPath, execution.sessionId)) {
+          execution.status = 'completed';
+          execution.completedAt = new Date().toISOString();
+          execution.updatedAt = new Date().toISOString();
+          execution.logs.push(`[HEALTH] Session completed gracefully (no PID)`);
+          saveExecution(execution, projectPath);
+          this.updateSessionStatus(execution.sessionId, projectPath, 'completed');
+        } else if (health.isStale && execution.status !== 'stale') {
+          execution.status = 'stale';
+          execution.error = getHealthStatusMessage({
+            ...health,
+            healthStatus: 'stale',
+          });
+          execution.updatedAt = new Date().toISOString();
+          execution.logs.push(`[HEALTH] ${execution.error}`);
+          saveExecution(execution, projectPath);
+        }
       }
     }
 

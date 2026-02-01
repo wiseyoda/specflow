@@ -76,6 +76,9 @@ async function cancelWorkflowApi(
   executionId?: string,
   sessionId?: string
 ): Promise<void> {
+  if (!executionId && !sessionId) {
+    return;
+  }
   const params = new URLSearchParams();
   if (executionId) params.set('id', executionId);
   if (sessionId) params.set('sessionId', sessionId);

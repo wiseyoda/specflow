@@ -28,6 +28,7 @@ import {
   type OrchestrationState,
   OrchestrationStateSchema,
   DashboardStateSchema,
+  STEP_INDEX_MAP,
 } from '@specflow/shared';
 import { parseBatchesFromProject, createBatchTracking } from './batch-parser';
 import type { OrchestrationExecution } from './orchestration-types';
@@ -345,35 +346,57 @@ function saveOrchestration(projectPath: string, execution: OrchestrationExecutio
 }
 
 /**
- * Sync current phase to orchestration-state.json for UI consistency
- * This keeps the state file in sync with the orchestration execution
+ * Sync current phase to orchestration state via `specflow state set`
+ * Uses the CLI as the single source of truth (avoids direct JSON writes)
  */
-function syncPhaseToStateFile(projectPath: string, phase: OrchestrationPhase): void {
+function syncPhaseToStateFile(
+  projectPath: string,
+  phase: OrchestrationPhase,
+  status: 'in_progress' | 'not_started' | 'complete' = 'in_progress'
+): void {
   try {
-    // Try .specflow first (v3), then .specify (v2)
-    let statePath = join(projectPath, '.specflow', 'orchestration-state.json');
-    if (!existsSync(statePath)) {
-      statePath = join(projectPath, '.specify', 'orchestration-state.json');
-    }
-    if (!existsSync(statePath)) {
-      return; // No state file to update
+    // Only sync phases that map to workflow steps
+    const stepIndex = STEP_INDEX_MAP[phase as keyof typeof STEP_INDEX_MAP];
+    if (stepIndex === undefined) {
+      return;
     }
 
-    const content = readFileSync(statePath, 'utf-8');
-    const state = JSON.parse(content);
+    const commandParts = [
+      `orchestration.step.current=${phase}`,
+      `orchestration.step.status=${status}`,
+      `orchestration.step.index=${stepIndex}`,
+    ];
 
-    // Update step.current to match orchestration phase
-    if (state.orchestration) {
-      state.orchestration.step = state.orchestration.step || {};
-      state.orchestration.step.current = phase;
-      state.orchestration.step.status = 'in_progress';
-      state.last_updated = new Date().toISOString();
-    }
-
-    writeFileSync(statePath, JSON.stringify(state, null, 2));
+    execSync(`specflow state set ${commandParts.join(' ')}`, {
+      cwd: projectPath,
+      encoding: 'utf-8',
+      timeout: 10000,
+    });
   } catch {
     // Non-critical: log but don't fail orchestration
     console.warn('[orchestration-service] Failed to sync phase to state file');
+  }
+}
+
+/**
+ * Ensure CLI step aligns with orchestration status (e.g., waiting_merge -> merge step).
+ */
+function ensureStepMatchesStatus(
+  projectPath: string,
+  status: OrchestrationStatus | undefined
+): void {
+  if (status !== 'waiting_merge') return;
+
+  const cliState = readCliState(projectPath);
+  const step = cliState?.orchestration?.step;
+  const expectedIndex = STEP_INDEX_MAP.merge;
+
+  if (
+    step?.current !== 'merge' ||
+    step?.status !== 'not_started' ||
+    step?.index !== expectedIndex
+  ) {
+    syncPhaseToStateFile(projectPath, 'merge', 'not_started');
   }
 }
 
@@ -809,6 +832,7 @@ class OrchestrationService {
     // First try CLI state (single source of truth)
     const dashboardState = readDashboardState(projectPath);
     if (dashboardState?.active) {
+      ensureStepMatchesStatus(projectPath, dashboardState.active.status);
       return this.convertDashboardStateToExecution(projectPath, dashboardState);
     }
 
@@ -848,6 +872,8 @@ class OrchestrationService {
       'analyze': 'analyze',
       'implement': 'implement',
       'verify': 'verify',
+      'merge': 'merge',
+      'complete': 'complete',
     };
     const currentPhase: OrchestrationPhase = step?.current && phaseMap[step.current]
       ? phaseMap[step.current]
@@ -974,7 +1000,7 @@ class OrchestrationService {
       saveOrchestration(projectPath, execution);
       syncStatusToDashboard(projectPath, 'waiting_merge');
       // Sync to state file for UI consistency
-      syncPhaseToStateFile(projectPath, nextPhase);
+      syncPhaseToStateFile(projectPath, nextPhase, 'not_started');
       return execution;
     }
 
@@ -1225,9 +1251,6 @@ class OrchestrationService {
       logDecision(execution, 'go_back_to_step', `User navigated back to ${targetStep} step`);
       saveOrchestration(projectPath, execution);
 
-      // Sync phase to state file
-      syncPhaseToStateFile(projectPath, targetStep as OrchestrationPhase);
-
       console.log(`[orchestration-service] Went back to step: ${targetStep}`);
       return execution;
     } catch (error) {
@@ -1246,6 +1269,7 @@ class OrchestrationService {
     execution.status = 'running';
     logDecision(execution, 'merge_triggered', 'User triggered merge');
     saveOrchestration(projectPath, execution);
+    syncPhaseToStateFile(projectPath, 'merge', 'in_progress');
     return execution;
   }
 

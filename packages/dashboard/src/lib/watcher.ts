@@ -5,20 +5,16 @@ import path from 'path';
 import {
   RegistrySchema,
   OrchestrationStateSchema,
-  WorkflowIndexSchema,
   type Registry,
   type OrchestrationState,
   type SSEEvent,
   type TasksData,
-  type WorkflowIndex,
-  type WorkflowIndexEntry,
   type WorkflowData,
   type PhasesData,
   type SessionContent,
   type SessionQuestion,
 } from '@specflow/shared';
-import { readdirSync, statSync, existsSync, readFileSync } from 'fs';
-import { v4 as uuidv4 } from 'uuid';
+import { existsSync, readFileSync } from 'fs';
 import { parseTasks, type ParseTasksOptions } from './task-parser';
 import { parseRoadmapToPhasesData } from './roadmap-parser';
 import {
@@ -29,6 +25,8 @@ import {
 import { getProjectSessionDir, getClaudeProjectsDir } from './project-hash';
 import { reconcileRunners, runOrchestration, isRunnerActive } from './services/orchestration-runner';
 import { orchestrationService, readDashboardState } from './services/orchestration-service';
+import { workflowService } from './services/workflow-service';
+import { buildWorkflowData } from './services/runtime-state';
 
 // Debounce delay in milliseconds
 const DEBOUNCE_MS = 200;
@@ -282,205 +280,14 @@ async function handleTasksChange(projectId: string, tasksPath: string): Promise<
 }
 
 /**
- * Read and parse workflow index file for a project
- */
-async function readWorkflowIndex(indexPath: string): Promise<WorkflowIndex | null> {
-  try {
-    const content = await fs.readFile(indexPath, 'utf-8');
-    const parsed = WorkflowIndexSchema.parse(JSON.parse(content));
-    return parsed;
-  } catch {
-    // File doesn't exist or is invalid - return empty
-    return { sessions: [] };
-  }
-}
-
-/**
- * Build WorkflowData from index
- * Finds current active execution and includes all sessions
- */
-function buildWorkflowData(index: WorkflowIndex): WorkflowData {
-  // Find current active execution (running or waiting_for_input)
-  const activeStates = ['running', 'waiting_for_input', 'detached', 'stale'];
-  const currentExecution = index.sessions.find(s => activeStates.includes(s.status)) ?? null;
-
-  return {
-    currentExecution,
-    sessions: index.sessions,
-  };
-}
-
-/**
- * Discover CLI sessions from Claude projects directory.
- * Scans ~/.claude/projects/{hash}/ for .jsonl files and creates WorkflowIndexEntry objects.
- * These are sessions started from CLI that weren't tracked by the dashboard.
- *
- * @param projectPath - Absolute path to the project
- * @param trackedSessionIds - Set of session IDs already tracked by dashboard (to avoid duplicates)
- * @param limit - Maximum number of sessions to return (default 50)
- */
-function discoverCliSessions(
-  projectPath: string,
-  trackedSessionIds: Set<string>,
-  limit: number = 50
-): WorkflowIndexEntry[] {
-  const sessionDir = getProjectSessionDir(projectPath);
-
-  if (!existsSync(sessionDir)) {
-    return [];
-  }
-
-  try {
-    const files = readdirSync(sessionDir);
-    const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
-
-    // Get file stats and create entries
-    const entries: WorkflowIndexEntry[] = [];
-
-    for (const file of jsonlFiles) {
-      const sessionId = file.replace('.jsonl', '');
-
-      // Skip if already tracked by dashboard
-      if (trackedSessionIds.has(sessionId)) {
-        continue;
-      }
-
-      const fullPath = path.join(sessionDir, file);
-      try {
-        const stats = statSync(fullPath);
-
-        // Try to extract skill from JSONL content
-        let skill = 'CLI Session';
-        try {
-          // Read enough to get past system messages to user prompt
-          // Skill prompts can be large, so read generously
-          const fd = require('fs').openSync(fullPath, 'r');
-          const buffer = Buffer.alloc(32768);
-          const bytesRead = require('fs').readSync(fd, buffer, 0, 32768, 0);
-          require('fs').closeSync(fd);
-
-          const content = buffer.toString('utf-8', 0, bytesRead);
-          const lines = content.split('\n').slice(0, 20);
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const msg = JSON.parse(line);
-              // Check for explicit skill field
-              if (msg.skill) {
-                skill = msg.skill;
-                break;
-              }
-
-              // Only check user messages for skill detection — assistant messages
-              // may reference other skills (e.g., "after /flow.design completed")
-              if (msg.type !== 'user') continue;
-
-              // Extract text from message content (string or array format)
-              let textContent = '';
-              const msgContent = msg.message?.content;
-              if (typeof msgContent === 'string') {
-                textContent = msgContent;
-              } else if (Array.isArray(msgContent)) {
-                textContent = msgContent
-                  .filter((b: { type: string }) => b.type === 'text')
-                  .map((b: { text: string }) => b.text)
-                  .join('\n');
-              }
-
-              if (textContent) {
-                // Use isCommandInjection for robust skill detection — it has
-                // content-specific patterns (e.g., [IMPL] → flow.implement)
-                // that work even when skill prompts reference other skills
-                const commandInfo = isCommandInjection(textContent);
-                if (commandInfo.isCommand && commandInfo.commandName) {
-                  skill = commandInfo.commandName;
-                  break;
-                }
-                // Fallback: explicit header (e.g., "# flow.analyze")
-                const headerMatch = textContent.match(/^# \/?flow\.(\w+)/m);
-                if (headerMatch) {
-                  skill = `flow.${headerMatch[1]}`;
-                  break;
-                }
-              }
-            } catch {
-              // Invalid JSON line, continue
-            }
-          }
-        } catch {
-          // Could not read file content, use default skill
-        }
-
-        // CLI-discovered sessions are always 'completed' — "detached" means the
-        // dashboard lost track of a session it was actively monitoring, which doesn't
-        // apply to sessions the dashboard never started. Marking recent CLI sessions
-        // as 'detached' caused false "Session May Still Be Running" banners.
-        const status: WorkflowIndexEntry['status'] = 'completed';
-
-        entries.push({
-          sessionId,
-          executionId: uuidv4(), // Generate placeholder ID for CLI sessions
-          skill,
-          status,
-          startedAt: stats.birthtime.toISOString(),
-          updatedAt: stats.mtime.toISOString(),
-          costUsd: 0, // Unknown for CLI sessions
-        });
-      } catch {
-        // Could not stat file, skip
-      }
-    }
-
-    // Sort by updatedAt descending (newest first)
-    entries.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-
-    // Return limited number
-    return entries.slice(0, limit);
-  } catch {
-    return [];
-  }
-}
-
-/**
  * Handle workflow index file change.
- * Merges dashboard-tracked sessions with discovered CLI sessions.
+ * Uses runtime aggregation instead of reading index.json directly.
  */
-async function handleWorkflowChange(projectId: string, indexPath: string): Promise<void> {
-  const index = await readWorkflowIndex(indexPath);
-  if (!index) return;
-
-  // Get project path for CLI session discovery
+async function handleWorkflowChange(projectId: string, _indexPath: string): Promise<void> {
   const projectPath = projectPathMap.get(projectId);
+  if (!projectPath) return;
 
-  // Get tracked session IDs to avoid duplicates
-  const trackedSessionIds = new Set<string>(
-    index.sessions.map(s => s.sessionId)
-  );
-
-  // Discover CLI sessions that aren't tracked by dashboard
-  const cliSessions = projectPath
-    ? discoverCliSessions(projectPath, trackedSessionIds, 50)
-    : [];
-
-  // Merge sessions: dashboard-tracked first, then CLI-discovered
-  const allSessions = [
-    ...index.sessions,
-    ...cliSessions,
-  ];
-
-  // Sort all sessions by updatedAt (newest first)
-  allSessions.sort((a, b) =>
-    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-  );
-
-  // Build workflow data with merged sessions
-  const activeStates = ['running', 'waiting_for_input', 'detached', 'stale'];
-  const currentExecution = allSessions.find(s => activeStates.includes(s.status)) ?? null;
-
-  const data: WorkflowData = {
-    currentExecution,
-    sessions: allSessions.slice(0, 100), // Limit to 100 total sessions
-  };
+  const data = await buildWorkflowData(projectId, projectPath);
 
   // Check if data actually changed (avoid duplicate broadcasts)
   const dataJson = JSON.stringify(data);
@@ -659,40 +466,14 @@ async function updateWatchedPaths(registry: Registry): Promise<void> {
       watcher.add(workflowIndexPath);
       console.log(`[Watcher] Added workflow index: ${workflowIndexPath}`);
 
-      // Broadcast initial workflow data (including CLI sessions)
-      const index = await readWorkflowIndex(workflowIndexPath);
-      if (index) {
-        // Get tracked session IDs to avoid duplicates
-        const trackedSessionIds = new Set<string>(
-          index.sessions.map(s => s.sessionId)
-        );
-
-        // Discover CLI sessions
-        const cliSessions = discoverCliSessions(project.path, trackedSessionIds, 50);
-
-        // Merge sessions
-        const allSessions = [...index.sessions, ...cliSessions];
-        allSessions.sort((a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        );
-
-        // Build workflow data with merged sessions
-        const activeStates = ['running', 'waiting_for_input', 'detached', 'stale'];
-        const currentExecution = allSessions.find(s => activeStates.includes(s.status)) ?? null;
-
-        const data: WorkflowData = {
-          currentExecution,
-          sessions: allSessions.slice(0, 100),
-        };
-
-        workflowCache.set(projectId, JSON.stringify(data));
-        broadcast({
-          type: 'workflow',
-          timestamp: new Date().toISOString(),
-          projectId,
-          data,
-        });
-      }
+      const data = await buildWorkflowData(projectId, project.path);
+      workflowCache.set(projectId, JSON.stringify(data));
+      broadcast({
+        type: 'workflow',
+        timestamp: new Date().toISOString(),
+        projectId,
+        data,
+      });
     }
 
     // Add ROADMAP.md path for this project
@@ -979,37 +760,7 @@ export async function getAllWorkflows(): Promise<Map<string, WorkflowData>> {
   if (!currentRegistry) return workflows;
 
   for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
-    const workflowIndexPath = path.join(project.path, '.specflow', 'workflows', 'index.json');
-    const index = await readWorkflowIndex(workflowIndexPath);
-
-    // Get tracked session IDs to avoid duplicates
-    const trackedSessionIds = new Set<string>(
-      index?.sessions.map(s => s.sessionId) ?? []
-    );
-
-    // Discover CLI sessions that aren't tracked by dashboard
-    const cliSessions = discoverCliSessions(project.path, trackedSessionIds, 50);
-
-    // Merge sessions: dashboard-tracked first, then CLI-discovered
-    const allSessions = [
-      ...(index?.sessions ?? []),
-      ...cliSessions,
-    ];
-
-    // Sort all sessions by updatedAt (newest first)
-    allSessions.sort((a, b) =>
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    );
-
-    // Build workflow data with merged sessions
-    const activeStates = ['running', 'waiting_for_input', 'detached', 'stale'];
-    const currentExecution = allSessions.find(s => activeStates.includes(s.status)) ?? null;
-
-    const data: WorkflowData = {
-      currentExecution,
-      sessions: allSessions.slice(0, 100), // Limit to 100 total sessions
-    };
-
+    const data = await buildWorkflowData(projectId, project.path);
     workflows.set(projectId, data);
     // Update cache
     workflowCache.set(projectId, JSON.stringify(data));
@@ -1133,7 +884,7 @@ export async function getAllSessions(): Promise<SessionWithProject[]> {
 // Session File Watching (T011-T015)
 // ============================================================================
 
-import { parseSessionLines, isCommandInjection, type SessionData } from './session-parser';
+import { parseSessionLines, type SessionData } from './session-parser';
 
 /**
  * Map of projectId to projectPath for session directory lookup
@@ -1331,6 +1082,14 @@ async function handleSessionFileChange(sessionPath: string): Promise<boolean> {
 
   // Check for session end
   if (content.messages.some(m => m.isSessionEnd)) {
+    // Ensure workflow index reflects graceful completion
+    workflowService.cancelBySession(sessionId, resolvedProjectId, 'completed');
+    // Recompute workflow data in case index updates lag or are missing
+    if (projectPath) {
+      const indexPath = path.join(projectPath, '.specflow', 'workflows', 'index.json');
+      await handleWorkflowChange(resolvedProjectId, indexPath);
+    }
+
     broadcast({
       type: 'session:end',
       timestamp: new Date().toISOString(),
@@ -1425,7 +1184,7 @@ async function initSessionWatcher(): Promise<void> {
 
         // Refresh workflow data so new session appears in dropdown immediately.
         // The workflow index may not have been updated yet (sessionId assigned later),
-        // but discoverCliSessions will find the new JSONL and merge it.
+        // but runtime aggregation will discover the new JSONL session.
         const projectPath = projectPathMap.get(projectId);
         if (projectPath) {
           const indexPath = path.join(projectPath, '.specflow', 'workflows', 'index.json');

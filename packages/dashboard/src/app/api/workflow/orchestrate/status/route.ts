@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
 import { orchestrationService } from '@/lib/services/orchestration-service';
 import { parseBatchesFromProject } from '@/lib/services/batch-parser';
 import { workflowService } from '@/lib/services/workflow-service';
 import { isRunnerActive } from '@/lib/services/orchestration-runner';
-import type { OrchestrationPhase } from '@specflow/shared';
 import type { OrchestrationExecution } from '@/lib/services/orchestration-types';
 
 // =============================================================================
@@ -52,52 +51,7 @@ interface PreflightStatus {
 // Registry Lookup
 // =============================================================================
 
-/**
- * Sync current phase to orchestration-state.json for UI consistency
- * Also syncs status for completed phases (e.g., waiting_merge means verify is complete)
- */
-function syncPhaseToStateFile(projectPath: string, phase: OrchestrationPhase, orchStatus?: string): void {
-  try {
-    let statePath = join(projectPath, '.specflow', 'orchestration-state.json');
-    if (!existsSync(statePath)) {
-      statePath = join(projectPath, '.specify', 'orchestration-state.json');
-    }
-    if (!existsSync(statePath)) return;
-
-    const content = readFileSync(statePath, 'utf-8');
-    const state = JSON.parse(content);
-
-    // Determine step status based on orchestration status
-    // waiting_merge means verify is complete, merge is pending user action
-    let stepStatus = 'in_progress';
-    if (orchStatus === 'waiting_merge') {
-      stepStatus = 'complete'; // Previous step (verify) is complete
-    } else if (orchStatus === 'completed') {
-      stepStatus = 'complete';
-    } else if (orchStatus === 'failed') {
-      stepStatus = 'failed';
-    }
-
-    // Only update if phase or status differs (avoid unnecessary writes)
-    const currentStep = state.orchestration?.step?.current;
-    const currentStatus = state.orchestration?.step?.status;
-    if (currentStep !== phase || currentStatus !== stepStatus) {
-      state.orchestration = state.orchestration || {};
-      state.orchestration.step = state.orchestration.step || {};
-      state.orchestration.step.current = phase;
-      state.orchestration.step.status = stepStatus;
-      state.last_updated = new Date().toISOString();
-      writeFileSync(statePath, JSON.stringify(state, null, 2));
-    }
-  } catch {
-    // Non-critical
-  }
-}
-
 function getProjectPath(projectId: string): string | null {
-  const { existsSync, readFileSync } = require('fs');
-  const { join } = require('path');
-
   const homeDir = process.env.HOME || '';
   const registryPath = join(homeDir, '.specflow', 'registry.json');
 
@@ -268,9 +222,6 @@ export async function GET(request: Request) {
     if (!orchestration) {
       return NextResponse.json({ orchestration: null, workflow: null }, { status: 200 });
     }
-
-    // Sync current phase to state file (ensures UI consistency for project list)
-    syncPhaseToStateFile(projectPath, orchestration.currentPhase, orchestration.status);
 
     // Look up the current workflow to get its sessionId
     let workflowInfo: { id: string; sessionId?: string; status?: string } | null = null;

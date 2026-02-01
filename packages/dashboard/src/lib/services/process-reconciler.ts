@@ -208,6 +208,48 @@ function saveWorkflow(execution: WorkflowExecution, projectPath: string): void {
 }
 
 /**
+ * Rebuild workflow index from metadata (source of truth).
+ * Ensures index.json doesn't keep stale running entries after reconciliation.
+ */
+function rebuildWorkflowIndex(projectPath: string): void {
+  const workflowDir = join(projectPath, '.specflow', 'workflows');
+  mkdirSync(workflowDir, { recursive: true });
+  const indexPath = join(workflowDir, 'index.json');
+
+  const workflows = loadProjectWorkflows(projectPath);
+  const bySession = new Map<string, WorkflowExecution>();
+
+  for (const workflow of workflows) {
+    if (!workflow.sessionId) continue;
+    const existing = bySession.get(workflow.sessionId);
+    if (!existing) {
+      bySession.set(workflow.sessionId, workflow);
+      continue;
+    }
+    const existingUpdated = new Date(existing.updatedAt).getTime();
+    const nextUpdated = new Date(workflow.updatedAt).getTime();
+    if (nextUpdated > existingUpdated) {
+      bySession.set(workflow.sessionId, workflow);
+    }
+  }
+
+  const sessions = Array.from(bySession.values())
+    .map((workflow) => ({
+      sessionId: workflow.sessionId as string,
+      executionId: workflow.id,
+      skill: workflow.skill,
+      status: workflow.status,
+      startedAt: workflow.startedAt,
+      updatedAt: workflow.updatedAt,
+      costUsd: workflow.costUsd,
+    }))
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 50);
+
+  writeFileSync(indexPath, JSON.stringify({ sessions }, null, 2));
+}
+
+/**
  * Collect all tracked PIDs from active workflows
  */
 function collectTrackedPids(
@@ -405,6 +447,9 @@ export async function reconcileWorkflows(): Promise<ReconciliationResult> {
           result.orchestrationsUpdated++;
         }
       }
+
+      // Rebuild workflow index from metadata to avoid stale running entries
+      rebuildWorkflowIndex(project.path);
     } catch (err) {
       result.errors.push(
         `Error checking project ${project.id}: ${err instanceof Error ? err.message : String(err)}`

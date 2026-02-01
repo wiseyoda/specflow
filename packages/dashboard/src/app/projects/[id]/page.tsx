@@ -604,9 +604,20 @@ export default function ProjectDetailPage() {
 
   // Handle failed toast dismiss
   const handleDismiss = useCallback(() => {
-    // Cancel the failed workflow to clear state
-    cancelWorkflow()
-  }, [cancelWorkflow])
+    // Cancel the failed workflow to clear state (if active), otherwise clear selection
+    if (workflowExecution?.executionId || workflowExecution?.sessionId) {
+      cancelWorkflow()
+      return
+    }
+    setSelectedConsoleSession(null)
+    setSelectedHistoricalSession(null)
+  }, [
+    cancelWorkflow,
+    workflowExecution?.executionId,
+    workflowExecution?.sessionId,
+    setSelectedConsoleSession,
+    setSelectedHistoricalSession,
+  ])
 
   // Handle ending a session by ID (from session console Cancel button)
   const handleEndSession = useCallback(async (sessionId: string) => {

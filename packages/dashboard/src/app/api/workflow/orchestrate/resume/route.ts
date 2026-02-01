@@ -125,7 +125,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const orchestration = orchestrationService.resume(projectPath, orchestrationId);
+    const orchestration = await orchestrationService.resume(projectPath, orchestrationId);
     if (!orchestration) {
       return NextResponse.json(
         { error: `Orchestration not found or not paused: ${orchestrationId}` },

@@ -8,8 +8,11 @@ This plan consolidates orchestration state into a single, debuggable source of t
 
 - Phase 0: Immediate stabilization — completed locally (pending commit).
 - Phase 1: Canonical runtime aggregator — completed locally (pending commit).
-- Phase 2: CLI state schema extension — started (dashboard defaults added in CLI state init).
-- Remaining work starts at Phase 3 (dashboard migration to CLI state).
+- Phase 2: CLI state schema extension + dashboard migration — in progress.
+  - Dashboard defaults now seeded in CLI state init.
+  - Orchestration service no longer reads/writes legacy orchestration files.
+  - Runner + API routes updated to await CLI-backed orchestration writes.
+- Remaining work starts at Phase 3 (decision simplification + auto-heal).
 - Current behavior: merge step shows correctly, Running indicator is accurate, status API is read-only (no polling feedback loops), phantom sessions eliminated.
 
 ---

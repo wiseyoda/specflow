@@ -208,7 +208,7 @@ async function spawnWorkflowWithIntent(
     );
 
     // Link workflow to orchestration for backwards compatibility
-    orchestrationService.linkWorkflowExecution(ctx.projectPath, ctx.orchestrationId, workflow.id);
+    await orchestrationService.linkWorkflowExecution(ctx.projectPath, ctx.orchestrationId, workflow.id);
 
     // FR-003: Update dashboard lastWorkflow state for auto-heal tracking
     await writeDashboardState(ctx.projectPath, {
@@ -579,7 +579,7 @@ Provide a clear reason for your decision.`;
 
     // Track cost
     if (response.cost > 0) {
-      orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, response.cost);
+      await orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, response.cost);
     }
 
     // Log Claude decision
@@ -1491,11 +1491,11 @@ export async function runOrchestration(
 
     if (attempts >= maxPollingAttempts) {
       console.error(`${runnerLog(ctx)} Max polling attempts reached for ${orchestrationId}`);
-      orchestrationService.fail(projectPath, orchestrationId, 'Max polling attempts exceeded');
+      await orchestrationService.fail(projectPath, orchestrationId, 'Max polling attempts exceeded');
     }
   } catch (error) {
     console.error(`${runnerLog(ctx)} Error in runner: ${error}`);
-    orchestrationService.fail(
+    await orchestrationService.fail(
       projectPath,
       orchestrationId,
       error instanceof Error ? error.message : 'Unknown error in orchestration runner'
@@ -1617,16 +1617,16 @@ async function executeDecision(
         if (nextPhase === 'implement' && orchestration.batches.total === 0) {
           const batchPlan = parseBatchesFromProject(ctx.projectPath, orchestration.config.batchSizeFallback);
           if (batchPlan && batchPlan.totalIncomplete > 0) {
-            orchestrationService.updateBatches(ctx.projectPath, ctx.orchestrationId, batchPlan);
+            await orchestrationService.updateBatches(ctx.projectPath, ctx.orchestrationId, batchPlan);
             console.log(`${runnerLog(ctx)} Populated batches: ${batchPlan.batches.length} batches, ${batchPlan.totalIncomplete} tasks`);
           } else {
             console.error(`${runnerLog(ctx)} No tasks found after design phase`);
-            orchestrationService.fail(ctx.projectPath, ctx.orchestrationId, 'No tasks found after design phase completed');
+            await orchestrationService.fail(ctx.projectPath, ctx.orchestrationId, 'No tasks found after design phase completed');
             return;
           }
         }
 
-        orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
+        await orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
       }
 
       // Use spawn intent pattern (G5.3-G5.7) to prevent race conditions
@@ -1638,7 +1638,7 @@ async function executeDecision(
 
       // Track cost from previous workflow
       if (currentWorkflow?.costUsd) {
-        orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
+        await orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
       }
       break;
     }
@@ -1650,7 +1650,7 @@ async function executeDecision(
 
       // Track cost from previous workflow (if any - for healing scenarios)
       if (currentWorkflow?.costUsd) {
-        orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
+        await orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
       }
 
       // Get the current batch (which is pending)
@@ -1662,7 +1662,7 @@ async function executeDecision(
 
       // Check for pause between batches (only applies after first batch)
       if (orchestration.batches.current > 0 && orchestration.config.pauseBetweenBatches) {
-        orchestrationService.pause(ctx.projectPath, ctx.orchestrationId);
+        await orchestrationService.pause(ctx.projectPath, ctx.orchestrationId);
         console.log(`${runnerLog(ctx)} Paused between batches (configured)`);
         break;
       }
@@ -1689,7 +1689,7 @@ async function executeDecision(
       }
 
       // Increment heal attempt
-      orchestrationService.incrementHealAttempt(ctx.projectPath, ctx.orchestrationId);
+      await orchestrationService.incrementHealAttempt(ctx.projectPath, ctx.orchestrationId);
 
       // Attempt healing
       const healResult = await attemptHeal(
@@ -1702,23 +1702,23 @@ async function executeDecision(
       );
 
       // Track healing cost
-      orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, healResult.cost);
+      await orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, healResult.cost);
 
       console.log(`${runnerLog(ctx)} Heal result: ${getHealingSummary(healResult)}`);
 
       if (healResult.success && healResult.result?.status === 'fixed') {
         // Healing successful - mark batch as healed and continue
-        orchestrationService.healBatch(
+        await orchestrationService.healBatch(
           ctx.projectPath,
           ctx.orchestrationId,
           healResult.sessionId || ''
         );
-        orchestrationService.completeBatch(ctx.projectPath, ctx.orchestrationId);
+        await orchestrationService.completeBatch(ctx.projectPath, ctx.orchestrationId);
       } else {
         // Healing failed
         const canRetry = orchestrationService.canHealBatch(ctx.projectPath, ctx.orchestrationId);
         if (!canRetry) {
-          orchestrationService.fail(
+          await orchestrationService.fail(
             ctx.projectPath,
             ctx.orchestrationId,
             `Batch healing failed after max attempts: ${healResult.errorMessage || 'Unknown error'}`
@@ -1731,11 +1731,11 @@ async function executeDecision(
     case 'wait_merge': {
       // Track cost from verify workflow
       if (currentWorkflow?.costUsd) {
-        orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
+        await orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
       }
 
       // Transition to merge phase but in waiting status
-      orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
+      await orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
       console.log(`${runnerLog(ctx)} Waiting for user to trigger merge`);
       break;
     }
@@ -1743,20 +1743,10 @@ async function executeDecision(
     case 'complete': {
       // Track final cost
       if (currentWorkflow?.costUsd) {
-        orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
+        await orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
       }
 
-      // Mark complete
-      const finalOrchestration = orchestrationService.get(ctx.projectPath, ctx.orchestrationId);
-      if (finalOrchestration) {
-        finalOrchestration.status = 'completed';
-        finalOrchestration.completedAt = new Date().toISOString();
-        finalOrchestration.decisionLog.push({
-          timestamp: new Date().toISOString(),
-          decision: 'complete',
-          reason: 'All phases completed successfully',
-        });
-      }
+      await orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
       console.log(`${runnerLog(ctx)} Orchestration complete!`);
       break;
     }
@@ -1764,7 +1754,7 @@ async function executeDecision(
     case 'needs_attention': {
       // Set orchestration to needs_attention instead of failing
       // This allows the user to decide what to do (retry, skip, abort)
-      orchestrationService.setNeedsAttention(
+      await orchestrationService.setNeedsAttention(
         ctx.projectPath,
         ctx.orchestrationId,
         decision.errorMessage || 'Unknown issue',
@@ -1776,7 +1766,7 @@ async function executeDecision(
     }
 
     case 'fail': {
-      orchestrationService.fail(ctx.projectPath, ctx.orchestrationId, decision.errorMessage || 'Unknown error');
+      await orchestrationService.fail(ctx.projectPath, ctx.orchestrationId, decision.errorMessage || 'Unknown error');
       console.error(`${runnerLog(ctx)} Orchestration failed: ${decision.errorMessage}`);
       break;
     }
@@ -1787,7 +1777,7 @@ async function executeDecision(
 
     case 'transition': {
       // Transition to next step (G2.3)
-      orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
+      await orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
 
       // Clear stale lastWorkflow so the new step starts clean.
       // Without this, the new step could see a "running" workflow from the previous step.
@@ -1800,7 +1790,7 @@ async function executeDecision(
       });
 
       if (currentWorkflow?.costUsd) {
-        orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
+        await orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
       }
       if (decision.skill) {
         // Transition + spawn in one go (spawnWorkflowWithIntent writes new lastWorkflow)
@@ -1826,7 +1816,7 @@ async function executeDecision(
         if (incompleteTasks.length > 0) {
           // Tasks still incomplete - re-spawn the batch workflow to continue
           console.log(`${runnerLog(ctx)} Batch has ${incompleteTasks.length} incomplete tasks, re-spawning workflow`);
-          orchestrationService.logDecision(
+          await orchestrationService.logDecision(
             ctx.projectPath,
             ctx.orchestrationId,
             'batch_incomplete',
@@ -1844,7 +1834,7 @@ async function executeDecision(
           );
 
           if (workflow) {
-            orchestrationService.linkWorkflowExecution(ctx.projectPath, ctx.orchestrationId, workflow.id);
+            await orchestrationService.linkWorkflowExecution(ctx.projectPath, ctx.orchestrationId, workflow.id);
           }
 
           // Don't advance - stay on current batch
@@ -1853,9 +1843,9 @@ async function executeDecision(
       }
 
       // All tasks in batch are complete - advance to next batch
-      orchestrationService.completeBatch(ctx.projectPath, ctx.orchestrationId);
+      await orchestrationService.completeBatch(ctx.projectPath, ctx.orchestrationId);
       if (currentWorkflow?.costUsd) {
-        orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
+        await orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
       }
       console.log(`${runnerLog(ctx)} Batch complete, advancing to batch ${decision.batchIndex}`);
       break;
@@ -1865,11 +1855,11 @@ async function executeDecision(
       // Initialize batch tracking (G2.1)
       const batchPlan = parseBatchesFromProject(ctx.projectPath, orchestration.config.batchSizeFallback);
       if (batchPlan && batchPlan.totalIncomplete > 0) {
-        orchestrationService.updateBatches(ctx.projectPath, ctx.orchestrationId, batchPlan);
+        await orchestrationService.updateBatches(ctx.projectPath, ctx.orchestrationId, batchPlan);
         console.log(`${runnerLog(ctx)} Initialized batches: ${batchPlan.batches.length} batches, ${batchPlan.totalIncomplete} tasks`);
       } else {
         console.error(`${runnerLog(ctx)} No tasks found to create batches`);
-        orchestrationService.setNeedsAttention(
+        await orchestrationService.setNeedsAttention(
           ctx.projectPath,
           ctx.orchestrationId,
           'No tasks found to create batches',
@@ -1887,7 +1877,7 @@ async function executeDecision(
       if (totalIncomplete !== null && totalIncomplete > 0) {
         // Tasks still incomplete - don't transition, re-initialize batches
         console.log(`${runnerLog(ctx)} Still ${totalIncomplete} incomplete tasks, re-initializing batches`);
-        orchestrationService.logDecision(
+        await orchestrationService.logDecision(
           ctx.projectPath,
           ctx.orchestrationId,
           'tasks_incomplete',
@@ -1897,21 +1887,21 @@ async function executeDecision(
         // Re-parse and update batches with remaining incomplete tasks
         const batchPlan = parseBatchesFromProject(ctx.projectPath, orchestration.config.batchSizeFallback);
         if (batchPlan && batchPlan.totalIncomplete > 0) {
-          orchestrationService.updateBatches(ctx.projectPath, ctx.orchestrationId, batchPlan);
+          await orchestrationService.updateBatches(ctx.projectPath, ctx.orchestrationId, batchPlan);
           console.log(`${runnerLog(ctx)} Re-initialized batches: ${batchPlan.batches.length} batches, ${batchPlan.totalIncomplete} tasks`);
         }
         break;
       }
 
       // All tasks complete - transition to next phase
-      orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
+      await orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
       console.log(`${runnerLog(ctx)} All tasks complete, transitioning to next phase`);
       break;
     }
 
     case 'pause': {
       // Pause orchestration (G2.6)
-      orchestrationService.pause(ctx.projectPath, ctx.orchestrationId);
+      await orchestrationService.pause(ctx.projectPath, ctx.orchestrationId);
       console.log(`${runnerLog(ctx)} Paused: ${decision.reason}`);
       break;
     }
@@ -1919,7 +1909,7 @@ async function executeDecision(
     case 'recover_stale': {
       // Recover from stale workflow (G1.5, G3.7-G3.10)
       console.log(`${runnerLog(ctx)} Workflow appears stale: ${decision.reason}`);
-      orchestrationService.setNeedsAttention(
+      await orchestrationService.setNeedsAttention(
         ctx.projectPath,
         ctx.orchestrationId,
         `Workflow stale: ${decision.reason}`,
@@ -1932,7 +1922,7 @@ async function executeDecision(
     case 'recover_failed': {
       // Recover from failed step/workflow (G1.13, G1.14, G2.10, G3.11-G3.16)
       console.log(`${runnerLog(ctx)} Step/batch failed: ${decision.reason}`);
-      orchestrationService.setNeedsAttention(
+      await orchestrationService.setNeedsAttention(
         ctx.projectPath,
         ctx.orchestrationId,
         decision.errorMessage || decision.reason,
@@ -1952,11 +1942,12 @@ async function executeDecision(
     case 'wait_user_gate': {
       // Wait for USER_GATE confirmation (G1.8)
       console.log(`${runnerLog(ctx)} Waiting for USER_GATE confirmation`);
-      // Update orchestration status to indicate waiting for user gate
-      const orchToUpdate = orchestrationService.get(ctx.projectPath, ctx.orchestrationId);
-      if (orchToUpdate) {
-        orchToUpdate.status = 'waiting_user_gate' as OrchestrationExecution['status'];
-      }
+      await orchestrationService.logDecision(
+        ctx.projectPath,
+        ctx.orchestrationId,
+        'wait_user_gate',
+        'Waiting for USER_GATE confirmation'
+      );
       break;
     }
 
@@ -2006,7 +1997,7 @@ export async function resumeOrchestration(
   if (!projectPath) return;
 
   // Resume via orchestration service
-  orchestrationService.resume(projectPath, orchestrationId);
+  await orchestrationService.resume(projectPath, orchestrationId);
 
   // Restart the runner
   runOrchestration(projectId, orchestrationId).catch(console.error);
@@ -2041,11 +2032,18 @@ export async function triggerMerge(
     writeSpawnIntent(projectPath, orchestrationId, 'flow.merge');
 
     // Update status via orchestration service
-    orchestrationService.triggerMerge(projectPath, orchestrationId);
+    await orchestrationService.triggerMerge(projectPath, orchestrationId);
 
     // Spawn merge workflow
     const workflow = await workflowService.start(projectId, 'flow.merge', undefined, undefined, orchestrationId);
-    orchestrationService.linkWorkflowExecution(projectPath, orchestrationId, workflow.id);
+    await orchestrationService.linkWorkflowExecution(projectPath, orchestrationId, workflow.id);
+    await writeDashboardState(projectPath, {
+      lastWorkflow: {
+        id: workflow.id,
+        skill: 'flow.merge',
+        status: 'running',
+      },
+    });
 
     // Restart the runner to handle merge completion
     runOrchestration(projectId, orchestrationId).catch(console.error);

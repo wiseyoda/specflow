@@ -12,7 +12,7 @@
  * - Integration with specflow status --json
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, renameSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
@@ -23,21 +23,15 @@ import {
   type OrchestrationStatus,
   type BatchTracking,
   type BatchPlan,
-  type DecisionLogEntry,
   type DashboardState,
   type OrchestrationState,
   OrchestrationStateSchema,
   DashboardStateSchema,
   STEP_INDEX_MAP,
 } from '@specflow/shared';
-import { parseBatchesFromProject, createBatchTracking } from './batch-parser';
+import { createBatchTracking } from './batch-parser';
 import type { OrchestrationExecution } from './orchestration-types';
 
-// =============================================================================
-// Constants
-// =============================================================================
-
-const ORCHESTRATION_FILE_PREFIX = 'orchestration-';
 
 // =============================================================================
 // CLI State File Helpers (FR-001 - Single Source of Truth)
@@ -112,6 +106,31 @@ export function readDashboardState(projectPath: string): DashboardState | null {
       batchSizeFallback: 5,
       budget: { maxPerBatch: 10.0, maxTotal: 50.0, healingBudget: 1.0, decisionBudget: 0.5 },
     };
+
+    const executions: OrchestrationExecution['executions'] = {
+      implement: [],
+      healers: [],
+    };
+
+    if (dashboardState.lastWorkflow?.id) {
+      switch (currentPhase) {
+        case 'design':
+          executions.design = dashboardState.lastWorkflow.id;
+          break;
+        case 'analyze':
+          executions.analyze = dashboardState.lastWorkflow.id;
+          break;
+        case 'implement':
+          executions.implement = [dashboardState.lastWorkflow.id];
+          break;
+        case 'verify':
+          executions.verify = dashboardState.lastWorkflow.id;
+          break;
+        case 'merge':
+          executions.merge = dashboardState.lastWorkflow.id;
+          break;
+      }
+    }
 
     return {
       active: active ? {
@@ -239,25 +258,36 @@ export async function logDashboardDecision(
   });
 }
 
-/**
- * Sync orchestration status to dashboard state in CLI state file.
- * Called after any status mutation to keep dashboard state consistent with
- * the legacy orchestration file. Without this, getActive() reads stale
- * dashboard state while the legacy file has the real status.
- */
-function syncStatusToDashboard(projectPath: string, status: string): void {
-  try {
-    execSync(
-      `specflow state set orchestration.dashboard.active.status=${status}`,
-      { cwd: projectPath, encoding: 'utf-8', timeout: 10000 }
-    );
-  } catch {
-    // Non-fatal — legacy file is still the source of truth for the runner
-  }
+// =============================================================================
+// Dashboard State Helpers
+// =============================================================================
+
+function getActiveDashboardState(
+  projectPath: string,
+  orchestrationId?: string
+): DashboardState | null {
+  const state = readDashboardState(projectPath);
+  if (!state?.active) return null;
+  if (orchestrationId && state.active.id !== orchestrationId) return null;
+  return state;
+}
+
+async function persistDashboardState(
+  projectPath: string,
+  state: DashboardState
+): Promise<void> {
+  await writeDashboardState(projectPath, {
+    active: state.active,
+    batches: state.batches,
+    cost: state.cost,
+    decisionLog: state.decisionLog,
+    lastWorkflow: state.lastWorkflow,
+    recoveryContext: state.recoveryContext,
+  });
 }
 
 // =============================================================================
-// State Persistence (FR-023) - Legacy OrchestrationExecution file support
+// Orchestration Flow Helpers
 // =============================================================================
 
 /**
@@ -271,79 +301,6 @@ function getStartingPhase(config: OrchestrationConfig): OrchestrationPhase {
   return 'merge';
 }
 
-/**
- * Create a new orchestration execution with defaults
- */
-function createOrchestrationExecution(
-  id: string,
-  projectId: string,
-  config: OrchestrationConfig,
-  batches: BatchTracking
-): OrchestrationExecution {
-  const now = new Date().toISOString();
-  return {
-    id,
-    projectId,
-    status: 'running',
-    config,
-    currentPhase: getStartingPhase(config),
-    batches,
-    executions: {
-      implement: [],
-      healers: [],
-    },
-    startedAt: now,
-    updatedAt: now,
-    decisionLog: [],
-    totalCostUsd: 0,
-  };
-}
-
-/**
- * Get the orchestration directory for a project
- */
-function getOrchestrationDir(projectPath: string): string {
-  const dir = join(projectPath, '.specflow', 'workflows');
-  mkdirSync(dir, { recursive: true });
-  return dir;
-}
-
-/**
- * Get the file path for an orchestration
- */
-function getOrchestrationPath(projectPath: string, id: string): string {
-  return join(getOrchestrationDir(projectPath), `${ORCHESTRATION_FILE_PREFIX}${id}.json`);
-}
-
-/**
- * Save orchestration state to file (atomic write - G5.1, G5.2)
- *
- * Uses write-to-temp + atomic rename pattern to prevent partial writes
- * from corrupting state during crashes or concurrent access.
- */
-function saveOrchestration(projectPath: string, execution: OrchestrationExecution): void {
-  const filePath = getOrchestrationPath(projectPath, execution.id);
-  const tempPath = `${filePath}.tmp`;
-
-  execution.updatedAt = new Date().toISOString();
-  const content = JSON.stringify(execution, null, 2);
-
-  // G5.1: Write to temp file first
-  writeFileSync(tempPath, content);
-
-  // G5.2: Atomic rename (POSIX guarantees atomicity on same filesystem)
-  try {
-    renameSync(tempPath, filePath);
-  } catch (error) {
-    // Clean up temp file if rename fails
-    try {
-      unlinkSync(tempPath);
-    } catch {
-      // Ignore cleanup errors
-    }
-    throw error;
-  }
-}
 
 /**
  * Sync current phase to orchestration state via `specflow state set`
@@ -400,109 +357,9 @@ function ensureStepMatchesStatus(
   }
 }
 
-/**
- * Load orchestration state from file
- */
-function loadOrchestration(projectPath: string, id: string): OrchestrationExecution | null {
-  const filePath = getOrchestrationPath(projectPath, id);
-  if (!existsSync(filePath)) {
-    return null;
-  }
-  try {
-    const content = readFileSync(filePath, 'utf-8');
-    return JSON.parse(content) as OrchestrationExecution;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * List all orchestrations for a project
- */
-function listOrchestrations(projectPath: string): OrchestrationExecution[] {
-  const dir = getOrchestrationDir(projectPath);
-  const orchestrations: OrchestrationExecution[] = [];
-
-  try {
-    const files = readdirSync(dir).filter(
-      (f) => f.startsWith(ORCHESTRATION_FILE_PREFIX) && f.endsWith('.json')
-    );
-
-    for (const file of files) {
-      try {
-        const content = readFileSync(join(dir, file), 'utf-8');
-        const execution = JSON.parse(content) as OrchestrationExecution;
-        orchestrations.push(execution);
-      } catch {
-        // Skip invalid files
-      }
-    }
-  } catch {
-    // Directory doesn't exist
-  }
-
-  // Sort by updatedAt descending
-  return orchestrations.sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-  );
-}
-
-/**
- * Staleness threshold for waiting_merge orchestrations
- * If an orchestration has been waiting for merge for longer than this, consider it stale
- */
-const WAITING_MERGE_STALE_MS = 2 * 60 * 60 * 1000; // 2 hours
-
-/**
- * Check if an orchestration is stale based on its status and age
- */
-function isOrchestrationStale(orchestration: OrchestrationExecution): boolean {
-  // Only apply staleness check to waiting_merge status
-  // running/paused should always be considered active regardless of age
-  if (orchestration.status !== 'waiting_merge') {
-    return false;
-  }
-
-  // Check if waiting_merge has been stale for too long
-  const updatedAt = new Date(orchestration.updatedAt).getTime();
-  const age = Date.now() - updatedAt;
-  return age > WAITING_MERGE_STALE_MS;
-}
-
-/**
- * Find active orchestration for a project (FR-024)
- * Returns the first orchestration in 'running' or 'paused' status
- * Excludes stale waiting_merge orchestrations (older than 2 hours)
- */
-function findActiveOrchestration(projectPath: string): OrchestrationExecution | null {
-  const orchestrations = listOrchestrations(projectPath);
-  return orchestrations.find((o) =>
-    ['running', 'paused', 'waiting_merge'].includes(o.status) &&
-    !isOrchestrationStale(o)
-  ) || null;
-}
-
 // =============================================================================
 // Decision Logging (FR-064)
 // =============================================================================
-
-/**
- * Add entry to decision log
- */
-function logDecision(
-  execution: OrchestrationExecution,
-  decision: string,
-  reason: string,
-  data?: Record<string, unknown>
-): void {
-  const entry: DecisionLogEntry = {
-    timestamp: new Date().toISOString(),
-    decision,
-    reason,
-    data,
-  };
-  execution.decisionLog.push(entry);
-}
 
 // =============================================================================
 // Specflow Status Integration (FR-021, T020)
@@ -688,29 +545,24 @@ class OrchestrationService {
    * @param batchPlan - Pre-parsed batch plan (null when phase needs opening first)
    */
   async start(
-    projectId: string,
+    _projectId: string,
     projectPath: string,
     config: OrchestrationConfig,
     batchPlan: BatchPlan | null = null
   ): Promise<OrchestrationExecution> {
     // Check for existing active orchestration (FR-024)
-    const existing = findActiveOrchestration(projectPath);
-    if (existing) {
+    const existing = getActiveDashboardState(projectPath);
+    if (existing?.active) {
       throw new Error(
-        `Orchestration already in progress: ${existing.id}. Cancel it first or wait for completion.`
+        `Orchestration already in progress: ${existing.active.id}. Cancel it first or wait for completion.`
       );
     }
 
     // Create batch tracking from plan, or empty tracking if phase needs opening
     let batches: BatchTracking;
-    let taskCount = 0;
-    let usedFallback = false;
-
     if (batchPlan) {
       // Normal case: phase is open and we have tasks
       batches = createBatchTracking(batchPlan);
-      taskCount = batchPlan.totalIncomplete;
-      usedFallback = batchPlan.usedFallback;
     } else {
       // Phase needs opening: start with empty batches
       // Batches will be populated after design completes
@@ -721,32 +573,14 @@ class OrchestrationService {
       };
     }
 
-    // Create execution
     const id = randomUUID();
-    const execution = createOrchestrationExecution(id, projectId, config, batches);
+    const startedAt = new Date().toISOString();
+    const startingPhase = getStartingPhase(config);
 
-    // Log initial decision
-    logDecision(
-      execution,
-      'start',
-      batchPlan ? 'User initiated orchestration' : 'User initiated orchestration (phase will be opened first)',
-      {
-        config,
-        batchCount: batches.total,
-        taskCount,
-        usedFallback,
-        phaseNeedsOpen: !batchPlan,
-      }
-    );
-
-    // Save initial state to legacy file (for backwards compatibility during migration)
-    saveOrchestration(projectPath, execution);
-
-    // FR-001: Write to CLI state as single source of truth
-    await writeDashboardState(projectPath, {
+    const dashboardState: DashboardState = {
       active: {
         id,
-        startedAt: execution.startedAt,
+        startedAt,
         status: 'running',
         config,
       },
@@ -771,10 +605,18 @@ class OrchestrationService {
         reason: batchPlan ? 'User initiated orchestration' : 'User initiated orchestration (phase will be opened first)',
       }],
       lastWorkflow: null,
-    });
+      recoveryContext: undefined,
+    };
+
+    await persistDashboardState(projectPath, dashboardState);
 
     // Sync initial phase to state file for UI consistency
-    syncPhaseToStateFile(projectPath, execution.currentPhase);
+    syncPhaseToStateFile(projectPath, startingPhase);
+
+    const execution = this.convertDashboardStateToExecution(projectPath, dashboardState);
+    if (!execution) {
+      throw new Error('Failed to initialize orchestration state');
+    }
 
     return execution;
   }
@@ -783,61 +625,63 @@ class OrchestrationService {
    * Update batches after design phase completes
    * Called by runner when transitioning from design/analyze to implement
    */
-  updateBatches(
+  async updateBatches(
     projectPath: string,
     orchestrationId: string,
     batchPlan: BatchPlan
-  ): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
+  ): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState) return null;
 
-    // Only update if batches are empty (phase was opened during this orchestration)
-    if (execution.batches.total === 0) {
-      const batches = createBatchTracking(batchPlan);
-      execution.batches = batches;
-
-      logDecision(execution, 'update_batches', 'Batches populated after design phase', {
-        batchCount: batches.total,
-        taskCount: batchPlan.totalIncomplete,
-        usedFallback: batchPlan.usedFallback,
-      });
-
-      saveOrchestration(projectPath, execution);
+    if (dashboardState.batches.total !== 0) {
+      return this.convertDashboardStateToExecution(projectPath, dashboardState);
     }
 
-    return execution;
+    const batches = createBatchTracking(batchPlan);
+    const nextState: DashboardState = {
+      ...dashboardState,
+      batches: {
+        total: batches.total,
+        current: batches.current,
+        items: batches.items.map((b) => ({
+          section: b.section,
+          taskIds: b.taskIds,
+          status: b.status,
+          workflowId: b.workflowExecutionId,
+          healAttempts: b.healAttempts,
+        })),
+      },
+      decisionLog: [
+        ...(dashboardState.decisionLog || []),
+        {
+          timestamp: new Date().toISOString(),
+          action: 'update_batches',
+          reason: 'Batches populated after design phase',
+        },
+      ],
+    };
+
+    await persistDashboardState(projectPath, nextState);
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
-   * Get orchestration by ID
-   * FR-001: Primarily reads from CLI state, falls back to legacy file
+   * Get orchestration by ID from CLI dashboard state
    */
   get(projectPath: string, id: string): OrchestrationExecution | null {
-    // First try CLI state (single source of truth)
-    const dashboardState = readDashboardState(projectPath);
-    if (dashboardState?.active?.id === id) {
-      // Convert CLI state to OrchestrationExecution format for compatibility
-      return this.convertDashboardStateToExecution(projectPath, dashboardState);
-    }
-
-    // Fall back to legacy file for backwards compatibility
-    return loadOrchestration(projectPath, id);
+    const dashboardState = getActiveDashboardState(projectPath, id);
+    if (!dashboardState) return null;
+    return this.convertDashboardStateToExecution(projectPath, dashboardState);
   }
 
   /**
-   * Get active orchestration for a project
-   * FR-001: Primarily reads from CLI state, falls back to legacy file
+   * Get active orchestration for a project from CLI dashboard state
    */
   getActive(projectPath: string): OrchestrationExecution | null {
-    // First try CLI state (single source of truth)
     const dashboardState = readDashboardState(projectPath);
-    if (dashboardState?.active) {
-      ensureStepMatchesStatus(projectPath, dashboardState.active.status);
-      return this.convertDashboardStateToExecution(projectPath, dashboardState);
-    }
-
-    // Fall back to legacy finder
-    return findActiveOrchestration(projectPath);
+    if (!dashboardState?.active) return null;
+    ensureStepMatchesStatus(projectPath, dashboardState.active.status);
+    return this.convertDashboardStateToExecution(projectPath, dashboardState);
   }
 
   /**
@@ -897,10 +741,7 @@ class OrchestrationService {
           workflowExecutionId: b.workflowId,
         })),
       },
-      executions: {
-        implement: [],
-        healers: [],
-      },
+      executions,
       startedAt: dashboardState.active.startedAt,
       updatedAt: new Date().toISOString(),
       decisionLog: (dashboardState.decisionLog || []).map((d) => ({
@@ -917,271 +758,404 @@ class OrchestrationService {
    * List all orchestrations for a project
    */
   list(projectPath: string): OrchestrationExecution[] {
-    return listOrchestrations(projectPath);
+    const active = this.getActive(projectPath);
+    return active ? [active] : [];
   }
 
   /**
    * Update orchestration with workflow execution ID
    */
-  linkWorkflowExecution(
+  async linkWorkflowExecution(
     projectPath: string,
     orchestrationId: string,
     workflowExecutionId: string
-  ): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
+  ): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState) return null;
 
-    const phase = execution.currentPhase;
+    const cliState = readCliState(projectPath);
+    const phase = cliState?.orchestration?.step?.current || 'design';
 
-    // Link to appropriate execution slot
-    switch (phase) {
-      case 'design':
-        execution.executions.design = workflowExecutionId;
-        break;
-      case 'analyze':
-        execution.executions.analyze = workflowExecutionId;
-        break;
-      case 'implement':
-        execution.executions.implement.push(workflowExecutionId);
-        // Also link to current batch
-        const currentBatch = execution.batches.items[execution.batches.current];
-        if (currentBatch) {
-          currentBatch.workflowExecutionId = workflowExecutionId;
-          currentBatch.status = 'running';
-          currentBatch.startedAt = new Date().toISOString();
-        }
-        break;
-      case 'verify':
-        execution.executions.verify = workflowExecutionId;
-        break;
-      case 'merge':
-        execution.executions.merge = workflowExecutionId;
-        break;
+    let batches = dashboardState.batches;
+    if (phase === 'implement' && batches.items.length > 0) {
+      const items = [...batches.items];
+      const currentIndex = batches.current;
+      const currentBatch = items[currentIndex];
+      if (currentBatch) {
+        items[currentIndex] = {
+          ...currentBatch,
+          workflowId: workflowExecutionId,
+          status: 'running',
+        };
+      }
+      batches = {
+        ...batches,
+        items,
+      };
     }
 
-    logDecision(execution, 'link_execution', `Linked workflow execution for ${phase}`, {
-      workflowExecutionId,
-      phase,
-    });
+    const nextState: DashboardState = {
+      ...dashboardState,
+      batches,
+      decisionLog: [
+        ...(dashboardState.decisionLog || []),
+        {
+          timestamp: new Date().toISOString(),
+          action: 'link_execution',
+          reason: `Linked workflow execution for ${phase}`,
+        },
+      ],
+    };
 
-    saveOrchestration(projectPath, execution);
-    return execution;
+    await persistDashboardState(projectPath, nextState);
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
    * Transition to next phase (FR-020, FR-022)
    * Called after dual confirmation (state + process completion)
    */
-  transitionToNextPhase(
+  async transitionToNextPhase(
     projectPath: string,
     orchestrationId: string
-  ): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
+  ): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState?.active) return null;
 
-    const currentPhase = execution.currentPhase;
-    const nextPhase = getNextPhase(currentPhase, execution.config);
+    const cliState = readCliState(projectPath);
+    const currentPhase = (cliState?.orchestration?.step?.current ||
+      getStartingPhase(dashboardState.active.config)) as OrchestrationPhase;
+    const nextPhase = getNextPhase(currentPhase, dashboardState.active.config);
 
     if (!nextPhase) {
-      // No more phases - complete
-      execution.status = 'completed';
-      execution.completedAt = new Date().toISOString();
-      logDecision(execution, 'complete', 'All phases finished');
-      saveOrchestration(projectPath, execution);
-      syncStatusToDashboard(projectPath, 'completed');
-      return execution;
+      const nextState: DashboardState = {
+        ...dashboardState,
+        active: {
+          ...dashboardState.active,
+          status: 'completed',
+        },
+        decisionLog: [
+          ...(dashboardState.decisionLog || []),
+          {
+            timestamp: new Date().toISOString(),
+            action: 'complete',
+            reason: 'All phases finished',
+          },
+        ],
+      };
+
+      await persistDashboardState(projectPath, nextState);
+      syncPhaseToStateFile(projectPath, currentPhase, 'complete');
+      return this.convertDashboardStateToExecution(projectPath, nextState);
     }
 
-    // Handle merge phase with auto-merge disabled
-    if (nextPhase === 'merge' && !execution.config.autoMerge) {
-      execution.currentPhase = nextPhase;
-      execution.status = 'waiting_merge';
-      logDecision(execution, 'waiting_merge', 'Auto-merge disabled, waiting for user');
-      saveOrchestration(projectPath, execution);
-      syncStatusToDashboard(projectPath, 'waiting_merge');
-      // Sync to state file for UI consistency
+    if (nextPhase === 'merge' && !dashboardState.active.config.autoMerge) {
+      const nextState: DashboardState = {
+        ...dashboardState,
+        active: {
+          ...dashboardState.active,
+          status: 'waiting_merge',
+        },
+        decisionLog: [
+          ...(dashboardState.decisionLog || []),
+          {
+            timestamp: new Date().toISOString(),
+            action: 'waiting_merge',
+            reason: 'Auto-merge disabled, waiting for user',
+          },
+        ],
+      };
+      await persistDashboardState(projectPath, nextState);
       syncPhaseToStateFile(projectPath, nextPhase, 'not_started');
-      return execution;
+      return this.convertDashboardStateToExecution(projectPath, nextState);
     }
 
-    // Transition to next phase
-    execution.currentPhase = nextPhase;
-    logDecision(execution, 'transition', `Moving from ${currentPhase} to ${nextPhase}`);
-    saveOrchestration(projectPath, execution);
+    const nextState: DashboardState = {
+      ...dashboardState,
+      decisionLog: [
+        ...(dashboardState.decisionLog || []),
+        {
+          timestamp: new Date().toISOString(),
+          action: 'transition',
+          reason: `Moving from ${currentPhase} to ${nextPhase}`,
+        },
+      ],
+    };
 
-    // Sync to state file for UI consistency (project list, sidebar)
+    await persistDashboardState(projectPath, nextState);
     syncPhaseToStateFile(projectPath, nextPhase);
-
-    return execution;
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
    * Mark current batch as complete and move to next
    */
-  completeBatch(projectPath: string, orchestrationId: string): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
+  async completeBatch(projectPath: string, orchestrationId: string): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState) return null;
 
-    const currentBatch = execution.batches.items[execution.batches.current];
-    if (!currentBatch) return execution;
-
-    // Mark batch complete
-    currentBatch.status = 'completed';
-    currentBatch.completedAt = new Date().toISOString();
-
-    logDecision(execution, 'batch_complete', `Batch ${execution.batches.current + 1} completed`, {
-      section: currentBatch.section,
-      taskIds: currentBatch.taskIds,
-    });
-
-    // Check if more batches
-    if (execution.batches.current < execution.batches.total - 1) {
-      // Move to next batch
-      execution.batches.current++;
-      const nextBatch = execution.batches.items[execution.batches.current];
-      logDecision(execution, 'next_batch', `Starting batch ${execution.batches.current + 1}`, {
-        section: nextBatch.section,
-        taskCount: nextBatch.taskIds.length,
-      });
-    } else {
-      // All batches done - ready for verify
-      logDecision(execution, 'all_batches_complete', 'All implement batches finished');
+    const batches = dashboardState.batches;
+    const currentBatch = batches.items[batches.current];
+    if (!currentBatch) {
+      return this.convertDashboardStateToExecution(projectPath, dashboardState);
     }
 
-    saveOrchestration(projectPath, execution);
-    return execution;
+    const items = [...batches.items];
+    items[batches.current] = {
+      ...currentBatch,
+      status: 'completed',
+    };
+
+    const decisionLog = [...(dashboardState.decisionLog || [])];
+    decisionLog.push({
+      timestamp: new Date().toISOString(),
+      action: 'batch_complete',
+      reason: `Batch ${batches.current + 1} completed`,
+    });
+
+    let nextCurrent = batches.current;
+    if (batches.current < batches.total - 1) {
+      nextCurrent = batches.current + 1;
+      const nextBatch = items[nextCurrent];
+      decisionLog.push({
+        timestamp: new Date().toISOString(),
+        action: 'next_batch',
+        reason: `Starting batch ${nextCurrent + 1}`,
+      });
+    } else {
+      decisionLog.push({
+        timestamp: new Date().toISOString(),
+        action: 'all_batches_complete',
+        reason: 'All implement batches finished',
+      });
+    }
+
+    const nextState: DashboardState = {
+      ...dashboardState,
+      batches: {
+        ...batches,
+        current: nextCurrent,
+        items,
+      },
+      decisionLog,
+    };
+
+    await persistDashboardState(projectPath, nextState);
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
    * Mark current batch as failed
    */
-  failBatch(
+  async failBatch(
     projectPath: string,
     orchestrationId: string,
     errorMessage: string
-  ): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
+  ): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState) return null;
 
-    const currentBatch = execution.batches.items[execution.batches.current];
-    if (!currentBatch) return execution;
+    const batches = dashboardState.batches;
+    const currentBatch = batches.items[batches.current];
+    if (!currentBatch) {
+      return this.convertDashboardStateToExecution(projectPath, dashboardState);
+    }
 
-    currentBatch.status = 'failed';
-    currentBatch.completedAt = new Date().toISOString();
+    const items = [...batches.items];
+    items[batches.current] = {
+      ...currentBatch,
+      status: 'failed',
+    };
 
-    logDecision(execution, 'batch_failed', `Batch ${execution.batches.current + 1} failed`, {
-      section: currentBatch.section,
-      error: errorMessage,
-    });
+    const nextState: DashboardState = {
+      ...dashboardState,
+      batches: {
+        ...batches,
+        items,
+      },
+      decisionLog: [
+        ...(dashboardState.decisionLog || []),
+        {
+          timestamp: new Date().toISOString(),
+          action: 'batch_failed',
+          reason: `Batch ${batches.current + 1} failed`,
+        },
+      ],
+    };
 
-    saveOrchestration(projectPath, execution);
-    return execution;
+    await persistDashboardState(projectPath, nextState);
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
    * Mark batch as healed after successful auto-heal
    */
-  healBatch(
+  async healBatch(
     projectPath: string,
     orchestrationId: string,
     healerExecutionId: string
-  ): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
+  ): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState) return null;
 
-    const currentBatch = execution.batches.items[execution.batches.current];
-    if (!currentBatch) return execution;
+    const batches = dashboardState.batches;
+    const currentBatch = batches.items[batches.current];
+    if (!currentBatch) {
+      return this.convertDashboardStateToExecution(projectPath, dashboardState);
+    }
 
-    currentBatch.status = 'healed';
-    currentBatch.healerExecutionId = healerExecutionId;
-    currentBatch.completedAt = new Date().toISOString();
-    if (!execution.executions.healers) execution.executions.healers = [];
-    execution.executions.healers.push(healerExecutionId);
+    const items = [...batches.items];
+    items[batches.current] = {
+      ...currentBatch,
+      status: 'healed',
+    };
 
-    logDecision(execution, 'batch_healed', `Batch ${execution.batches.current + 1} healed`, {
-      section: currentBatch.section,
-      healerExecutionId,
-      healAttempts: currentBatch.healAttempts,
-    });
+    const nextState: DashboardState = {
+      ...dashboardState,
+      batches: {
+        ...batches,
+        items,
+      },
+      decisionLog: [
+        ...(dashboardState.decisionLog || []),
+        {
+          timestamp: new Date().toISOString(),
+          action: 'batch_healed',
+          reason: `Batch ${batches.current + 1} healed`,
+        },
+      ],
+    };
 
-    saveOrchestration(projectPath, execution);
-    return execution;
+    await persistDashboardState(projectPath, nextState);
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
    * Increment heal attempt count for current batch
    */
-  incrementHealAttempt(projectPath: string, orchestrationId: string): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
+  async incrementHealAttempt(projectPath: string, orchestrationId: string): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState) return null;
 
-    const currentBatch = execution.batches.items[execution.batches.current];
-    if (!currentBatch) return execution;
+    const batches = dashboardState.batches;
+    const currentBatch = batches.items[batches.current];
+    if (!currentBatch) {
+      return this.convertDashboardStateToExecution(projectPath, dashboardState);
+    }
 
-    currentBatch.healAttempts++;
-    saveOrchestration(projectPath, execution);
-    return execution;
+    const items = [...batches.items];
+    items[batches.current] = {
+      ...currentBatch,
+      healAttempts: (currentBatch.healAttempts || 0) + 1,
+    };
+
+    const nextState: DashboardState = {
+      ...dashboardState,
+      batches: {
+        ...batches,
+        items,
+      },
+    };
+
+    await persistDashboardState(projectPath, nextState);
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
    * Check if batch can be healed (FR-043)
    */
   canHealBatch(projectPath: string, orchestrationId: string): boolean {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return false;
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState?.active) return false;
 
-    if (!execution.config.autoHealEnabled) return false;
+    if (!dashboardState.active.config.autoHealEnabled) return false;
 
-    const currentBatch = execution.batches.items[execution.batches.current];
+    const currentBatch = dashboardState.batches.items[dashboardState.batches.current];
     if (!currentBatch) return false;
 
-    return currentBatch.healAttempts < execution.config.maxHealAttempts;
+    return (currentBatch.healAttempts || 0) < dashboardState.active.config.maxHealAttempts;
   }
 
   /**
    * Pause orchestration and stop the current workflow process
    * Note: Claude doesn't support true pause - we kill the process and resume from current state
    */
-  pause(projectPath: string, orchestrationId: string): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution || execution.status !== 'running') return null;
+  async pause(projectPath: string, orchestrationId: string): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState?.active || dashboardState.active.status !== 'running') return null;
 
     // Kill the current workflow process
-    const currentWorkflowId = this.getCurrentWorkflowId(execution);
+    const currentWorkflowId = this.getCurrentWorkflowId(projectPath, dashboardState);
+    const decisionLog = [...(dashboardState.decisionLog || [])];
     if (currentWorkflowId) {
       const workflowDir = join(projectPath, '.specflow', 'workflows', currentWorkflowId);
       const pids = readPidFile(workflowDir);
       if (pids) {
         if (pids.claudePid && isPidAlive(pids.claudePid)) {
           killProcess(pids.claudePid, false);
-          logDecision(execution, 'process_killed', `Paused: killed Claude process ${pids.claudePid}`);
+          decisionLog.push({
+            timestamp: new Date().toISOString(),
+            action: 'process_killed',
+            reason: `Paused: killed Claude process ${pids.claudePid}`,
+          });
         }
         if (pids.bashPid && isPidAlive(pids.bashPid)) {
           killProcess(pids.bashPid, false);
-          logDecision(execution, 'process_killed', `Paused: killed bash process ${pids.bashPid}`);
+          decisionLog.push({
+            timestamp: new Date().toISOString(),
+            action: 'process_killed',
+            reason: `Paused: killed bash process ${pids.bashPid}`,
+          });
         }
         cleanupPidFile(workflowDir);
       }
     }
 
-    execution.status = 'paused';
-    logDecision(execution, 'pause', 'User requested pause');
-    saveOrchestration(projectPath, execution);
-    syncStatusToDashboard(projectPath, 'paused');
-    return execution;
+    const nextState: DashboardState = {
+      ...dashboardState,
+      active: {
+        ...dashboardState.active,
+        status: 'paused',
+      },
+      decisionLog: [
+        ...decisionLog,
+        {
+          timestamp: new Date().toISOString(),
+          action: 'pause',
+          reason: 'User requested pause',
+        },
+      ],
+    };
+
+    await persistDashboardState(projectPath, nextState);
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
    * Resume paused orchestration
    */
-  resume(projectPath: string, orchestrationId: string): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution || execution.status !== 'paused') return null;
+  async resume(projectPath: string, orchestrationId: string): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState?.active || dashboardState.active.status !== 'paused') return null;
 
-    execution.status = 'running';
-    logDecision(execution, 'resume', 'User requested resume');
-    saveOrchestration(projectPath, execution);
-    return execution;
+    const nextState: DashboardState = {
+      ...dashboardState,
+      active: {
+        ...dashboardState.active,
+        status: 'running',
+      },
+      decisionLog: [
+        ...(dashboardState.decisionLog || []),
+        {
+          timestamp: new Date().toISOString(),
+          action: 'resume',
+          reason: 'User requested resume',
+        },
+      ],
+    };
+
+    await persistDashboardState(projectPath, nextState);
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
@@ -1206,13 +1180,13 @@ class OrchestrationService {
       return null;
     }
 
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState?.active) return null;
 
     // Pause the orchestration if running
-    if (execution.status === 'running') {
+    if (dashboardState.active.status === 'running') {
       // Kill any active workflow
-      const currentWorkflowId = this.getCurrentWorkflowId(execution);
+      const currentWorkflowId = this.getCurrentWorkflowId(projectPath, dashboardState);
       if (currentWorkflowId) {
         const workflowDir = join(projectPath, '.specflow', 'workflows', currentWorkflowId);
         const pids = readPidFile(workflowDir);
@@ -1245,14 +1219,27 @@ class OrchestrationService {
         lastWorkflow: null, // Clear last workflow when going back
       });
 
-      // Update local execution state
-      execution.currentPhase = targetStep as OrchestrationPhase;
-      execution.status = 'running';
-      logDecision(execution, 'go_back_to_step', `User navigated back to ${targetStep} step`);
-      saveOrchestration(projectPath, execution);
+      const nextState: DashboardState = {
+        ...dashboardState,
+        active: {
+          ...dashboardState.active,
+          status: 'running',
+        },
+        lastWorkflow: null,
+        decisionLog: [
+          ...(dashboardState.decisionLog || []),
+          {
+            timestamp: new Date().toISOString(),
+            action: 'go_back_to_step',
+            reason: `User navigated back to ${targetStep} step`,
+          },
+        ],
+      };
+
+      await persistDashboardState(projectPath, nextState);
 
       console.log(`[orchestration-service] Went back to step: ${targetStep}`);
-      return execution;
+      return this.convertDashboardStateToExecution(projectPath, nextState);
     } catch (error) {
       console.error(`[orchestration-service] Failed to go back to step: ${error}`);
       return null;
@@ -1262,193 +1249,279 @@ class OrchestrationService {
   /**
    * Trigger merge (for waiting_merge status)
    */
-  triggerMerge(projectPath: string, orchestrationId: string): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution || execution.status !== 'waiting_merge') return null;
+  async triggerMerge(projectPath: string, orchestrationId: string): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState?.active || dashboardState.active.status !== 'waiting_merge') return null;
 
-    execution.status = 'running';
-    logDecision(execution, 'merge_triggered', 'User triggered merge');
-    saveOrchestration(projectPath, execution);
+    const nextState: DashboardState = {
+      ...dashboardState,
+      active: {
+        ...dashboardState.active,
+        status: 'running',
+      },
+      decisionLog: [
+        ...(dashboardState.decisionLog || []),
+        {
+          timestamp: new Date().toISOString(),
+          action: 'merge_triggered',
+          reason: 'User triggered merge',
+        },
+      ],
+    };
+
+    await persistDashboardState(projectPath, nextState);
     syncPhaseToStateFile(projectPath, 'merge', 'in_progress');
-    return execution;
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
    * Cancel orchestration and kill any running workflow process
    */
-  cancel(projectPath: string, orchestrationId: string): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
+  async cancel(projectPath: string, orchestrationId: string): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState?.active) return null;
 
-    if (!['running', 'paused', 'waiting_merge', 'needs_attention'].includes(execution.status)) {
-      return execution; // Already in terminal state
+    if (!['running', 'paused', 'waiting_merge', 'needs_attention'].includes(dashboardState.active.status)) {
+      return this.convertDashboardStateToExecution(projectPath, dashboardState);
     }
 
     // Kill the current workflow process if one is running
-    const currentWorkflowId = this.getCurrentWorkflowId(execution);
+    const currentWorkflowId = this.getCurrentWorkflowId(projectPath, dashboardState);
+    const decisionLog = [...(dashboardState.decisionLog || [])];
     if (currentWorkflowId) {
       const workflowDir = join(projectPath, '.specflow', 'workflows', currentWorkflowId);
       const pids = readPidFile(workflowDir);
       if (pids) {
         if (pids.claudePid && isPidAlive(pids.claudePid)) {
           killProcess(pids.claudePid, false);
-          logDecision(execution, 'process_killed', `Killed Claude process ${pids.claudePid}`);
+          decisionLog.push({
+            timestamp: new Date().toISOString(),
+            action: 'process_killed',
+            reason: `Killed Claude process ${pids.claudePid}`,
+          });
         }
         if (pids.bashPid && isPidAlive(pids.bashPid)) {
           killProcess(pids.bashPid, false);
-          logDecision(execution, 'process_killed', `Killed bash process ${pids.bashPid}`);
+          decisionLog.push({
+            timestamp: new Date().toISOString(),
+            action: 'process_killed',
+            reason: `Killed bash process ${pids.bashPid}`,
+          });
         }
         cleanupPidFile(workflowDir);
       }
     }
 
-    execution.status = 'cancelled';
-    logDecision(execution, 'cancel', 'User cancelled orchestration');
-    saveOrchestration(projectPath, execution);
-    syncStatusToDashboard(projectPath, 'cancelled');
-    return execution;
+    const nextState: DashboardState = {
+      ...dashboardState,
+      active: {
+        ...dashboardState.active,
+        status: 'cancelled',
+      },
+      decisionLog: [
+        ...decisionLog,
+        {
+          timestamp: new Date().toISOString(),
+          action: 'cancel',
+          reason: 'User cancelled orchestration',
+        },
+      ],
+    };
+
+    await persistDashboardState(projectPath, nextState);
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
    * Get the current workflow execution ID from orchestration state
    */
-  private getCurrentWorkflowId(execution: OrchestrationExecution): string | undefined {
-    const { currentPhase, batches, executions } = execution;
+  private getCurrentWorkflowId(
+    projectPath: string,
+    dashboardState: DashboardState
+  ): string | undefined {
+    const cliState = readCliState(projectPath);
+    const currentStep = cliState?.orchestration?.step?.current;
 
-    switch (currentPhase) {
-      case 'design':
-        return executions.design;
-      case 'analyze':
-        return executions.analyze;
-      case 'implement':
-        const currentBatch = batches.items[batches.current];
-        return currentBatch?.workflowExecutionId;
-      case 'verify':
-        return executions.verify;
-      case 'merge':
-        return executions.merge;
-      default:
-        return undefined;
+    if (currentStep === 'implement') {
+      const batch = dashboardState.batches.items[dashboardState.batches.current];
+      return batch?.workflowId || dashboardState.lastWorkflow?.id;
     }
+
+    return dashboardState.lastWorkflow?.id;
   }
 
   /**
    * Mark orchestration as failed
    */
-  fail(
+  async fail(
     projectPath: string,
     orchestrationId: string,
     errorMessage: string
-  ): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
+  ): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState?.active) return null;
 
-    execution.status = 'failed';
-    execution.errorMessage = errorMessage;
-    logDecision(execution, 'fail', errorMessage);
-    saveOrchestration(projectPath, execution);
-    syncStatusToDashboard(projectPath, 'failed');
-    return execution;
+    const nextState: DashboardState = {
+      ...dashboardState,
+      active: {
+        ...dashboardState.active,
+        status: 'failed',
+      },
+      decisionLog: [
+        ...(dashboardState.decisionLog || []),
+        {
+          timestamp: new Date().toISOString(),
+          action: 'fail',
+          reason: errorMessage,
+        },
+      ],
+    };
+
+    await persistDashboardState(projectPath, nextState);
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
    * Set orchestration to needs_attention status (recoverable error)
    * Allows user to decide: retry, skip, or abort
    */
-  setNeedsAttention(
+  async setNeedsAttention(
     projectPath: string,
     orchestrationId: string,
     issue: string,
     options: Array<'retry' | 'skip' | 'abort'>,
     failedWorkflowId?: string
-  ): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
+  ): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState?.active) return null;
 
-    execution.status = 'needs_attention';
-    execution.recoveryContext = {
-      issue,
-      options,
-      failedWorkflowId,
+    const nextState: DashboardState = {
+      ...dashboardState,
+      active: {
+        ...dashboardState.active,
+        status: 'needs_attention',
+      },
+      recoveryContext: {
+        issue,
+        options,
+        failedWorkflowId,
+      },
+      decisionLog: [
+        ...(dashboardState.decisionLog || []),
+        {
+          timestamp: new Date().toISOString(),
+          action: 'needs_attention',
+          reason: issue,
+        },
+      ],
     };
-    logDecision(execution, 'needs_attention', issue);
-    saveOrchestration(projectPath, execution);
-    syncStatusToDashboard(projectPath, 'needs_attention');
-    return execution;
+
+    await persistDashboardState(projectPath, nextState);
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
    * Handle recovery action from user (retry, skip, abort)
    */
-  handleRecovery(
+  async handleRecovery(
     projectPath: string,
     orchestrationId: string,
     action: 'retry' | 'skip' | 'abort'
-  ): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
-    if (execution.status !== 'needs_attention') return null;
+  ): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState?.active) return null;
+    if (dashboardState.active.status !== 'needs_attention') return null;
 
-    switch (action) {
-      case 'retry':
-        // Resume running - runner will respawn the workflow
-        execution.status = 'running';
-        execution.recoveryContext = undefined;
-        logDecision(execution, 'recovery_retry', 'User chose to retry');
-        break;
+    const decisionLog = [...(dashboardState.decisionLog || [])];
+    let status = dashboardState.active.status;
 
-      case 'skip': {
-        // Skip to next phase - mark current as done and move on
-        execution.status = 'running';
-        execution.recoveryContext = undefined;
-        logDecision(execution, 'recovery_skip', 'User chose to skip current phase');
-        // Actually transition to the next phase
-        const nextPhase = getNextPhase(execution.currentPhase, execution.config);
-        if (nextPhase) {
-          execution.currentPhase = nextPhase;
-          logDecision(execution, 'transition', `Skipped to ${nextPhase}`);
-        }
-        break;
-      }
-
-      case 'abort':
-        // User chose to abort - mark as cancelled
-        execution.status = 'cancelled';
-        execution.recoveryContext = undefined;
-        logDecision(execution, 'recovery_abort', 'User chose to abort');
-        break;
+    if (action === 'retry') {
+      status = 'running';
+      decisionLog.push({
+        timestamp: new Date().toISOString(),
+        action: 'recovery_retry',
+        reason: 'User chose to retry',
+      });
     }
 
-    saveOrchestration(projectPath, execution);
-    syncStatusToDashboard(projectPath, execution.status);
-    return execution;
+    if (action === 'skip') {
+      status = 'running';
+      decisionLog.push({
+        timestamp: new Date().toISOString(),
+        action: 'recovery_skip',
+        reason: 'User chose to skip current phase',
+      });
+
+      const cliState = readCliState(projectPath);
+      const currentPhase = (cliState?.orchestration?.step?.current ||
+        getStartingPhase(dashboardState.active.config)) as OrchestrationPhase;
+      const nextPhase = getNextPhase(currentPhase, dashboardState.active.config);
+      if (nextPhase) {
+        decisionLog.push({
+          timestamp: new Date().toISOString(),
+          action: 'transition',
+          reason: `Skipped to ${nextPhase}`,
+        });
+        syncPhaseToStateFile(projectPath, nextPhase);
+      }
+    }
+
+    if (action === 'abort') {
+      status = 'cancelled';
+      decisionLog.push({
+        timestamp: new Date().toISOString(),
+        action: 'recovery_abort',
+        reason: 'User chose to abort',
+      });
+    }
+
+    const nextState: DashboardState = {
+      ...dashboardState,
+      active: {
+        ...dashboardState.active,
+        status,
+      },
+      recoveryContext: undefined,
+      decisionLog,
+    };
+
+    await persistDashboardState(projectPath, nextState);
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
    * Update total cost
    */
-  addCost(
+  async addCost(
     projectPath: string,
     orchestrationId: string,
     costUsd: number
-  ): OrchestrationExecution | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
+  ): Promise<OrchestrationExecution | null> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState) return null;
 
-    execution.totalCostUsd += costUsd;
-    saveOrchestration(projectPath, execution);
-    return execution;
+    const nextState: DashboardState = {
+      ...dashboardState,
+      cost: {
+        ...dashboardState.cost,
+        total: (dashboardState.cost?.total || 0) + costUsd,
+      },
+    };
+
+    await persistDashboardState(projectPath, nextState);
+    return this.convertDashboardStateToExecution(projectPath, nextState);
   }
 
   /**
    * Check if budget exceeded (FR-053)
    */
   isBudgetExceeded(projectPath: string, orchestrationId: string): boolean {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return false;
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState?.active) return false;
 
-    const budget = execution.config.budget;
-    return execution.totalCostUsd >= budget.maxTotal;
+    const budget = dashboardState.active.config.budget;
+    const total = dashboardState.cost?.total || 0;
+    return total >= budget.maxTotal;
   }
 
   /**
@@ -1456,41 +1529,47 @@ class OrchestrationService {
    * Called when external CLI session activity is detected
    */
   touchActivity(projectPath: string, orchestrationId: string): void {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return;
-
-    // saveOrchestration already updates updatedAt, so just save
-    saveOrchestration(projectPath, execution);
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState?.active) return;
+    // No-op: CLI state is the source of truth and does not track updatedAt.
   }
 
   /**
    * Get the skill to run for the current phase
    */
   getCurrentSkill(projectPath: string, orchestrationId: string): string | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState?.active) return null;
 
-    return getPhaseSkill(execution.currentPhase);
+    const cliState = readCliState(projectPath);
+    const phase = (cliState?.orchestration?.step?.current ||
+      getStartingPhase(dashboardState.active.config)) as OrchestrationPhase;
+
+    return getPhaseSkill(phase);
   }
 
   /**
    * Check if current step is complete using specflow status
    */
   isCurrentStepComplete(projectPath: string, orchestrationId: string): boolean {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return false;
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState?.active) return false;
 
-    return isStepComplete(projectPath, execution.currentPhase);
+    const cliState = readCliState(projectPath);
+    const phase = (cliState?.orchestration?.step?.current ||
+      getStartingPhase(dashboardState.active.config)) as OrchestrationPhase;
+
+    return isStepComplete(projectPath, phase);
   }
 
   /**
    * Check if all batches are complete
    */
   areAllBatchesComplete(projectPath: string, orchestrationId: string): boolean {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return false;
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState) return false;
 
-    return execution.batches.items.every(
+    return dashboardState.batches.items.every(
       (b) => b.status === 'completed' || b.status === 'healed'
     );
   }
@@ -1505,15 +1584,15 @@ class OrchestrationService {
     taskIds: string[];
     status: string;
   } | null {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return null;
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState) return null;
 
-    const batch = execution.batches.items[execution.batches.current];
+    const batch = dashboardState.batches.items[dashboardState.batches.current];
     if (!batch) return null;
 
     return {
-      index: execution.batches.current,
-      total: execution.batches.total,
+      index: dashboardState.batches.current,
+      total: dashboardState.batches.total,
       section: batch.section,
       taskIds: batch.taskIds,
       status: batch.status,
@@ -1528,13 +1607,24 @@ class OrchestrationService {
     orchestrationId: string,
     decision: string,
     reason: string,
-    data?: Record<string, unknown>
-  ): void {
-    const execution = loadOrchestration(projectPath, orchestrationId);
-    if (!execution) return;
+    _data?: Record<string, unknown>
+  ): Promise<void> {
+    const dashboardState = getActiveDashboardState(projectPath, orchestrationId);
+    if (!dashboardState) return Promise.resolve();
 
-    logDecision(execution, decision, reason, data);
-    saveOrchestration(projectPath, execution);
+    const nextState: DashboardState = {
+      ...dashboardState,
+      decisionLog: [
+        ...(dashboardState.decisionLog || []),
+        {
+          timestamp: new Date().toISOString(),
+          action: decision,
+          reason,
+        },
+      ],
+    };
+
+    return persistDashboardState(projectPath, nextState);
   }
 }
 

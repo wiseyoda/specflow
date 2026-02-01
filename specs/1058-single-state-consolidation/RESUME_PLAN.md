@@ -53,6 +53,9 @@ This refactor simplifies state management and makes it debuggable.
 
 Phase 2 started:
 - Added dashboard defaults to CLI `createInitialState()` so new projects include `orchestration.dashboard`.
+- Orchestration service now reads/writes ONLY CLI dashboard state (legacy orchestration files removed).
+- Process reconciler no longer reads orchestration-*.json files.
+- Runner + orchestration API routes updated to await CLI-backed orchestration writes.
 
 ### Phase 3: Simplify decision logic + auto-heal
 - Replace complex guards with a short state-based decision matrix.

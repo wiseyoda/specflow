@@ -218,42 +218,42 @@ export interface OrchestrationIO {
   /**
    * Update orchestration state
    */
-  update(projectPath: string, orchestrationId: string, updates: Partial<OrchestrationExecution>): void;
+  update(projectPath: string, orchestrationId: string, updates: Partial<OrchestrationExecution>): Promise<OrchestrationExecution | null>;
 
   /**
    * Transition to next phase
    */
-  transitionToNextPhase(projectPath: string, orchestrationId: string): void;
+  transitionToNextPhase(projectPath: string, orchestrationId: string): Promise<OrchestrationExecution | null>;
 
   /**
    * Link workflow execution to orchestration
    */
-  linkWorkflowExecution(projectPath: string, orchestrationId: string, workflowId: string): void;
+  linkWorkflowExecution(projectPath: string, orchestrationId: string, workflowId: string): Promise<OrchestrationExecution | null>;
 
   /**
    * Add cost to orchestration
    */
-  addCost(projectPath: string, orchestrationId: string, cost: number): void;
+  addCost(projectPath: string, orchestrationId: string, cost: number): Promise<OrchestrationExecution | null>;
 
   /**
    * Update batch tracking
    */
-  updateBatches(projectPath: string, orchestrationId: string, batchPlan: BatchPlan): void;
+  updateBatches(projectPath: string, orchestrationId: string, batchPlan: BatchPlan): Promise<OrchestrationExecution | null>;
 
   /**
    * Complete current batch
    */
-  completeBatch(projectPath: string, orchestrationId: string): void;
+  completeBatch(projectPath: string, orchestrationId: string): Promise<OrchestrationExecution | null>;
 
   /**
    * Mark batch as healed
    */
-  healBatch(projectPath: string, orchestrationId: string, healerSessionId: string): void;
+  healBatch(projectPath: string, orchestrationId: string, healerSessionId: string): Promise<OrchestrationExecution | null>;
 
   /**
    * Increment heal attempt counter
    */
-  incrementHealAttempt(projectPath: string, orchestrationId: string): void;
+  incrementHealAttempt(projectPath: string, orchestrationId: string): Promise<OrchestrationExecution | null>;
 
   /**
    * Check if batch can be healed (has remaining attempts)
@@ -269,27 +269,27 @@ export interface OrchestrationIO {
     issue: string,
     options: Array<'retry' | 'skip' | 'abort'>,
     failedWorkflowId?: string
-  ): void;
+  ): Promise<OrchestrationExecution | null>;
 
   /**
    * Pause orchestration
    */
-  pause(projectPath: string, orchestrationId: string): void;
+  pause(projectPath: string, orchestrationId: string): Promise<OrchestrationExecution | null>;
 
   /**
    * Resume orchestration from paused state
    */
-  resume(projectPath: string, orchestrationId: string): void;
+  resume(projectPath: string, orchestrationId: string): Promise<OrchestrationExecution | null>;
 
   /**
    * Trigger merge phase
    */
-  triggerMerge(projectPath: string, orchestrationId: string): void;
+  triggerMerge(projectPath: string, orchestrationId: string): Promise<OrchestrationExecution | null>;
 
   /**
    * Mark orchestration as failed
    */
-  fail(projectPath: string, orchestrationId: string, errorMessage: string): void;
+  fail(projectPath: string, orchestrationId: string, errorMessage: string): Promise<OrchestrationExecution | null>;
 }
 
 // =============================================================================

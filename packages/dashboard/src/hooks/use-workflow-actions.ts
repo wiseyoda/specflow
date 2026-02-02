@@ -31,13 +31,20 @@ interface StartWorkflowOptions {
   resumeSessionId?: string;
 }
 
+interface SubmitAnswersOptions {
+  /** Execution ID (preferred) */
+  executionId?: string;
+  /** Alternative: session ID for lookup */
+  sessionId?: string;
+}
+
 interface UseWorkflowActionsResult {
   /** Start a new workflow with the given skill */
   start: (skill: string, options?: StartWorkflowOptions) => Promise<void>;
   /** Cancel the current workflow */
   cancel: (executionId?: string, sessionId?: string) => Promise<void>;
-  /** Submit answers to a waiting workflow */
-  submitAnswers: (executionId: string, answers: Record<string, string>) => Promise<void>;
+  /** Submit answers to a waiting workflow. Can use executionId or sessionId for lookup. */
+  submitAnswers: (options: SubmitAnswersOptions, answers: Record<string, string>) => Promise<void>;
   /** True while a workflow action is in progress */
   isSubmitting: boolean;
   /** Error from last action */
@@ -106,15 +113,28 @@ async function cancelWorkflowApi(
 
 /**
  * Submit answers to a waiting workflow
+ * Supports either executionId (preferred) or sessionId+projectId lookup
  */
 async function submitAnswersApi(
-  executionId: string,
+  projectId: string,
+  options: SubmitAnswersOptions,
   answers: Record<string, string>
 ): Promise<void> {
+  const body: Record<string, unknown> = { answers };
+
+  if (options.executionId) {
+    body.id = options.executionId;
+  } else if (options.sessionId) {
+    body.sessionId = options.sessionId;
+    body.projectId = projectId;
+  } else {
+    throw new Error('Either executionId or sessionId must be provided');
+  }
+
   const res = await fetch('/api/workflow/answer', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: executionId, answers }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -180,12 +200,16 @@ export function useWorkflowActions(projectId: string | null): UseWorkflowActions
   );
 
   const submitAnswers = useCallback(
-    async (executionId: string, answers: Record<string, string>) => {
+    async (options: SubmitAnswersOptions, answers: Record<string, string>) => {
+      if (!projectId) {
+        throw new Error('No project selected');
+      }
+
       setIsSubmitting(true);
       setError(null);
 
       try {
-        await submitAnswersApi(executionId, answers);
+        await submitAnswersApi(projectId, options, answers);
       } catch (err) {
         const e = err instanceof Error ? err : new Error('Unknown error');
         setError(e);
@@ -194,7 +218,7 @@ export function useWorkflowActions(projectId: string | null): UseWorkflowActions
         setIsSubmitting(false);
       }
     },
-    []
+    [projectId]
   );
 
   return {

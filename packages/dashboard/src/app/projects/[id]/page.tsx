@@ -121,9 +121,16 @@ export default function ProjectDetailPage() {
     await cancelWorkflowAction(workflowExecution?.executionId, workflowExecution?.sessionId)
   }, [cancelWorkflowAction, workflowExecution])
 
-  const submitAnswers = useCallback(async (answers: Record<string, string>) => {
-    if (!workflowExecution?.executionId) throw new Error('No active workflow')
-    await submitAnswersAction(workflowExecution.executionId, answers)
+  const submitAnswers = useCallback(async (answers: Record<string, string>, fallbackSessionId?: string) => {
+    // Try executionId first, then fall back to sessionId lookup
+    const executionId = workflowExecution?.executionId
+    const sessionId = workflowExecution?.sessionId ?? fallbackSessionId
+
+    if (!executionId && !sessionId) {
+      throw new Error('No active workflow or session')
+    }
+
+    await submitAnswersAction({ executionId, sessionId }, answers)
   }, [submitAnswersAction, workflowExecution])
 
   // Workflow skills for autocomplete
@@ -164,6 +171,16 @@ export default function ProjectDetailPage() {
   const [partialAnswers, setPartialAnswers] = useState<Record<string, string>>({})
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [dismissedSessionId, setDismissedSessionId] = useState<string | null>(null)
+  // Track previous questionsKey to detect actual question changes vs recomputation
+  const previousQuestionsKeyRef = useRef<string>('')
+  // Lock in questions when user starts answering to prevent mid-answer recomputation issues
+  // This ensures consistency even if question sources change during the answer flow
+  const lockedQuestionsRef = useRef<Array<{
+    question: string
+    header?: string
+    options: Array<{ label: string; description?: string }>
+    multiSelect?: boolean
+  }> | null>(null)
 
   // Session viewer drawer state
   const [isSessionViewerOpen, setIsSessionViewerOpen] = useState(false)
@@ -421,41 +438,51 @@ export default function ProjectDetailPage() {
   // Defined before handleOmniBoxSubmit since it's called from there
   // G4.7/G4.8: Questions come via session:question SSE events OR fallback sources
   const handleDecisionAnswer = useCallback(async (answer: string) => {
-    // Get questions from SSE map first
-    const sseQuestions = consoleSessionId ? sessionQuestions.get(consoleSessionId) : undefined
+    // Use locked questions if we're mid-answer flow, otherwise compute fresh
+    let questions = lockedQuestionsRef.current
 
-    // Fallback: compute questions from session messages (same logic as decisionQuestions memo)
-    let fallbackQuestions: Array<{ question: string; header?: string; options: Array<{ label: string; description?: string }>; multiSelect?: boolean }> = []
-    if (!sseQuestions?.length && sessionMessages.length > 0) {
-      let seenUserAfter = false
-      for (let i = sessionMessages.length - 1; i >= 0; i--) {
-        const msg = sessionMessages[i]
-        if (msg.role === 'user') {
-          seenUserAfter = true
-        }
-        if (msg.role === 'assistant' && msg.questions && msg.questions.length > 0 && !seenUserAfter) {
-          fallbackQuestions = msg.questions.map((q) => ({
-            question: q.question,
-            header: q.header,
-            options: q.options.map((opt) => ({ label: opt.label, description: opt.description })),
-            multiSelect: q.multiSelect,
-          }))
-          break
+    if (!questions) {
+      // First answer - compute and lock the questions
+      // Get questions from SSE map first
+      const sseQuestions = consoleSessionId ? sessionQuestions.get(consoleSessionId) : undefined
+
+      // Fallback: compute questions from session messages (same logic as decisionQuestions memo)
+      let fallbackQuestions: Array<{ question: string; header?: string; options: Array<{ label: string; description?: string }>; multiSelect?: boolean }> = []
+      if (!sseQuestions?.length && sessionMessages.length > 0) {
+        let seenUserAfter = false
+        for (let i = sessionMessages.length - 1; i >= 0; i--) {
+          const msg = sessionMessages[i]
+          if (msg.role === 'user') {
+            seenUserAfter = true
+          }
+          if (msg.role === 'assistant' && msg.questions && msg.questions.length > 0 && !seenUserAfter) {
+            fallbackQuestions = msg.questions.map((q) => ({
+              question: q.question,
+              header: q.header,
+              options: q.options.map((opt) => ({ label: opt.label, description: opt.description })),
+              multiSelect: q.multiSelect,
+            }))
+            break
+          }
         }
       }
-    }
-    // Second fallback: StructuredOutput questions
-    if (!sseQuestions?.length && fallbackQuestions.length === 0 &&
-        sessionWorkflowOutput?.status === 'needs_input' && sessionWorkflowOutput.questions) {
-      fallbackQuestions = sessionWorkflowOutput.questions.map((q) => ({
-        question: q.question,
-        header: q.header,
-        options: (q.options || []).map((opt) => ({ label: opt.label, description: opt.description })),
-        multiSelect: q.multiSelect,
-      }))
-    }
+      // Second fallback: StructuredOutput questions
+      if (!sseQuestions?.length && fallbackQuestions.length === 0 &&
+          sessionWorkflowOutput?.status === 'needs_input' && sessionWorkflowOutput.questions) {
+        fallbackQuestions = sessionWorkflowOutput.questions.map((q) => ({
+          question: q.question,
+          header: q.header,
+          options: (q.options || []).map((opt) => ({ label: opt.label, description: opt.description })),
+          multiSelect: q.multiSelect,
+        }))
+      }
 
-    const questions = sseQuestions?.length ? sseQuestions : fallbackQuestions
+      questions = sseQuestions?.length ? sseQuestions : fallbackQuestions
+      // Lock in questions for the duration of this answer flow
+      if (questions.length > 0) {
+        lockedQuestionsRef.current = questions
+      }
+    }
 
     if (!questions?.length) {
       console.warn('[handleDecisionAnswer] No questions available to answer')
@@ -475,48 +502,33 @@ export default function ProjectDetailPage() {
 
     if (answeredCount >= totalQuestions) {
       // All questions answered - submit all answers together
-      // For fallback questions (no active execution), resume the session with the answer
-      const sessionId = selectedConsoleSession?.sessionId ?? workflowExecution?.sessionId ?? consoleSessionId
+      // Use consoleSessionId as fallback for session lookup (covers historical sessions)
+      const fallbackSessionId = consoleSessionId ?? undefined
 
       try {
         // Try submitAnswers first (works for active workflow executions)
-        await submitAnswers(newAnswers)
+        // Pass fallback session ID for cases where execution tracking was lost
+        await submitAnswers(newAnswers, fallbackSessionId)
         // G4.8: Clear questions from map after user answers
         if (consoleSessionId) {
           clearSessionQuestions(consoleSessionId)
         }
         // Reset state after successful submission
+        lockedQuestionsRef.current = null
         setPartialAnswers({})
         setCurrentQuestionIndex(0)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        // If execution tracking was lost OR this is a historical session, resume with the answer
-        const shouldFallbackToResume = errorMessage.includes('expired') ||
-          errorMessage.includes('not found') ||
-          errorMessage.includes('No active workflow')
+        // The API now supports session ID lookup, so most "not found" errors should be resolved
+        // If it still fails, show the error to the user
+        toastWorkflowError(errorMessage)
 
-        if (sessionId && shouldFallbackToResume) {
-          console.log('[handleDecisionAnswer] Falling back to session resume with answer:', sessionId)
-          try {
-            const answerSummary = Object.entries(newAnswers)
-              .map(([question, ans]) => `- ${question}: ${ans}`)
-              .join('\n')
-            const resumeMessage = `# Answers to your questions\n\n${answerSummary}\n\nContinue the workflow using these answers.`
-            await startWorkflow(resumeMessage, { resumeSessionId: sessionId })
-          } catch (resumeError) {
-            const resumeErrorMessage = resumeError instanceof Error ? resumeError.message : 'Unknown error'
-            toastWorkflowError(`Failed to resume session: ${resumeErrorMessage}`)
-          }
-        } else if (!sessionId && shouldFallbackToResume) {
-          toastWorkflowError('Unable to resume session - session ID not found')
-        } else {
-          toastWorkflowError(errorMessage)
-        }
         // G4.8: Clear questions on error too
         if (consoleSessionId) {
           clearSessionQuestions(consoleSessionId)
         }
         // Reset state on error too
+        lockedQuestionsRef.current = null
         setPartialAnswers({})
         setCurrentQuestionIndex(0)
       }
@@ -524,7 +536,7 @@ export default function ProjectDetailPage() {
       // More questions to answer - advance to next question
       setCurrentQuestionIndex(currentQuestionIndex + 1)
     }
-  }, [consoleSessionId, sessionQuestions, clearSessionQuestions, workflowExecution, submitAnswers, startWorkflow, partialAnswers, currentQuestionIndex, sessionMessages, sessionWorkflowOutput, selectedConsoleSession, getQuestionKey])
+  }, [consoleSessionId, sessionQuestions, clearSessionQuestions, submitAnswers, partialAnswers, currentQuestionIndex, sessionMessages, sessionWorkflowOutput, selectedConsoleSession, getQuestionKey])
 
   // G4.6/G4.7: Build questions for decision toast from SSE sessionQuestions
   // Fall back to extracting questions from session messages if SSE questions not available
@@ -597,10 +609,30 @@ export default function ProjectDetailPage() {
   }, [decisionQuestions])
 
   // Reset question tracking when workflow questions change (new question set)
+  // CRITICAL: Only reset when questions actually change to a NEW set, not on recomputation
+  // This prevents the race condition where session file updates cause questionsKey to
+  // recompute mid-answer, wiping out partial answers and causing premature submission.
   useEffect(() => {
-    setPartialAnswers({})
-    setCurrentQuestionIndex(0)
-  }, [questionsKey])
+    const previousKey = previousQuestionsKeyRef.current
+    const isAnswering = Object.keys(partialAnswers).length > 0
+    const isNewQuestionSet = questionsKey !== previousKey
+    const questionsCleared = questionsKey === '' && previousKey !== ''
+    const questionsArrived = questionsKey !== '' && previousKey === ''
+
+    // Always update the ref to track current questions
+    previousQuestionsKeyRef.current = questionsKey
+
+    // Reset state when:
+    // 1. New questions arrived (from empty) - fresh start
+    // 2. Questions cleared (to empty) - clean up
+    // 3. Questions actually changed AND we're not mid-answer
+    if (questionsArrived || questionsCleared || (isNewQuestionSet && !isAnswering)) {
+      lockedQuestionsRef.current = null
+      setPartialAnswers({})
+      setCurrentQuestionIndex(0)
+    }
+    // If we're mid-answer and questions "changed" (likely just recomputed), keep state intact
+  }, [questionsKey, partialAnswers])
 
   // Session status only - NOT orchestration/phase status
   // "running" (Live) = session in progress

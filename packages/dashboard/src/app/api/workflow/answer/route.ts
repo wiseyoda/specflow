@@ -10,8 +10,12 @@ import {
  * Submit answers to a workflow waiting for input and resume execution.
  *
  * Request body:
- * - id: string (required) - Execution UUID
+ * - id: string (optional) - Execution UUID (preferred)
+ * - sessionId: string (optional) - Alternative: lookup by session ID
+ * - projectId: string (optional) - Required with sessionId
  * - answers: Record<string, string> (required) - Key-value answers
+ *
+ * Must provide either `id` OR both `sessionId` and `projectId`.
  *
  * Response (200):
  * - Updated WorkflowExecution with status "running"
@@ -36,9 +40,29 @@ export async function POST(request: Request) {
       );
     }
 
-    const { id, answers } = parseResult.data;
+    const { id, sessionId, projectId, answers } = parseResult.data;
 
-    const execution = await workflowService.resume(id, answers);
+    // Resolve execution ID - either directly provided or lookup by session ID
+    let executionId = id;
+    if (!executionId && sessionId && projectId) {
+      const execution = workflowService.getBySession(sessionId, projectId);
+      if (!execution) {
+        return NextResponse.json(
+          { error: `Execution not found for session: ${sessionId}` },
+          { status: 404 }
+        );
+      }
+      executionId = execution.id;
+    }
+
+    if (!executionId) {
+      return NextResponse.json(
+        { error: 'No execution ID could be resolved' },
+        { status: 400 }
+      );
+    }
+
+    const execution = await workflowService.resume(executionId, answers);
 
     return NextResponse.json(execution);
   } catch (error) {

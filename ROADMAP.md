@@ -62,7 +62,7 @@ This allows inserting urgent work without renumbering existing phases.
 | 1055 | Smart Batching & Orchestration | ✅ Complete | **USER GATE**: Auto-batch tasks, state machine, auto-healing |
 | 1056 | JSONL Watcher (Push Updates) | ✅ Complete | **USER GATE**: SSE-based instant updates, no polling delay |
 | 1057 | Orchestration Simplification | ✅ Complete | **USER GATE**: State-driven orchestration, questions work, Claude Helper |
-| 1058 | Single State Consolidation | 🔄 In Progress | **USER GATE**: Single state file, simple decision logic, no hacks |
+| 1058 | Single State Consolidation | ✅ Complete | **USER GATE**: Single state file, simple decision logic, no hacks |
 | 1060  | Stats & Operations                | ⬜ Not Started | **USER GATE**: Costs on cards, operations page, basic chart        |
 | 1070  | Cost Analytics                    | ⬜ Not Started | **USER GATE**: Advanced charts, projections, export                |
 

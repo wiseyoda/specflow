@@ -23,3 +23,5 @@ coverage/
 
 # SpecFlow workflow session files
 .specflow/workflows/
+# Dashboard local state
+packages/dashboard/.specflow/

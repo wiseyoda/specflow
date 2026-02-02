@@ -130,9 +130,14 @@ export type StartWorkflowRequest = z.infer<typeof StartWorkflowRequestSchema>;
  * Answer workflow request
  */
 export const AnswerWorkflowRequestSchema = z.object({
-  id: z.string().uuid(), // Execution ID is always UUID
+  id: z.string().uuid().optional(), // Execution ID (preferred)
+  sessionId: z.string().optional(), // Alternative: lookup by session ID
+  projectId: z.string().optional(), // Required with sessionId
   answers: z.record(z.string(), z.string()),
-});
+}).refine(
+  data => data.id || (data.sessionId && data.projectId),
+  { message: 'Either id or both sessionId and projectId must be provided' }
+);
 
 export type AnswerWorkflowRequest = z.infer<typeof AnswerWorkflowRequestSchema>;
 
@@ -879,6 +884,24 @@ class WorkflowService {
     }
 
     return execution;
+  }
+
+  /**
+   * Get execution by session ID
+   * Looks up the execution ID from the workflow index and loads the execution
+   * @param sessionId - Session ID to look up
+   * @param projectId - Project registry key
+   * @returns The execution if found, undefined otherwise
+   */
+  getBySession(sessionId: string, projectId: string): WorkflowExecution | undefined {
+    const projectPath = getProjectPath(projectId);
+    if (!projectPath) return undefined;
+
+    const index = loadWorkflowIndex(projectPath);
+    const session = index.sessions.find(s => s.sessionId === sessionId);
+    if (!session) return undefined;
+
+    return this.get(session.executionId, projectId);
   }
 
   /**

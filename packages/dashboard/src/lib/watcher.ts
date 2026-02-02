@@ -54,6 +54,9 @@ const phasesCache: Map<string, string> = new Map(); // projectId -> JSON string
 // Cache session content to detect actual changes
 const sessionCache: Map<string, string> = new Map(); // sessionId -> JSON string
 
+// Cache questions to detect actual changes and avoid duplicate session:question events
+const questionCache: Map<string, string> = new Map(); // sessionId -> JSON string of questions
+
 // Session debounce (faster for real-time feel)
 const SESSION_DEBOUNCE_MS = 100;
 
@@ -81,6 +84,7 @@ export function broadcast(event: SSEEvent): void {
 /**
  * Broadcast a session:question event for workflow-mode questions
  * Called by workflow-service when structured_output has questions
+ * Uses questionCache to deduplicate - won't broadcast same questions twice
  */
 export function broadcastWorkflowQuestions(
   sessionId: string,
@@ -93,6 +97,15 @@ export function broadcastWorkflowQuestions(
   }>
 ): void {
   if (!questions || questions.length === 0) return;
+
+  // Check if these questions were already broadcast (deduplication)
+  const questionsFingerprint = JSON.stringify(questions.map(q => ({ q: q.question, h: q.header })));
+  const cachedQuestions = questionCache.get(sessionId) ?? '';
+  if (questionsFingerprint === cachedQuestions) {
+    // Same questions already broadcast, skip
+    return;
+  }
+  questionCache.set(sessionId, questionsFingerprint);
 
   const mappedQuestions = questions.map((q) => ({
     question: q.question,
@@ -1188,9 +1201,16 @@ async function handleSessionFileChange(sessionPath: string): Promise<boolean> {
     data: content,
   });
 
-  // Check for pending questions
+  // Check for pending questions with deduplication
   const questions = extractPendingQuestions(content);
-  if (questions.length > 0) {
+  const questionsFingerprint = questions.length > 0
+    ? JSON.stringify(questions.map(q => ({ q: q.question, h: q.header })))
+    : '';
+  const cachedQuestions = questionCache.get(sessionId) ?? '';
+
+  if (questions.length > 0 && questionsFingerprint !== cachedQuestions) {
+    // New questions detected - update cache and broadcast
+    questionCache.set(sessionId, questionsFingerprint);
     // Align workflow status with AskUserQuestion-driven waits
     workflowService.markWaitingForInput(sessionId, resolvedProjectId, questions);
     broadcast({
@@ -1200,12 +1220,17 @@ async function handleSessionFileChange(sessionPath: string): Promise<boolean> {
       sessionId,
       data: { questions },
     });
+  } else if (questions.length === 0 && cachedQuestions !== '') {
+    // Questions were cleared (user answered) - clear cache
+    questionCache.delete(sessionId);
   }
 
   // Check for session end (explicit markers)
   if (content.messages.some(m => m.isSessionEnd)) {
     // Ensure workflow index reflects graceful completion
     workflowService.cancelBySession(sessionId, resolvedProjectId, 'completed');
+    // Clear question cache for this session
+    questionCache.delete(sessionId);
 
     broadcast({
       type: 'session:end',

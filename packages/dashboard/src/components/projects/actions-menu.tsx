@@ -104,9 +104,11 @@ export function ActionsMenu({
   const [isStartingOrchestration, setIsStartingOrchestration] = React.useState(false);
 
   // Orchestration hook
-  const { start: startOrchestration, error: orchestrationError } = useOrchestration({
+  const { start: startOrchestration, error: orchestrationError, orchestration } = useOrchestration({
     projectId,
   });
+  const hasActiveOrchestration = !!(orchestration &&
+    ['running', 'paused', 'waiting_merge', 'needs_attention'].includes(orchestration.status));
 
   // Get actions grouped by category
   const actionsByGroup = React.useMemo(
@@ -285,7 +287,7 @@ export function ActionsMenu({
             <>
               <DropdownMenuItem
                 onClick={handleCompletePhaseClick}
-                disabled={hasActiveWorkflow || isExecuting}
+                disabled={hasActiveWorkflow || hasActiveOrchestration || isExecuting}
                 className="cursor-pointer bg-gradient-to-r from-accent/20 to-purple-500/20 hover:from-accent/30 hover:to-purple-500/30 border border-accent/30 rounded-md my-1 mx-1"
               >
                 <Sparkles className="mr-2 h-4 w-4 text-accent" />
@@ -300,7 +302,7 @@ export function ActionsMenu({
             <>
               <WorkflowSkillPicker
                 onSelectSkill={handleSkillSelect}
-                disabled={hasActiveWorkflow || isExecuting}
+                disabled={hasActiveWorkflow || hasActiveOrchestration || isExecuting}
               />
               <DropdownMenuSeparator />
             </>

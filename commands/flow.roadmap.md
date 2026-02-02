@@ -200,7 +200,7 @@ created: YYYY-MM-DD
 
 ### 8. Insert Phases
 
-Use CLI to add phases to existing ROADMAP:
+Use CLI to add phases to existing ROADMAP. Each command creates both the ROADMAP entry and a `.specify/phases/NNNN-name.md` detail file automatically:
 
 ```bash
 specflow phase add 0010 "core-engine"
@@ -210,7 +210,7 @@ specflow phase add 0030 "api-poc" --user-gate --gate "API returns valid data"
 
 ### 9. Post-Generation
 
-1. **Write files** - ROADMAP.md and phase files
+1. **Enhance phase files** - Update each `.specify/phases/NNNN-name.md` with goals, scope, and deliverables (the CLI creates templates; fill in project-specific details)
 2. **Report summary** - total phases, USER GATES, starting point
 3. **Suggest commit**: `feat(roadmap): add project roadmap with N phases`
 
@@ -236,12 +236,12 @@ Converts PDRs (Product Design Requirements) from `.specify/memory/pdrs/` into RO
 
 4. **Calculate phase number**: Get next available from ROADMAP
 
-5. **Insert phase**:
+5. **Insert phase** (also creates `.specify/phases/NNNN-phase-name.md` automatically):
    ```bash
    specflow phase add NNNN "phase-name" --gate "verification criteria"
    ```
 
-6. **Create phase file**: `.specify/phases/NNNN-phase-name.md`
+6. **Enhance phase file**: Update the auto-created `.specify/phases/NNNN-phase-name.md` with PDR-specific goals, scope, and deliverables
 
 7. **Mark PDR as processed**: Rename with `_` prefix
    ```bash

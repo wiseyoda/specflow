@@ -1,5 +1,115 @@
 import { NextResponse } from 'next/server';
+import { execFileSync } from 'child_process';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import { workflowService } from '@/lib/services/workflow-service';
+import { getProjectSessionDir } from '@/lib/project-hash';
+import { isPidAlive, killProcess } from '@/lib/services/process-spawner';
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+function getProjectPath(projectId: string): string | null {
+  const homeDir = process.env.HOME || '';
+  const registryPath = join(homeDir, '.specflow', 'registry.json');
+
+  if (!existsSync(registryPath)) {
+    return null;
+  }
+
+  try {
+    const content = readFileSync(registryPath, 'utf-8');
+    const registry = JSON.parse(content);
+    const project = registry.projects?.[projectId];
+    return project?.path || null;
+  } catch {
+    return null;
+  }
+}
+
+function findSessionPids(sessionFile: string): { pids: number[]; error?: string } {
+  try {
+    const output = execFileSync('lsof', ['-t', sessionFile], {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const pids = output
+      .split('\n')
+      .map((line) => parseInt(line.trim(), 10))
+      .filter((pid) => Number.isFinite(pid) && pid > 0);
+    return { pids };
+  } catch {
+    return { pids: [], error: 'Unable to inspect running processes for this session.' };
+  }
+}
+
+async function attemptKillSessionProcess(
+  projectId: string,
+  sessionId: string
+): Promise<{ killed: number[]; warning?: string }> {
+  const projectPath = getProjectPath(projectId);
+  if (!projectPath) {
+    return {
+      killed: [],
+      warning: 'Project not found in registry. Unable to terminate session process.',
+    };
+  }
+
+  const sessionDir = getProjectSessionDir(projectPath);
+  const sessionFile = join(sessionDir, `${sessionId}.jsonl`);
+  if (!existsSync(sessionFile)) {
+    return { killed: [] };
+  }
+
+  const { pids, error } = findSessionPids(sessionFile);
+  if (error) {
+    return { killed: [], warning: error };
+  }
+  if (pids.length === 0) {
+    return { killed: [] };
+  }
+
+  const uniquePids = Array.from(new Set(pids));
+  const killed = new Set<number>();
+  let forced = false;
+  let failed = false;
+
+  for (const pid of uniquePids) {
+    if (!isPidAlive(pid)) {
+      continue;
+    }
+    try {
+      process.kill(pid, 'SIGINT');
+    } catch {
+      // Fall through to SIGTERM/SIGKILL
+    }
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 200));
+
+  for (const pid of uniquePids) {
+    if (!isPidAlive(pid)) {
+      killed.add(pid);
+      continue;
+    }
+    const ok = killProcess(pid, false);
+    forced = forced || ok;
+    if (ok) {
+      killed.add(pid);
+    } else {
+      failed = true;
+    }
+  }
+
+  const warning = failed
+    ? 'Some session processes could not be terminated. You may need to stop them manually.'
+    : forced
+    ? 'Session did not stop after SIGINT; sent SIGTERM/SIGKILL to end it.'
+    : undefined;
+
+  return { killed: Array.from(killed), warning };
+}
 
 /**
  * POST /api/workflow/cancel?id=<execution-id>&sessionId=<session-id>&projectId=<project-id>&status=<status>
@@ -41,9 +151,26 @@ export async function POST(request: Request) {
 
         // If execution not found but we have session info, try session-based update
         if (message.includes('not found') && sessionId && projectId) {
+          // Check if project exists first
+          const projectPath = getProjectPath(projectId);
+          if (!projectPath) {
+            return NextResponse.json(
+              { error: `Project not found in registry: ${projectId}` },
+              { status: 404 }
+            );
+          }
+
           const cancelled = workflowService.cancelBySession(sessionId, projectId, finalStatus);
           if (cancelled) {
-            return NextResponse.json({ cancelled: true, sessionId, status: finalStatus });
+            const killResult = finalStatus === 'cancelled'
+              ? await attemptKillSessionProcess(projectId, sessionId)
+              : { killed: [] };
+            return NextResponse.json({
+              cancelled: true,
+              sessionId,
+              status: finalStatus,
+              ...killResult,
+            });
           }
         }
 
@@ -54,12 +181,29 @@ export async function POST(request: Request) {
 
     // No execution ID - try session-based update
     if (sessionId && projectId) {
+      // Check if project exists first for better error message
+      const projectPath = getProjectPath(projectId);
+      if (!projectPath) {
+        return NextResponse.json(
+          { error: `Project not found in registry: ${projectId}` },
+          { status: 404 }
+        );
+      }
+
       const cancelled = workflowService.cancelBySession(sessionId, projectId, finalStatus);
       if (cancelled) {
-        return NextResponse.json({ cancelled: true, sessionId, status: finalStatus });
+        const killResult = finalStatus === 'cancelled'
+          ? await attemptKillSessionProcess(projectId, sessionId)
+          : { killed: [] };
+        return NextResponse.json({
+          cancelled: true,
+          sessionId,
+          status: finalStatus,
+          ...killResult,
+        });
       }
       return NextResponse.json(
-        { error: `Session not found or not in updatable state: ${sessionId}` },
+        { error: `Session not in updatable state: ${sessionId}` },
         { status: 404 }
       );
     }

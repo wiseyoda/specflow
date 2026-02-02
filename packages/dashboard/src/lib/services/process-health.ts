@@ -6,11 +6,33 @@
  * - Session file staleness (when was output last written?)
  */
 
-import { existsSync, statSync } from 'fs';
+import { existsSync, statSync, openSync, readSync, closeSync } from 'fs';
 import { join } from 'path';
 import type { WorkflowExecution } from './workflow-service';
 import { isPidAlive, readPidFile } from './process-spawner';
 import { getProjectSessionDir } from '@/lib/project-hash';
+
+/**
+ * Read only the tail of a file efficiently (without loading the entire file).
+ * Returns the last `bytes` of the file as a string.
+ */
+export function readFileTail(filePath: string, bytes: number = 10000): string {
+  try {
+    const stats = statSync(filePath);
+    const fileSize = stats.size;
+    const readSize = Math.min(bytes, fileSize);
+    const position = Math.max(0, fileSize - readSize);
+
+    const fd = openSync(filePath, 'r');
+    const buffer = Buffer.alloc(readSize);
+    readSync(fd, buffer, 0, readSize, position);
+    closeSync(fd);
+
+    return buffer.toString('utf-8');
+  } catch {
+    return '';
+  }
+}
 
 /**
  * Staleness threshold - if session file hasn't been updated in this time,
@@ -180,15 +202,81 @@ export function getHealthStatusMessage(health: ProcessHealthResult): string {
 }
 
 /**
- * Check if a session ended gracefully
+ * Session status as determined from file content analysis.
+ * This is the SINGLE SOURCE OF TRUTH for session status.
+ */
+export type SessionFileStatus =
+  | 'completed'        // Session ended (has end marker or assistant finished responding)
+  | 'waiting_for_input' // AskUserQuestion pending
+  | 'running'          // Active, no end markers
+  | 'stale';           // No activity for 5+ minutes, no end markers
+
+/**
+ * Determine session status from file content.
+ * THIS IS THE SINGLE SOURCE OF TRUTH FOR SESSION STATUS.
  *
- * Reads the last portion of the session JSONL to detect if the session
- * completed normally vs terminated unexpectedly.
+ * All other code should use this function rather than implementing
+ * their own status detection logic.
  *
- * Detection methods:
- * 1. Stop hook feedback meta message (most reliable)
- * 2. Result type message from Claude CLI
- * 3. Final assistant message without pending tool calls
+ * @param tail - Last ~10KB of session JSONL file
+ * @param ageMs - Milliseconds since file was last modified
+ * @returns Session status
+ */
+export function getSessionStatus(tail: string, ageMs: number): SessionFileStatus {
+  if (!tail) {
+    return ageMs <= STALENESS_THRESHOLD_MS ? 'running' : 'stale';
+  }
+
+  // Check for definitive end markers
+  const hasStopHook = tail.includes('"isMeta":true') && tail.includes('Stop hook feedback:');
+  const hasResult = tail.includes('"type":"result"');
+  const hasTurnDuration = tail.includes('"subtype":"turn_duration"');
+  const hasSummary = tail.includes('"type":"summary"');
+  const hasDefinitiveEnd = hasStopHook || hasResult || hasTurnDuration || hasSummary;
+
+  if (hasDefinitiveEnd) {
+    return 'completed';
+  }
+
+  // Check for AskUserQuestion pending (only valid if not stale)
+  const needsInput = tail.includes('"status":"needs_input"');
+  if (needsInput && ageMs <= STALENESS_THRESHOLD_MS) {
+    return 'waiting_for_input';
+  }
+
+  // Check if last message is an assistant text response (session idle, turn complete)
+  let lastMessageIsAssistantText = false;
+  try {
+    const lines = tail.split('\n').filter(l => l.trim());
+    if (lines.length > 0) {
+      const lastLine = lines[lines.length - 1];
+      const lastMsg = JSON.parse(lastLine);
+      if (lastMsg.type === 'assistant' && lastMsg.message?.content) {
+        const content = lastMsg.message.content;
+        if (Array.isArray(content)) {
+          lastMessageIsAssistantText = content.some(
+            (block: { type: string }) => block.type === 'text'
+          );
+        } else if (typeof content === 'string' && content.length > 0) {
+          lastMessageIsAssistantText = true;
+        }
+      }
+    }
+  } catch {
+    // Failed to parse last line
+  }
+
+  if (lastMessageIsAssistantText) {
+    return 'completed';
+  }
+
+  // No end markers - check staleness
+  return ageMs <= STALENESS_THRESHOLD_MS ? 'running' : 'stale';
+}
+
+/**
+ * Check if a session ended gracefully.
+ * Uses getSessionStatus as the single source of truth.
  */
 export function didSessionEndGracefully(
   projectPath: string,
@@ -202,56 +290,12 @@ export function didSessionEndGracefully(
   try {
     if (!existsSync(sessionFile)) return false;
 
-    const { readFileSync } = require('fs');
-    const content = readFileSync(sessionFile, 'utf-8');
+    const stats = statSync(sessionFile);
+    const ageMs = Date.now() - stats.mtime.getTime();
+    const tail = readFileTail(sessionFile, 10000);
+    const status = getSessionStatus(tail, ageMs);
 
-    // Check the last portion of the file
-    const lastChunk = content.slice(-10000); // Last 10KB for better coverage
-
-    // Method 1: Stop hook feedback (most reliable indicator of graceful end)
-    if (lastChunk.includes('"isMeta":true') && lastChunk.includes('Stop hook feedback:')) {
-      return true;
-    }
-
-    // Method 2: Result type message from Claude CLI output
-    if (lastChunk.includes('"type":"result"')) {
-      return true;
-    }
-
-    // Method 3: Check if the last non-empty entry is an assistant message
-    // without tool_use blocks (indicates natural completion)
-    const lines = lastChunk.trim().split('\n').filter((l: string) => l.trim());
-    if (lines.length > 0) {
-      // Check last few lines for a final assistant message
-      for (let i = lines.length - 1; i >= Math.max(0, lines.length - 5); i--) {
-        try {
-          const entry = JSON.parse(lines[i]);
-          // Skip meta messages
-          if (entry.isMeta) continue;
-          // If we find an assistant message, check if it has tool calls
-          if (entry.type === 'assistant' || entry.message?.role === 'assistant') {
-            const msgContent = entry.message?.content || entry.content;
-            // If it's a text-only response (no tool_use), likely completed
-            if (msgContent && typeof msgContent === 'string') {
-              return true;
-            }
-            // If content is array, check for tool_use blocks
-            if (Array.isArray(msgContent)) {
-              const hasToolUse = msgContent.some((c: { type?: string }) => c.type === 'tool_use');
-              // No pending tool calls = likely completed
-              if (!hasToolUse) {
-                return true;
-              }
-            }
-            break; // Only check the last assistant message
-          }
-        } catch {
-          // Skip invalid JSON lines
-        }
-      }
-    }
-
-    return false;
+    return status === 'completed' || status === 'waiting_for_input';
   } catch {
     return false;
   }

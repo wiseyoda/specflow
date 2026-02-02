@@ -40,7 +40,7 @@ export async function designAction(
   if (options.phase && !VALID_PHASES.includes(options.phase)) {
     const error = `Invalid phase: ${options.phase}. Valid phases: ${VALID_PHASES.join(', ')}`;
     if (json) {
-      output({ success: false, status: 'error', error } as DesignOutput, true);
+      console.log(JSON.stringify({ success: false, status: 'error', error } as DesignOutput, null, 2));
     } else {
       console.error(chalk.red(`ERROR: ${error}`));
     }
@@ -51,7 +51,7 @@ export async function designAction(
   const validation = validateClaudeCli();
   if (!validation.available) {
     if (json) {
-      output({ success: false, status: 'error', error: validation.error } as DesignOutput, true);
+      console.log(JSON.stringify({ success: false, status: 'error', error: validation.error } as DesignOutput, null, 2));
     } else {
       console.error(chalk.red(`ERROR: ${validation.error}`));
     }

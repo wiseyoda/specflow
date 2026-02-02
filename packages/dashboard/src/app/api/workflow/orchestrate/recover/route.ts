@@ -113,7 +113,7 @@ export async function POST(request: Request) {
     }
 
     // Handle recovery
-    const orchestration = orchestrationService.handleRecovery(projectPath, orchestrationId, action);
+    const orchestration = await orchestrationService.handleRecovery(projectPath, orchestrationId, action);
     if (!orchestration) {
       return NextResponse.json(
         { error: 'Failed to handle recovery' },

@@ -21,13 +21,8 @@ import {
 import {
   checkProcessHealth,
   ORPHAN_GRACE_PERIOD_MS,
-  type ProcessHealthResult,
 } from './process-health';
 import { WorkflowExecutionSchema, type WorkflowExecution } from './workflow-service';
-import {
-  OrchestrationExecutionSchema,
-  type OrchestrationExecution,
-} from '@specflow/shared';
 
 // Track reconciliation state
 let reconciliationDone = false;
@@ -128,71 +123,6 @@ function loadProjectWorkflows(projectPath: string): WorkflowExecution[] {
 }
 
 /**
- * Load all orchestration executions for a project (T056)
- */
-function loadProjectOrchestrations(projectPath: string): OrchestrationExecution[] {
-  const workflowDir = join(projectPath, '.specflow', 'workflows');
-  const executions: OrchestrationExecution[] = [];
-
-  if (!existsSync(workflowDir)) {
-    return [];
-  }
-
-  try {
-    const files = readdirSync(workflowDir).filter(
-      (f) => f.startsWith('orchestration-') && f.endsWith('.json')
-    );
-
-    for (const file of files) {
-      try {
-        const content = readFileSync(join(workflowDir, file), 'utf-8');
-        executions.push(OrchestrationExecutionSchema.parse(JSON.parse(content)));
-      } catch {
-        // Skip invalid files
-      }
-    }
-  } catch {
-    // Directory doesn't exist or can't be read
-  }
-
-  return executions;
-}
-
-/**
- * Get the current linked workflow execution ID for an orchestration
- */
-function getCurrentLinkedWorkflowId(orchestration: OrchestrationExecution): string | undefined {
-  const { executions, currentPhase, batches } = orchestration;
-
-  switch (currentPhase) {
-    case 'design':
-      return executions.design;
-    case 'analyze':
-      return executions.analyze;
-    case 'implement':
-      // Get the current batch's workflow execution
-      const currentBatch = batches.items[batches.current];
-      return currentBatch?.workflowExecutionId;
-    case 'verify':
-      return executions.verify;
-    case 'merge':
-      return executions.merge;
-    default:
-      return undefined;
-  }
-}
-
-/**
- * Save an orchestration execution
- */
-function saveOrchestration(execution: OrchestrationExecution, projectPath: string): void {
-  const workflowDir = join(projectPath, '.specflow', 'workflows');
-  mkdirSync(workflowDir, { recursive: true });
-  const filePath = join(workflowDir, `orchestration-${execution.id}.json`);
-  writeFileSync(filePath, JSON.stringify(execution, null, 2));
-}
-
-/**
  * Save a workflow execution
  */
 function saveWorkflow(execution: WorkflowExecution, projectPath: string): void {
@@ -208,6 +138,48 @@ function saveWorkflow(execution: WorkflowExecution, projectPath: string): void {
     const pendingPath = join(workflowDir, `pending-${execution.id}.json`);
     writeFileSync(pendingPath, JSON.stringify(execution, null, 2));
   }
+}
+
+/**
+ * Rebuild workflow index from metadata (source of truth).
+ * Ensures index.json doesn't keep stale running entries after reconciliation.
+ */
+function rebuildWorkflowIndex(projectPath: string): void {
+  const workflowDir = join(projectPath, '.specflow', 'workflows');
+  mkdirSync(workflowDir, { recursive: true });
+  const indexPath = join(workflowDir, 'index.json');
+
+  const workflows = loadProjectWorkflows(projectPath);
+  const bySession = new Map<string, WorkflowExecution>();
+
+  for (const workflow of workflows) {
+    if (!workflow.sessionId) continue;
+    const existing = bySession.get(workflow.sessionId);
+    if (!existing) {
+      bySession.set(workflow.sessionId, workflow);
+      continue;
+    }
+    const existingUpdated = new Date(existing.updatedAt).getTime();
+    const nextUpdated = new Date(workflow.updatedAt).getTime();
+    if (nextUpdated > existingUpdated) {
+      bySession.set(workflow.sessionId, workflow);
+    }
+  }
+
+  const sessions = Array.from(bySession.values())
+    .map((workflow) => ({
+      sessionId: workflow.sessionId as string,
+      executionId: workflow.id,
+      skill: workflow.skill,
+      status: workflow.status,
+      startedAt: workflow.startedAt,
+      updatedAt: workflow.updatedAt,
+      costUsd: workflow.costUsd,
+    }))
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 50);
+
+  writeFileSync(indexPath, JSON.stringify({ sessions }, null, 2));
 }
 
 /**
@@ -352,62 +324,8 @@ export async function reconcileWorkflows(): Promise<ReconciliationResult> {
         }
       }
 
-      // Phase 1b: Check orchestration health (T056, T057)
-      const orchestrations = loadProjectOrchestrations(project.path);
-      for (const orchestration of orchestrations) {
-        // Only check active orchestrations
-        if (!['running', 'paused', 'waiting_merge'].includes(orchestration.status)) {
-          continue;
-        }
-
-        result.orchestrationsChecked++;
-        let updated = false;
-
-        // Check if linked workflow executions are still alive
-        const currentWorkflowId = getCurrentLinkedWorkflowId(orchestration);
-        if (currentWorkflowId) {
-          // Find the workflow execution
-          const workflows = loadProjectWorkflows(project.path);
-          const linkedWorkflow = workflows.find(
-            (w) => w.id === currentWorkflowId || w.sessionId === currentWorkflowId
-          );
-
-          if (linkedWorkflow) {
-            // If workflow is failed/cancelled, orchestration should reflect that
-            if (linkedWorkflow.status === 'failed' || linkedWorkflow.status === 'cancelled') {
-              orchestration.status = 'failed';
-              orchestration.errorMessage = `Linked workflow ${linkedWorkflow.status}: ${linkedWorkflow.error || 'Unknown error'}`;
-              orchestration.updatedAt = new Date().toISOString();
-              orchestration.decisionLog.push({
-                timestamp: new Date().toISOString(),
-                decision: 'reconcile_failed',
-                reason: `Workflow ${linkedWorkflow.status} detected on startup`,
-              });
-              updated = true;
-            }
-          }
-        }
-
-        // If orchestration has been running for too long without updates, mark as failed
-        const lastUpdateAge = Date.now() - new Date(orchestration.updatedAt).getTime();
-        const MAX_ORCHESTRATION_AGE_MS = 4 * 60 * 60 * 1000; // 4 hours
-        if (orchestration.status === 'running' && lastUpdateAge > MAX_ORCHESTRATION_AGE_MS) {
-          orchestration.status = 'failed';
-          orchestration.errorMessage = 'Orchestration stale (no updates in 4+ hours)';
-          orchestration.updatedAt = new Date().toISOString();
-          orchestration.decisionLog.push({
-            timestamp: new Date().toISOString(),
-            decision: 'reconcile_stale',
-            reason: 'No updates in 4+ hours, marking as failed',
-          });
-          updated = true;
-        }
-
-        if (updated) {
-          saveOrchestration(orchestration, project.path);
-          result.orchestrationsUpdated++;
-        }
-      }
+      // Rebuild workflow index from metadata to avoid stale running entries
+      rebuildWorkflowIndex(project.path);
     } catch (err) {
       result.errors.push(
         `Error checking project ${project.id}: ${err instanceof Error ? err.message : String(err)}`

@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { OrchestrationState } from '@specflow/shared';
-import { OrchestrationStateSchema } from '@specflow/shared';
+import { OrchestrationStateSchema, DashboardStateSchema } from '@specflow/shared';
 import { getStatePath, pathExists } from './paths.js';
 import { NotFoundError, StateError, ValidationError } from './errors.js';
 
@@ -215,6 +215,7 @@ export function parseValue(valueStr: string): unknown {
 /** Create a new initial state */
 export function createInitialState(projectName: string, projectPath: string): OrchestrationState {
   const now = new Date().toISOString();
+  const dashboardState = DashboardStateSchema.parse({});
 
   return {
     schema_version: '3.0',
@@ -239,6 +240,7 @@ export function createInitialState(projectName: string, projectPath: string): Or
         status: 'not_started',
       },
       implement: null,
+      dashboard: dashboardState,
     },
     health: {
       status: 'initializing',

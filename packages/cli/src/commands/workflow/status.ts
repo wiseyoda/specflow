@@ -15,9 +15,9 @@ interface StatusOutput {
   currentPhase: string | null;
   pendingQuestions: number;
   step: {
-    current: string;
-    index: number;
-    status: string;
+    current: string | null;
+    index: number | null;
+    status: string | null;
   } | null;
 }
 
@@ -40,7 +40,7 @@ export async function workflowStatusAction(
     let currentPhase: string | null = null;
 
     if (state.orchestration?.step?.status === 'in_progress') {
-      workflowStatus = pending.length > 0 ? 'waiting_for_answer' : 'running';
+      workflowStatus = pending.length > 0 ? 'waiting_for_input' : 'running';
       currentPhase = state.orchestration.step.current || null;
     } else if (state.orchestration?.step?.status === 'complete') {
       workflowStatus = 'completed';
@@ -55,9 +55,9 @@ export async function workflowStatusAction(
       pendingQuestions: pending.length,
       step: state.orchestration?.step
         ? {
-            current: state.orchestration.step.current,
-            index: state.orchestration.step.index,
-            status: state.orchestration.step.status,
+            current: state.orchestration.step.current ?? null,
+            index: state.orchestration.step.index ?? null,
+            status: state.orchestration.step.status ?? null,
           }
         : null,
     };
@@ -71,7 +71,7 @@ export async function workflowStatusAction(
             ? chalk.green
             : workflowStatus === 'failed'
               ? chalk.red
-              : workflowStatus === 'waiting_for_answer'
+              : workflowStatus === 'waiting_for_input'
                 ? chalk.yellow
                 : chalk.gray;
 
@@ -80,7 +80,7 @@ export async function workflowStatusAction(
         `Phase: ${currentPhase || 'none'} | Questions: ${pending.length} pending`,
       ];
 
-      if (workflowStatus === 'waiting_for_answer') {
+      if (workflowStatus === 'waiting_for_input') {
         lines.push(`Next: Run 'specflow workflow answer --list' to see questions`);
       } else if (workflowStatus === 'idle') {
         lines.push(`Next: Run 'specflow workflow design' to start`);

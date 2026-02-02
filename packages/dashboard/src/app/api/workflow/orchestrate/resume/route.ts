@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { orchestrationService } from '@/lib/services/orchestration-service';
-import { runOrchestration } from '@/lib/services/orchestration-runner';
+import { runOrchestration, stopRunner } from '@/lib/services/orchestration-runner';
 
 // =============================================================================
 // Request Schema
@@ -82,27 +82,50 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get orchestration ID
+    // Get orchestration ID and active orchestration
     let orchestrationId = id;
+    const active = orchestrationService.getActive(projectPath);
+
     if (!orchestrationId) {
-      const active = orchestrationService.getActive(projectPath);
       if (!active) {
         return NextResponse.json(
-          { error: 'No paused orchestration to resume' },
-          { status: 400 }
-        );
-      }
-      if (active.status !== 'paused') {
-        return NextResponse.json(
-          { error: `Orchestration is not paused (status: ${active.status})` },
+          { error: 'No active orchestration to resume' },
           { status: 400 }
         );
       }
       orchestrationId = active.id;
     }
 
-    // Resume orchestration
-    const orchestration = orchestrationService.resume(projectPath, orchestrationId);
+    // Handle "running" orchestration — force-restart the runner.
+    // The user clicking Resume on a running orchestration means it's stalled.
+    // Stop any existing runner (which may be stuck) and start a fresh one.
+    if (active && active.id === orchestrationId && active.status === 'running') {
+      console.log(`[orchestrate/resume] Force-restarting runner for ${orchestrationId}`);
+      stopRunner(orchestrationId);
+      runOrchestration(projectId, orchestrationId).catch((error) => {
+        console.error('[orchestrate/resume] Runner error:', error);
+      });
+
+      return NextResponse.json({
+        orchestration: {
+          id: active.id,
+          projectId: active.projectId,
+          status: active.status,
+          currentPhase: active.currentPhase,
+          updatedAt: active.updatedAt,
+        },
+      });
+    }
+
+    // Standard resume from paused state
+    if (active && active.id === orchestrationId && active.status !== 'paused') {
+      return NextResponse.json(
+        { error: `Orchestration is not paused (status: ${active.status})` },
+        { status: 400 }
+      );
+    }
+
+    const orchestration = await orchestrationService.resume(projectPath, orchestrationId);
     if (!orchestration) {
       return NextResponse.json(
         { error: `Orchestration not found or not paused: ${orchestrationId}` },

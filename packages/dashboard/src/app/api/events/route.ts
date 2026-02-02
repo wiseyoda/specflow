@@ -1,4 +1,4 @@
-import { initWatcher, addListener, getCurrentRegistry, getAllStates, getAllTasks, getAllWorkflows, getAllPhases, getAllSessions, startHeartbeat } from '@/lib/watcher';
+import { initWatcher, addListener, getCurrentRegistry, getAllDataParallel, startHeartbeat, scheduleFullWorkflowRefresh } from '@/lib/watcher';
 import type { SSEEvent } from '@specflow/shared';
 
 // Initialize watcher on first request
@@ -51,8 +51,10 @@ export async function GET(): Promise<Response> {
         });
       }
 
+      // Load all data in parallel for fast initial load
+      const { states, tasks, workflows, phases, sessions } = await getAllDataParallel();
+
       // Send current state data for all projects
-      const states = await getAllStates();
       for (const [projectId, state] of states) {
         send({
           type: 'state',
@@ -63,7 +65,6 @@ export async function GET(): Promise<Response> {
       }
 
       // Send current tasks data for all projects
-      const tasks = await getAllTasks();
       for (const [projectId, taskData] of tasks) {
         send({
           type: 'tasks',
@@ -74,7 +75,6 @@ export async function GET(): Promise<Response> {
       }
 
       // Send current workflow data for all projects
-      const workflows = await getAllWorkflows();
       for (const [projectId, workflowData] of workflows) {
         send({
           type: 'workflow',
@@ -85,7 +85,6 @@ export async function GET(): Promise<Response> {
       }
 
       // Send current phases data for all projects
-      const phases = await getAllPhases();
       for (const [projectId, phasesData] of phases) {
         send({
           type: 'phases',
@@ -96,7 +95,6 @@ export async function GET(): Promise<Response> {
       }
 
       // Send current session content for active sessions
-      const sessions = await getAllSessions();
       for (const { projectId, sessionId, content } of sessions) {
         send({
           type: 'session:message',
@@ -106,6 +104,10 @@ export async function GET(): Promise<Response> {
           data: content,
         });
       }
+
+      // Schedule a full workflow refresh shortly after initial connection
+      // to populate CLI sessions that were skipped in fast mode
+      scheduleFullWorkflowRefresh();
 
       // Add listener for future events
       const removeListener = addListener(send);

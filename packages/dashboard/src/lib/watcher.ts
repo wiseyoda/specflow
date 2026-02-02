@@ -5,20 +5,16 @@ import path from 'path';
 import {
   RegistrySchema,
   OrchestrationStateSchema,
-  WorkflowIndexSchema,
   type Registry,
   type OrchestrationState,
   type SSEEvent,
   type TasksData,
-  type WorkflowIndex,
-  type WorkflowIndexEntry,
   type WorkflowData,
   type PhasesData,
   type SessionContent,
   type SessionQuestion,
 } from '@specflow/shared';
-import { readdirSync, statSync, existsSync, readFileSync } from 'fs';
-import { v4 as uuidv4 } from 'uuid';
+import { existsSync, readFileSync } from 'fs';
 import { parseTasks, type ParseTasksOptions } from './task-parser';
 import { parseRoadmapToPhasesData } from './roadmap-parser';
 import {
@@ -27,8 +23,10 @@ import {
   migrateStateFiles,
 } from './state-paths';
 import { getProjectSessionDir, getClaudeProjectsDir } from './project-hash';
-import { reconcileRunners } from './services/orchestration-runner';
-import { orchestrationService } from './services/orchestration-service';
+import { reconcileRunners, runOrchestration, isRunnerActive } from './services/orchestration-runner';
+import { orchestrationService, readDashboardState } from './services/orchestration-service';
+import { workflowService } from './services/workflow-service';
+import { buildWorkflowData, buildWorkflowDataFast } from './services/runtime-state';
 
 // Debounce delay in milliseconds
 const DEBOUNCE_MS = 200;
@@ -55,6 +53,9 @@ const phasesCache: Map<string, string> = new Map(); // projectId -> JSON string
 
 // Cache session content to detect actual changes
 const sessionCache: Map<string, string> = new Map(); // sessionId -> JSON string
+
+// Cache questions to detect actual changes and avoid duplicate session:question events
+const questionCache: Map<string, string> = new Map(); // sessionId -> JSON string of questions
 
 // Session debounce (faster for real-time feel)
 const SESSION_DEBOUNCE_MS = 100;
@@ -83,6 +84,7 @@ export function broadcast(event: SSEEvent): void {
 /**
  * Broadcast a session:question event for workflow-mode questions
  * Called by workflow-service when structured_output has questions
+ * Uses questionCache to deduplicate - won't broadcast same questions twice
  */
 export function broadcastWorkflowQuestions(
   sessionId: string,
@@ -95,6 +97,15 @@ export function broadcastWorkflowQuestions(
   }>
 ): void {
   if (!questions || questions.length === 0) return;
+
+  // Check if these questions were already broadcast (deduplication)
+  const questionsFingerprint = JSON.stringify(questions.map(q => ({ q: q.question, h: q.header })));
+  const cachedQuestions = questionCache.get(sessionId) ?? '';
+  if (questionsFingerprint === cachedQuestions) {
+    // Same questions already broadcast, skip
+    return;
+  }
+  questionCache.set(sessionId, questionsFingerprint);
 
   const mappedQuestions = questions.map((q) => ({
     question: q.question,
@@ -282,177 +293,14 @@ async function handleTasksChange(projectId: string, tasksPath: string): Promise<
 }
 
 /**
- * Read and parse workflow index file for a project
- */
-async function readWorkflowIndex(indexPath: string): Promise<WorkflowIndex | null> {
-  try {
-    const content = await fs.readFile(indexPath, 'utf-8');
-    const parsed = WorkflowIndexSchema.parse(JSON.parse(content));
-    return parsed;
-  } catch {
-    // File doesn't exist or is invalid - return empty
-    return { sessions: [] };
-  }
-}
-
-/**
- * Build WorkflowData from index
- * Finds current active execution and includes all sessions
- */
-function buildWorkflowData(index: WorkflowIndex): WorkflowData {
-  // Find current active execution (running or waiting_for_input)
-  const activeStates = ['running', 'waiting_for_input', 'detached', 'stale'];
-  const currentExecution = index.sessions.find(s => activeStates.includes(s.status)) ?? null;
-
-  return {
-    currentExecution,
-    sessions: index.sessions,
-  };
-}
-
-/**
- * Discover CLI sessions from Claude projects directory.
- * Scans ~/.claude/projects/{hash}/ for .jsonl files and creates WorkflowIndexEntry objects.
- * These are sessions started from CLI that weren't tracked by the dashboard.
- *
- * @param projectPath - Absolute path to the project
- * @param trackedSessionIds - Set of session IDs already tracked by dashboard (to avoid duplicates)
- * @param limit - Maximum number of sessions to return (default 50)
- */
-function discoverCliSessions(
-  projectPath: string,
-  trackedSessionIds: Set<string>,
-  limit: number = 50
-): WorkflowIndexEntry[] {
-  const sessionDir = getProjectSessionDir(projectPath);
-
-  if (!existsSync(sessionDir)) {
-    return [];
-  }
-
-  try {
-    const files = readdirSync(sessionDir);
-    const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
-
-    // Get file stats and create entries
-    const entries: WorkflowIndexEntry[] = [];
-
-    for (const file of jsonlFiles) {
-      const sessionId = file.replace('.jsonl', '');
-
-      // Skip if already tracked by dashboard
-      if (trackedSessionIds.has(sessionId)) {
-        continue;
-      }
-
-      const fullPath = path.join(sessionDir, file);
-      try {
-        const stats = statSync(fullPath);
-
-        // Try to extract skill from first line of JSONL (lazy - only read if needed)
-        let skill = 'CLI Session';
-        try {
-          // Read just the first few KB to find skill info
-          const fd = require('fs').openSync(fullPath, 'r');
-          const buffer = Buffer.alloc(4096);
-          require('fs').readSync(fd, buffer, 0, 4096, 0);
-          require('fs').closeSync(fd);
-
-          const firstLines = buffer.toString('utf-8').split('\n').slice(0, 5);
-          for (const line of firstLines) {
-            if (!line.trim()) continue;
-            try {
-              const msg = JSON.parse(line);
-              // Look for skill in various places
-              if (msg.skill) {
-                skill = msg.skill;
-                break;
-              }
-              if (msg.message?.content && typeof msg.message.content === 'string') {
-                // Check for /flow.* commands in first user message
-                const flowMatch = msg.message.content.match(/\/flow\.(\w+)/);
-                if (flowMatch) {
-                  skill = `flow.${flowMatch[1]}`;
-                  break;
-                }
-              }
-            } catch {
-              // Invalid JSON line, continue
-            }
-          }
-        } catch {
-          // Could not read file content, use default skill
-        }
-
-        // Determine status based on file age
-        const fileAgeMs = Date.now() - stats.mtime.getTime();
-        const isRecent = fileAgeMs < 30 * 60 * 1000; // 30 minutes
-        const status: WorkflowIndexEntry['status'] = isRecent ? 'detached' : 'completed';
-
-        entries.push({
-          sessionId,
-          executionId: uuidv4(), // Generate placeholder ID for CLI sessions
-          skill,
-          status,
-          startedAt: stats.birthtime.toISOString(),
-          updatedAt: stats.mtime.toISOString(),
-          costUsd: 0, // Unknown for CLI sessions
-        });
-      } catch {
-        // Could not stat file, skip
-      }
-    }
-
-    // Sort by updatedAt descending (newest first)
-    entries.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-
-    // Return limited number
-    return entries.slice(0, limit);
-  } catch {
-    return [];
-  }
-}
-
-/**
  * Handle workflow index file change.
- * Merges dashboard-tracked sessions with discovered CLI sessions.
+ * Uses runtime aggregation instead of reading index.json directly.
  */
-async function handleWorkflowChange(projectId: string, indexPath: string): Promise<void> {
-  const index = await readWorkflowIndex(indexPath);
-  if (!index) return;
-
-  // Get project path for CLI session discovery
+async function handleWorkflowChange(projectId: string, _indexPath: string): Promise<void> {
   const projectPath = projectPathMap.get(projectId);
+  if (!projectPath) return;
 
-  // Get tracked session IDs to avoid duplicates
-  const trackedSessionIds = new Set<string>(
-    index.sessions.map(s => s.sessionId)
-  );
-
-  // Discover CLI sessions that aren't tracked by dashboard
-  const cliSessions = projectPath
-    ? discoverCliSessions(projectPath, trackedSessionIds, 50)
-    : [];
-
-  // Merge sessions: dashboard-tracked first, then CLI-discovered
-  const allSessions = [
-    ...index.sessions,
-    ...cliSessions,
-  ];
-
-  // Sort all sessions by updatedAt (newest first)
-  allSessions.sort((a, b) =>
-    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-  );
-
-  // Build workflow data with merged sessions
-  const activeStates = ['running', 'waiting_for_input', 'detached', 'stale'];
-  const currentExecution = allSessions.find(s => activeStates.includes(s.status)) ?? null;
-
-  const data: WorkflowData = {
-    currentExecution,
-    sessions: allSessions.slice(0, 100), // Limit to 100 total sessions
-  };
+  const data = await buildWorkflowData(projectId, projectPath);
 
   // Check if data actually changed (avoid duplicate broadcasts)
   const dataJson = JSON.stringify(data);
@@ -631,40 +479,14 @@ async function updateWatchedPaths(registry: Registry): Promise<void> {
       watcher.add(workflowIndexPath);
       console.log(`[Watcher] Added workflow index: ${workflowIndexPath}`);
 
-      // Broadcast initial workflow data (including CLI sessions)
-      const index = await readWorkflowIndex(workflowIndexPath);
-      if (index) {
-        // Get tracked session IDs to avoid duplicates
-        const trackedSessionIds = new Set<string>(
-          index.sessions.map(s => s.sessionId)
-        );
-
-        // Discover CLI sessions
-        const cliSessions = discoverCliSessions(project.path, trackedSessionIds, 50);
-
-        // Merge sessions
-        const allSessions = [...index.sessions, ...cliSessions];
-        allSessions.sort((a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        );
-
-        // Build workflow data with merged sessions
-        const activeStates = ['running', 'waiting_for_input', 'detached', 'stale'];
-        const currentExecution = allSessions.find(s => activeStates.includes(s.status)) ?? null;
-
-        const data: WorkflowData = {
-          currentExecution,
-          sessions: allSessions.slice(0, 100),
-        };
-
-        workflowCache.set(projectId, JSON.stringify(data));
-        broadcast({
-          type: 'workflow',
-          timestamp: new Date().toISOString(),
-          projectId,
-          data,
-        });
-      }
+      const data = await buildWorkflowData(projectId, project.path);
+      workflowCache.set(projectId, JSON.stringify(data));
+      broadcast({
+        type: 'workflow',
+        timestamp: new Date().toISOString(),
+        projectId,
+        data,
+      });
     }
 
     // Add ROADMAP.md path for this project
@@ -832,7 +654,36 @@ export async function initWatcher(): Promise<void> {
     // This detects orphaned runner state files from crashed processes
     for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
       try {
-        reconcileRunners(project.path);
+        const cleanedUpIds = reconcileRunners(project.path);
+        const repoName = project.path.split('/').pop();
+
+        // Use CLI dashboard state as single source of truth for orchestration status.
+        // The legacy orchestration file can be out of sync (e.g., saying 'running'
+        // when the CLI has moved to 'waiting_merge'). Dashboard state is more reliable.
+        const dashboardState = readDashboardState(project.path);
+        const activeId = dashboardState?.active?.id;
+        const dashboardStatus = dashboardState?.active?.status;
+
+        // Fallback to legacy file only if dashboard state is unavailable
+        const legacyActive = orchestrationService.getActive(project.path);
+        const effectiveId = activeId || legacyActive?.id;
+        const effectiveStatus = dashboardStatus || legacyActive?.status;
+
+        console.log(`[Watcher] Checking ${repoName}: id=${effectiveId ?? 'none'}, dashboardStatus=${dashboardStatus ?? 'none'}, legacyStatus=${legacyActive?.status ?? 'none'}, runnerActive=${effectiveId ? isRunnerActive(effectiveId) : 'n/a'}`);
+
+        if (effectiveId && effectiveStatus === 'running' && !isRunnerActive(effectiveId)) {
+          // Only auto-restart if we found a runner state file (= dashboard was managing it).
+          // If no runner state file exists, this was likely CLI-managed or the server was
+          // stopped gracefully. User can click "Resume" to restart manually.
+          if (cleanedUpIds.has(effectiveId)) {
+            console.log(`[Watcher] Restarting runner for orchestration ${effectiveId} in ${repoName} (previous runner was orphaned)`);
+            runOrchestration(projectId, effectiveId).catch(error => {
+              console.error(`[Watcher] Failed to restart runner for ${effectiveId}:`, error);
+            });
+          } else {
+            console.log(`[Watcher] Active orchestration in ${repoName} has no previous runner state (manual resume available)`);
+          }
+        }
       } catch (error) {
         console.error(`[Watcher] Error reconciling runners for ${projectId}:`, error);
       }
@@ -874,11 +725,19 @@ export async function getAllStates(): Promise<Map<string, OrchestrationState>> {
 
   if (!currentRegistry) return states;
 
-  for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
-    const statePath = await getStateFilePath(project.path);
-    const state = await readState(projectId, statePath);
-    if (state) {
-      states.set(projectId, state);
+  // Load states for all projects in parallel
+  const projectEntries = Object.entries(currentRegistry.projects);
+  const results = await Promise.all(
+    projectEntries.map(async ([projectId, project]) => {
+      const statePath = await getStateFilePath(project.path);
+      const state = await readState(projectId, statePath);
+      return state ? { projectId, state } : null;
+    })
+  );
+
+  for (const result of results) {
+    if (result) {
+      states.set(result.projectId, result.state);
     }
   }
 
@@ -888,24 +747,38 @@ export async function getAllStates(): Promise<Map<string, OrchestrationState>> {
 /**
  * Get all current tasks data for registered projects
  * Also reads state to get current in-progress tasks for status derivation
+ * @param cachedStates Optional pre-loaded states to avoid redundant reads
  */
-export async function getAllTasks(): Promise<Map<string, TasksData>> {
+export async function getAllTasks(
+  cachedStates?: Map<string, OrchestrationState>
+): Promise<Map<string, TasksData>> {
   const tasks = new Map<string, TasksData>();
 
   if (!currentRegistry) return tasks;
 
-  for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
-    const statePath = await getStateFilePath(project.path);
-    const tasksPath = await getTasksPathForProject(project.path, statePath);
-    if (tasksPath) {
-      // Read state to get current_tasks for in_progress status
-      const state = await readState(projectId, statePath);
+  // Load tasks for all projects in parallel
+  const projectEntries = Object.entries(currentRegistry.projects);
+  const results = await Promise.all(
+    projectEntries.map(async ([projectId, project]) => {
+      const statePath = await getStateFilePath(project.path);
+      const tasksPath = await getTasksPathForProject(project.path, statePath);
+      if (!tasksPath) return null;
+
+      // Use cached state if available, otherwise read
+      let state = cachedStates?.get(projectId);
+      if (!state) {
+        state = (await readState(projectId, statePath)) ?? undefined;
+      }
       const currentTasks = state?.orchestration?.implement?.current_tasks as string[] | undefined;
 
       const projectTasks = await readTasks(projectId, tasksPath, { currentTasks });
-      if (projectTasks) {
-        tasks.set(projectId, projectTasks);
-      }
+      return projectTasks ? { projectId, tasks: projectTasks } : null;
+    })
+  );
+
+  for (const result of results) {
+    if (result) {
+      tasks.set(result.projectId, result.tasks);
     }
   }
 
@@ -915,44 +788,25 @@ export async function getAllTasks(): Promise<Map<string, TasksData>> {
 /**
  * Get all current workflow data for registered projects.
  * Includes both dashboard-tracked sessions AND discovered CLI sessions.
+ * @param fastMode If true, skips expensive session discovery for faster initial load
  */
-export async function getAllWorkflows(): Promise<Map<string, WorkflowData>> {
+export async function getAllWorkflows(fastMode = false): Promise<Map<string, WorkflowData>> {
   const workflows = new Map<string, WorkflowData>();
 
   if (!currentRegistry) return workflows;
 
-  for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
-    const workflowIndexPath = path.join(project.path, '.specflow', 'workflows', 'index.json');
-    const index = await readWorkflowIndex(workflowIndexPath);
+  // Load workflows for all projects in parallel
+  const projectEntries = Object.entries(currentRegistry.projects);
+  const results = await Promise.all(
+    projectEntries.map(async ([projectId, project]) => {
+      const data = fastMode
+        ? await buildWorkflowDataFast(projectId, project.path)
+        : await buildWorkflowData(projectId, project.path);
+      return { projectId, data };
+    })
+  );
 
-    // Get tracked session IDs to avoid duplicates
-    const trackedSessionIds = new Set<string>(
-      index?.sessions.map(s => s.sessionId) ?? []
-    );
-
-    // Discover CLI sessions that aren't tracked by dashboard
-    const cliSessions = discoverCliSessions(project.path, trackedSessionIds, 50);
-
-    // Merge sessions: dashboard-tracked first, then CLI-discovered
-    const allSessions = [
-      ...(index?.sessions ?? []),
-      ...cliSessions,
-    ];
-
-    // Sort all sessions by updatedAt (newest first)
-    allSessions.sort((a, b) =>
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    );
-
-    // Build workflow data with merged sessions
-    const activeStates = ['running', 'waiting_for_input', 'detached', 'stale'];
-    const currentExecution = allSessions.find(s => activeStates.includes(s.status)) ?? null;
-
-    const data: WorkflowData = {
-      currentExecution,
-      sessions: allSessions.slice(0, 100), // Limit to 100 total sessions
-    };
-
+  for (const { projectId, data } of results) {
     workflows.set(projectId, data);
     // Update cache
     workflowCache.set(projectId, JSON.stringify(data));
@@ -969,17 +823,57 @@ export async function getAllPhases(): Promise<Map<string, PhasesData>> {
 
   if (!currentRegistry) return phases;
 
-  for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
-    const roadmapPath = path.join(project.path, 'ROADMAP.md');
-    const data = await readPhases(projectId, roadmapPath);
-    if (data) {
-      phases.set(projectId, data);
+  // Load phases for all projects in parallel
+  const projectEntries = Object.entries(currentRegistry.projects);
+  const results = await Promise.all(
+    projectEntries.map(async ([projectId, project]) => {
+      const roadmapPath = path.join(project.path, 'ROADMAP.md');
+      const data = await readPhases(projectId, roadmapPath);
+      return data ? { projectId, data } : null;
+    })
+  );
+
+  for (const result of results) {
+    if (result) {
+      phases.set(result.projectId, result.data);
       // Update cache
-      phasesCache.set(projectId, JSON.stringify(data));
+      phasesCache.set(result.projectId, JSON.stringify(result.data));
     }
   }
 
   return phases;
+}
+
+/**
+ * Load all data in parallel for fast initial SSE connection.
+ * Optimizes by:
+ * 1. Running states, workflows (fast), and phases in parallel
+ * 2. Passing cached states to tasks loading (avoids redundant reads)
+ * 3. Passing cached workflows to sessions loading (avoids redundant calls)
+ */
+export async function getAllDataParallel(): Promise<{
+  states: Map<string, OrchestrationState>;
+  tasks: Map<string, TasksData>;
+  workflows: Map<string, WorkflowData>;
+  phases: Map<string, PhasesData>;
+  sessions: SessionWithProject[];
+}> {
+  // Phase 1: Load states, workflows (fast mode), and phases in parallel
+  // These have no dependencies on each other
+  const [states, workflows, phases] = await Promise.all([
+    getAllStates(),
+    getAllWorkflows(true), // Fast mode: skip expensive session discovery
+    getAllPhases(),
+  ]);
+
+  // Phase 2: Load tasks and sessions in parallel
+  // Tasks uses cached states, sessions uses cached workflows
+  const [tasks, sessions] = await Promise.all([
+    getAllTasks(states), // Pass cached states to avoid re-reading
+    getAllSessions(workflows), // Pass cached workflows to avoid re-computing
+  ]);
+
+  return { states, tasks, workflows, phases, sessions };
 }
 
 /**
@@ -1010,14 +904,18 @@ async function isSessionStale(sessionPath: string): Promise<boolean> {
 /**
  * Get all current session content for active sessions
  * Called on SSE connect to send initial session data
+ * @param cachedWorkflows Optional pre-loaded workflows to avoid redundant calls
  */
-export async function getAllSessions(): Promise<SessionWithProject[]> {
-  const sessions: SessionWithProject[] = [];
+export async function getAllSessions(
+  cachedWorkflows?: Map<string, WorkflowData>
+): Promise<SessionWithProject[]> {
+  if (!currentRegistry) return [];
 
-  if (!currentRegistry) return sessions;
+  // Use cached workflows or load them (fast mode since we only need session IDs)
+  const workflows = cachedWorkflows ?? await getAllWorkflows(true);
 
-  // Get workflow data to find active sessions
-  const workflows = await getAllWorkflows();
+  // Collect all session load tasks to run in parallel
+  const sessionLoadTasks: Promise<SessionWithProject | null>[] = [];
 
   for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
     const workflowData = workflows.get(projectId);
@@ -1043,33 +941,37 @@ export async function getAllSessions(): Promise<SessionWithProject[]> {
       }
     }
 
-    // Load content for each session (skip stale sessions)
+    // Create parallel load tasks for each session
     const sessionDir = getSessionDirectory(project.path);
     for (const sessionId of sessionIdsToLoad) {
-      const sessionPath = path.join(sessionDir, `${sessionId}.jsonl`);
-      try {
-        // Skip stale sessions - they're marked as "running" but haven't been modified recently
-        if (await isSessionStale(sessionPath)) {
-          console.log(`[Watcher] Skipping stale session ${sessionId} (not modified in 30+ minutes)`);
-          continue;
-        }
+      sessionLoadTasks.push(
+        (async (): Promise<SessionWithProject | null> => {
+          const sessionPath = path.join(sessionDir, `${sessionId}.jsonl`);
+          try {
+            // Skip stale sessions - they're marked as "running" but haven't been modified recently
+            if (await isSessionStale(sessionPath)) {
+              return null;
+            }
 
-        const content = await parseSessionContent(sessionPath);
-        if (content) {
-          // Update caches for future change detection
-          sessionProjectMap.set(sessionId, projectId);
-          sessionCache.set(sessionId, JSON.stringify(content));
-
-          sessions.push({ projectId, sessionId, content });
-        }
-      } catch (error) {
-        // Session file might not exist yet or is inaccessible
-        console.log(`[Watcher] Could not load session ${sessionId} for project ${projectId}:`, error);
-      }
+            const content = await parseSessionContent(sessionPath);
+            if (content) {
+              // Update caches for future change detection
+              sessionProjectMap.set(sessionId, projectId);
+              sessionCache.set(sessionId, JSON.stringify(content));
+              return { projectId, sessionId, content };
+            }
+          } catch {
+            // Session file might not exist yet or is inaccessible
+          }
+          return null;
+        })()
+      );
     }
   }
 
-  return sessions;
+  // Run all session loads in parallel
+  const results = await Promise.all(sessionLoadTasks);
+  return results.filter((r): r is SessionWithProject => r !== null);
 }
 
 // ============================================================================
@@ -1141,32 +1043,62 @@ function calculateElapsedMs(startTime?: string): number {
  * T015: Detect AskUserQuestion tool calls AND structured_output questions (CLI mode)
  */
 function extractPendingQuestions(content: SessionContent): SessionQuestion[] {
-  const questions: SessionQuestion[] = [];
+  let latestQuestions: SessionQuestion[] = [];
+  let latestQuestionIndex = -1;
 
-  // Helper to process a questions array
-  const processQuestions = (questionList: unknown[]) => {
+  const normalizeOptions = (
+    options: unknown
+  ): Array<{ label: string; description?: string }> => {
+    if (!Array.isArray(options)) {
+      return [];
+    }
+    const normalized: Array<{ label: string; description?: string }> = [];
+    for (const opt of options) {
+      if (typeof opt === 'string') {
+        normalized.push({ label: opt, description: '' });
+      } else if (typeof opt === 'object' && opt !== null && 'label' in opt) {
+        const optObj = opt as { label?: unknown; description?: unknown };
+        if (typeof optObj.label === 'string') {
+          normalized.push({
+            label: optObj.label,
+            description: typeof optObj.description === 'string' ? optObj.description : '',
+          });
+        }
+      }
+    }
+    return normalized;
+  };
+
+  // Helper to process a questions array (replace latest question set)
+  const processQuestions = (questionList: unknown[], messageIndex: number) => {
+    const processed: SessionQuestion[] = [];
     for (const q of questionList) {
       if (typeof q === 'object' && q !== null && 'question' in q) {
         const qObj = q as Record<string, unknown>;
-        // Map to SessionQuestion format, ensuring description has a default value
-        const options = Array.isArray(qObj.options)
-          ? qObj.options.map((opt: { label: string; description?: string }) => ({
-              label: opt.label,
-              description: opt.description ?? '', // Default to empty string
-            }))
-          : [];
+        const options = normalizeOptions(qObj.options);
+        const multiSelectValue = typeof qObj.multiSelect === 'boolean'
+          ? qObj.multiSelect
+          : typeof qObj.multiselect === 'boolean'
+            ? qObj.multiselect
+            : undefined;
 
-        questions.push({
+        processed.push({
           question: String(qObj.question),
           header: typeof qObj.header === 'string' ? qObj.header : undefined,
           options,
-          multiSelect: typeof qObj.multiSelect === 'boolean' ? qObj.multiSelect : undefined,
+          multiSelect: multiSelectValue,
         });
       }
     }
+
+    if (processed.length > 0) {
+      latestQuestions = processed;
+      latestQuestionIndex = messageIndex;
+    }
   };
 
-  for (const message of content.messages) {
+  for (let i = 0; i < content.messages.length; i++) {
+    const message = content.messages[i];
     // Check for AskUserQuestion tool calls (interactive mode)
     if (message.role === 'assistant' && message.toolCalls) {
       for (const toolCall of message.toolCalls) {
@@ -1174,7 +1106,7 @@ function extractPendingQuestions(content: SessionContent): SessionQuestion[] {
           const input = toolCall.input as Record<string, unknown>;
           const questionList = input?.questions;
           if (Array.isArray(questionList)) {
-            processQuestions(questionList);
+            processQuestions(questionList, i);
           }
         }
       }
@@ -1186,23 +1118,31 @@ function extractPendingQuestions(content: SessionContent): SessionQuestion[] {
     if (msgAny.type === 'result' && msgAny.structured_output) {
       const structured = msgAny.structured_output as Record<string, unknown>;
       if (structured.status === 'needs_input' && Array.isArray(structured.questions)) {
-        processQuestions(structured.questions);
+        processQuestions(structured.questions, i);
       }
     }
   }
 
-  return questions;
+  if (latestQuestionIndex >= 0) {
+    const hasUserResponse = content.messages
+      .slice(latestQuestionIndex + 1)
+      .some((msg) => msg.role === 'user');
+    if (hasUserResponse) {
+      return [];
+    }
+  }
+
+  return latestQuestions;
 }
 
 /**
  * Handle session file change
  * T013: Called when JSONL file changes, parses and broadcasts events
+ * Returns true if content actually changed and was broadcast
  */
-async function handleSessionFileChange(sessionPath: string): Promise<void> {
+async function handleSessionFileChange(sessionPath: string): Promise<boolean> {
   const sessionId = path.basename(sessionPath, '.jsonl');
   const projectId = sessionProjectMap.get(sessionId);
-
-  console.log(`[Watcher] Session file change: ${sessionId}, cached projectId: ${projectId || 'none'}`);
 
   if (!projectId) {
     // Try to find project from path
@@ -1210,15 +1150,11 @@ async function handleSessionFileChange(sessionPath: string): Promise<void> {
     const relativePath = sessionPath.replace(claudeProjectsDir + path.sep, '');
     const dirName = relativePath.split(path.sep)[0];
 
-    console.log(`[Watcher] Looking up project for session ${sessionId}: dir=${dirName}, projectPathMap size=${projectPathMap.size}`);
-
     // Find project with matching hash
     for (const [id, projectPath] of projectPathMap.entries()) {
       const expectedDir = path.basename(getSessionDirectory(projectPath));
-      console.log(`[Watcher]   Checking project ${id}: expectedDir=${expectedDir}, match=${dirName === expectedDir}`);
       if (dirName === expectedDir) {
         sessionProjectMap.set(sessionId, id);
-        console.log(`[Watcher]   Matched! Setting sessionProjectMap[${sessionId}] = ${id}`);
         break;
       }
     }
@@ -1226,23 +1162,26 @@ async function handleSessionFileChange(sessionPath: string): Promise<void> {
 
   const resolvedProjectId = sessionProjectMap.get(sessionId);
   if (!resolvedProjectId) {
-    // Session from external CLI not registered with dashboard - this is expected
-    console.log(`[Watcher] Could not resolve projectId for session ${sessionId}, skipping`);
-    return;
+    return false;
   }
-
-  console.log(`[Watcher] Processing session ${sessionId} for project ${resolvedProjectId}`);
 
   const content = await parseSessionContent(sessionPath);
-  if (!content) return;
+  if (!content) return false;
 
-  // Check if content actually changed
+  // Check if content actually changed (exclude volatile fields like elapsedMs
+  // which change on every parse due to Date.now(), causing false cache misses)
   const cacheKey = sessionId;
-  const contentJson = JSON.stringify(content);
-  if (sessionCache.get(cacheKey) === contentJson) {
-    return; // No actual change
+  const stableContent = {
+    messageCount: content.messages.length,
+    lastMessage: content.messages.at(-1)?.content?.slice(0, 200),
+    filesModified: content.filesModified,
+    todoCount: content.currentTodos?.length ?? 0,
+  };
+  const contentFingerprint = JSON.stringify(stableContent);
+  if (sessionCache.get(cacheKey) === contentFingerprint) {
+    return false; // No actual change
   }
-  sessionCache.set(cacheKey, contentJson);
+  sessionCache.set(cacheKey, contentFingerprint);
 
   // G6.6: Update orchestration activity when external session activity is detected
   const projectPath = projectPathMap.get(resolvedProjectId);
@@ -1254,7 +1193,6 @@ async function handleSessionFileChange(sessionPath: string): Promise<void> {
   }
 
   // Broadcast session:message event
-  console.log(`[Watcher] Broadcasting session:message for ${sessionId} (${content.messages.length} messages)`);
   broadcast({
     type: 'session:message',
     timestamp: new Date().toISOString(),
@@ -1263,9 +1201,18 @@ async function handleSessionFileChange(sessionPath: string): Promise<void> {
     data: content,
   });
 
-  // Check for pending questions
+  // Check for pending questions with deduplication
   const questions = extractPendingQuestions(content);
-  if (questions.length > 0) {
+  const questionsFingerprint = questions.length > 0
+    ? JSON.stringify(questions.map(q => ({ q: q.question, h: q.header })))
+    : '';
+  const cachedQuestions = questionCache.get(sessionId) ?? '';
+
+  if (questions.length > 0 && questionsFingerprint !== cachedQuestions) {
+    // New questions detected - update cache and broadcast
+    questionCache.set(sessionId, questionsFingerprint);
+    // Align workflow status with AskUserQuestion-driven waits
+    workflowService.markWaitingForInput(sessionId, resolvedProjectId, questions);
     broadcast({
       type: 'session:question',
       timestamp: new Date().toISOString(),
@@ -1273,10 +1220,18 @@ async function handleSessionFileChange(sessionPath: string): Promise<void> {
       sessionId,
       data: { questions },
     });
+  } else if (questions.length === 0 && cachedQuestions !== '') {
+    // Questions were cleared (user answered) - clear cache
+    questionCache.delete(sessionId);
   }
 
-  // Check for session end
+  // Check for session end (explicit markers)
   if (content.messages.some(m => m.isSessionEnd)) {
+    // Ensure workflow index reflects graceful completion
+    workflowService.cancelBySession(sessionId, resolvedProjectId, 'completed');
+    // Clear question cache for this session
+    questionCache.delete(sessionId);
+
     broadcast({
       type: 'session:end',
       timestamp: new Date().toISOString(),
@@ -1284,6 +1239,27 @@ async function handleSessionFileChange(sessionPath: string): Promise<void> {
       sessionId,
     });
   }
+
+  // Always refresh workflow data on session change - this catches:
+  // - Session ending with assistant text (no explicit end marker)
+  // - Session transitioning to/from waiting_for_input
+  // - Any other status changes based on file content
+  if (projectPath) {
+    const data = await buildWorkflowData(resolvedProjectId, projectPath);
+    const dataJson = JSON.stringify(data);
+    const cached = workflowCache.get(resolvedProjectId);
+    if (cached !== dataJson) {
+      workflowCache.set(resolvedProjectId, dataJson);
+      broadcast({
+        type: 'workflow',
+        timestamp: new Date().toISOString(),
+        projectId: resolvedProjectId,
+        data,
+      });
+    }
+  }
+
+  return true;
 }
 
 /**
@@ -1336,7 +1312,8 @@ async function initSessionWatcher(): Promise<void> {
   // Handle session file changes (G6.5: session:activity)
   sessionWatcher.on('change', (filePath) => {
     debouncedChange(filePath, async () => {
-      await handleSessionFileChange(filePath);
+      const changed = await handleSessionFileChange(filePath);
+      if (!changed) return; // Content unchanged, skip activity broadcast
       // G6.5: Emit session:activity for file modifications
       const sessionId = path.basename(filePath, '.jsonl');
       const projectId = sessionProjectMap.get(sessionId) || findProjectIdForSession(filePath);
@@ -1365,6 +1342,15 @@ async function initSessionWatcher(): Promise<void> {
           projectId,
           sessionId,
         });
+
+        // Refresh workflow data so new session appears in dropdown immediately.
+        // The workflow index may not have been updated yet (sessionId assigned later),
+        // but runtime aggregation will discover the new JSONL session.
+        const projectPath = projectPathMap.get(projectId);
+        if (projectPath) {
+          const indexPath = path.join(projectPath, '.specflow', 'workflows', 'index.json');
+          await handleWorkflowChange(projectId, indexPath);
+        }
       }
     });
   });
@@ -1393,15 +1379,61 @@ function updateProjectPathMap(): void {
 // ============================================================================
 
 /**
+ * Refresh workflow data for all projects.
+ * Called periodically to catch sessions that become stale over time.
+ */
+async function refreshAllWorkflowData(): Promise<void> {
+  if (!currentRegistry) return;
+
+  for (const [projectId, project] of Object.entries(currentRegistry.projects)) {
+    try {
+      const data = await buildWorkflowData(projectId, project.path);
+      const dataJson = JSON.stringify(data);
+      const cached = workflowCache.get(projectId);
+
+      // Only broadcast if data changed
+      if (cached !== dataJson) {
+        workflowCache.set(projectId, dataJson);
+        broadcast({
+          type: 'workflow',
+          timestamp: new Date().toISOString(),
+          projectId,
+          data,
+        });
+      }
+    } catch {
+      // Ignore errors during periodic refresh
+    }
+  }
+}
+
+/**
  * Start heartbeat timer for a listener
  */
 export function startHeartbeat(listener: EventListener): NodeJS.Timeout {
-  return setInterval(() => {
+  return setInterval(async () => {
     listener({
       type: 'heartbeat',
       timestamp: new Date().toISOString(),
     });
+
+    // Refresh workflow data to catch sessions that become stale
+    await refreshAllWorkflowData();
   }, HEARTBEAT_MS);
+}
+
+// Delay before running full workflow refresh after initial connection
+const INITIAL_FULL_REFRESH_DELAY_MS = 1500;
+
+/**
+ * Schedule a full workflow refresh shortly after initial connection.
+ * Called after fast initial data is sent to populate CLI sessions
+ * without waiting for the 30-second heartbeat.
+ */
+export function scheduleFullWorkflowRefresh(): void {
+  setTimeout(async () => {
+    await refreshAllWorkflowData();
+  }, INITIAL_FULL_REFRESH_DELAY_MS);
 }
 
 /**

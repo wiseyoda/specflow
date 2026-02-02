@@ -95,7 +95,7 @@ export async function POST(request: Request) {
     }
 
     // Cancel orchestration
-    const orchestration = orchestrationService.cancel(projectPath, orchestrationId);
+    const orchestration = await orchestrationService.cancel(projectPath, orchestrationId);
     if (!orchestration) {
       return NextResponse.json(
         { error: `Orchestration not found: ${orchestrationId}` },

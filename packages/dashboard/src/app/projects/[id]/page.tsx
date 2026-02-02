@@ -31,7 +31,7 @@ import {
   toastWorkflowError,
 } from "@/lib/toast-helpers"
 import type { ProjectStatus } from "@/lib/action-definitions"
-import type { OrchestrationState, Task } from "@specflow/shared"
+import type { OrchestrationPhase, OrchestrationState, Task } from "@specflow/shared"
 import { useWorkflowSkills, type WorkflowSkill } from "@/hooks/use-workflow-skills"
 import { useOrchestration } from "@/hooks/use-orchestration"
 
@@ -121,9 +121,16 @@ export default function ProjectDetailPage() {
     await cancelWorkflowAction(workflowExecution?.executionId, workflowExecution?.sessionId)
   }, [cancelWorkflowAction, workflowExecution])
 
-  const submitAnswers = useCallback(async (answers: Record<string, string>) => {
-    if (!workflowExecution?.executionId) throw new Error('No active workflow')
-    await submitAnswersAction(workflowExecution.executionId, answers)
+  const submitAnswers = useCallback(async (answers: Record<string, string>, fallbackSessionId?: string) => {
+    // Try executionId first, then fall back to sessionId lookup
+    const executionId = workflowExecution?.executionId
+    const sessionId = workflowExecution?.sessionId ?? fallbackSessionId
+
+    if (!executionId && !sessionId) {
+      throw new Error('No active workflow or session')
+    }
+
+    await submitAnswersAction({ executionId, sessionId }, answers)
   }, [submitAnswersAction, workflowExecution])
 
   // Workflow skills for autocomplete
@@ -135,7 +142,21 @@ export default function ProjectDetailPage() {
     activeSessionId: orchestrationSessionId,  // Session ID from orchestration polling
     pause: pauseOrchestration,
     resume: resumeOrchestration,
+    goBackToStep,       // FR-004: Go back to previous step
+    isGoingBackToStep,  // FR-004: Loading state for go-back
+    isRunnerStalled,
   } = useOrchestration({ projectId })
+
+  // Derive a single, consistent step for UI (orchestration overrides state)
+  const effectiveStep = useMemo<OrchestrationPhase | null>(() => {
+    if (orchestration?.status === 'waiting_merge') return 'merge'
+    return orchestration?.currentPhase ?? state?.orchestration?.step?.current ?? null
+  }, [orchestration, state])
+
+  const effectiveStepStatus = useMemo(() => {
+    if (orchestration?.status === 'waiting_merge') return 'not_started'
+    return state?.orchestration?.step?.status ?? null
+  }, [orchestration, state])
 
   // Check if there's an active orchestration that can be paused
   const hasActiveOrchestration = !!(
@@ -149,14 +170,17 @@ export default function ProjectDetailPage() {
   // Multi-question tracking: stores partial answers until all questions are answered
   const [partialAnswers, setPartialAnswers] = useState<Record<string, string>>({})
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
-
-  // Reset question tracking when workflow questions change (new question set)
-  // TODO: T010 - Questions will come via session:question SSE events
-  const questionsKey = ''
-  useEffect(() => {
-    setPartialAnswers({})
-    setCurrentQuestionIndex(0)
-  }, [questionsKey])
+  const [dismissedSessionId, setDismissedSessionId] = useState<string | null>(null)
+  // Track previous questionsKey to detect actual question changes vs recomputation
+  const previousQuestionsKeyRef = useRef<string>('')
+  // Lock in questions when user starts answering to prevent mid-answer recomputation issues
+  // This ensures consistency even if question sources change during the answer flow
+  const lockedQuestionsRef = useRef<Array<{
+    question: string
+    header?: string
+    options: Array<{ label: string; description?: string }>
+    multiSelect?: boolean
+  }> | null>(null)
 
   // Session viewer drawer state
   const [isSessionViewerOpen, setIsSessionViewerOpen] = useState(false)
@@ -405,37 +429,60 @@ export default function ProjectDetailPage() {
     projectTasks?.tasks?.find((t) => t.status === 'todo') ?? null
   , [projectTasks])
 
+  const getQuestionKey = useCallback((question: { question: string; header?: string }) => {
+    const header = question.header?.trim()
+    return header && header.length > 0 ? header : question.question
+  }, [])
+
   // Handle decision toast answer - supports multi-question flows
   // Defined before handleOmniBoxSubmit since it's called from there
   // G4.7/G4.8: Questions come via session:question SSE events OR fallback sources
   const handleDecisionAnswer = useCallback(async (answer: string) => {
-    // Get questions from SSE map first
-    const sseQuestions = consoleSessionId ? sessionQuestions.get(consoleSessionId) : undefined
+    // Use locked questions if we're mid-answer flow, otherwise compute fresh
+    let questions = lockedQuestionsRef.current
 
-    // Fallback: compute questions from session messages (same logic as decisionQuestions memo)
-    let fallbackQuestions: Array<{ question: string; options: Array<{ label: string; description?: string }> }> = []
-    if (!sseQuestions?.length && sessionMessages.length > 0) {
-      for (let i = sessionMessages.length - 1; i >= 0; i--) {
-        const msg = sessionMessages[i]
-        if (msg.role === 'assistant' && msg.questions && msg.questions.length > 0) {
-          fallbackQuestions = msg.questions.map((q) => ({
-            question: q.question,
-            options: q.options.map((opt) => ({ label: opt.label, description: opt.description })),
-          }))
-          break
+    if (!questions) {
+      // First answer - compute and lock the questions
+      // Get questions from SSE map first
+      const sseQuestions = consoleSessionId ? sessionQuestions.get(consoleSessionId) : undefined
+
+      // Fallback: compute questions from session messages (same logic as decisionQuestions memo)
+      let fallbackQuestions: Array<{ question: string; header?: string; options: Array<{ label: string; description?: string }>; multiSelect?: boolean }> = []
+      if (!sseQuestions?.length && sessionMessages.length > 0) {
+        let seenUserAfter = false
+        for (let i = sessionMessages.length - 1; i >= 0; i--) {
+          const msg = sessionMessages[i]
+          if (msg.role === 'user') {
+            seenUserAfter = true
+          }
+          if (msg.role === 'assistant' && msg.questions && msg.questions.length > 0 && !seenUserAfter) {
+            fallbackQuestions = msg.questions.map((q) => ({
+              question: q.question,
+              header: q.header,
+              options: q.options.map((opt) => ({ label: opt.label, description: opt.description })),
+              multiSelect: q.multiSelect,
+            }))
+            break
+          }
         }
       }
-    }
-    // Second fallback: StructuredOutput questions
-    if (!sseQuestions?.length && fallbackQuestions.length === 0 &&
-        sessionWorkflowOutput?.status === 'needs_input' && sessionWorkflowOutput.questions) {
-      fallbackQuestions = sessionWorkflowOutput.questions.map((q) => ({
-        question: q.question,
-        options: (q.options || []).map((opt) => ({ label: opt.label, description: opt.description })),
-      }))
-    }
+      // Second fallback: StructuredOutput questions
+      if (!sseQuestions?.length && fallbackQuestions.length === 0 &&
+          sessionWorkflowOutput?.status === 'needs_input' && sessionWorkflowOutput.questions) {
+        fallbackQuestions = sessionWorkflowOutput.questions.map((q) => ({
+          question: q.question,
+          header: q.header,
+          options: (q.options || []).map((opt) => ({ label: opt.label, description: opt.description })),
+          multiSelect: q.multiSelect,
+        }))
+      }
 
-    const questions = sseQuestions?.length ? sseQuestions : fallbackQuestions
+      questions = sseQuestions?.length ? sseQuestions : fallbackQuestions
+      // Lock in questions for the duration of this answer flow
+      if (questions.length > 0) {
+        lockedQuestionsRef.current = questions
+      }
+    }
 
     if (!questions?.length) {
       console.warn('[handleDecisionAnswer] No questions available to answer')
@@ -445,7 +492,9 @@ export default function ProjectDetailPage() {
     const totalQuestions = questions.length
 
     // Store the answer for the current question
-    const newAnswers = { ...partialAnswers, [String(currentQuestionIndex)]: answer }
+    const currentQuestion = questions[currentQuestionIndex]
+    const questionKey = currentQuestion ? getQuestionKey(currentQuestion) : String(currentQuestionIndex)
+    const newAnswers = { ...partialAnswers, [questionKey]: answer }
     setPartialAnswers(newAnswers)
 
     // Check if we've answered all questions
@@ -453,48 +502,33 @@ export default function ProjectDetailPage() {
 
     if (answeredCount >= totalQuestions) {
       // All questions answered - submit all answers together
-      // For fallback questions (no active execution), resume the session with the answer
-      const sessionId = selectedConsoleSession?.sessionId ?? workflowExecution?.sessionId ?? consoleSessionId
+      // Use consoleSessionId as fallback for session lookup (covers historical sessions)
+      const fallbackSessionId = consoleSessionId ?? undefined
 
       try {
         // Try submitAnswers first (works for active workflow executions)
-        await submitAnswers(newAnswers)
+        // Pass fallback session ID for cases where execution tracking was lost
+        await submitAnswers(newAnswers, fallbackSessionId)
         // G4.8: Clear questions from map after user answers
         if (consoleSessionId) {
           clearSessionQuestions(consoleSessionId)
         }
         // Reset state after successful submission
+        lockedQuestionsRef.current = null
         setPartialAnswers({})
         setCurrentQuestionIndex(0)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        // If execution tracking was lost OR this is a historical session, resume with the answer
-        const shouldFallbackToResume = errorMessage.includes('expired') ||
-          errorMessage.includes('not found') ||
-          errorMessage.includes('No active workflow')
+        // The API now supports session ID lookup, so most "not found" errors should be resolved
+        // If it still fails, show the error to the user
+        toastWorkflowError(errorMessage)
 
-        if (sessionId && shouldFallbackToResume) {
-          console.log('[handleDecisionAnswer] Falling back to session resume with answer:', sessionId)
-          try {
-            // Format answers for resumption prompt
-            const answerSummary = Object.entries(newAnswers)
-              .map(([idx, ans]) => `${idx}: ${ans}`)
-              .join(', ')
-            await startWorkflow(`My answers: ${answerSummary}`, { resumeSessionId: sessionId })
-          } catch (resumeError) {
-            const resumeErrorMessage = resumeError instanceof Error ? resumeError.message : 'Unknown error'
-            toastWorkflowError(`Failed to resume session: ${resumeErrorMessage}`)
-          }
-        } else if (!sessionId && shouldFallbackToResume) {
-          toastWorkflowError('Unable to resume session - session ID not found')
-        } else {
-          toastWorkflowError(errorMessage)
-        }
         // G4.8: Clear questions on error too
         if (consoleSessionId) {
           clearSessionQuestions(consoleSessionId)
         }
         // Reset state on error too
+        lockedQuestionsRef.current = null
         setPartialAnswers({})
         setCurrentQuestionIndex(0)
       }
@@ -502,7 +536,116 @@ export default function ProjectDetailPage() {
       // More questions to answer - advance to next question
       setCurrentQuestionIndex(currentQuestionIndex + 1)
     }
-  }, [consoleSessionId, sessionQuestions, clearSessionQuestions, workflowExecution, submitAnswers, startWorkflow, partialAnswers, currentQuestionIndex, sessionMessages, sessionWorkflowOutput, selectedConsoleSession])
+  }, [consoleSessionId, sessionQuestions, clearSessionQuestions, submitAnswers, partialAnswers, currentQuestionIndex, sessionMessages, sessionWorkflowOutput, selectedConsoleSession, getQuestionKey])
+
+  // G4.6/G4.7: Build questions for decision toast from SSE sessionQuestions
+  // Fall back to extracting questions from session messages if SSE questions not available
+  const decisionQuestions = useMemo(() => {
+    if (!consoleSessionId) return []
+    if (dismissedSessionId && dismissedSessionId === consoleSessionId) return []
+    // Don't show questions for ended sessions - they're stale
+    if (sessionHasEnded) return []
+
+    // First, try SSE questions (real-time)
+    const sseQuestions = sessionQuestions.get(consoleSessionId)
+    if (sseQuestions && sseQuestions.length > 0) {
+      return sseQuestions.map((q) => ({
+        question: q.question,
+        header: q.header,
+        options: q.options.map((opt) => ({
+          label: opt.label,
+          description: opt.description,
+        })),
+        multiSelect: q.multiSelect,
+      }))
+    }
+
+    // Fallback: Extract questions from session messages
+    // This handles the case where user navigates to a waiting session
+    // after the SSE event was already processed
+    if (sessionMessages.length > 0) {
+      // Find the last assistant message with questions
+      let seenUserAfter = false
+      for (let i = sessionMessages.length - 1; i >= 0; i--) {
+        const msg = sessionMessages[i]
+        if (msg.role === 'user') {
+          seenUserAfter = true
+        }
+        // Check for AskUserQuestion tool call questions
+        if (msg.role === 'assistant' && msg.questions && msg.questions.length > 0 && !seenUserAfter) {
+          return msg.questions.map((q) => ({
+            question: q.question,
+            header: q.header,
+            options: q.options.map((opt) => ({
+              label: opt.label,
+              description: opt.description,
+            })),
+            multiSelect: q.multiSelect,
+          }))
+        }
+      }
+    }
+
+    // Second fallback: Check sessionWorkflowOutput for StructuredOutput questions
+    // In CLI mode, Claude uses StructuredOutput with status: 'needs_input'
+    if (sessionWorkflowOutput?.status === 'needs_input' && sessionWorkflowOutput.questions) {
+      return sessionWorkflowOutput.questions.map((q) => ({
+        question: q.question,
+        header: q.header,
+        options: (q.options || []).map((opt) => ({
+          label: opt.label,
+          description: opt.description,
+        })),
+        multiSelect: q.multiSelect,
+      }))
+    }
+
+    return []
+  }, [consoleSessionId, dismissedSessionId, sessionQuestions, sessionMessages, sessionWorkflowOutput, sessionHasEnded])
+
+  const questionsKey = useMemo(() => {
+    if (decisionQuestions.length === 0) return ''
+    return decisionQuestions.map((q) => q.header?.trim() || q.question).join('|')
+  }, [decisionQuestions])
+
+  // Reset question tracking when workflow questions change (new question set)
+  // CRITICAL: Only reset when questions actually change to a NEW set, not on recomputation
+  // This prevents the race condition where session file updates cause questionsKey to
+  // recompute mid-answer, wiping out partial answers and causing premature submission.
+  useEffect(() => {
+    const previousKey = previousQuestionsKeyRef.current
+    const isAnswering = Object.keys(partialAnswers).length > 0
+    const isNewQuestionSet = questionsKey !== previousKey
+    const questionsCleared = questionsKey === '' && previousKey !== ''
+    const questionsArrived = questionsKey !== '' && previousKey === ''
+
+    // Always update the ref to track current questions
+    previousQuestionsKeyRef.current = questionsKey
+
+    // Reset state when:
+    // 1. New questions arrived (from empty) - fresh start
+    // 2. Questions cleared (to empty) - clean up
+    // 3. Questions actually changed AND we're not mid-answer
+    if (questionsArrived || questionsCleared || (isNewQuestionSet && !isAnswering)) {
+      lockedQuestionsRef.current = null
+      setPartialAnswers({})
+      setCurrentQuestionIndex(0)
+    }
+    // If we're mid-answer and questions "changed" (likely just recomputed), keep state intact
+  }, [questionsKey, partialAnswers])
+
+  // Session status only - NOT orchestration/phase status
+  // "running" (Live) = session in progress
+  // "idle" (Ready) = no session in progress
+  // "waiting" (Needs Input) = waiting for user input via AskUserQuestion
+  const layoutStatus: WorkflowStatus = useMemo(() => {
+    // Has pending questions from AskUserQuestion tool
+    if (decisionQuestions.length > 0) return 'waiting'
+
+    // Use workflow/session status directly
+    // workflowStatus comes from the active session, not orchestration
+    return workflowStatus
+  }, [workflowStatus, decisionQuestions.length])
 
   // Handle OmniBox submit
   const handleOmniBoxSubmit = useCallback(async (message: string) => {
@@ -517,8 +660,8 @@ export default function ProjectDetailPage() {
     }
 
     // G4.7: If waiting for input and we have questions, use the decision handler
-    const hasQuestions = consoleSessionId && (sessionQuestions.get(consoleSessionId)?.length ?? 0) > 0
-    if (workflowStatus === 'waiting' && hasQuestions) {
+    const hasQuestions = decisionQuestions.length > 0
+    if (hasQuestions) {
       await handleDecisionAnswer(message)
       return
     }
@@ -590,7 +733,7 @@ export default function ProjectDetailPage() {
 
     // Start a new workflow (slash command)
     handleWorkflowStart(message)
-  }, [workflowStatus, workflowExecution, handleDecisionAnswer, startWorkflow, handleWorkflowStart, hasSessionEnded, cancelWorkflow, consoleSessionId, selectedConsoleSession, setActiveView, orchestration, resumeOrchestration])
+  }, [workflowStatus, workflowExecution, handleDecisionAnswer, startWorkflow, handleWorkflowStart, hasSessionEnded, cancelWorkflow, consoleSessionId, selectedConsoleSession, setActiveView, orchestration, resumeOrchestration, decisionQuestions.length])
 
   // Handle failed toast retry
   const handleRetry = useCallback(() => {
@@ -602,9 +745,20 @@ export default function ProjectDetailPage() {
 
   // Handle failed toast dismiss
   const handleDismiss = useCallback(() => {
-    // Cancel the failed workflow to clear state
-    cancelWorkflow()
-  }, [cancelWorkflow])
+    // Cancel the failed workflow to clear state (if active), otherwise clear selection
+    if (workflowExecution?.executionId || workflowExecution?.sessionId) {
+      cancelWorkflow()
+      return
+    }
+    setSelectedConsoleSession(null)
+    setSelectedHistoricalSession(null)
+  }, [
+    cancelWorkflow,
+    workflowExecution?.executionId,
+    workflowExecution?.sessionId,
+    setSelectedConsoleSession,
+    setSelectedHistoricalSession,
+  ])
 
   // Handle ending a session by ID (from session console Cancel button)
   const handleEndSession = useCallback(async (sessionId: string) => {
@@ -625,6 +779,29 @@ export default function ProjectDetailPage() {
     }
   }, [projectId, selectedConsoleSession, refreshSessionHistory])
 
+  // Handle dismissing a decision prompt (decline to answer)
+  const handleQuestionDismiss = useCallback(async () => {
+    if (!consoleSessionId) {
+      return
+    }
+
+    // Hide the toast immediately and clear local question state
+    setDismissedSessionId(consoleSessionId)
+    setPartialAnswers({})
+    setCurrentQuestionIndex(0)
+    clearSessionQuestions(consoleSessionId)
+
+    try {
+      if (workflowExecution?.sessionId === consoleSessionId) {
+        await cancelWorkflow()
+      } else {
+        await handleEndSession(consoleSessionId)
+      }
+    } catch (error) {
+      console.error('Failed to cancel session after dismissing question:', error)
+    }
+  }, [consoleSessionId, clearSessionQuestions, cancelWorkflow, handleEndSession, workflowExecution?.sessionId])
+
   // Handle pausing a session (pauses orchestration if active)
   const handlePauseSession = useCallback(async (_sessionId: string) => {
     if (hasActiveOrchestration) {
@@ -633,64 +810,19 @@ export default function ProjectDetailPage() {
     }
   }, [hasActiveOrchestration, pauseOrchestration, refreshSessionHistory])
 
-  // G4.6/G4.7: Build questions for decision toast from SSE sessionQuestions
-  // Fall back to extracting questions from session messages if SSE questions not available
-  const decisionQuestions = useMemo(() => {
-    if (!consoleSessionId) return []
-
-    // First, try SSE questions (real-time)
-    const sseQuestions = sessionQuestions.get(consoleSessionId)
-    if (sseQuestions && sseQuestions.length > 0) {
-      return sseQuestions.map((q) => ({
-        question: q.question,
-        options: q.options.map((opt) => ({
-          label: opt.label,
-          description: opt.description,
-        })),
-      }))
-    }
-
-    // Fallback: Extract questions from session messages
-    // This handles the case where user navigates to a waiting session
-    // after the SSE event was already processed
-    if (sessionMessages.length > 0) {
-      // Find the last assistant message with questions
-      for (let i = sessionMessages.length - 1; i >= 0; i--) {
-        const msg = sessionMessages[i]
-        // Check for AskUserQuestion tool call questions
-        if (msg.role === 'assistant' && msg.questions && msg.questions.length > 0) {
-          return msg.questions.map((q) => ({
-            question: q.question,
-            options: q.options.map((opt) => ({
-              label: opt.label,
-              description: opt.description,
-            })),
-          }))
-        }
-      }
-    }
-
-    // Second fallback: Check sessionWorkflowOutput for StructuredOutput questions
-    // In CLI mode, Claude uses StructuredOutput with status: 'needs_input'
-    if (sessionWorkflowOutput?.status === 'needs_input' && sessionWorkflowOutput.questions) {
-      return sessionWorkflowOutput.questions.map((q) => ({
-        question: q.question,
-        options: (q.options || []).map((opt) => ({
-          label: opt.label,
-          description: opt.description,
-        })),
-      }))
-    }
-
-    return []
-  }, [consoleSessionId, sessionQuestions, sessionMessages, sessionWorkflowOutput])
-
   // Show question loading state when status is waiting but questions haven't loaded yet
-  const isQuestionsLoading = workflowStatus === 'waiting' && decisionQuestions.length === 0 && sessionMessagesLoading
+  const isQuestionsLoading = layoutStatus === 'waiting' &&
+    decisionQuestions.length === 0 &&
+    sessionMessagesLoading &&
+    !!consoleSessionId &&
+    dismissedSessionId !== consoleSessionId
+
+  const shouldShowDecisionToast = (decisionQuestions.length > 0 || isQuestionsLoading) &&
+    dismissedSessionId !== consoleSessionId
 
   // Handle clicking the "Waiting" badge - navigate to session view to show questions
   const handleStatusClick = useCallback(() => {
-    if (workflowStatus === 'waiting') {
+    if (layoutStatus === 'waiting') {
       // Ensure we're on the session view so the toast is visible
       if (activeView !== 'session') {
         setActiveView('session')
@@ -698,7 +830,7 @@ export default function ProjectDetailPage() {
       // Focus the OmniBox for easy response input
       omniBoxRef.current?.focus()
     }
-  }, [workflowStatus, activeView, setActiveView])
+  }, [layoutStatus, activeView, setActiveView])
 
   // Loading state
   if (projectsLoading) {
@@ -843,8 +975,13 @@ export default function ProjectDetailPage() {
       touchedFiles={touchedFiles}
       totalAdditions={totalAdditions}
       totalDeletions={totalDeletions}
+      currentStepOverride={effectiveStep}
+      stepStatusOverride={effectiveStepStatus}
       projectId={projectId}
       projectPath={project.path}
+      onGoBackToStep={goBackToStep}
+      isGoingBackToStep={isGoingBackToStep}
+      isWorkflowRunning={workflowStatus === 'running' || workflowStatus === 'waiting'}
     />
   )
 
@@ -853,6 +990,7 @@ export default function ProjectDetailPage() {
       projectPath={project.path}
       branchName={branchName}
       workflowStatus={workflowStatus}
+      layoutStatus={layoutStatus}
       workflowStartTime={workflowExecution?.startedAt ? new Date(workflowExecution.startedAt) : null}
       activeView={activeView}
       onViewChange={setActiveView}
@@ -868,7 +1006,7 @@ export default function ProjectDetailPage() {
         {/* OmniBox at bottom */}
         <OmniBox
           ref={omniBoxRef}
-          status={workflowStatus}
+          status={layoutStatus}
           onSubmit={handleOmniBoxSubmit}
           onStatusClick={handleStatusClick}
           disabled={isStartingWorkflow}
@@ -882,13 +1020,13 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* Decision Toast - shown when waiting for input (or loading questions) */}
-      {workflowStatus === 'waiting' && (decisionQuestions.length > 0 || isQuestionsLoading) && (
+      {shouldShowDecisionToast && (
         <DecisionToast
           questions={decisionQuestions}
           currentIndex={currentQuestionIndex}
           onAnswer={handleDecisionAnswer}
           onCustomAnswer={handleOmniBoxSubmit}
-          onDismiss={handleDismiss}
+          onDismiss={handleQuestionDismiss}
           isLoading={isQuestionsLoading}
         />
       )}

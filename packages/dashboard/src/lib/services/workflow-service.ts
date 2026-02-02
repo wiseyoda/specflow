@@ -130,9 +130,14 @@ export type StartWorkflowRequest = z.infer<typeof StartWorkflowRequestSchema>;
  * Answer workflow request
  */
 export const AnswerWorkflowRequestSchema = z.object({
-  id: z.string().uuid(), // Execution ID is always UUID
+  id: z.string().uuid().optional(), // Execution ID (preferred)
+  sessionId: z.string().optional(), // Alternative: lookup by session ID
+  projectId: z.string().optional(), // Required with sessionId
   answers: z.record(z.string(), z.string()),
-});
+}).refine(
+  data => data.id || (data.sessionId && data.projectId),
+  { message: 'Either id or both sessionId and projectId must be provided' }
+);
 
 export type AnswerWorkflowRequest = z.infer<typeof AnswerWorkflowRequestSchema>;
 
@@ -177,54 +182,6 @@ export type WorkflowIndex = z.infer<typeof WorkflowIndexSchema>;
 // 4 hours - workflows can run for extended periods during implementation phases
 // This is a dashboard tracking timeout, not the actual CLI timeout
 const DEFAULT_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4 hours
-
-/**
- * JSON Schema for workflow structured output (sent to Claude CLI)
- */
-const WORKFLOW_JSON_SCHEMA = {
-  type: 'object',
-  properties: {
-    status: {
-      type: 'string',
-      enum: ['completed', 'needs_input', 'error'],
-    },
-    phase: { type: 'string' },
-    message: { type: 'string' },
-    questions: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          question: { type: 'string' },
-          header: { type: 'string' },
-          options: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                label: { type: 'string' },
-                description: { type: 'string' },
-              },
-            },
-          },
-          multiSelect: { type: 'boolean' },
-        },
-        required: ['question'],
-      },
-    },
-    artifacts: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          path: { type: 'string' },
-          action: { type: 'string' },
-        },
-      },
-    },
-  },
-  required: ['status'],
-};
 
 // =============================================================================
 // State Persistence - Project-Local Storage (Phase 1053)
@@ -587,14 +544,9 @@ function buildInitialPrompt(skillInput: string): { prompt: string; skillName: st
   let prompt = `# CLI Mode Instructions
 
 You are running in non-interactive CLI mode. IMPORTANT:
-1. You CANNOT use AskUserQuestion tool - it is disabled
-2. When you need user input, output questions in the JSON structured_output
-3. Set status to "needs_input" and include a questions array
-4. Use the SAME format as AskUserQuestion tool input:
-   - question: The question text
-   - header: Short label (max 12 chars)
-   - options: Array of {label, description} choices
-   - multiSelect: true if multiple selections allowed
+1. When you need user input, use the AskUserQuestion tool with a questions array
+2. Prefer asking all required questions in a single AskUserQuestion call
+3. After asking, wait for the user response before continuing
 
 # Skill Instructions
 
@@ -619,22 +571,23 @@ ${context}`;
 /**
  * Build the resume prompt with user answers
  */
+function formatAnswerList(answers: Record<string, string>): string {
+  const entries = Object.entries(answers);
+  if (entries.length === 0) {
+    return '- (no answers provided)';
+  }
+  return entries.map(([question, answer]) => `- ${question}: ${answer}`).join('\n');
+}
+
 function buildResumePrompt(answers: Record<string, string>): string {
-  const answerText = Object.entries(answers)
-    .map(([key, value]) => `- ${key}: ${value}`)
-    .join('\n');
+  const answerText = formatAnswerList(answers);
 
-  return `# User Answers
-
-The user has answered the questions:
+  return `# Answers to your questions
 
 ${answerText}
 
-Continue the workflow using these answers. Remember:
-- You CANNOT use AskUserQuestion tool - it is disabled
-- If you need more input, set status to "needs_input" with questions array
-- If the workflow is complete, set status to "completed"
-- Use the structured_output JSON format`;
+Continue the workflow using these answers.
+If you need more input, ask via AskUserQuestion.`;
 }
 
 /**
@@ -909,10 +862,46 @@ class WorkflowService {
         execution.updatedAt = new Date().toISOString();
         execution.logs.push(`[HEALTH] Process recovered - session file updated`);
         saveExecution(execution, projectPath);
+      } else if (health.healthStatus === 'unknown') {
+        if (didSessionEndGracefully(projectPath, execution.sessionId)) {
+          execution.status = 'completed';
+          execution.completedAt = new Date().toISOString();
+          execution.updatedAt = new Date().toISOString();
+          execution.logs.push(`[HEALTH] Session completed gracefully (no PID)`);
+          saveExecution(execution, projectPath);
+          this.updateSessionStatus(execution.sessionId, projectPath, 'completed');
+        } else if (health.isStale && execution.status !== 'stale') {
+          execution.status = 'stale';
+          execution.error = getHealthStatusMessage({
+            ...health,
+            healthStatus: 'stale',
+          });
+          execution.updatedAt = new Date().toISOString();
+          execution.logs.push(`[HEALTH] ${execution.error}`);
+          saveExecution(execution, projectPath);
+        }
       }
     }
 
     return execution;
+  }
+
+  /**
+   * Get execution by session ID
+   * Looks up the execution ID from the workflow index and loads the execution
+   * @param sessionId - Session ID to look up
+   * @param projectId - Project registry key
+   * @returns The execution if found, undefined otherwise
+   */
+  getBySession(sessionId: string, projectId: string): WorkflowExecution | undefined {
+    const projectPath = getProjectPath(projectId);
+    if (!projectPath) return undefined;
+
+    const index = loadWorkflowIndex(projectPath);
+    const session = index.sessions.find(s => s.sessionId === sessionId);
+    if (!session) return undefined;
+
+    return this.get(session.executionId, projectId);
   }
 
   /**
@@ -1045,13 +1034,32 @@ class WorkflowService {
     }
 
     const index = loadWorkflowIndex(projectPath);
-    const sessionIdx = index.sessions.findIndex(s => s.sessionId === sessionId);
+    let sessionIdx = index.sessions.findIndex(s => s.sessionId === sessionId);
+    const now = new Date().toISOString();
 
+    // If session not in index, add it (handles discovered CLI sessions)
     if (sessionIdx < 0) {
-      return false;
+      const newEntry: WorkflowIndexEntry = {
+        sessionId,
+        executionId: randomUUID(),
+        skill: 'CLI Session',
+        status: finalStatus,
+        startedAt: now,
+        updatedAt: now,
+        costUsd: 0,
+      };
+      index.sessions.unshift(newEntry);
+      saveWorkflowIndex(projectPath, index);
+      return true;
     }
 
     const session = index.sessions[sessionIdx];
+
+    // If already in terminal state, return true for idempotency
+    // (calling cancel on already-cancelled session should succeed)
+    if (['completed', 'cancelled', 'failed'].includes(session.status)) {
+      return true;
+    }
 
     // Only update if in an active state (includes detached/stale - session may still be running)
     if (!['running', 'waiting_for_input', 'detached', 'stale'].includes(session.status)) {
@@ -1060,7 +1068,7 @@ class WorkflowService {
 
     // Update the index entry
     session.status = finalStatus;
-    session.updatedAt = new Date().toISOString();
+    session.updatedAt = now;
     saveWorkflowIndex(projectPath, index);
 
     // Also try to update the metadata file if it exists
@@ -1072,16 +1080,98 @@ class WorkflowService {
         const execution = WorkflowExecutionSchema.parse(JSON.parse(content));
         execution.status = finalStatus;
         if (finalStatus === 'cancelled') {
-          execution.cancelledAt = new Date().toISOString();
+          execution.cancelledAt = now;
           execution.logs.push('[CANCELLED] Session cancelled by user (tracking recovered)');
         } else {
-          execution.completedAt = new Date().toISOString();
+          execution.completedAt = now;
           execution.logs.push('[COMPLETED] Session completed (detected from messages)');
         }
-        execution.updatedAt = new Date().toISOString();
+        execution.updatedAt = now;
         writeFileSync(metadataPath, JSON.stringify(execution, null, 2));
       } catch {
         // Ignore errors updating metadata
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Mark a workflow as waiting for input based on AskUserQuestion detection.
+   * This keeps the dashboard state consistent even when structured output isn't used.
+   */
+  markWaitingForInput(
+    sessionId: string,
+    projectId: string,
+    questions?: Array<{
+      question: string;
+      header?: string;
+      options?: Array<{ label: string; description?: string }>;
+      multiSelect?: boolean;
+    }>
+  ): boolean {
+    const projectPath = getProjectPath(projectId);
+    if (!projectPath) {
+      return false;
+    }
+
+    const index = loadWorkflowIndex(projectPath);
+    const session = index.sessions.find(s => s.sessionId === sessionId);
+    if (!session) {
+      return false;
+    }
+
+    if (['completed', 'cancelled'].includes(session.status)) {
+      return false;
+    }
+
+    const now = new Date().toISOString();
+    session.status = 'waiting_for_input';
+    session.updatedAt = now;
+    saveWorkflowIndex(projectPath, index);
+
+    const normalizedQuestions = questions?.map((q) => ({
+      question: q.question,
+      header: q.header,
+      options: (q.options || []).map((opt) => ({
+        label: opt.label,
+        description: opt.description ?? '',
+      })),
+      multiSelect: q.multiSelect,
+    }));
+
+    const workflowDir = getProjectWorkflowDir(projectPath);
+    const metadataPath = join(workflowDir, sessionId, 'metadata.json');
+
+    const updateExecution = (execution: WorkflowExecution): void => {
+      execution.status = 'waiting_for_input';
+      execution.updatedAt = now;
+      execution.error = undefined;
+      execution.output = {
+        ...(execution.output || {}),
+        status: 'needs_input',
+        questions: normalizedQuestions ?? execution.output?.questions,
+      };
+      execution.logs.push('[WAITING] Questions detected via AskUserQuestion');
+      saveExecution(execution, projectPath);
+    };
+
+    if (existsSync(metadataPath)) {
+      try {
+        const content = readFileSync(metadataPath, 'utf-8');
+        const execution = WorkflowExecutionSchema.parse(JSON.parse(content));
+        updateExecution(execution);
+        return true;
+      } catch {
+        // Fall through to execution lookup
+      }
+    }
+
+    if (session.executionId) {
+      const execution = loadExecution(session.executionId, projectPath);
+      if (execution) {
+        updateExecution(execution);
+        return true;
       }
     }
 
@@ -1159,15 +1249,12 @@ ${claudePath} -p --output-format json "Say hello" < /dev/null > "${outputFile}" 
       const promptFile = join(workflowDir, 'resume-prompt.txt');
       writeFileSync(promptFile, resumePrompt);
 
-      const schemaFile = join(workflowDir, 'schema.json');
-      writeFileSync(schemaFile, JSON.stringify(WORKFLOW_JSON_SCHEMA));
-
       execution.logs.push(`[RESUME] Session: ${effectiveSessionId}`);
       execution.logs.push(`[INFO] Resume prompt (${resumePrompt.length} chars)`);
 
       scriptContent = `#!/bin/bash
 cd "${projectPath}"
-${claudePath} -p --output-format json --resume "${effectiveSessionId}" --dangerously-skip-permissions --disallowedTools "AskUserQuestion" --json-schema "$(cat ${schemaFile})" < "${promptFile}" > "${outputFile}" 2>&1
+${claudePath} -p --output-format json --resume "${effectiveSessionId}" --dangerously-skip-permissions < "${promptFile}" > "${outputFile}" 2>&1
 `;
     } else {
       // Initial run (FR-005)
@@ -1188,12 +1275,9 @@ ${claudePath} -p --output-format json --resume "${effectiveSessionId}" --dangero
       execution.logs.push(`[INFO] Skill: ${promptResult.skillName}`);
       execution.logs.push(`[INFO] Initial prompt (${promptResult.prompt.length} chars)`);
 
-      const schemaFile = join(workflowDir, 'schema.json');
-      writeFileSync(schemaFile, JSON.stringify(WORKFLOW_JSON_SCHEMA));
-
       scriptContent = `#!/bin/bash
 cd "${projectPath}"
-${claudePath} -p --output-format json --dangerously-skip-permissions --disallowedTools "AskUserQuestion" --json-schema "$(cat ${schemaFile})" < "${promptFile}" > "${outputFile}" 2>&1
+${claudePath} -p --output-format json --dangerously-skip-permissions < "${promptFile}" > "${outputFile}" 2>&1
 `;
     }
 

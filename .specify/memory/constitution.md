@@ -2,7 +2,7 @@
 
 > Core principles and governance for SpecFlow development. All implementation decisions must align with these principles.
 
-**Version**: 1.3.0
+**Version**: 1.4.0
 **Created**: 2026-01-10
 **Status**: ACTIVE
 
@@ -78,6 +78,32 @@ Project files are separated into repo knowledge (`.specify/`) and operational st
   - **`.specflow/`**: orchestration-state.json, manifest.json, workflows/ - delete to uninstall
 - **Rule**: Never store valuable repo knowledge in `.specflow/`; never store transient operational data in `.specify/`
 
+### IX. Single Source of Truth for State
+Each piece of state has ONE authoritative location. No parallel state tracking, no reconciliation.
+- **Rationale**: Multiple sources of truth lead to sync bugs, reconciliation hacks, and state confusion
+- **Implications**:
+  - **CLI state file** (`.specflow/orchestration-state.json`) is THE orchestration state
+  - Dashboard reads CLI state, it does NOT maintain separate state
+  - Sub-commands (flow.design, flow.implement) own their step state - they set `step.status`
+  - Dashboard watches and reacts to state changes, it doesn't second-guess them
+- **Anti-patterns to AVOID**:
+  - Separate "execution" objects that mirror CLI state
+  - "Reconciliation" code that syncs parallel state sources
+  - Guards that fix state after it's already wrong
+  - Claude/AI fallback for "unclear state" (if state is unclear, fix the state schema)
+- **When state seems wrong**: Fix the ROOT CAUSE. Don't add workarounds that mask the problem.
+
+### X. No Hacks or Workarounds
+When encountering edge cases, fix the root cause. Do not add conditional guards or workarounds.
+- **Rationale**: Hacks accumulate. Each hack requires another hack to handle its edge cases. Soon you have unmaintainable spaghetti.
+- **Implications**:
+  - If state can get into an invalid configuration, fix the code that allows it
+  - If decision logic has ambiguous cases, simplify the state model
+  - If you need a "guard" to prevent bad behavior, the upstream code is wrong
+- **Code Comment Rule**: If you write a comment like `// HACK:`, `// WORKAROUND:`, `// GUARD:`, or `// FIXME:` - STOP. This is a signal to find the real fix, not document the problem.
+- **Refactoring Threshold**: If decision logic exceeds 100 lines, it's too complex. Simplify the state model.
+- **Phase 1058 Learning**: The orchestration system accumulated 6+ hacks in ~2 months. The fix was 1 week of work. Hacks are NOT faster.
+
 ---
 
 ## Governance
@@ -107,6 +133,7 @@ To amend this constitution:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.4.0 | 2026-01-24 | Added Principles IX (Single Source of Truth) and X (No Hacks) from Phase 1058 learnings |
 | 1.3.0 | 2026-01-19 | Added Principle VIII: Repo Knowledge vs Operational State (.specify/ vs .specflow/) |
 | 1.2.0 | 2026-01-18 | Added Principle IIa: TypeScript for CLI Packages; clarified II scope |
 | 1.1.0 | 2026-01-10 | Added Principle VII: Three-Line Output Rule |

@@ -22,15 +22,15 @@ import { readState, readRawState } from './state.js';
 import { readRoadmap, getPhaseByNumber } from './roadmap.js';
 import { getProjectContext, getMissingArtifacts, resolveFeatureDir } from './context.js';
 import { readTasks } from './tasks.js';
+import { STEP_INDEX_MAP } from '@specflow/shared';
 import type { OrchestrationState } from '@specflow/shared';
 
 /**
  * Valid enum values for schema validation
  */
-const VALID_STEP_NAMES = ['design', 'analyze', 'implement', 'verify'] as const;
+const VALID_STEP_NAMES = Object.keys(STEP_INDEX_MAP) as Array<keyof typeof STEP_INDEX_MAP>;
 const VALID_STEP_STATUSES = ['not_started', 'pending', 'in_progress', 'complete', 'failed', 'blocked', 'skipped'] as const;
 const VALID_PHASE_STATUSES = ['not_started', 'in_progress', 'complete'] as const;
-const STEP_INDEX_MAP: Record<string, number> = { design: 0, analyze: 1, implement: 2, verify: 3 };
 
 /**
  * ABBC naming pattern - 4 digits (e.g., 0010, 0020, 1015)

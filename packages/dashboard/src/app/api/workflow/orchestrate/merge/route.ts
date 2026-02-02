@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { orchestrationService } from '@/lib/services/orchestration-service';
+import { orchestrationService, writeDashboardState } from '@/lib/services/orchestration-service';
 import { workflowService } from '@/lib/services/workflow-service';
 import { runOrchestration } from '@/lib/services/orchestration-runner';
 
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
     }
 
     // Trigger merge in orchestration state
-    const orchestration = orchestrationService.triggerMerge(projectPath, orchestrationId);
+    const orchestration = await orchestrationService.triggerMerge(projectPath, orchestrationId);
     if (!orchestration) {
       return NextResponse.json(
         { error: `Orchestration not found or not waiting for merge: ${orchestrationId}` },
@@ -116,7 +116,14 @@ export async function POST(request: Request) {
     const workflowExecution = await workflowService.start(projectId, '/flow.merge');
 
     // Link the workflow execution to orchestration
-    orchestrationService.linkWorkflowExecution(projectPath, orchestrationId, workflowExecution.id);
+    await orchestrationService.linkWorkflowExecution(projectPath, orchestrationId, workflowExecution.id);
+    await writeDashboardState(projectPath, {
+      lastWorkflow: {
+        id: workflowExecution.id,
+        skill: 'flow.merge',
+        status: 'running',
+      },
+    });
 
     // Restart the orchestration runner to handle merge completion
     runOrchestration(projectId, orchestrationId).catch((error) => {

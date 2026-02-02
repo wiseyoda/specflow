@@ -25,6 +25,8 @@ import {
 export interface OrchestrationControlsProps {
   /** Whether orchestration is paused */
   isPaused: boolean;
+  /** Whether the runner is stalled (status running but process dead) */
+  isRunnerStalled?: boolean;
   /** Callback for pause action */
   onPause?: () => void;
   /** Callback for resume action */
@@ -47,6 +49,7 @@ export interface OrchestrationControlsProps {
 
 export function OrchestrationControls({
   isPaused,
+  isRunnerStalled = false,
   onPause,
   onResume,
   onCancel,
@@ -81,13 +84,13 @@ export function OrchestrationControls({
         </Button>
 
         {/* Pause/Resume Button */}
-        {isPaused ? (
+        {isPaused || isRunnerStalled ? (
           <Button
             variant="outline"
             size="sm"
             onClick={onResume}
             disabled={disabled || isLoading}
-            className="gap-2"
+            className={`gap-2 ${isRunnerStalled && !isPaused ? 'border-amber-500/50 text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20' : ''}`}
           >
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />

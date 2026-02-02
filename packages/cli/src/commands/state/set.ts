@@ -2,13 +2,16 @@ import { Command } from 'commander';
 import { z } from 'zod';
 import {
   readState,
+  readRawState,
   writeState,
+  writeRawState,
   setStateValue,
   getStateValue,
   parseValue,
 } from '../../lib/state.js';
 import { output, success } from '../../lib/output.js';
 import { handleError, ValidationError } from '../../lib/errors.js';
+import { randomUUID } from 'node:crypto';
 
 /**
  * Output structure for a single state set operation
@@ -110,17 +113,52 @@ export const set = new Command('set')
         parsedPairs.push({ key, value });
       }
 
-      // All pairs validated, now read state once and apply all updates
-      let state = await readState();
+      // All pairs validated, now read state and apply all updates
+      // Try validated read first, fall back to forgiving read if validation fails
+      let state: Record<string, unknown>;
+      let useRawWrite = false;
+
+      try {
+        state = await readState() as Record<string, unknown>;
+      } catch {
+        // Validation failed - use forgiving read and auto-repair
+        const rawResult = await readRawState();
+        if (!rawResult.data) {
+          throw new Error('State file not found or unreadable');
+        }
+        state = rawResult.data;
+        useRawWrite = true;
+
+        // Auto-repair: if dashboard.active exists but is missing required fields, fill them
+        const dashboard = (state.orchestration as Record<string, unknown>)?.dashboard as Record<string, unknown> | undefined;
+        if (dashboard?.active && typeof dashboard.active === 'object') {
+          const active = dashboard.active as Record<string, unknown>;
+          if (!active.id) {
+            active.id = randomUUID();
+          }
+          if (!active.startedAt) {
+            active.startedAt = new Date().toISOString();
+          }
+          if (!active.config) {
+            active.config = {};
+          }
+        }
+      }
 
       for (const { key, value } of parsedPairs) {
-        const previousValue = getStateValue(state, key);
+        const previousValue = getStateValue(state as never, key);
         result.updates.push({ key, value, previousValue });
-        state = setStateValue(state, key, value);
+        state = setStateValue(state as never, key, value) as Record<string, unknown>;
       }
 
       // Write state once with all updates
-      await writeState(state);
+      if (useRawWrite) {
+        // Update timestamp for raw writes too
+        state.last_updated = new Date().toISOString();
+        await writeRawState(state);
+      } else {
+        await writeState(state as never);
+      }
 
       // Success
       result.status = 'success';

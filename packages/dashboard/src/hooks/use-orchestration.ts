@@ -9,7 +9,8 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { OrchestrationExecution, OrchestrationConfig } from '@specflow/shared';
+import type { OrchestrationConfig } from '@specflow/shared';
+import type { OrchestrationExecution } from '@/lib/services/orchestration-types';
 import type { BatchPlanInfo } from '@/components/orchestration/start-orchestration-modal';
 import type { RecoveryOption } from '@/components/orchestration/recovery-panel';
 import { useUnifiedData } from '@/contexts/unified-data-context';
@@ -75,6 +76,12 @@ export interface UseOrchestrationReturn {
   fetchBatchPlan: () => Promise<void>;
   /** Refresh status */
   refresh: () => Promise<void>;
+  /** Go back to a previous step (FR-004) */
+  goBackToStep: (step: string) => Promise<void>;
+  /** Whether going back to step is in progress */
+  isGoingBackToStep: boolean;
+  /** Whether the runner is stalled (status is running but runner process is dead) */
+  isRunnerStalled: boolean;
 }
 
 // =============================================================================
@@ -98,11 +105,13 @@ export function useOrchestration({
   const [isWaitingForInput, setIsWaitingForInput] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
   const [recoveryAction, setRecoveryAction] = useState<RecoveryOption | null>(null);
+  const [isGoingBackToStep, setIsGoingBackToStep] = useState(false);
+  const [isRunnerStalled, setIsRunnerStalled] = useState(false);
 
   const lastStatusRef = useRef<OrchestrationExecution['status'] | null>(null);
 
   // SSE data for event-driven refresh (T028: replaces polling)
-  const { workflows, states } = useUnifiedData();
+  const { workflows, states, connectionStatus } = useUnifiedData();
 
   // Use refs for callbacks to avoid recreating fetchStatus on every render
   const onStatusChangeRef = useRef(onStatusChange);
@@ -141,6 +150,16 @@ export function useOrchestration({
 
       // Check if workflow is waiting for input (FR-072)
       setIsWaitingForInput(data.workflow?.status === 'waiting_for_input');
+
+      // Check if runner is stalled (running status but runner process is dead
+      // AND no active workflow — if a workflow is running, things are progressing fine)
+      const hasActiveWorkflow = data.workflow?.status === 'running' ||
+        data.workflow?.status === 'waiting_for_input';
+      setIsRunnerStalled(
+        newOrchestration?.status === 'running' &&
+        data.runnerActive === false &&
+        !hasActiveWorkflow
+      );
 
       // Handle status change callbacks
       if (newOrchestration) {
@@ -191,6 +210,9 @@ export function useOrchestration({
     }
   }, []);
 
+  // Ref to track active session polling so it can be cleaned up
+  const sessionPollAbortRef = useRef<AbortController | null>(null);
+
   // Start orchestration
   const start = useCallback(
     async (config: OrchestrationConfig) => {
@@ -224,39 +246,47 @@ export function useOrchestration({
         // Initial refresh to get orchestration state
         await refresh();
 
-        // Poll for sessionId - it becomes available after CLI spawns and returns first output
-        // This can take 30+ seconds for complex workflows. Poll for up to 90 seconds.
-        // IMPORTANT: We await this to keep isLoading=true until session is found
-        const maxAttempts = 90;
-        const pollInterval = 1000;
-
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
-
-          try {
-            const statusResponse = await fetch(
-              `/api/workflow/orchestrate/status?projectId=${encodeURIComponent(projectId)}`
-            );
-            if (statusResponse.ok) {
-              const statusData = await statusResponse.json();
-              if (statusData.workflow?.sessionId) {
-                setActiveSessionId(statusData.workflow.sessionId);
-                setOrchestration(statusData.orchestration);
-                setIsLoading(false);
-                return; // Found sessionId, stop polling
-              }
-              // Also update orchestration state during polling so UI shows progress
-              if (statusData.orchestration) {
-                setOrchestration(statusData.orchestration);
-              }
-            }
-          } catch {
-            // Continue polling on error
-          }
-        }
-
-        // Polling timed out without finding session - still set loading false
+        // Return immediately so the caller (modal) can close.
+        // Poll for sessionId in the background — SSE events will also
+        // update state, but polling provides a reliable fallback.
         setIsLoading(false);
+
+        // Abort any previous session poll
+        sessionPollAbortRef.current?.abort();
+        const abortController = new AbortController();
+        sessionPollAbortRef.current = abortController;
+
+        (async () => {
+          const isConnected = connectionStatus === 'connected';
+          const maxAttempts = isConnected ? 12 : 20;
+          const pollInterval = isConnected ? 2000 : 3000;
+
+          for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            if (abortController.signal.aborted) return;
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+            if (abortController.signal.aborted) return;
+
+            try {
+              const statusResponse = await fetch(
+                `/api/workflow/orchestrate/status?projectId=${encodeURIComponent(projectId)}`
+              );
+              if (statusResponse.ok) {
+                const statusData = await statusResponse.json();
+                if (statusData.workflow?.sessionId) {
+                  setActiveSessionId(statusData.workflow.sessionId);
+                  setOrchestration(statusData.orchestration);
+                  return; // Found sessionId, stop polling
+                }
+                // Also update orchestration state during polling so UI shows progress
+                if (statusData.orchestration) {
+                  setOrchestration(statusData.orchestration);
+                }
+              }
+            } catch {
+              // Continue polling on error
+            }
+          }
+        })();
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         setError(message);
@@ -264,7 +294,7 @@ export function useOrchestration({
         setIsLoading(false);
       }
     },
-    [projectId, refresh]
+    [projectId, refresh, connectionStatus]
   );
 
   // Pause orchestration
@@ -399,6 +429,32 @@ export function useOrchestration({
     }
   }, [orchestration, projectId, refresh]);
 
+  // Go back to a previous step (FR-004)
+  const goBackToStep = useCallback(async (step: string) => {
+    if (!orchestration) return;
+
+    setIsGoingBackToStep(true);
+    try {
+      const response = await fetch('/api/workflow/orchestrate/go-back', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, id: orchestration.id, step }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to go back to step');
+      }
+
+      await refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
+    } finally {
+      setIsGoingBackToStep(false);
+    }
+  }, [orchestration, projectId, refresh]);
+
   // T028: Event-driven refresh via SSE instead of polling
   // When workflow or state SSE events come in, refresh orchestration status
   // This replaces the previous setInterval polling
@@ -445,12 +501,15 @@ export function useOrchestration({
     isWaitingForInput,
     isRecovering,
     recoveryAction,
+    isGoingBackToStep,
+    isRunnerStalled,
     start,
     pause,
     resume,
     cancel,
     triggerMerge,
     recover,
+    goBackToStep,
     fetchBatchPlan,
     refresh,
   };

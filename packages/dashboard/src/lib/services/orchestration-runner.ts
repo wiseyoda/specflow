@@ -10,30 +10,21 @@
  * - Background polling for workflow completion
  * - State machine decision logic
  * - Sequential batch execution
- * - Auto-healing on failure
- * - Budget enforcement
+ * - Auto-heal on workflow completion
  * - Decision logging
- * - Claude fallback analyzer (after 3 unclear state checks)
+ * - Decision logging
  */
 
-import { join } from 'path';
-import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync, type Dirent } from 'fs';
-import { z } from 'zod';
-import { orchestrationService, getNextPhase, isPhaseComplete } from './orchestration-service';
+import { join, basename } from 'path';
+import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync } from 'fs';
+import { orchestrationService, readDashboardState, writeDashboardState, readOrchestrationStep } from './orchestration-service';
 import { workflowService, type WorkflowExecution } from './workflow-service';
 import { attemptHeal, getHealingSummary } from './auto-healing-service';
-import { quickDecision } from './claude-helper';
-import { parseBatchesFromProject, verifyBatchTaskCompletion, getTotalIncompleteTasks } from './batch-parser';
-import { isClaudeHelperError, type OrchestrationExecution, type OrchestrationPhase, type SSEEvent } from '@specflow/shared';
-// G2 Compliance: Import pure decision functions from orchestration-decisions module
-import {
-  makeDecision as makeDecisionPure,
-  type DecisionInput,
-  type DecisionResult as PureDecisionResult,
-  type WorkflowState,
-  getSkillForStep,
-  STALE_THRESHOLD_MS,
-} from './orchestration-decisions';
+import { parseBatchesFromProject } from './batch-parser';
+import { type OrchestrationPhase, type SSEEvent, type StepStatus } from '@specflow/shared';
+import type { OrchestrationExecution } from './orchestration-types';
+import { getNextAction, type DecisionInput, type Decision, type WorkflowState } from './orchestration-decisions';
+import { getSpecflowEnv } from '@/lib/specflow-env';
 
 // =============================================================================
 // Types
@@ -45,35 +36,14 @@ interface RunnerContext {
   orchestrationId: string;
   pollingInterval: number;
   maxPollingAttempts: number;
-  consecutiveUnclearChecks: number;
+  /** Short repo name for log readability (e.g., "arrs-mcp-server") */
+  repoName: string;
 }
 
-/**
- * Dependency injection interface for testing (T120/G12.4)
- * Allows injecting mock services without vi.mock
- */
-export interface OrchestrationDeps {
-  orchestrationService: typeof orchestrationService;
-  workflowService: typeof workflowService;
-  getNextPhase: typeof getNextPhase;
-  isPhaseComplete: typeof isPhaseComplete;
-  attemptHeal?: typeof attemptHeal;
-  quickDecision?: typeof quickDecision;
-  parseBatchesFromProject?: typeof parseBatchesFromProject;
+/** Log prefix with repo name for readability */
+function runnerLog(ctx: RunnerContext | { repoName: string }): string {
+  return `[orchestration-runner][${ctx.repoName}]`;
 }
-
-/**
- * Default dependencies using module imports
- */
-const defaultDeps: OrchestrationDeps = {
-  orchestrationService,
-  workflowService,
-  getNextPhase,
-  isPhaseComplete,
-  attemptHeal,
-  quickDecision,
-  parseBatchesFromProject,
-};
 
 // =============================================================================
 // Spawn Intent Pattern (G5.3-G5.7)
@@ -176,13 +146,13 @@ async function spawnWorkflowWithIntent(
 
   // G5.4: Check for existing spawn intent
   if (hasSpawnIntent(ctx.projectPath, ctx.orchestrationId)) {
-    console.log(`[orchestration-runner] Spawn intent already exists for orchestration ${ctx.orchestrationId}, skipping spawn`);
+    console.log(`${runnerLog(ctx)} Spawn intent already exists for orchestration ${ctx.orchestrationId}, skipping spawn`);
     return null;
   }
 
   // G5.5: Check if there's already an active workflow
   if (workflowService.hasActiveWorkflow(ctx.projectId, ctx.orchestrationId)) {
-    console.log(`[orchestration-runner] Workflow already active for orchestration ${ctx.orchestrationId}, skipping spawn`);
+    console.log(`${runnerLog(ctx)} Workflow already active for orchestration ${ctx.orchestrationId}, skipping spawn`);
     return null;
   }
 
@@ -200,9 +170,18 @@ async function spawnWorkflowWithIntent(
     );
 
     // Link workflow to orchestration for backwards compatibility
-    orchestrationService.linkWorkflowExecution(ctx.projectPath, ctx.orchestrationId, workflow.id);
+    await orchestrationService.linkWorkflowExecution(ctx.projectPath, ctx.orchestrationId, workflow.id);
 
-    console.log(`[orchestration-runner] Spawned workflow ${workflow.id} for ${skill} (linked to orchestration ${ctx.orchestrationId})`);
+    // FR-003: Update dashboard lastWorkflow state for auto-heal tracking
+    await writeDashboardState(ctx.projectPath, {
+      lastWorkflow: {
+        id: workflow.id,
+        skill: skill,
+        status: 'running',
+      },
+    });
+
+    console.log(`${runnerLog(ctx)} Spawned workflow ${workflow.id} for ${skill} (linked to orchestration ${ctx.orchestrationId})`);
 
     return workflow;
   } finally {
@@ -267,6 +246,141 @@ function clearRunnerState(projectPath: string, orchestrationId: string): void {
   }
 }
 
+// =============================================================================
+// Auto-Heal Logic (FR-003) - Trust Sub-Commands
+// =============================================================================
+
+/**
+ * Map skill names to expected step names
+ */
+function getExpectedStepForSkill(skill: string): string {
+  const map: Record<string, string> = {
+    'flow.design': 'design',
+    'flow.analyze': 'analyze',
+    'flow.implement': 'implement',
+    'flow.verify': 'verify',
+    'flow.merge': 'merge',
+    '/flow.design': 'design',
+    '/flow.analyze': 'analyze',
+    '/flow.implement': 'implement',
+    '/flow.verify': 'verify',
+    '/flow.merge': 'merge',
+  };
+  return map[skill] || 'unknown';
+}
+
+/**
+ * Auto-heal state after workflow completes (FR-003)
+ *
+ * When a workflow ends, check if state matches expectations and fix if needed.
+ * This allows sub-commands to update step.status, with dashboard as backup.
+ *
+ * Rules:
+ * - Workflow completed: If step.status != complete, set it to complete
+ * - Workflow failed: If step.status != failed, set it to failed
+ *
+ * If the workflow's expected step doesn't match the current step,
+ * log and skip to avoid forcing state changes.
+ *
+ * @param projectPath - Project path for CLI commands
+ * @param completedSkill - The skill that just completed (e.g., 'flow.design')
+ * @param workflowStatus - How the workflow ended
+ * @returns true if healing was performed
+ */
+export async function autoHealAfterWorkflow(
+  projectPath: string,
+  completedSkill: string,
+  workflowStatus: 'completed' | 'failed'
+): Promise<boolean> {
+  const expectedStep = getExpectedStepForSkill(completedSkill);
+
+  // Read current state from CLI state file
+  const dashboardState = readDashboardState(projectPath);
+
+  // If no active orchestration, nothing to heal
+  if (!dashboardState?.active) {
+    console.log('[auto-heal] No active orchestration, skipping heal');
+    return false;
+  }
+
+  // Read CLI state to get step info
+  const stepState = readOrchestrationStep(projectPath);
+  const currentStep = stepState?.current;
+  const stepStatus = stepState?.status;
+
+  console.log(`[auto-heal] Workflow ${completedSkill} ${workflowStatus}`);
+  console.log(`[auto-heal]   Expected step: ${expectedStep}`);
+  console.log(`[auto-heal]   Current step: ${currentStep}, status: ${stepStatus}`);
+
+  // Workflow completed successfully
+  if (workflowStatus === 'completed') {
+    if (dashboardState.lastWorkflow) {
+      await writeDashboardState(projectPath, {
+        lastWorkflow: {
+          id: dashboardState.lastWorkflow.id || 'unknown',
+          skill: completedSkill,
+          status: 'completed',
+        },
+      });
+    }
+
+    // Check if step matches and status needs updating
+    if (currentStep === expectedStep && stepStatus !== 'complete') {
+      console.log(`[auto-heal] Setting ${expectedStep}.status = complete`);
+      try {
+        const { execSync } = await import('child_process');
+        execSync(`specflow state set orchestration.step.status=complete`, {
+          cwd: projectPath,
+          encoding: 'utf-8',
+          timeout: 30000,
+          env: getSpecflowEnv(),
+        });
+
+        console.log(`[auto-heal] Successfully healed step.status to complete`);
+        return true;
+      } catch (error) {
+        console.error(`[auto-heal] Failed to heal state: ${error}`);
+        return false;
+      }
+    }
+  }
+
+  // Workflow failed - mark step as failed if not already
+  if (workflowStatus === 'failed') {
+    if (dashboardState.lastWorkflow) {
+      await writeDashboardState(projectPath, {
+        lastWorkflow: {
+          id: dashboardState.lastWorkflow.id || 'unknown',
+          skill: completedSkill,
+          status: 'failed',
+        },
+      });
+    }
+
+    if (currentStep === expectedStep && stepStatus !== 'failed') {
+      console.log(`[auto-heal] Setting ${expectedStep}.status = failed`);
+      try {
+        const { execSync } = await import('child_process');
+        execSync(`specflow state set orchestration.step.status=failed`, {
+          cwd: projectPath,
+          encoding: 'utf-8',
+          timeout: 30000,
+          env: getSpecflowEnv(),
+        });
+
+        console.log(`[auto-heal] Successfully healed step.status to failed`);
+        return true;
+      } catch (error) {
+        console.error(`[auto-heal] Failed to heal state: ${error}`);
+        return false;
+      }
+    }
+  }
+
+  console.log('[auto-heal] No healing needed');
+  return false;
+}
+
 /**
  * Check if a runner process is still alive by PID
  */
@@ -282,11 +396,14 @@ function isProcessAlive(pid: number): boolean {
 
 /**
  * Reconcile runners on dashboard startup (G5.10)
- * Detects orphaned runner state files where the process is no longer running
+ * Detects orphaned runner state files where the process is no longer running.
+ * Returns IDs of orchestrations that had runner state files cleaned up
+ * (i.e., were previously managed by this dashboard instance).
  */
-export function reconcileRunners(projectPath: string): void {
+export function reconcileRunners(projectPath: string): Set<string> {
+  const cleanedUpIds = new Set<string>();
   const workflowsDir = join(projectPath, '.specflow', 'workflows');
-  if (!existsSync(workflowsDir)) return;
+  if (!existsSync(workflowsDir)) return cleanedUpIds;
 
   try {
     const files = readdirSync(workflowsDir);
@@ -298,17 +415,20 @@ export function reconcileRunners(projectPath: string): void {
         const content = readFileSync(filePath, 'utf-8');
         const state = JSON.parse(content) as RunnerState;
 
-        if (!isProcessAlive(state.pid)) {
-          // Process is dead but state file exists - orphaned runner
-          console.log(`[orchestration-runner] Detected orphaned runner for ${state.orchestrationId} (PID ${state.pid} is dead), cleaning up`);
+        if (state.pid !== process.pid) {
+          // PID doesn't match current server — runner is from a previous instance.
+          // Don't use isProcessAlive() because PIDs can be reused by unrelated processes.
+          console.log(`[orchestration-runner] Detected orphaned runner for ${state.orchestrationId} (PID ${state.pid} vs current ${process.pid}), cleaning up`);
           unlinkSync(filePath);
+          cleanedUpIds.add(state.orchestrationId);
 
           // Also clear from in-memory map if present
           activeRunners.delete(state.orchestrationId);
         } else {
-          // Process is alive - mark as active in memory
-          console.log(`[orchestration-runner] Runner for ${state.orchestrationId} is still active (PID ${state.pid})`);
-          activeRunners.set(state.orchestrationId, true);
+          // PID matches current process — runner is ours (shouldn't happen on fresh startup)
+          console.log(`[orchestration-runner] Runner for ${state.orchestrationId} belongs to current process (PID ${state.pid})`);
+          runnerGeneration++;
+          activeRunners.set(state.orchestrationId, runnerGeneration);
         }
       } catch {
         // Corrupted file, remove it
@@ -323,220 +443,8 @@ export function reconcileRunners(projectPath: string): void {
   } catch (error) {
     console.error(`[orchestration-runner] Failed to reconcile runners: ${error}`);
   }
-}
 
-// =============================================================================
-// Claude State Analyzer (Fallback)
-// =============================================================================
-
-/**
- * Schema for Claude state analysis decision
- * Used when state is unclear after 3 consecutive checks
- */
-const StateAnalyzerDecisionSchema = z.object({
-  action: z.enum(['run_design', 'run_analyze', 'run_implement', 'run_verify', 'run_merge', 'wait', 'stop', 'fail']),
-  reason: z.string().describe('Explanation for this decision'),
-  confidence: z.enum(['high', 'medium', 'low']).describe('How confident are you in this decision?'),
-  suggestedSkill: z.string().optional().describe('If action requires running a skill, which one?'),
-});
-
-type StateAnalyzerDecision = z.infer<typeof StateAnalyzerDecisionSchema>;
-
-/**
- * Maximum consecutive "unclear" checks before spawning Claude analyzer
- */
-const MAX_UNCLEAR_CHECKS_BEFORE_CLAUDE = 3;
-
-/**
- * Spawn Claude to analyze state and make a decision
- * Called when state is unclear after MAX_UNCLEAR_CHECKS_BEFORE_CLAUDE consecutive waits
- */
-async function analyzeStateWithClaude(
-  ctx: RunnerContext,
-  orchestration: OrchestrationExecution,
-  workflow: WorkflowExecution | undefined,
-  specflowStatus: SpecflowStatus | null
-): Promise<DecisionResult> {
-  console.log(`[orchestration-runner] State unclear after ${ctx.consecutiveUnclearChecks} checks, spawning Claude analyzer`);
-
-  const prompt = `You are analyzing orchestration state to determine the next action.
-
-## Current Orchestration State
-- **Phase**: ${orchestration.currentPhase}
-- **Status**: ${orchestration.status}
-- **Batch Progress**: ${orchestration.batches.current + 1}/${orchestration.batches.total} batches
-- **Current Batch Status**: ${orchestration.batches.items[orchestration.batches.current]?.status ?? 'N/A'}
-- **Config**: autoMerge=${orchestration.config.autoMerge}, skipDesign=${orchestration.config.skipDesign}, skipAnalyze=${orchestration.config.skipAnalyze}
-
-## Current Workflow
-- **Workflow ID**: ${workflow?.id ?? 'None'}
-- **Workflow Status**: ${workflow?.status ?? 'None'}
-- **Workflow Skill**: ${workflow?.skill ?? 'None'}
-
-## Specflow Status
-\`\`\`json
-${JSON.stringify(specflowStatus, null, 2)}
-\`\`\`
-
-## Decision History (last 5)
-${orchestration.decisionLog.slice(-5).map((d) => `- ${d.decision}: ${d.reason}`).join('\n')}
-
-## Problem
-The orchestration has been in "continue/wait" state for ${ctx.consecutiveUnclearChecks} consecutive checks.
-This may indicate a stuck state or unclear completion status.
-
-## Your Task
-Analyze the state and determine what should happen next:
-- **run_design**: Run /flow.design
-- **run_analyze**: Run /flow.analyze
-- **run_implement**: Run /flow.implement
-- **run_verify**: Run /flow.verify
-- **run_merge**: Run /flow.merge
-- **wait**: Continue waiting (only if you're confident the workflow will complete)
-- **stop**: Pause and notify user (ambiguous state needing human review)
-- **fail**: Mark as failed (unrecoverable state)
-
-Provide a clear reason for your decision.`;
-
-  try {
-    const response = await quickDecision(
-      prompt,
-      StateAnalyzerDecisionSchema,
-      ctx.projectPath,
-      {
-        maxBudgetUsd: orchestration.config.budget.decisionBudget,
-        maxTurns: 3, // Allow a few turns to read files if needed
-        tools: ['Read', 'Grep', 'Glob'], // Read-only tools
-      }
-    );
-
-    if (isClaudeHelperError(response)) {
-      console.error(`[orchestration-runner] Claude analyzer failed: ${response.errorMessage}`);
-      return {
-        action: 'fail',
-        reason: `Claude analyzer failed after ${ctx.consecutiveUnclearChecks} unclear checks: ${response.errorMessage}`,
-        errorMessage: 'State analysis failed - manual intervention required',
-      };
-    }
-
-    const decision = response.result;
-
-    // Track cost
-    if (response.cost > 0) {
-      orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, response.cost);
-    }
-
-    // Log Claude decision
-    console.log(`[orchestration-runner] Claude analyzer decision: ${decision.action} (${decision.confidence}) - ${decision.reason}`);
-
-    // Map Claude decision to DecisionResult
-    return mapClaudeDecision(decision);
-  } catch (error) {
-    console.error(`[orchestration-runner] Error in Claude analyzer: ${error}`);
-    return {
-      action: 'fail',
-      reason: `Claude analyzer error after ${ctx.consecutiveUnclearChecks} unclear checks: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      errorMessage: 'State analysis error - manual intervention required',
-    };
-  }
-}
-
-/**
- * Map Claude analyzer decision to runner DecisionResult
- */
-function mapClaudeDecision(decision: StateAnalyzerDecision): DecisionResult {
-  switch (decision.action) {
-    case 'run_design':
-      return {
-        action: 'spawn_workflow',
-        reason: `[Claude analyzer] ${decision.reason}`,
-        skill: 'flow.design',
-      };
-    case 'run_analyze':
-      return {
-        action: 'spawn_workflow',
-        reason: `[Claude analyzer] ${decision.reason}`,
-        skill: 'flow.analyze',
-      };
-    case 'run_implement':
-      return {
-        action: 'spawn_workflow',
-        reason: `[Claude analyzer] ${decision.reason}`,
-        skill: decision.suggestedSkill || 'flow.implement',
-      };
-    case 'run_verify':
-      return {
-        action: 'spawn_workflow',
-        reason: `[Claude analyzer] ${decision.reason}`,
-        skill: 'flow.verify',
-      };
-    case 'run_merge':
-      return {
-        action: 'spawn_workflow',
-        reason: `[Claude analyzer] ${decision.reason}`,
-        skill: 'flow.merge',
-      };
-    case 'wait':
-      return {
-        action: 'continue',
-        reason: `[Claude analyzer] ${decision.reason}`,
-      };
-    case 'stop':
-      return {
-        action: 'wait_merge', // Use wait_merge to pause - user must manually resume
-        reason: `[Claude analyzer - PAUSED] ${decision.reason}`,
-      };
-    case 'fail':
-      return {
-        action: 'fail',
-        reason: `[Claude analyzer] ${decision.reason}`,
-        errorMessage: decision.reason,
-      };
-    default:
-      return {
-        action: 'continue',
-        reason: `[Claude analyzer] Unknown action: ${decision.action}`,
-      };
-  }
-}
-
-interface DecisionResult {
-  action:
-    // Legacy actions (kept for compatibility)
-    | 'continue'
-    | 'spawn_workflow'
-    | 'spawn_batch'
-    | 'heal'
-    | 'wait_merge'
-    | 'needs_attention'
-    | 'complete'
-    | 'fail'
-    // G2 Compliance: New actions from pure decision module
-    | 'transition'
-    | 'advance_batch'
-    | 'initialize_batches'
-    | 'force_step_complete'
-    | 'pause'
-    | 'recover_stale'
-    | 'recover_failed'
-    | 'wait_with_backoff'
-    | 'wait_user_gate';
-  reason: string;
-  skill?: string;
-  batchContext?: string;
-  errorMessage?: string;
-  /** Recovery options when action is 'needs_attention' */
-  recoveryOptions?: Array<'retry' | 'skip' | 'abort'>;
-  /** Failed workflow ID for recovery context */
-  failedWorkflowId?: string;
-  /** Next step for transition action */
-  nextStep?: string;
-  /** Batch index for batch actions */
-  batchIndex?: number;
-  /** Workflow ID for stale recovery */
-  workflowId?: string;
-  /** Backoff time for wait_with_backoff */
-  backoffMs?: number;
+  return cleanedUpIds;
 }
 
 // =============================================================================
@@ -559,601 +467,6 @@ function getProjectPath(projectId: string): string | null {
   } catch {
     return null;
   }
-}
-
-// =============================================================================
-// Specflow Status Integration (Direct File Access - No Subprocess)
-// =============================================================================
-
-interface SpecflowStatus {
-  phase?: {
-    number?: number;
-    name?: string;
-    hasUserGate?: boolean;
-    userGateStatus?: 'pending' | 'confirmed' | 'skipped';
-  };
-  context?: {
-    hasSpec?: boolean;
-    hasPlan?: boolean;
-    hasTasks?: boolean;
-    featureDir?: string;
-  };
-  progress?: {
-    tasksTotal?: number;
-    tasksComplete?: number;
-    percentage?: number;
-  };
-  orchestration?: {
-    step?: {
-      current?: string;
-      index?: number;
-      status?: string;
-    };
-  };
-}
-
-/**
- * Task counts from parsing tasks.md directly
- */
-interface TaskCounts {
-  total: number;
-  completed: number;
-  blocked: number;
-  deferred: number;
-  percentage: number;
-}
-
-/**
- * Get task counts by parsing tasks.md directly (no subprocess)
- *
- * @param tasksPath - Path to tasks.md file
- * @returns Task counts or null if file doesn't exist
- */
-function getTaskCounts(tasksPath: string): TaskCounts | null {
-  if (!existsSync(tasksPath)) {
-    return null;
-  }
-
-  try {
-    const content = readFileSync(tasksPath, 'utf-8');
-    const lines = content.split('\n');
-
-    let total = 0;
-    let completed = 0;
-    let blocked = 0;
-    let deferred = 0;
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-
-      // Match task lines: - [x] T###, - [ ] T###, etc.
-      const taskMatch = trimmed.match(/^-\s*\[[xX ~\-bB]\]\s*T\d{3}/);
-      if (!taskMatch) continue;
-
-      total++;
-
-      // Determine status from checkbox
-      if (trimmed.startsWith('- [x]') || trimmed.startsWith('- [X]')) {
-        completed++;
-      } else if (trimmed.startsWith('- [b]') || trimmed.startsWith('- [B]')) {
-        blocked++;
-      } else if (trimmed.startsWith('- [~]') || trimmed.startsWith('- [-]')) {
-        deferred++;
-      }
-      // else it's '- [ ]' which is todo (not counted separately)
-    }
-
-    return {
-      total,
-      completed,
-      blocked,
-      deferred,
-      percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
-    };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Check if design artifacts exist in a feature directory (no subprocess)
- *
- * @param featureDir - Path to the feature directory (specs/NNNN-name/)
- * @returns Object indicating which artifacts exist
- */
-function checkArtifactExistence(featureDir: string): { hasSpec: boolean; hasPlan: boolean; hasTasks: boolean } {
-  return {
-    hasSpec: existsSync(join(featureDir, 'spec.md')),
-    hasPlan: existsSync(join(featureDir, 'plan.md')),
-    hasTasks: existsSync(join(featureDir, 'tasks.md')),
-  };
-}
-
-/**
- * Find the active feature directory in a project
- * Looks for specs/NNNN-name/ directories and returns the highest numbered one
- *
- * @param projectPath - Root path of the project
- * @returns Feature directory path or null if none found
- */
-function findActiveFeatureDir(projectPath: string): string | null {
-  const specsDir = join(projectPath, 'specs');
-  if (!existsSync(specsDir)) {
-    return null;
-  }
-
-  try {
-    const entries = readdirSync(specsDir, { withFileTypes: true }) as Dirent[];
-
-    // Find directories matching NNNN-* pattern
-    const featureDirs = entries
-      .filter((e) => e.isDirectory() && /^\d{4}-/.test(e.name))
-      .map((e) => e.name)
-      .sort()
-      .reverse();
-
-    if (featureDirs.length === 0) {
-      return null;
-    }
-
-    return join(specsDir, featureDirs[0]);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Get specflow status by reading files directly (no subprocess)
- * Replaces the previous getSpecflowStatus that called `specflow status --json`
- *
- * @param projectPath - Root path of the project
- * @returns Status object compatible with previous interface
- */
-function getSpecflowStatus(projectPath: string): SpecflowStatus | null {
-  try {
-    // Find active feature directory
-    const featureDir = findActiveFeatureDir(projectPath);
-    if (!featureDir) {
-      return {
-        context: {
-          hasSpec: false,
-          hasPlan: false,
-          hasTasks: false,
-        },
-        progress: {
-          tasksTotal: 0,
-          tasksComplete: 0,
-          percentage: 0,
-        },
-      };
-    }
-
-    // Check which artifacts exist
-    const artifacts = checkArtifactExistence(featureDir);
-
-    // Get task counts if tasks.md exists
-    const tasksPath = join(featureDir, 'tasks.md');
-    const taskCounts = artifacts.hasTasks ? getTaskCounts(tasksPath) : null;
-
-    // Extract phase info from directory name (e.g., "1056-jsonl-watcher" -> 1056)
-    const dirName = featureDir.split('/').pop() || '';
-    const phaseMatch = dirName.match(/^(\d+)-(.+)/);
-
-    // Read orchestration state from state file
-    let orchestrationState: SpecflowStatus['orchestration'] = undefined;
-    let phaseGateInfo: Pick<NonNullable<SpecflowStatus['phase']>, 'hasUserGate' | 'userGateStatus'> = {};
-    try {
-      // Try .specflow first (v3), then .specify (v2)
-      let statePath = join(projectPath, '.specflow', 'orchestration-state.json');
-      if (!existsSync(statePath)) {
-        statePath = join(projectPath, '.specify', 'orchestration-state.json');
-      }
-      if (existsSync(statePath)) {
-        const stateContent = readFileSync(statePath, 'utf-8');
-        const state = JSON.parse(stateContent);
-        if (state?.orchestration?.step) {
-          orchestrationState = {
-            step: {
-              current: state.orchestration.step.current,
-              index: state.orchestration.step.index,
-              status: state.orchestration.step.status,
-            },
-          };
-        }
-        // Extract phase gate info from state file
-        if (state?.orchestration?.phase) {
-          phaseGateInfo = {
-            hasUserGate: state.orchestration.phase.hasUserGate,
-            userGateStatus: state.orchestration.phase.userGateStatus,
-          };
-        }
-      }
-    } catch {
-      // Ignore errors reading state file
-    }
-
-    return {
-      phase: phaseMatch ? {
-        number: parseInt(phaseMatch[1], 10),
-        name: phaseMatch[2].replace(/-/g, ' '),
-        ...phaseGateInfo,
-      } : phaseGateInfo.hasUserGate !== undefined ? phaseGateInfo : undefined,
-      context: {
-        hasSpec: artifacts.hasSpec,
-        hasPlan: artifacts.hasPlan,
-        hasTasks: artifacts.hasTasks,
-        featureDir,
-      },
-      progress: taskCounts ? {
-        tasksTotal: taskCounts.total,
-        tasksComplete: taskCounts.completed,
-        percentage: taskCounts.percentage,
-      } : {
-        tasksTotal: 0,
-        tasksComplete: 0,
-        percentage: 0,
-      },
-      orchestration: orchestrationState,
-    };
-  } catch {
-    return null;
-  }
-}
-
-// =============================================================================
-// Staleness Detection
-// =============================================================================
-
-/**
- * Get the last file change time for the project
- * Used for staleness detection (G1.5)
- */
-function getLastFileChangeTime(projectPath: string): number {
-  try {
-    // Check common directories for recent changes
-    const dirsToCheck = [
-      join(projectPath, 'src'),
-      join(projectPath, 'specs'),
-      join(projectPath, '.specflow'),
-    ];
-
-    let latestTime = 0;
-    for (const dir of dirsToCheck) {
-      if (existsSync(dir)) {
-        const stat = require('fs').statSync(dir);
-        if (stat.mtimeMs > latestTime) {
-          latestTime = stat.mtimeMs;
-        }
-      }
-    }
-    return latestTime || Date.now();
-  } catch {
-    return Date.now();
-  }
-}
-
-// =============================================================================
-// State Machine Decision Logic
-// =============================================================================
-
-/**
- * Map orchestration phase to skill command
- */
-function getSkillForPhase(phase: OrchestrationPhase): string {
-  switch (phase) {
-    case 'design':
-      return 'flow.design';
-    case 'analyze':
-      return 'flow.analyze';
-    case 'implement':
-      return 'flow.implement';
-    case 'verify':
-      return 'flow.verify';
-    case 'merge':
-      return 'flow.merge';
-    default:
-      return 'flow.implement';
-  }
-}
-
-// =============================================================================
-// G2 Compliance: Adapter for Pure Decision Functions
-// =============================================================================
-
-/**
- * Convert runner context to DecisionInput for the pure makeDecision function
- * This adapter bridges the old runner patterns with the new pure decision module
- */
-function createDecisionInput(
-  orchestration: OrchestrationExecution,
-  workflow: WorkflowExecution | undefined,
-  specflowStatus: SpecflowStatus | null,
-  lastFileChangeTime?: number
-): DecisionInput {
-  // Convert workflow to WorkflowState (simplified interface)
-  const workflowState: WorkflowState | null = workflow ? {
-    id: workflow.id,
-    status: workflow.status as WorkflowState['status'],
-    error: workflow.error,
-    lastActivityAt: workflow.updatedAt,
-  } : null;
-
-  // Extract step info from specflow status and orchestration
-  // IMPORTANT: The state file tracks the PROJECT's current step, which may differ from
-  // the orchestration's currentPhase (e.g., when skipping to merge).
-  // We only trust step.status if it's for the SAME step as the orchestration's currentPhase.
-  const stateFileStep = specflowStatus?.orchestration?.step?.current;
-  const rawStatus = specflowStatus?.orchestration?.step?.status;
-  const validStatuses = ['not_started', 'pending', 'in_progress', 'complete', 'failed', 'blocked', 'skipped'] as const;
-
-  // Only use the state file's status if it matches the orchestration's current phase
-  // Otherwise, the step hasn't been started in this orchestration
-  const stepStatus = (stateFileStep === orchestration.currentPhase && rawStatus && validStatuses.includes(rawStatus as typeof validStatuses[number]))
-    ? (rawStatus as typeof validStatuses[number])
-    : 'not_started';
-
-  const stepCurrent = orchestration.currentPhase;
-  const stepIndex = specflowStatus?.orchestration?.step?.index ?? 0;
-
-  return {
-    step: {
-      current: stepCurrent,
-      index: stepIndex,
-      status: stepStatus,
-    },
-    phase: {
-      hasUserGate: specflowStatus?.phase?.hasUserGate,
-      userGateStatus: specflowStatus?.phase?.userGateStatus,
-    },
-    execution: orchestration,
-    workflow: workflowState,
-    lastFileChangeTime,
-    lookupFailures: 0,
-    currentTime: Date.now(),
-  };
-}
-
-/**
- * Adapt pure DecisionResult to the legacy action names where needed
- * The executeDecision function will be updated to handle all new action types
- */
-function adaptDecisionResult(result: PureDecisionResult): DecisionResult {
-  // Map new action names to ensure compatibility
-  const actionMap: Record<string, DecisionResult['action']> = {
-    'wait': 'continue',           // wait → continue (legacy)
-    'spawn': 'spawn_workflow',    // spawn → spawn_workflow (legacy)
-    'heal_batch': 'heal',         // heal_batch → heal (legacy)
-  };
-
-  const action = actionMap[result.action] ?? result.action;
-
-  return {
-    action: action as DecisionResult['action'],
-    reason: result.reason,
-    skill: result.skill,
-    batchContext: result.batchContext,
-    errorMessage: result.errorMessage,
-    recoveryOptions: result.recoveryOptions,
-    failedWorkflowId: result.failedWorkflowId,
-    // For transition actions, extract the skill
-    ...(result.action === 'transition' && result.skill ? { skill: result.skill } : {}),
-  };
-}
-
-/**
- * Make a decision using the pure decision module (G2 compliant)
- * Falls back to legacy makeDecision if pure module fails
- */
-function makeDecisionWithAdapter(
-  orchestration: OrchestrationExecution,
-  workflow: WorkflowExecution | undefined,
-  specflowStatus: SpecflowStatus | null,
-  lastFileChangeTime?: number
-): DecisionResult {
-  // Create input for pure decision function
-  const input = createDecisionInput(orchestration, workflow, specflowStatus, lastFileChangeTime);
-
-  // Get decision from pure function
-  const pureResult = makeDecisionPure(input);
-
-  // Adapt to legacy format
-  return adaptDecisionResult(pureResult);
-}
-
-/**
- * Make a decision about what to do next
- * @deprecated Use makeDecisionWithAdapter instead - this is kept for reference during transition
- */
-function makeDecision(
-  orchestration: OrchestrationExecution,
-  workflow: WorkflowExecution | undefined,
-  specflowStatus: SpecflowStatus | null
-): DecisionResult {
-  const { currentPhase, config, batches } = orchestration;
-
-  // Check budget first
-  if (orchestration.totalCostUsd >= config.budget.maxTotal) {
-    return {
-      action: 'fail',
-      reason: `Budget exceeded: $${orchestration.totalCostUsd.toFixed(2)} >= $${config.budget.maxTotal}`,
-      errorMessage: 'Budget limit exceeded',
-    };
-  }
-
-  // Check if workflow is still running
-  if (workflow && ['running', 'waiting_for_input'].includes(workflow.status)) {
-    return {
-      action: 'continue',
-      reason: `Workflow ${workflow.id} still ${workflow.status}`,
-    };
-  }
-
-  // Check if workflow failed or was cancelled
-  if (workflow && ['failed', 'cancelled'].includes(workflow.status)) {
-    // If cancelled by user, don't auto-heal, go to needs_attention
-    if (workflow.status === 'cancelled') {
-      return {
-        action: 'needs_attention',
-        reason: `Workflow was cancelled by user`,
-        errorMessage: 'Workflow cancelled',
-        recoveryOptions: ['retry', 'skip', 'abort'],
-        failedWorkflowId: workflow.id,
-      };
-    }
-
-    // If failed in implement phase, try auto-healing first
-    if (currentPhase === 'implement' && config.autoHealEnabled) {
-      const currentBatch = batches.items[batches.current];
-      if (currentBatch && currentBatch.healAttempts < config.maxHealAttempts) {
-        return {
-          action: 'heal',
-          reason: `Workflow failed, attempting heal (attempt ${currentBatch.healAttempts + 1}/${config.maxHealAttempts})`,
-        };
-      }
-    }
-
-    // Instead of immediately failing, go to needs_attention for user decision
-    return {
-      action: 'needs_attention',
-      reason: `Workflow failed: ${workflow.error}`,
-      errorMessage: workflow.error,
-      recoveryOptions: ['retry', 'skip', 'abort'],
-      failedWorkflowId: workflow.id,
-    };
-  }
-
-  // Check if current phase is complete
-  const phaseComplete = isPhaseComplete(specflowStatus, currentPhase);
-
-  // Handle implement phase batches
-  if (currentPhase === 'implement') {
-    // ROBUST CHECK: Must have batches AND all must be completed/healed
-    const completedCount = batches.items.filter(
-      (b) => b.status === 'completed' || b.status === 'healed'
-    ).length;
-    const allBatchesComplete = batches.items.length > 0 && completedCount === batches.items.length;
-
-    // DEBUG: Log batch state when checking completion
-    console.log(`[orchestration-runner] Implement batch check: ${completedCount}/${batches.items.length} complete, current=${batches.current}, allComplete=${allBatchesComplete}`);
-
-    if (allBatchesComplete) {
-      // All batches done, move to verify
-      const nextPhase = getNextPhase(currentPhase, config);
-      console.log(`[orchestration-runner] ALL BATCHES COMPLETE - transitioning to ${nextPhase}`);
-      if (nextPhase === 'merge' && !config.autoMerge) {
-        return {
-          action: 'wait_merge',
-          reason: 'All batches complete, waiting for user to trigger merge',
-        };
-      }
-      return {
-        action: 'spawn_workflow',
-        reason: `All batches complete, transitioning to ${nextPhase}`,
-        skill: nextPhase ? getSkillForPhase(nextPhase) : undefined,
-      };
-    }
-
-    // Check if current batch is done
-    const currentBatch = batches.items[batches.current];
-    if (currentBatch?.status === 'running' && workflow?.status === 'completed') {
-      // Mark batch complete and check for more
-      return {
-        action: 'spawn_batch',
-        reason: `Batch ${batches.current + 1} complete, starting next batch`,
-      };
-    }
-
-    if (currentBatch?.status === 'pending') {
-      // Start this batch
-      const batchContext = `Execute only the "${currentBatch.section}" section (${currentBatch.taskIds.join(', ')}). Do NOT work on tasks from other sections.`;
-      const fullContext = config.additionalContext
-        ? `${batchContext}\n\n${config.additionalContext}`
-        : batchContext;
-
-      return {
-        action: 'spawn_workflow',
-        reason: `Starting batch ${batches.current + 1}/${batches.total}: ${currentBatch.section}`,
-        skill: `flow.implement ${fullContext}`,
-        batchContext: fullContext,
-      };
-    }
-  }
-
-  // For non-implement phases, check if complete and transition
-  // CRITICAL: Skip this for implement phase - batch logic above handles transitions
-  // CRITICAL: For design phase, require BOTH workflow completion AND artifacts exist
-  // This prevents auto-advancing when workflow completes without producing required artifacts
-  const workflowComplete = workflow?.status === 'completed';
-  // Analyze and verify don't produce artifacts - workflow completion is enough
-  const canAdvance = (currentPhase === 'analyze' || currentPhase === 'verify')
-    ? workflowComplete  // No artifacts, workflow completion is enough
-    : (phaseComplete && workflowComplete);  // Other phases need artifacts AND workflow done
-
-  if (currentPhase !== 'implement' && canAdvance) {
-    const nextPhase = getNextPhase(currentPhase, config);
-
-    if (!nextPhase || nextPhase === 'complete') {
-      return {
-        action: 'complete',
-        reason: 'All phases complete',
-      };
-    }
-
-    if (nextPhase === 'merge' && !config.autoMerge) {
-      return {
-        action: 'wait_merge',
-        reason: 'Verify complete, waiting for user to trigger merge',
-      };
-    }
-
-    return {
-      action: 'spawn_workflow',
-      reason: `Phase ${currentPhase} complete, transitioning to ${nextPhase}`,
-      skill: getSkillForPhase(nextPhase),
-    };
-  }
-
-  // If no workflow exists for current phase, check if we should spawn one
-  // GUARD: Don't re-spawn if we already have a workflow ID for this phase
-  // This prevents spawning duplicate workflows when the lookup fails
-  if (!workflow) {
-    // Check if we already have a workflow ID for this phase
-    let existingWorkflowId: string | undefined;
-    if (currentPhase === 'implement') {
-      const implExecutions = orchestration.executions.implement;
-      existingWorkflowId = implExecutions?.length ? implExecutions[implExecutions.length - 1] : undefined;
-    } else if (currentPhase === 'design') {
-      existingWorkflowId = orchestration.executions.design;
-    } else if (currentPhase === 'analyze') {
-      existingWorkflowId = orchestration.executions.analyze;
-    } else if (currentPhase === 'verify') {
-      existingWorkflowId = orchestration.executions.verify;
-    } else if (currentPhase === 'merge') {
-      existingWorkflowId = orchestration.executions.merge;
-    }
-    if (existingWorkflowId && typeof existingWorkflowId === 'string') {
-      // We have a workflow ID but couldn't find it - something is wrong
-      // Don't spawn another, wait for manual intervention or the workflow to reappear
-      console.log(`[orchestration-runner] WARNING: Workflow ${existingWorkflowId} for ${currentPhase} not found in lookup, but ID exists in state. Waiting...`);
-      return {
-        action: 'continue',
-        reason: `Workflow ${existingWorkflowId} lookup failed, waiting for it to complete or reappear`,
-      };
-    }
-
-    // Truly no workflow exists - spawn one (first time for this phase)
-    return {
-      action: 'spawn_workflow',
-      reason: `No workflow found for ${currentPhase} phase, spawning one`,
-      skill: getSkillForPhase(currentPhase),
-    };
-  }
-
-  // Default: continue waiting
-  return {
-    action: 'continue',
-    reason: 'Waiting for current workflow to complete',
-  };
 }
 
 // =============================================================================
@@ -1219,23 +532,8 @@ function subscribeToFileEvents(
     }
 
     // Wake up runner on relevant events
-    switch (event.type) {
-      case 'tasks':
-        // Task file changed - might have new completions
-        console.log(`[orchestration-runner] Tasks event for ${projectId}, waking runner`);
-        wakeUp(orchestrationId);
-        break;
-      case 'workflow':
-        // Workflow index changed - workflow might have completed
-        console.log(`[orchestration-runner] Workflow event for ${projectId}, waking runner`);
-        wakeUp(orchestrationId);
-        break;
-      case 'state':
-        // Orchestration state changed - might need to react
-        console.log(`[orchestration-runner] State event for ${projectId}, waking runner`);
-        wakeUp(orchestrationId);
-        break;
-      // Ignore: registry, phases, heartbeat, session events
+    if (event.type === 'tasks' || event.type === 'workflow' || event.type === 'state') {
+      wakeUp(orchestrationId);
     }
   });
 
@@ -1297,13 +595,52 @@ function eventDrivenSleep(ms: number, orchestrationId: string): Promise<void> {
 }
 
 // =============================================================================
+// Decision Input Normalization
+// =============================================================================
+
+const VALID_PHASES: OrchestrationPhase[] = ['design', 'analyze', 'implement', 'verify', 'merge'];
+const VALID_STEP_STATUSES: StepStatus[] = [
+  'not_started',
+  'pending',
+  'in_progress',
+  'complete',
+  'failed',
+  'blocked',
+  'skipped',
+];
+
+function normalizeStepCurrent(
+  current: unknown,
+  fallback: OrchestrationPhase
+): OrchestrationPhase {
+  return VALID_PHASES.includes(current as OrchestrationPhase)
+    ? (current as OrchestrationPhase)
+    : fallback;
+}
+
+function normalizeStepStatus(status: unknown): StepStatus {
+  return VALID_STEP_STATUSES.includes(status as StepStatus)
+    ? (status as StepStatus)
+    : 'not_started';
+}
+
+function toWorkflowState(workflow: WorkflowExecution | undefined): WorkflowState | null {
+  if (!workflow) return null;
+  const allowed = ['running', 'waiting_for_input', 'completed', 'failed', 'cancelled'] as const;
+  return allowed.includes(workflow.status as typeof allowed[number])
+    ? { id: workflow.id, status: workflow.status as WorkflowState['status'] }
+    : null;
+}
+
+// =============================================================================
 // Orchestration Runner
 // =============================================================================
 
 /**
  * Active runners tracked by orchestration ID
  */
-const activeRunners = new Map<string, boolean>();
+const activeRunners = new Map<string, number>();
+let runnerGeneration = 0;
 
 /**
  * Run the orchestration state machine loop
@@ -1315,14 +652,12 @@ const activeRunners = new Map<string, boolean>();
  * @param orchestrationId - Orchestration execution ID
  * @param pollingInterval - Interval between state checks (ms)
  * @param maxPollingAttempts - Maximum polling iterations before stopping
- * @param deps - Optional dependency injection for testing (T120/G12.4)
  */
 export async function runOrchestration(
   projectId: string,
   orchestrationId: string,
-  pollingInterval: number = 3000,
-  maxPollingAttempts: number = 1000,
-  deps: OrchestrationDeps = defaultDeps
+  pollingInterval: number = 5000,
+  maxPollingAttempts: number = 500
 ): Promise<void> {
   const projectPath = getProjectPath(projectId);
   if (!projectPath) {
@@ -1330,18 +665,22 @@ export async function runOrchestration(
     return;
   }
 
-  // Prevent duplicate runners
-  if (activeRunners.get(orchestrationId)) {
+  // Prevent duplicate runners (unless force-restarted via stopRunner + runOrchestration)
+  if (activeRunners.has(orchestrationId)) {
     console.log(`[orchestration-runner] Runner already active for ${orchestrationId}`);
     return;
   }
 
-  activeRunners.set(orchestrationId, true);
+  runnerGeneration++;
+  const myGeneration = runnerGeneration;
+  activeRunners.set(orchestrationId, myGeneration);
 
   // G5.8: Persist runner state to file for cross-process detection
   persistRunnerState(projectPath, orchestrationId);
 
-  console.log(`[orchestration-runner] Starting event-driven runner for ${orchestrationId}`);
+  const repoName = basename(projectPath);
+
+  console.log(`[orchestration-runner][${repoName}] Starting event-driven runner for ${orchestrationId}`);
 
   const ctx: RunnerContext = {
     projectId,
@@ -1349,7 +688,7 @@ export async function runOrchestration(
     orchestrationId,
     pollingInterval,
     maxPollingAttempts,
-    consecutiveUnclearChecks: 0,
+    repoName,
   };
 
   // T025: Subscribe to file events for event-driven wake-up
@@ -1358,110 +697,106 @@ export async function runOrchestration(
     eventCleanup = subscribeToFileEvents(orchestrationId, projectId, () => {
       // Wake-up callback is set by eventDrivenSleep
     });
-    console.log(`[orchestration-runner] Subscribed to file events for ${projectId}`);
+    console.log(`${runnerLog(ctx)} Subscribed to file events for ${projectId}`);
   } catch (error) {
-    console.log(`[orchestration-runner] Event subscription not available, using polling fallback: ${error}`);
+    console.log(`${runnerLog(ctx)} Event subscription not available, using polling fallback: ${error}`);
   }
 
   let attempts = 0;
+  let lastLoggedStatus: string | null = null;
 
   try {
     // T026: Event-driven loop - wake on file events OR timeout
     while (attempts < maxPollingAttempts) {
       attempts++;
 
+      // Check if this runner has been superseded (force-restarted via Resume)
+      if (activeRunners.get(orchestrationId) !== myGeneration) {
+        console.log(`${runnerLog(ctx)} Runner ${orchestrationId} superseded by newer runner, exiting`);
+        return; // Return early — don't run finally cleanup (new runner owns it now)
+      }
+
       // Load current orchestration state
       const orchestration = orchestrationService.get(projectPath, orchestrationId);
       if (!orchestration) {
-        console.error(`[orchestration-runner] Orchestration not found: ${orchestrationId}`);
+        console.error(`${runnerLog(ctx)} Orchestration not found: ${orchestrationId}`);
         break;
       }
 
       // Check for terminal states
       if (['completed', 'failed', 'cancelled'].includes(orchestration.status)) {
-        console.log(`[orchestration-runner] Orchestration ${orchestrationId} reached terminal state: ${orchestration.status}`);
+        console.log(`${runnerLog(ctx)} Orchestration ${orchestrationId} reached terminal state: ${orchestration.status}`);
         break;
       }
 
       // Check for paused/waiting states - use longer wait, still event-driven
-      if (orchestration.status === 'needs_attention') {
-        console.log(`[orchestration-runner] Orchestration ${orchestrationId} needs attention, waiting for user action...`);
+      // Only log once per state to avoid repeating on every poll cycle
+      if (['needs_attention', 'paused', 'waiting_merge'].includes(orchestration.status)) {
+        if (lastLoggedStatus !== orchestration.status) {
+          lastLoggedStatus = orchestration.status;
+          console.log(`${runnerLog(ctx)} Status: ${orchestration.status}, waiting...`);
+        }
         await eventDrivenSleep(ctx.pollingInterval * 2, orchestrationId);
         continue;
       }
+      lastLoggedStatus = null;
 
-      if (orchestration.status === 'paused') {
-        console.log(`[orchestration-runner] Orchestration ${orchestrationId} is paused, waiting...`);
-        await eventDrivenSleep(ctx.pollingInterval * 2, orchestrationId);
-        continue;
+      const dashboardState = readDashboardState(projectPath);
+
+      if (!dashboardState?.active) {
+        console.log(`${runnerLog(ctx)} No active dashboard state found, stopping runner`);
+        break;
       }
 
-      if (orchestration.status === 'waiting_merge') {
-        console.log(`[orchestration-runner] Orchestration ${orchestrationId} waiting for merge trigger`);
-        await eventDrivenSleep(ctx.pollingInterval * 2, orchestrationId);
-        continue;
-      }
+      const initialStepState = readOrchestrationStep(projectPath);
+      const stepCurrent = normalizeStepCurrent(initialStepState?.current, orchestration.currentPhase);
 
-      // Get the current workflow (if any)
-      // First try the stored workflow ID, then fallback to querying by orchestrationId
-      // This provides resilience if the stored ID is stale/wrong
-      const currentWorkflowId = getCurrentWorkflowId(orchestration);
-      let workflow = currentWorkflowId
-        ? workflowService.get(currentWorkflowId, projectId)
+      const expectedSkill = `flow.${stepCurrent}`;
+      const lastSkill = (dashboardState.lastWorkflow?.skill || '').replace(/^\//, '');
+      const matchesStep = !lastSkill || lastSkill === expectedSkill;
+      const workflowId = dashboardState.lastWorkflow?.id && matchesStep
+        ? dashboardState.lastWorkflow.id
         : undefined;
 
-      // Fallback: if stored ID didn't find a workflow, check for any active workflows
-      // linked to this orchestration (handles race conditions and cancelled workflows)
-      if (!workflow || !['running', 'waiting_for_input'].includes(workflow.status)) {
-        const activeWorkflows = workflowService.findActiveByOrchestration(projectId, orchestrationId);
-        if (activeWorkflows.length > 0) {
-          workflow = activeWorkflows[0];
-          console.log(`[orchestration-runner] Found active workflow via orchestration link: ${workflow.id}`);
-        }
+      const workflow = workflowId ? workflowService.get(workflowId, projectId) : undefined;
+
+      // Auto-heal when a running workflow completes or fails
+      if (dashboardState.lastWorkflow?.status === 'running' &&
+          workflow &&
+          ['completed', 'failed', 'cancelled'].includes(workflow.status)) {
+        console.log(`${runnerLog(ctx)} Workflow status changed: running → ${workflow.status}`);
+        const healStatus = workflow.status === 'completed' ? 'completed' : 'failed';
+        await autoHealAfterWorkflow(projectPath, dashboardState.lastWorkflow.skill, healStatus);
       }
 
-      // Get specflow status (now direct file access, no subprocess - T021-T024)
-      const specflowStatus = getSpecflowStatus(projectPath);
+      const refreshedStepState = readOrchestrationStep(projectPath);
+      const decisionInput: DecisionInput = {
+        active: Boolean(dashboardState.active),
+        step: {
+          current: normalizeStepCurrent(refreshedStepState?.current, stepCurrent),
+          status: normalizeStepStatus(refreshedStepState?.status),
+        },
+        config: orchestration.config,
+        batches: orchestration.batches,
+        workflow: toWorkflowState(workflow),
+      };
 
-      // Get last file change time for staleness detection
-      const lastFileChangeTime = getLastFileChangeTime(projectPath);
+      const decision = getNextAction(decisionInput);
 
-      // DEBUG: Log state before decision
-      console.log(`[orchestration-runner] DEBUG: Making decision for ${orchestrationId}`);
-      console.log(`[orchestration-runner] DEBUG:   currentPhase=${orchestration.currentPhase}`);
-      console.log(`[orchestration-runner] DEBUG:   workflow.id=${workflow?.id ?? 'none'}, workflow.status=${workflow?.status ?? 'none'}`);
-      console.log(`[orchestration-runner] DEBUG:   specflowStatus.step=${specflowStatus?.orchestration?.step?.current ?? 'none'}, stepStatus=${specflowStatus?.orchestration?.step?.status ?? 'none'}`);
-
-      // Make decision using the G2-compliant pure decision module
-      let decision = makeDecisionWithAdapter(orchestration, workflow, specflowStatus, lastFileChangeTime);
-
-      // Track consecutive "continue" (unclear/waiting) decisions
-      // Only count as "unclear" if NO workflow is actively running
-      if (decision.action === 'continue') {
-        // If workflow is actively running, this is a CLEAR state - we know what's happening
-        // Don't count these as "unclear" checks that would trigger Claude analyzer
-        if (workflow && ['running', 'waiting_for_input'].includes(workflow.status)) {
-          ctx.consecutiveUnclearChecks = 0; // Reset - state is clear, just waiting
-        } else {
-          // No workflow running but we're not spawning one - this IS unclear
-          ctx.consecutiveUnclearChecks++;
-        }
-
-        // After MAX_UNCLEAR_CHECKS_BEFORE_CLAUDE consecutive TRULY unclear waits, spawn Claude analyzer
-        if (ctx.consecutiveUnclearChecks >= MAX_UNCLEAR_CHECKS_BEFORE_CLAUDE) {
-          decision = await analyzeStateWithClaude(ctx, orchestration, workflow, specflowStatus);
-          ctx.consecutiveUnclearChecks = 0; // Reset counter after Claude analysis
-        }
-      } else {
-        // Reset counter on any non-continue decision
-        ctx.consecutiveUnclearChecks = 0;
+      if (decision.action === 'idle') {
+        console.log(`${runnerLog(ctx)} No active orchestration, exiting runner loop`);
+        break;
       }
 
-      // Log decision
-      console.log(`[orchestration-runner] DEBUG:   DECISION: action=${decision.action}, skill=${decision.skill ?? 'none'}, reason=${decision.reason}`);
-      logDecision(ctx, orchestration, decision);
+      if (decision.action !== 'wait') {
+        await orchestrationService.logDecision(
+          ctx.projectPath,
+          ctx.orchestrationId,
+          decision.action,
+          decision.reason
+        );
+      }
 
-      // Execute decision
       await executeDecision(ctx, orchestration, decision, workflow);
 
       // T026: Event-driven wait - wakes on file events OR timeout
@@ -1470,12 +805,12 @@ export async function runOrchestration(
     }
 
     if (attempts >= maxPollingAttempts) {
-      console.error(`[orchestration-runner] Max polling attempts reached for ${orchestrationId}`);
-      orchestrationService.fail(projectPath, orchestrationId, 'Max polling attempts exceeded');
+      console.error(`${runnerLog(ctx)} Max polling attempts reached for ${orchestrationId}`);
+      await orchestrationService.fail(projectPath, orchestrationId, 'Max polling attempts exceeded');
     }
   } catch (error) {
-    console.error(`[orchestration-runner] Error in runner: ${error}`);
-    orchestrationService.fail(
+    console.error(`${runnerLog(ctx)} Error in runner: ${error}`);
+    await orchestrationService.fail(
       projectPath,
       orchestrationId,
       error instanceof Error ? error.message : 'Unknown error in orchestration runner'
@@ -1484,64 +819,19 @@ export async function runOrchestration(
     // Cleanup event subscription
     if (eventCleanup) {
       eventCleanup();
-      console.log(`[orchestration-runner] Unsubscribed from file events for ${projectId}`);
+      console.log(`${runnerLog(ctx)} Unsubscribed from file events for ${projectId}`);
     }
 
-    // G5.9: Clear runner state file when exiting
-    clearRunnerState(projectPath, orchestrationId);
-
-    activeRunners.delete(orchestrationId);
-    console.log(`[orchestration-runner] Runner stopped for ${orchestrationId}`);
+    // Only clean up runner state if this runner is still the active one.
+    // If superseded by a newer runner (force-restart), the new runner owns cleanup.
+    if (activeRunners.get(orchestrationId) === myGeneration) {
+      clearRunnerState(projectPath, orchestrationId);
+      activeRunners.delete(orchestrationId);
+      console.log(`${runnerLog(ctx)} Runner stopped for ${orchestrationId}`);
+    } else {
+      console.log(`${runnerLog(ctx)} Superseded runner exiting for ${orchestrationId}`);
+    }
   }
-}
-
-/**
- * Get the current workflow execution ID from orchestration state
- */
-function getCurrentWorkflowId(orchestration: OrchestrationExecution): string | undefined {
-  const { currentPhase, batches, executions } = orchestration;
-
-  switch (currentPhase) {
-    case 'design':
-      return executions.design;
-    case 'analyze':
-      return executions.analyze;
-    case 'implement':
-      const currentBatch = batches.items[batches.current];
-      return currentBatch?.workflowExecutionId;
-    case 'verify':
-      return executions.verify;
-    case 'merge':
-      return executions.merge;
-    default:
-      return undefined;
-  }
-}
-
-/**
- * Log a decision to the orchestration state
- */
-function logDecision(
-  ctx: RunnerContext,
-  orchestration: OrchestrationExecution,
-  decision: DecisionResult
-): void {
-  // Add to orchestration decision log
-  orchestration.decisionLog.push({
-    timestamp: new Date().toISOString(),
-    decision: decision.action,
-    reason: decision.reason,
-    data: {
-      currentPhase: orchestration.currentPhase,
-      batchIndex: orchestration.batches.current,
-      skill: decision.skill,
-    },
-  });
-
-  // Console log for debugging
-  console.log(
-    `[orchestration-runner] Decision: ${decision.action} - ${decision.reason}`
-  );
 }
 
 /**
@@ -1550,287 +840,66 @@ function logDecision(
 async function executeDecision(
   ctx: RunnerContext,
   orchestration: OrchestrationExecution,
-  decision: DecisionResult,
+  decision: Decision,
   currentWorkflow: WorkflowExecution | undefined
 ): Promise<void> {
   switch (decision.action) {
-    case 'continue':
-      // Nothing to do, just wait
+    case 'idle':
+    case 'wait':
       break;
 
-    case 'spawn_workflow': {
+    case 'spawn': {
       if (!decision.skill) {
-        console.error('[orchestration-runner] No skill specified for spawn_workflow');
+        console.error(`${runnerLog(ctx)} No skill specified for spawn action`);
         return;
       }
 
-      // Transition to next phase if needed
-      const nextPhase = getNextPhaseFromSkill(decision.skill);
-
-      // GUARD: Never transition OUT of implement phase while batches are incomplete
-      // This prevents Claude analyzer or other decisions from prematurely jumping to verify/merge
-      const completedBatchCount = orchestration.batches.items.filter(
-        (b) => b.status === 'completed' || b.status === 'healed'
-      ).length;
-      const allBatchesComplete = orchestration.batches.items.length > 0 &&
-        completedBatchCount === orchestration.batches.items.length;
-
-      if (orchestration.currentPhase === 'implement' && nextPhase !== 'implement') {
-        console.log(`[orchestration-runner] GUARD CHECK: implement→${nextPhase}, batches=${completedBatchCount}/${orchestration.batches.items.length}, allComplete=${allBatchesComplete}`);
-        if (!allBatchesComplete) {
-          console.log(`[orchestration-runner] BLOCKED: Cannot transition from implement to ${nextPhase} - batches incomplete`);
-          return;
-        }
-      }
-
-      if (nextPhase && nextPhase !== orchestration.currentPhase) {
-        // Before transitioning to implement, ensure batches are populated
-        // This handles the case when phase was opened during this orchestration
-        if (nextPhase === 'implement' && orchestration.batches.total === 0) {
-          const batchPlan = parseBatchesFromProject(ctx.projectPath, orchestration.config.batchSizeFallback);
-          if (batchPlan && batchPlan.totalIncomplete > 0) {
-            orchestrationService.updateBatches(ctx.projectPath, ctx.orchestrationId, batchPlan);
-            console.log(`[orchestration-runner] Populated batches: ${batchPlan.batches.length} batches, ${batchPlan.totalIncomplete} tasks`);
-          } else {
-            console.error('[orchestration-runner] No tasks found after design phase');
-            orchestrationService.fail(ctx.projectPath, ctx.orchestrationId, 'No tasks found after design phase completed');
-            return;
-          }
-        }
-
-        orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
-      }
-
-      // Use spawn intent pattern (G5.3-G5.7) to prevent race conditions
-      const workflow = await spawnWorkflowWithIntent(ctx, decision.skill);
+      const workflow = await spawnWorkflowWithIntent(ctx, decision.skill, decision.context);
       if (!workflow) {
-        // Spawn was skipped (intent exists or workflow already active)
         return;
       }
 
-      // Track cost from previous workflow
       if (currentWorkflow?.costUsd) {
-        orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
+        await orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
       }
       break;
     }
 
-    case 'spawn_batch': {
-      // DO NOT call completeBatch here - the batch hasn't been executed yet!
-      // spawn_batch is triggered when batch.status === 'pending' && no workflow
-      // We spawn a workflow for the CURRENT batch, not advance to next.
+    case 'transition': {
+      await orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
 
-      // Track cost from previous workflow (if any - for healing scenarios)
       if (currentWorkflow?.costUsd) {
-        orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
+        await orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
       }
 
-      // Get the current batch (which is pending)
-      const currentBatch = orchestration.batches.items[orchestration.batches.current];
-      if (!currentBatch || currentBatch.status !== 'pending') {
-        console.error(`[orchestration-runner] spawn_batch called but current batch is not pending: ${currentBatch?.status}`);
-        break;
-      }
-
-      // Check for pause between batches (only applies after first batch)
-      if (orchestration.batches.current > 0 && orchestration.config.pauseBetweenBatches) {
-        orchestrationService.pause(ctx.projectPath, ctx.orchestrationId);
-        console.log(`[orchestration-runner] Paused between batches (configured)`);
-        break;
-      }
-
-      // Build batch context for the CURRENT batch
-      const batchContext = `Execute only the "${currentBatch.section}" section (${currentBatch.taskIds.join(', ')}). Do NOT work on tasks from other sections.`;
-      const fullContext = orchestration.config.additionalContext
-        ? `${batchContext}\n\n${orchestration.config.additionalContext}`
-        : batchContext;
-
-      // Use spawn intent pattern (G5.3-G5.7) to prevent race conditions
-      const workflow = await spawnWorkflowWithIntent(ctx, 'flow.implement', fullContext);
-      if (workflow) {
-        console.log(`[orchestration-runner] Spawned batch ${orchestration.batches.current + 1}/${orchestration.batches.total}: "${currentBatch.section}" (linked to orchestration ${ctx.orchestrationId})`);
-      }
-      break;
-    }
-
-    case 'heal': {
-      const batch = orchestration.batches.items[orchestration.batches.current];
-      if (!batch) {
-        console.error('[orchestration-runner] No current batch to heal');
-        return;
-      }
-
-      // Increment heal attempt
-      orchestrationService.incrementHealAttempt(ctx.projectPath, ctx.orchestrationId);
-
-      // Attempt healing
-      const healResult = await attemptHeal(
-        ctx.projectPath,
-        batch.workflowExecutionId || '',
-        batch.section,
-        batch.taskIds,
-        currentWorkflow?.sessionId,
-        orchestration.config.budget.healingBudget
-      );
-
-      // Track healing cost
-      orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, healResult.cost);
-
-      console.log(`[orchestration-runner] Heal result: ${getHealingSummary(healResult)}`);
-
-      if (healResult.success && healResult.result?.status === 'fixed') {
-        // Healing successful - mark batch as healed and continue
-        orchestrationService.healBatch(
-          ctx.projectPath,
-          ctx.orchestrationId,
-          healResult.sessionId || ''
-        );
-        orchestrationService.completeBatch(ctx.projectPath, ctx.orchestrationId);
+      if (decision.skill) {
+        await spawnWorkflowWithIntent(ctx, decision.skill, decision.context);
       } else {
-        // Healing failed
-        const canRetry = orchestrationService.canHealBatch(ctx.projectPath, ctx.orchestrationId);
-        if (!canRetry) {
-          orchestrationService.fail(
-            ctx.projectPath,
-            ctx.orchestrationId,
-            `Batch healing failed after max attempts: ${healResult.errorMessage || 'Unknown error'}`
-          );
-        }
+        await writeDashboardState(ctx.projectPath, { lastWorkflow: null });
       }
+
+      console.log(`${runnerLog(ctx)} Transitioned to ${decision.nextStep ?? 'next phase'}`);
       break;
     }
 
     case 'wait_merge': {
-      // Track cost from verify workflow
       if (currentWorkflow?.costUsd) {
-        orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
+        await orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
       }
 
-      // Transition to merge phase but in waiting status
-      orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
-      console.log(`[orchestration-runner] Waiting for user to trigger merge`);
-      break;
-    }
-
-    case 'complete': {
-      // Track final cost
-      if (currentWorkflow?.costUsd) {
-        orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
-      }
-
-      // Mark complete
-      const finalOrchestration = orchestrationService.get(ctx.projectPath, ctx.orchestrationId);
-      if (finalOrchestration) {
-        finalOrchestration.status = 'completed';
-        finalOrchestration.completedAt = new Date().toISOString();
-        finalOrchestration.decisionLog.push({
-          timestamp: new Date().toISOString(),
-          decision: 'complete',
-          reason: 'All phases completed successfully',
-        });
-      }
-      console.log(`[orchestration-runner] Orchestration complete!`);
-      break;
-    }
-
-    case 'needs_attention': {
-      // Set orchestration to needs_attention instead of failing
-      // This allows the user to decide what to do (retry, skip, abort)
-      orchestrationService.setNeedsAttention(
-        ctx.projectPath,
-        ctx.orchestrationId,
-        decision.errorMessage || 'Unknown issue',
-        decision.recoveryOptions || ['retry', 'abort'],
-        decision.failedWorkflowId
-      );
-      console.log(`[orchestration-runner] Orchestration needs attention: ${decision.errorMessage}`);
-      break;
-    }
-
-    case 'fail': {
-      orchestrationService.fail(ctx.projectPath, ctx.orchestrationId, decision.errorMessage || 'Unknown error');
-      console.error(`[orchestration-runner] Orchestration failed: ${decision.errorMessage}`);
-      break;
-    }
-
-    // =========================================================================
-    // G2 Compliance: New action types from pure decision module
-    // =========================================================================
-
-    case 'transition': {
-      // Transition to next step (G2.3)
-      if (!decision.skill) {
-        console.error('[orchestration-runner] No skill specified for transition');
-        return;
-      }
-      orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
-      const workflow = await spawnWorkflowWithIntent(ctx, decision.skill);
-      if (currentWorkflow?.costUsd) {
-        orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
-      }
-      console.log(`[orchestration-runner] Transitioned to ${decision.nextStep}`);
-      break;
-    }
-
-    case 'advance_batch': {
-      // Move to next batch (G2.7, G2.8) - but first verify tasks were actually completed
-      const currentBatch = orchestration.batches.items[orchestration.batches.current];
-      if (currentBatch) {
-        // Verify which tasks are actually complete in tasks.md
-        const { completedTasks, incompleteTasks } = verifyBatchTaskCompletion(
-          ctx.projectPath,
-          currentBatch.taskIds
-        );
-
-        console.log(`[orchestration-runner] Batch ${orchestration.batches.current + 1} verification: ${completedTasks.length}/${currentBatch.taskIds.length} tasks complete`);
-
-        if (incompleteTasks.length > 0) {
-          // Tasks still incomplete - re-spawn the batch workflow to continue
-          console.log(`[orchestration-runner] Batch has ${incompleteTasks.length} incomplete tasks, re-spawning workflow`);
-          orchestrationService.logDecision(
-            ctx.projectPath,
-            ctx.orchestrationId,
-            'batch_incomplete',
-            `Batch ${orchestration.batches.current + 1} still has ${incompleteTasks.length} incomplete tasks: ${incompleteTasks.join(', ')}`
-          );
-
-          // Re-spawn the batch workflow to continue working on incomplete tasks
-          const batchContext = `Continue working on incomplete tasks in batch "${currentBatch.section}": ${incompleteTasks.join(', ')}`;
-          const workflow = await spawnWorkflowWithIntent(
-            ctx,
-            'flow.implement',
-            orchestration.config.additionalContext
-              ? `${batchContext}\n\n${orchestration.config.additionalContext}`
-              : batchContext
-          );
-
-          if (workflow) {
-            orchestrationService.linkWorkflowExecution(ctx.projectPath, ctx.orchestrationId, workflow.id);
-          }
-
-          // Don't advance - stay on current batch
-          break;
-        }
-      }
-
-      // All tasks in batch are complete - advance to next batch
-      orchestrationService.completeBatch(ctx.projectPath, ctx.orchestrationId);
-      if (currentWorkflow?.costUsd) {
-        orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
-      }
-      console.log(`[orchestration-runner] Batch complete, advancing to batch ${decision.batchIndex}`);
+      await orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
+      console.log(`${runnerLog(ctx)} Waiting for user to trigger merge`);
       break;
     }
 
     case 'initialize_batches': {
-      // Initialize batch tracking (G2.1)
       const batchPlan = parseBatchesFromProject(ctx.projectPath, orchestration.config.batchSizeFallback);
       if (batchPlan && batchPlan.totalIncomplete > 0) {
-        orchestrationService.updateBatches(ctx.projectPath, ctx.orchestrationId, batchPlan);
-        console.log(`[orchestration-runner] Initialized batches: ${batchPlan.batches.length} batches, ${batchPlan.totalIncomplete} tasks`);
+        await orchestrationService.updateBatches(ctx.projectPath, ctx.orchestrationId, batchPlan);
+        console.log(`${runnerLog(ctx)} Initialized batches: ${batchPlan.batches.length} batches, ${batchPlan.totalIncomplete} tasks`);
       } else {
-        console.error('[orchestration-runner] No tasks found to create batches');
-        orchestrationService.setNeedsAttention(
+        console.error(`${runnerLog(ctx)} No tasks found to create batches`);
+        await orchestrationService.setNeedsAttention(
           ctx.projectPath,
           ctx.orchestrationId,
           'No tasks found to create batches',
@@ -1840,115 +909,80 @@ async function executeDecision(
       break;
     }
 
-    case 'force_step_complete': {
-      // Force step.status to complete when all batches done (G2.2)
-      // First verify all tasks are actually complete in tasks.md
-      const totalIncomplete = getTotalIncompleteTasks(ctx.projectPath);
+    case 'advance_batch': {
+      await orchestrationService.completeBatch(ctx.projectPath, ctx.orchestrationId);
 
-      if (totalIncomplete !== null && totalIncomplete > 0) {
-        // Tasks still incomplete - don't transition, re-initialize batches
-        console.log(`[orchestration-runner] Still ${totalIncomplete} incomplete tasks, re-initializing batches`);
-        orchestrationService.logDecision(
+      if (currentWorkflow?.costUsd) {
+        await orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, currentWorkflow.costUsd);
+      }
+
+      if (decision.pauseAfterAdvance) {
+        await orchestrationService.pause(ctx.projectPath, ctx.orchestrationId);
+        console.log(`${runnerLog(ctx)} Paused between batches`);
+      } else {
+        console.log(`${runnerLog(ctx)} Batch complete, advancing to next batch`);
+      }
+      break;
+    }
+
+    case 'heal_batch': {
+      const batchIndex = decision.batchIndex ?? orchestration.batches.current;
+      const batch = orchestration.batches.items[batchIndex];
+      if (!batch) {
+        console.error(`${runnerLog(ctx)} No batch found to heal`);
+        return;
+      }
+
+      await orchestrationService.incrementHealAttempt(ctx.projectPath, ctx.orchestrationId);
+
+      const healResult = await attemptHeal(
+        ctx.projectPath,
+        batch.workflowExecutionId || '',
+        batch.section,
+        batch.taskIds,
+        currentWorkflow?.sessionId,
+        orchestration.config.budget.healingBudget
+      );
+
+      await orchestrationService.addCost(ctx.projectPath, ctx.orchestrationId, healResult.cost);
+
+      console.log(`${runnerLog(ctx)} Heal result: ${getHealingSummary(healResult)}`);
+
+      if (healResult.success && healResult.result?.status === 'fixed') {
+        await orchestrationService.healBatch(
           ctx.projectPath,
           ctx.orchestrationId,
-          'tasks_incomplete',
-          `Cannot mark implement complete: ${totalIncomplete} tasks still incomplete`
+          healResult.sessionId || ''
         );
-
-        // Re-parse and update batches with remaining incomplete tasks
-        const batchPlan = parseBatchesFromProject(ctx.projectPath, orchestration.config.batchSizeFallback);
-        if (batchPlan && batchPlan.totalIncomplete > 0) {
-          orchestrationService.updateBatches(ctx.projectPath, ctx.orchestrationId, batchPlan);
-          console.log(`[orchestration-runner] Re-initialized batches: ${batchPlan.batches.length} batches, ${batchPlan.totalIncomplete} tasks`);
+        await orchestrationService.completeBatch(ctx.projectPath, ctx.orchestrationId);
+      } else {
+        const canRetry = orchestrationService.canHealBatch(ctx.projectPath, ctx.orchestrationId);
+        if (!canRetry) {
+          await orchestrationService.fail(
+            ctx.projectPath,
+            ctx.orchestrationId,
+            `Batch healing failed after max attempts: ${healResult.errorMessage || 'Unknown error'}`
+          );
         }
-        break;
-      }
-
-      // All tasks complete - transition to next phase
-      orchestrationService.transitionToNextPhase(ctx.projectPath, ctx.orchestrationId);
-      console.log(`[orchestration-runner] All tasks complete, transitioning to next phase`);
-      break;
-    }
-
-    case 'pause': {
-      // Pause orchestration (G2.6)
-      orchestrationService.pause(ctx.projectPath, ctx.orchestrationId);
-      console.log(`[orchestration-runner] Paused: ${decision.reason}`);
-      break;
-    }
-
-    case 'recover_stale': {
-      // Recover from stale workflow (G1.5, G3.7-G3.10)
-      console.log(`[orchestration-runner] Workflow appears stale: ${decision.reason}`);
-      orchestrationService.setNeedsAttention(
-        ctx.projectPath,
-        ctx.orchestrationId,
-        `Workflow stale: ${decision.reason}`,
-        ['retry', 'skip', 'abort'],
-        decision.workflowId
-      );
-      break;
-    }
-
-    case 'recover_failed': {
-      // Recover from failed step/workflow (G1.13, G1.14, G2.10, G3.11-G3.16)
-      console.log(`[orchestration-runner] Step/batch failed: ${decision.reason}`);
-      orchestrationService.setNeedsAttention(
-        ctx.projectPath,
-        ctx.orchestrationId,
-        decision.errorMessage || decision.reason,
-        decision.recoveryOptions || ['retry', 'skip', 'abort'],
-        decision.failedWorkflowId
-      );
-      break;
-    }
-
-    case 'wait_with_backoff': {
-      // Wait with exponential backoff (G1.7)
-      console.log(`[orchestration-runner] Waiting with backoff: ${decision.reason}`);
-      // The backoff is handled by the main loop, not here
-      break;
-    }
-
-    case 'wait_user_gate': {
-      // Wait for USER_GATE confirmation (G1.8)
-      console.log(`[orchestration-runner] Waiting for USER_GATE confirmation`);
-      // Update orchestration status to indicate waiting for user gate
-      const orchToUpdate = orchestrationService.get(ctx.projectPath, ctx.orchestrationId);
-      if (orchToUpdate) {
-        orchToUpdate.status = 'waiting_user_gate' as OrchestrationExecution['status'];
       }
       break;
     }
 
-    default: {
-      // Unknown action - log error but don't crash
-      console.error(`[orchestration-runner] Unknown decision action: ${decision.action}`);
+    case 'needs_attention': {
+      await orchestrationService.setNeedsAttention(
+        ctx.projectPath,
+        ctx.orchestrationId,
+        decision.reason,
+        ['retry', 'skip', 'abort']
+      );
+      console.log(`${runnerLog(ctx)} Orchestration needs attention: ${decision.reason}`);
       break;
     }
+
+    default:
+      console.error(`${runnerLog(ctx)} Unknown decision action: ${decision.action}`);
+      break;
   }
-}
-
-/**
- * Get phase from skill name
- */
-function getNextPhaseFromSkill(skill: string): OrchestrationPhase | null {
-  const skillName = skill.split(' ')[0].replace('flow.', '');
-  const phaseMap: Record<string, OrchestrationPhase> = {
-    design: 'design',
-    analyze: 'analyze',
-    implement: 'implement',
-    verify: 'verify',
-    merge: 'merge',
-  };
-  return phaseMap[skillName] || null;
-}
-
-/**
- * Sleep helper
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // =============================================================================
@@ -1967,7 +1001,7 @@ export async function resumeOrchestration(
   if (!projectPath) return;
 
   // Resume via orchestration service
-  orchestrationService.resume(projectPath, orchestrationId);
+  await orchestrationService.resume(projectPath, orchestrationId);
 
   // Restart the runner
   runOrchestration(projectId, orchestrationId).catch(console.error);
@@ -2002,11 +1036,18 @@ export async function triggerMerge(
     writeSpawnIntent(projectPath, orchestrationId, 'flow.merge');
 
     // Update status via orchestration service
-    orchestrationService.triggerMerge(projectPath, orchestrationId);
+    await orchestrationService.triggerMerge(projectPath, orchestrationId);
 
     // Spawn merge workflow
     const workflow = await workflowService.start(projectId, 'flow.merge', undefined, undefined, orchestrationId);
-    orchestrationService.linkWorkflowExecution(projectPath, orchestrationId, workflow.id);
+    await orchestrationService.linkWorkflowExecution(projectPath, orchestrationId, workflow.id);
+    await writeDashboardState(projectPath, {
+      lastWorkflow: {
+        id: workflow.id,
+        skill: 'flow.merge',
+        status: 'running',
+      },
+    });
 
     // Restart the runner to handle merge completion
     runOrchestration(projectId, orchestrationId).catch(console.error);
@@ -2020,7 +1061,7 @@ export async function triggerMerge(
  * Check if a runner is active for an orchestration
  */
 export function isRunnerActive(orchestrationId: string): boolean {
-  return activeRunners.get(orchestrationId) === true;
+  return activeRunners.has(orchestrationId);
 }
 
 /**

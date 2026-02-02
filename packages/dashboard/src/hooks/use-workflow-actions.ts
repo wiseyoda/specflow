@@ -24,10 +24,18 @@ import {
   requestNotificationPermission,
   hasRequestedPermission,
 } from '@/lib/notifications';
+import { toastWarning } from '@/lib/toast-helpers';
 
 interface StartWorkflowOptions {
   /** Optional session ID to resume an existing session */
   resumeSessionId?: string;
+}
+
+interface SubmitAnswersOptions {
+  /** Execution ID (preferred) */
+  executionId?: string;
+  /** Alternative: session ID for lookup */
+  sessionId?: string;
 }
 
 interface UseWorkflowActionsResult {
@@ -35,8 +43,8 @@ interface UseWorkflowActionsResult {
   start: (skill: string, options?: StartWorkflowOptions) => Promise<void>;
   /** Cancel the current workflow */
   cancel: (executionId?: string, sessionId?: string) => Promise<void>;
-  /** Submit answers to a waiting workflow */
-  submitAnswers: (executionId: string, answers: Record<string, string>) => Promise<void>;
+  /** Submit answers to a waiting workflow. Can use executionId or sessionId for lookup. */
+  submitAnswers: (options: SubmitAnswersOptions, answers: Record<string, string>) => Promise<void>;
   /** True while a workflow action is in progress */
   isSubmitting: boolean;
   /** Error from last action */
@@ -76,6 +84,9 @@ async function cancelWorkflowApi(
   executionId?: string,
   sessionId?: string
 ): Promise<void> {
+  if (!executionId && !sessionId) {
+    return;
+  }
   const params = new URLSearchParams();
   if (executionId) params.set('id', executionId);
   if (sessionId) params.set('sessionId', sessionId);
@@ -85,26 +96,45 @@ async function cancelWorkflowApi(
     method: 'POST',
   });
 
+  const data = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
     // Not found is okay - workflow already cancelled/completed
     if (!data.error?.includes('not found')) {
       throw new Error(data.error || `Failed to cancel workflow: ${res.status}`);
     }
+    return;
+  }
+
+  if (data.warning) {
+    toastWarning('Cancellation warning', data.warning);
   }
 }
 
 /**
  * Submit answers to a waiting workflow
+ * Supports either executionId (preferred) or sessionId+projectId lookup
  */
 async function submitAnswersApi(
-  executionId: string,
+  projectId: string,
+  options: SubmitAnswersOptions,
   answers: Record<string, string>
 ): Promise<void> {
+  const body: Record<string, unknown> = { answers };
+
+  if (options.executionId) {
+    body.id = options.executionId;
+  } else if (options.sessionId) {
+    body.sessionId = options.sessionId;
+    body.projectId = projectId;
+  } else {
+    throw new Error('Either executionId or sessionId must be provided');
+  }
+
   const res = await fetch('/api/workflow/answer', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: executionId, answers }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -170,12 +200,16 @@ export function useWorkflowActions(projectId: string | null): UseWorkflowActions
   );
 
   const submitAnswers = useCallback(
-    async (executionId: string, answers: Record<string, string>) => {
+    async (options: SubmitAnswersOptions, answers: Record<string, string>) => {
+      if (!projectId) {
+        throw new Error('No project selected');
+      }
+
       setIsSubmitting(true);
       setError(null);
 
       try {
-        await submitAnswersApi(executionId, answers);
+        await submitAnswersApi(projectId, options, answers);
       } catch (err) {
         const e = err instanceof Error ? err : new Error('Unknown error');
         setError(e);
@@ -184,7 +218,7 @@ export function useWorkflowActions(projectId: string | null): UseWorkflowActions
         setIsSubmitting(false);
       }
     },
-    []
+    [projectId]
   );
 
   return {

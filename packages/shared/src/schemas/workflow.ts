@@ -78,7 +78,7 @@ export type QuestionQueue = z.infer<typeof QuestionQueueSchema>;
 export const WorkflowStatusSchema = z.enum([
   'idle',
   'running',
-  'waiting_for_answer',
+  'waiting_for_input',
   'completed',
   'failed',
 ]);

@@ -9,7 +9,61 @@ interface MarkdownContentProps {
   className?: string;
 }
 
+/**
+ * Check if content contains box-drawing characters (ASCII art tables).
+ * These need monospace rendering, not markdown parsing.
+ */
+function containsBoxDrawing(content: string): boolean {
+  // Box drawing characters: ─ │ ┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼ and their variants
+  return /[─│┌┐└┘├┤┬┴┼╭╮╯╰═║╔╗╚╝╠╣╦╩╬]/.test(content);
+}
+
+/**
+ * Preprocess content to fix malformed markdown tables.
+ * Detects rows with pipe characters and ensures separator rows have correct column count.
+ */
+function preprocessMarkdown(content: string): string {
+  const lines = content.split('\n');
+  const result: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Check if this is a malformed separator row (only has one separator like |---|)
+    if (/^\|[\s-]+\|$/.test(trimmed) || /^\|-+\|$/.test(trimmed)) {
+      // Look at previous line to get column count
+      const prevLine = result[result.length - 1]?.trim() || '';
+      if (prevLine.startsWith('|') && prevLine.endsWith('|')) {
+        // Count columns in previous line
+        const cols = (prevLine.match(/\|/g) || []).length - 1;
+        if (cols > 1) {
+          // Generate proper separator with correct column count
+          const separator = '| ' + Array(cols).fill('---').join(' | ') + ' |';
+          result.push(separator);
+          continue;
+        }
+      }
+    }
+
+    result.push(line);
+  }
+
+  return result.join('\n');
+}
+
 export function MarkdownContent({ content, className }: MarkdownContentProps) {
+  // If content contains box-drawing characters, render as monospace preformatted text
+  if (containsBoxDrawing(content)) {
+    return (
+      <pre className={cn('font-mono text-xs text-zinc-400 whitespace-pre-wrap overflow-x-auto', className)}>
+        {content}
+      </pre>
+    );
+  }
+
+  const processedContent = preprocessMarkdown(content);
+
   return (
     <div className={cn('prose prose-invert prose-sm max-w-none', className)}>
       <ReactMarkdown
@@ -124,7 +178,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
           ),
         }}
       >
-        {content}
+        {processedContent}
       </ReactMarkdown>
     </div>
   );

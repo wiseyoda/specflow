@@ -10,12 +10,8 @@ import { getProjectContext, resolveFeatureDir, getMissingArtifacts } from '../li
 import { runHealthCheck, type HealthIssue } from '../lib/health.js';
 import { findProjectRoot, pathExists, getStatePath, getMemoryDir, getTemplatesDir, getSystemTemplatesDir, getHistoryDir, getSpecifyDir } from '../lib/paths.js';
 import { handleError, NotFoundError } from '../lib/errors.js';
+import { STEP_INDEX_MAP } from '@specflow/shared';
 import type { OrchestrationState } from '@specflow/shared';
-
-/**
- * Step index mapping for validation
- */
-const STEP_INDEX_MAP: Record<string, number> = { design: 0, analyze: 1, implement: 2, verify: 3 };
 
 /**
  * Gate types
@@ -415,15 +411,16 @@ async function applyFixes(
           // Fix step.index if it's a string
           if (step && typeof step.index === 'string') {
             const stepCurrent = step.current as string | undefined;
-            const correctIndex = stepCurrent && STEP_INDEX_MAP[stepCurrent] !== undefined
-              ? STEP_INDEX_MAP[stepCurrent]
+            const stepKey = stepCurrent && stepCurrent in STEP_INDEX_MAP
+              ? (stepCurrent as keyof typeof STEP_INDEX_MAP)
               : null;
+            const correctIndex = stepKey ? STEP_INDEX_MAP[stepKey] : null;
             step.index = correctIndex;
             fixCount++;
           }
 
           // Fix step.current if invalid
-          const validSteps = ['design', 'analyze', 'implement', 'verify'];
+          const validSteps = Object.keys(STEP_INDEX_MAP);
           if (step && step.current && !validSteps.includes(step.current as string)) {
             step.current = null;
             fixCount++;

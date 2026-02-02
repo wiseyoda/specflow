@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { getSpecifyDir, pathExists } from './paths.js';
+import { phaseSlug } from './phases.js';
 import type { Phase } from './roadmap.js';
 
 /**
@@ -23,7 +24,7 @@ export function getPhaseFilePath(
   phaseName: string,
   projectPath: string = process.cwd(),
 ): string {
-  const slug = phaseName.toLowerCase().replace(/\s+/g, '-');
+  const slug = phaseSlug(phaseName);
   return join(getPhasesDir(projectPath), `${phaseNumber}-${slug}.md`);
 }
 

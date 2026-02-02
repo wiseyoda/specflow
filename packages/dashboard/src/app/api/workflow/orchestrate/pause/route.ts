@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     }
 
     // Pause orchestration (this kills the current workflow process)
-    const orchestration = orchestrationService.pause(projectPath, orchestrationId);
+    const orchestration = await orchestrationService.pause(projectPath, orchestrationId);
     if (!orchestration) {
       return NextResponse.json(
         { error: `Orchestration not found or not running: ${orchestrationId}` },

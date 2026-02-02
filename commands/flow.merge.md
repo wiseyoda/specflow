@@ -185,7 +185,7 @@ FEATURE_DIR=$(echo "$STATUS" | jq -r '.context.featureDir')
 Launch 4 parallel Task agents:
 
 Agent 1 (Status): Verify orchestration status
-  - Check step.current == "verified" (from status already obtained)
+  - Check step.current == "verify" (from status already obtained)
   - Check step.status == "complete"
   → Return: verified status confirmation
 

@@ -4,7 +4,7 @@ import { answerCommand } from './answer.js';
 import { workflowStatusCommand } from './status.js';
 
 /**
- * Workflow command - spawn Claude CLI to execute SpecFlow skills
+ * Workflow command - execute SpecFlow skills via an agent provider
  *
  * Usage:
  *   specflow workflow design            # Run /flow.design skill
@@ -13,7 +13,7 @@ import { workflowStatusCommand } from './status.js';
  *   specflow workflow status            # Check running workflow status
  */
 export const workflowCommand = new Command('workflow')
-  .description('Execute SpecFlow skills via Claude CLI');
+  .description('Execute SpecFlow skills via agent provider');
 
 // Add subcommands
 workflowCommand.addCommand(designCommand);

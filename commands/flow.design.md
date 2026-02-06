@@ -29,6 +29,13 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 **Note**: Use `specflow` directly, NOT `npx specflow`. It's a local CLI at `~/.claude/specflow-system/bin/`.
 
+## Agent Teams Mode (Opus 4.6)
+
+- Prefer Agent Teams for parallel worker sections when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+- Use scoped project agents from `.claude/agents/` for reusable roles when available.
+- If teams are unavailable, unsupported, or fail mid-run, fall back to Task agents using the same scopes.
+- Preserve existing safety constraints (unique write targets, synchronization barrier, timeout, and failure thresholds).
+
 ## Prerequisites
 
 | Requirement | Check Command | If Missing |
@@ -179,7 +186,13 @@ These goals will be tracked through spec → plan → tasks to ensure nothing is
 **Use parallel sub-agents** to gather all context simultaneously (timeout: 180s each):
 
 ```
-Launch 3 parallel Task agents (subagent_type: Explore):
+Launch 3 parallel workers (Agent Teams preferred; Task agents fallback) (subagent_type: Explore):
+
+Team-mode role hints:
+- `specflow-codebase-scanner` for Agent 1
+- `specflow-memory-checker` for Agent 2
+- `specflow-researcher` for Agent 3
+- Parent orchestrator uses `specflow-coordinator` to aggregate findings
 
 Agent 1 (Codebase): Search files, functions, patterns related to change
   - Scope: src/, relevant directories
@@ -394,7 +407,11 @@ Mark unknowns as "NEEDS RESEARCH".
 ```
 For N unknowns marked "NEEDS RESEARCH":
 
-Launch N parallel Task agents (subagent_type: Explore):
+Launch N parallel workers (Agent Teams preferred; Task agents fallback) (subagent_type: Explore):
+
+Team-mode role hints:
+- Use `specflow-researcher` for all unknown-research workers
+- Parent orchestrator uses `specflow-coordinator` to consolidate decisions
 
 Agent U1: Research unknown 1 (e.g., "best approach for X")
   - Web search for current best practices
@@ -544,7 +561,11 @@ Check `tasks.total` > 0. If tasks.total is 0 but you wrote tasks, the format is 
 **Use parallel sub-agents** to generate both checklists simultaneously:
 
 ```
-Launch 2 parallel Task agents:
+Launch 2 parallel workers (Agent Teams preferred; Task agents fallback):
+
+Team-mode role hints:
+- `specflow-quality-auditor` for checklist quality checks
+- `specflow-doc-assembler` for final checklist formatting
 
 Agent 1 (Implementation): Create checklists/implementation.md
   - Use template: .specify/templates/implementation-checklist-template.md
@@ -637,7 +658,7 @@ See `.specify/templates/parallel-execution-guide.md` for the complete standardiz
 - Define clear scope for each agent (no overlapping write targets)
 
 **2. Execution**:
-- Launch agents simultaneously using Task tool with `subagent_type: Explore`
+- Launch agents simultaneously using Agent Teams (preferred) or Task tool (fallback) with `subagent_type: Explore`
 - Set timeout: **180 seconds** per agent (standardized)
 - Agents work independently on UNIQUE output files
 

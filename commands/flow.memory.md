@@ -21,6 +21,13 @@ $ARGUMENTS
 | `--archive <phase\|all>` | Review archived phase(s) for memory promotion |
 | `--archive <phase\|all> --delete` | Review AND delete archives after promotion |
 
+## Agent Teams Mode (Opus 4.6)
+
+- Prefer Agent Teams for parallel worker sections when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+- Use scoped project agents from `.claude/agents/` for reusable roles when available.
+- If teams are unavailable, unsupported, or fail mid-run, fall back to Task agents using the same scopes.
+- Preserve existing safety constraints (unique write targets, synchronization barrier, timeout, and failure thresholds).
+
 ## Prerequisites
 
 **Must be on clean main branch:**

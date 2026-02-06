@@ -31,6 +31,13 @@ $ARGUMENTS
 | `status` | Show status only, don't execute |
 | `skip-to [step]` | Skip to step (design, analyze, implement, verify) |
 
+## Agent Teams Mode (Opus 4.6)
+
+- Prefer Agent Teams for parallel worker sections within downstream commands (`/flow.design`, `/flow.analyze`, `/flow.implement`, `/flow.verify`, `/flow.merge`) when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+- Use scoped project agents from `.claude/agents/` for reusable roles when available.
+- If teams are unavailable, unsupported, or fail mid-run, downstream commands must fall back to Task agents using the same scopes.
+- Preserve existing safety constraints (unique write targets, synchronization barrier, timeout, and failure thresholds).
+
 ## Goal
 
 Execute the complete SpecFlow development workflow with:

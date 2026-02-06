@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import type { WorkflowEvent } from '@specflow/shared';
 import { createClaudeRunner, type WorkflowOutput } from '../../lib/claude-runner.js';
-import { validateClaudeCli } from '../../lib/claude-validator.js';
+import { resolveAgentProvider, validateAgentCli } from '../../lib/claude-validator.js';
 import { addQuestion } from '../../lib/question-queue.js';
 import { output } from '../../lib/output.js';
 import { findProjectRoot } from '../../lib/paths.js';
@@ -31,10 +31,11 @@ interface DesignOutput {
  * Design command action
  */
 export async function designAction(
-  options: { phase?: string; json?: boolean }
+  options: { phase?: string; json?: boolean; provider?: string }
 ): Promise<void> {
   const projectPath = findProjectRoot() || process.cwd();
   const json = options.json || false;
+  const provider = resolveAgentProvider(options.provider);
 
   // Validate phase option if provided
   if (options.phase && !VALID_PHASES.includes(options.phase)) {
@@ -47,8 +48,8 @@ export async function designAction(
     process.exit(1);
   }
 
-  // Validate Claude CLI
-  const validation = validateClaudeCli();
+  // Validate selected agent provider CLI
+  const validation = validateAgentCli(provider);
   if (!validation.available) {
     if (json) {
       console.log(JSON.stringify({ success: false, status: 'error', error: validation.error } as DesignOutput, null, 2));
@@ -95,6 +96,7 @@ export async function designAction(
   if (!json) {
     // Three-Line Rule compliant header
     console.log(chalk.blue('Running /flow.design...'));
+    console.log(`Provider: ${provider}`);
     console.log(`Phase: ${options.phase || 'all'}`);
     console.log('');
   }
@@ -103,6 +105,7 @@ export async function designAction(
     cwd: projectPath,
     skill: '/flow.design',
     phase: options.phase,
+    provider,
   });
 
   // Build output summary
@@ -186,8 +189,9 @@ function formatEventForHuman(event: WorkflowEvent): void {
  * Create the design subcommand
  */
 export const designCommand = new Command('design')
-  .description('Run /flow.design skill via Claude CLI')
+  .description('Run /flow.design skill via configured agent provider')
   .option('--json', 'Output as JSON')
+  .option('--provider <provider>', 'Agent provider: claude or codex')
   .option(
     '--phase <name>',
     `Run specific sub-phase: ${VALID_PHASES.join(', ')}`

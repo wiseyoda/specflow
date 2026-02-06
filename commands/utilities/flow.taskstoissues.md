@@ -11,6 +11,12 @@ $ARGUMENTS
 
 You **MUST** consider the user input before proceeding (if not empty).
 
+## Agent Teams Mode (Opus 4.6)
+
+- This command is mostly API orchestration and is typically sequential.
+- If parallel issue preparation is introduced, prefer Agent Teams when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, then fall back to Task agents.
+- Preserve existing safety constraints (unique write targets, synchronization barrier, timeout, and failure thresholds).
+
 ## Outline
 
 1. Run `specflow context --json --require-tasks --include-tasks` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").

@@ -27,6 +27,7 @@ RESET='\033[0m'
 SPECFLOW_HOME="${HOME}/.claude/specflow-system"
 SPECFLOW_BIN="${SPECFLOW_HOME}/bin"
 SPECFLOW_COMMANDS="${HOME}/.claude/commands"
+SPECFLOW_AGENTS="${HOME}/.claude/agents"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log_info() { echo -e "${BLUE}INFO${RESET}: $*"; }
@@ -240,6 +241,59 @@ install_specflow() {
     fi
   fi
 
+  # Copy project-scoped agents (with backup if upgrading)
+  if [[ -d "${REPO_DIR}/.claude/agents" ]]; then
+    log_info "Installing agents..."
+    mkdir -p "${SPECFLOW_AGENTS}"
+
+    if [[ "$upgrade" == "true" ]]; then
+      local backup_agents_dir="${HOME}/.specflow/backups/agents-$(date +%Y%m%d%H%M%S)"
+      mkdir -p "$backup_agents_dir"
+      cp "${SPECFLOW_AGENTS}/specflow-"*.md "$backup_agents_dir/" 2>/dev/null || true
+      log_info "Backed up existing agents to $backup_agents_dir"
+    fi
+
+    # Build list of valid agent files from source (specflow-*.md naming)
+    local valid_agents=()
+    for agent in "${REPO_DIR}/.claude/agents/"specflow-*.md; do
+      if [[ -f "$agent" ]]; then
+        valid_agents+=("$(basename "$agent")")
+      fi
+    done
+
+    # Copy agent files from source
+    for agent in "${REPO_DIR}/.claude/agents/"specflow-*.md; do
+      if [[ -f "$agent" ]]; then
+        local filename=$(basename "$agent")
+        cp "$agent" "${SPECFLOW_AGENTS}/${filename}"
+      fi
+    done
+
+    # Clean up stale SpecFlow agents
+    if [[ "$upgrade" == "true" ]]; then
+      local stale_agent_count=0
+      for installed in "${SPECFLOW_AGENTS}/"specflow-*.md; do
+        if [[ -f "$installed" ]]; then
+          local filename=$(basename "$installed")
+          local is_valid=false
+          for valid in "${valid_agents[@]}"; do
+            if [[ "$filename" == "$valid" ]]; then
+              is_valid=true
+              break
+            fi
+          done
+          if [[ "$is_valid" == "false" ]]; then
+            rm -f "$installed"
+            ((stale_agent_count++)) || true
+          fi
+        fi
+      done
+      if [[ $stale_agent_count -gt 0 ]]; then
+        log_info "Removed $stale_agent_count stale agent file(s)"
+      fi
+    fi
+  fi
+
   # Copy QUESTION_CATEGORIES
   if [[ -f "${REPO_DIR}/QUESTION_CATEGORIES.md" ]]; then
     cp "${REPO_DIR}/QUESTION_CATEGORIES.md" "${SPECFLOW_HOME}/"
@@ -298,6 +352,7 @@ uninstall_specflow() {
   mkdir -p "$backup_dir"
   mv "${SPECFLOW_COMMANDS}/flow."*.md "$backup_dir/" 2>/dev/null || true
   mv "${SPECFLOW_COMMANDS}/specflow."*.md "$backup_dir/" 2>/dev/null || true
+  mv "${SPECFLOW_AGENTS}/specflow-"*.md "$backup_dir/" 2>/dev/null || true
   log_success "Moved commands to $backup_dir"
 
   log_warn "PATH entry in shell config not removed - edit manually if desired"
@@ -324,6 +379,8 @@ check_status() {
     # Count commands
     local cmd_count=$(ls "${SPECFLOW_COMMANDS}/flow."*.md 2>/dev/null | wc -l | tr -d ' ')
     log_success "  Commands: $cmd_count installed"
+    local agent_count=$(ls "${SPECFLOW_AGENTS}/specflow-"*.md 2>/dev/null | wc -l | tr -d ' ')
+    log_success "  Agents: $agent_count installed"
 
     # Check PATH
     echo ""

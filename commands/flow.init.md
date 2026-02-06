@@ -43,6 +43,12 @@ $ARGUMENTS
 | `research TOPIC` | Research a topic before deciding |
 | Other text | Use as project description, start interview |
 
+## Agent Teams Mode (Opus 4.6)
+
+- This command is primarily interview-driven and sequential.
+- If parallel research helpers are used, prefer Agent Teams when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, then fall back to Task agents.
+- Preserve existing safety constraints (unique write targets, synchronization barrier, timeout, and failure thresholds).
+
 ---
 
 ## Pre-Flight

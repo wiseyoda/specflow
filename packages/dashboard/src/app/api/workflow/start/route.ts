@@ -12,6 +12,7 @@ import {
  * Request body:
  * - projectId: string (required) - Registry project UUID
  * - skill: string (required) - Skill name (e.g., "flow.design") or follow-up message when resuming
+ * - provider: "claude" | "codex" (optional) - Agent provider override
  * - timeoutMs: number (optional) - Override default timeout
  * - resumeSessionId: string (optional) - Session ID to resume (FR-014)
  *
@@ -38,9 +39,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const { projectId, skill, timeoutMs, resumeSessionId } = parseResult.data;
+    const { projectId, skill, provider, timeoutMs, resumeSessionId } = parseResult.data;
 
-    const execution = await workflowService.start(projectId, skill, timeoutMs, resumeSessionId);
+    const execution = await workflowService.start(
+      projectId,
+      skill,
+      timeoutMs,
+      resumeSessionId,
+      undefined,
+      provider
+    );
 
     // Return execution wrapped in execution property (matches hook expectations)
     return NextResponse.json(
@@ -49,6 +57,7 @@ export async function POST(request: Request) {
           id: execution.id,
           status: execution.status,
           projectId: execution.projectId,
+          provider: execution.provider,
           skill: execution.skill,
           startedAt: execution.startedAt,
         },

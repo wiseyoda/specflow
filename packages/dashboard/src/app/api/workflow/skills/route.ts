@@ -1,107 +1,154 @@
 import { NextResponse } from 'next/server';
-import { readdirSync, readFileSync, existsSync } from 'fs';
+import { readdirSync, readFileSync, existsSync, statSync } from 'fs';
 import { join } from 'path';
+import { resolveAgentProvider, type AgentProvider } from '@/lib/agent-provider';
+import {
+  getSkillFilePath,
+  normalizeSkillIdentifier,
+  toCodexSkillCommand,
+  toSlashSkillCommand,
+} from '@/lib/skill-utils';
+
+interface WorkflowSkill {
+  id: string;
+  name: string;
+  command: string;
+  description: string;
+  group: 'primary' | 'workflow' | 'setup' | 'maintenance';
+  isPrimary: boolean;
+  provider: AgentProvider;
+}
 
 /**
  * GET /api/workflow/skills
  *
- * Dynamically discovers available workflow skills by scanning
- * ~/.claude/commands/flow.*.md files.
- *
- * Response:
- * - skills: Array of { id, name, command, description, group }
+ * Discover skills for the selected agent provider:
+ * - Claude: ~/.claude/commands/flow.*.md
+ * - Codex: ~/.codex/skills/flow-{name}/SKILL.md
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const homeDir = process.env.HOME || '';
-    const commandsDir = join(homeDir, '.claude', 'commands');
+    const { searchParams } = new URL(request.url);
+    const provider = resolveAgentProvider(searchParams.get('provider'));
+    const skills = loadProviderSkills(provider);
+    sortSkills(skills);
 
-    if (!existsSync(commandsDir)) {
-      return NextResponse.json({ skills: [] });
-    }
-
-    const files = readdirSync(commandsDir).filter(
-      (f) => f.startsWith('flow.') && f.endsWith('.md')
-    );
-
-    const skills = files.map((filename) => {
-      const skillId = filename.replace('.md', ''); // e.g., "flow.orchestrate"
-      const command = '/' + skillId; // e.g., "/flow.orchestrate"
-      const shortName = skillId.replace('flow.', ''); // e.g., "orchestrate"
-
-      // Format name: orchestrate -> Orchestrate, taskstoissues -> Tasks to Issues
-      const name = formatSkillName(shortName);
-
-      // Try to extract description from file
-      const filePath = join(commandsDir, filename);
-      const description = extractDescription(filePath);
-
-      // Determine group based on skill name
-      const group = categorizeSkill(shortName);
-
-      return {
-        id: skillId,
-        name,
-        command,
-        description,
-        group,
-        isPrimary: shortName === 'orchestrate' || shortName === 'merge',
-      };
+    return NextResponse.json({
+      provider,
+      skills,
     });
-
-    // Sort: primary first, then workflow in specific order, then others alphabetically
-    const groupOrder = ['primary', 'workflow', 'setup', 'maintenance'];
-    const primaryOrder = ['orchestrate', 'merge'];
-    const workflowOrder = ['design', 'analyze', 'implement', 'verify'];
-
-    skills.sort((a, b) => {
-      // First sort by group
-      const groupDiff = groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group);
-      if (groupDiff !== 0) return groupDiff;
-
-      // Within primary group, use specific order
-      if (a.group === 'primary') {
-        const aShort = a.id.replace('flow.', '');
-        const bShort = b.id.replace('flow.', '');
-        return primaryOrder.indexOf(aShort) - primaryOrder.indexOf(bShort);
-      }
-
-      // Within workflow group, use specific order
-      if (a.group === 'workflow') {
-        const aShort = a.id.replace('flow.', '');
-        const bShort = b.id.replace('flow.', '');
-        return workflowOrder.indexOf(aShort) - workflowOrder.indexOf(bShort);
-      }
-
-      // Everything else alphabetically
-      return a.name.localeCompare(b.name);
-    });
-
-    return NextResponse.json({ skills });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
+function loadProviderSkills(provider: AgentProvider): WorkflowSkill[] {
+  const homeDir = process.env.HOME || '';
+
+  if (provider === 'codex') {
+    const skillsDir = join(homeDir, '.codex', 'skills');
+    if (!existsSync(skillsDir)) return [];
+
+    const entries = readdirSync(skillsDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith('flow-'));
+
+    return entries
+      .map((entry) => {
+        const canonicalId = normalizeSkillIdentifier(entry.name);
+        if (!canonicalId) return null;
+
+        const skillPath = getSkillFilePath(provider, homeDir, canonicalId);
+        if (!existsSync(skillPath) || !statSync(skillPath).isFile()) {
+          return null;
+        }
+
+        const shortName = canonicalId.replace('flow.', '');
+        return buildSkillRecord(provider, canonicalId, shortName, skillPath);
+      })
+      .filter((skill): skill is WorkflowSkill => skill !== null);
+  }
+
+  const commandsDir = join(homeDir, '.claude', 'commands');
+  if (!existsSync(commandsDir)) return [];
+
+  const files = readdirSync(commandsDir).filter(
+    (file) => file.startsWith('flow.') && file.endsWith('.md')
+  );
+
+  return files
+    .map((file) => {
+      const canonicalId = normalizeSkillIdentifier(file.replace(/\.md$/, ''));
+      if (!canonicalId) return null;
+
+      const shortName = canonicalId.replace('flow.', '');
+      const skillPath = join(commandsDir, file);
+      return buildSkillRecord(provider, canonicalId, shortName, skillPath);
+    })
+    .filter((skill): skill is WorkflowSkill => skill !== null);
+}
+
+function buildSkillRecord(
+  provider: AgentProvider,
+  canonicalId: string,
+  shortName: string,
+  filePath: string
+): WorkflowSkill {
+  const command = provider === 'codex'
+    ? toCodexSkillCommand(canonicalId)
+    : toSlashSkillCommand(canonicalId);
+  const description = extractDescription(filePath);
+
+  return {
+    id: canonicalId,
+    name: formatSkillName(shortName),
+    command,
+    description,
+    group: categorizeSkill(shortName),
+    isPrimary: shortName === 'orchestrate' || shortName === 'merge',
+    provider,
+  };
+}
+
+function sortSkills(skills: WorkflowSkill[]): void {
+  const groupOrder = ['primary', 'workflow', 'setup', 'maintenance'];
+  const primaryOrder = ['orchestrate', 'merge'];
+  const workflowOrder = ['design', 'analyze', 'implement', 'verify'];
+
+  skills.sort((a, b) => {
+    const groupDiff = groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group);
+    if (groupDiff !== 0) return groupDiff;
+
+    if (a.group === 'primary') {
+      const aShort = a.id.replace('flow.', '');
+      const bShort = b.id.replace('flow.', '');
+      return primaryOrder.indexOf(aShort) - primaryOrder.indexOf(bShort);
+    }
+
+    if (a.group === 'workflow') {
+      const aShort = a.id.replace('flow.', '');
+      const bShort = b.id.replace('flow.', '');
+      return workflowOrder.indexOf(aShort) - workflowOrder.indexOf(bShort);
+    }
+
+    return a.name.localeCompare(b.name);
+  });
+}
+
 /**
- * Format skill name for display
- * orchestrate -> Orchestrate
- * taskstoissues -> Tasks to Issues
+ * Format skill name for display.
  */
 function formatSkillName(shortName: string): string {
-  // Known compound words that need special handling
   const knownNames: Record<string, string> = {
-    'taskstoissues': 'Tasks to Issues',
-    'orchestrate': 'Orchestrate',
-    'doctor': 'Doctor',
+    taskstoissues: 'Tasks to Issues',
+    orchestrate: 'Orchestrate',
+    doctor: 'Doctor',
   };
 
   if (knownNames[shortName]) {
     return knownNames[shortName];
   }
 
-  // Handle camelCase
   const spaced = shortName.replace(/([a-z])([A-Z])/g, '$1 $2');
 
   return spaced
@@ -111,19 +158,16 @@ function formatSkillName(shortName: string): string {
 }
 
 /**
- * Extract description from skill file
- * Parses YAML frontmatter for description field
+ * Extract description from skill file.
  */
 function extractDescription(filePath: string): string {
   try {
     const content = readFileSync(filePath, 'utf-8');
 
-    // Check for YAML frontmatter (starts with ---)
     if (content.startsWith('---')) {
       const endIndex = content.indexOf('---', 3);
       if (endIndex !== -1) {
         const frontmatter = content.slice(3, endIndex);
-        // Simple regex to extract description field
         const match = frontmatter.match(/^description:\s*(.+)$/m);
         if (match) {
           const desc = match[1].trim().replace(/^["']|["']$/g, '');
@@ -132,7 +176,6 @@ function extractDescription(filePath: string): string {
       }
     }
 
-    // Fallback: Look for ## Goal section
     const lines = content.split('\n');
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].match(/^##\s*Goal/i)) {
@@ -152,28 +195,23 @@ function extractDescription(filePath: string): string {
 }
 
 /**
- * Categorize skill into groups
+ * Categorize skill into groups.
  */
 function categorizeSkill(
   shortName: string
 ): 'primary' | 'workflow' | 'setup' | 'maintenance' {
-  // Primary skills - main entry points
   if (shortName === 'orchestrate' || shortName === 'merge') {
     return 'primary';
   }
 
-  // Workflow steps - the core design/implement/verify cycle
   const workflowSteps = ['design', 'analyze', 'implement', 'verify'];
   if (workflowSteps.includes(shortName)) {
     return 'workflow';
   }
 
-  // Setup skills - project initialization
   if (shortName === 'init' || shortName === 'roadmap') {
     return 'setup';
   }
 
-  // Everything else is maintenance/utilities
-  // (memory, doctor, review, taskstoissues, etc.)
   return 'maintenance';
 }

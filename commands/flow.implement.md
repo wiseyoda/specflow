@@ -27,6 +27,13 @@ $ARGUMENTS
 | `--no-tdd` | Skip test-first approach (not recommended) |
 | `continue` | Resume from last incomplete task |
 
+## Agent Teams Mode (Opus 4.6)
+
+- Prefer Agent Teams for parallel worker sections when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+- Use scoped project agents from `.claude/agents/` for reusable roles when available.
+- If teams are unavailable, unsupported, or fail mid-run, fall back to Task agents using the same scopes.
+- Preserve existing safety constraints (unique write targets, synchronization barrier, timeout, and failure thresholds).
+
 ## Prerequisites
 
 | Requirement | Check Command | If Missing |
@@ -185,7 +192,11 @@ Before launching parallel agents for [P] tasks:
 ```
 When multiple [P] tasks are queued AND pass conflict check:
 
-Launch parallel Task agents for RED phase:
+Launch parallel workers (Agent Teams preferred; Task agents fallback) for RED phase:
+
+Team-mode role hints:
+- `specflow-implementation-worker` for each task-specific RED worker
+- Parent orchestrator uses `specflow-coordinator` for dependency-safe batching
 
 Agent T001: Create tests for T001 (RED phase) → return test file paths
 Agent T002: Create tests for T002 (RED phase) → return test file paths
@@ -205,6 +216,9 @@ Background Agent (run_in_background: true):
   - Monitor completed tasks against spec.md requirements
   - Flag deviations from acceptance criteria
   - Report at section checkpoint
+
+Team-mode role hint:
+- Use `specflow-quality-auditor` for background validation
 ```
 
 **Expected benefit**: Early defect detection, continuous compliance checking
@@ -265,7 +279,7 @@ Use TodoWrite: mark [IMPL] COMPLETE complete. Output: "All tasks complete. Ready
 
 Tasks marked with `[P]` can run concurrently using sub-agents:
 
-**Use parallel Task agents** for [P] tasks:
+**Use parallel workers (Agent Teams preferred; Task agents fallback)** for [P] tasks:
 
 ```
 For a batch of [P] tasks (T001, T002, T003):
@@ -273,6 +287,10 @@ For a batch of [P] tasks (T001, T002, T003):
 Agent T001: Full TDD cycle for T001 (RED → GREEN → REFACTOR)
 Agent T002: Full TDD cycle for T002 (RED → GREEN → REFACTOR)
 Agent T003: Full TDD cycle for T003 (RED → GREEN → REFACTOR)
+
+Team-mode role hints:
+- Use `specflow-implementation-worker` for each task worker
+- Parent orchestrator uses `specflow-coordinator` for completion synchronization
 ```
 
 **Coordination:**

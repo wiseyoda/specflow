@@ -28,6 +28,13 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 **Note**: Use `specflow` directly, NOT `npx specflow`. It's a local CLI at `~/.claude/specflow-system/bin/`.
 
+## Agent Teams Mode (Opus 4.6)
+
+- Prefer Agent Teams for parallel worker sections when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+- Use scoped project agents from `.claude/agents/` for reusable roles when available.
+- If teams are unavailable, unsupported, or fail mid-run, fall back to Task agents using the same scopes.
+- Preserve existing safety constraints (unique write targets, synchronization barrier, timeout, and failure thresholds).
+
 ## Prerequisites
 
 | Requirement | Check Command | If Missing |
@@ -155,7 +162,11 @@ Use TodoWrite: mark [REVIEW] CONTEXT complete, mark [REVIEW] SCAN in_progress.
 **Use parallel sub-agents** to scan all 9 categories simultaneously:
 
 ```
-Launch 9 parallel Task agents (subagent_type: Explore):
+Launch 9 parallel workers (Agent Teams preferred; Task agents fallback) (subagent_type: Explore):
+
+Team-mode role hints:
+- Use `specflow-review-scanner` for all category scan workers
+- Parent orchestrator uses `specflow-coordinator` for finding ID assignment and deduplication
 
 Agent BP: Best Practices - anti-patterns, inconsistent naming, error codes
 Agent RF: Refactoring - functions >100 lines, deep nesting, duplication
@@ -294,7 +305,11 @@ Create review file at `.specify/reviews/review-YYYYMMDD-HHMMSS.md`:
 **Use parallel sub-agents** to assemble document sections simultaneously:
 
 ```
-Launch 4 parallel Task agents:
+Launch 4 parallel workers (Agent Teams preferred; Task agents fallback):
+
+Team-mode role hints:
+- Use `specflow-doc-assembler` for document section workers
+- Parent orchestrator uses `specflow-coordinator` for final section ordering
 
 Agent 1 (Summary): Build header, executive summary, summary table
 Agent 2 (Approved): Format all approved findings in detailed format

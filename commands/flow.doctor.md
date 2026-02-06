@@ -25,6 +25,12 @@ Arguments:
 
 You **MUST** consider the user input before proceeding (if not empty).
 
+## Agent Teams Mode (Opus 4.6)
+
+- This command is primarily sequential; use Agent Teams only for optional parallel deep analysis during migration.
+- If parallel work is introduced, prefer Agent Teams when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, then fall back to Task agents.
+- Preserve existing safety constraints (unique write targets, synchronization barrier, timeout, and failure thresholds).
+
 ## Goal
 
 Diagnose SpecFlow project state and optionally guide through migration:

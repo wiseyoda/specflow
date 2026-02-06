@@ -8,6 +8,8 @@ export function getSpecflowEnv(): ProcessEnvOptions['env'] {
   const existingPath = process.env.PATH || '';
   const prefix = [
     `${homeDir}/.claude/specflow-system/bin`,
+    `${homeDir}/.codex/specflow-system/bin`,
+    `${homeDir}/.bun/bin`,
     `${homeDir}/.local/bin`,
     '/usr/local/bin',
     '/usr/bin',

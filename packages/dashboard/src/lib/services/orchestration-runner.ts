@@ -25,6 +25,7 @@ import { type OrchestrationPhase, type SSEEvent, type StepStatus } from '@specfl
 import type { OrchestrationExecution } from './orchestration-types';
 import { getNextAction, type DecisionInput, type Decision, type WorkflowState } from './orchestration-decisions';
 import { getSpecflowEnv } from '@/lib/specflow-env';
+import { normalizeSkillIdentifier } from '@/lib/skill-utils';
 
 // =============================================================================
 // Types
@@ -254,6 +255,7 @@ function clearRunnerState(projectPath: string, orchestrationId: string): void {
  * Map skill names to expected step names
  */
 function getExpectedStepForSkill(skill: string): string {
+  const normalizedSkill = normalizeSkillIdentifier(skill) || skill.replace(/^\//, '');
   const map: Record<string, string> = {
     'flow.design': 'design',
     'flow.analyze': 'analyze',
@@ -266,7 +268,7 @@ function getExpectedStepForSkill(skill: string): string {
     '/flow.verify': 'verify',
     '/flow.merge': 'merge',
   };
-  return map[skill] || 'unknown';
+  return map[normalizedSkill] || 'unknown';
 }
 
 /**
@@ -751,8 +753,9 @@ export async function runOrchestration(
       const initialStepState = readOrchestrationStep(projectPath);
       const stepCurrent = normalizeStepCurrent(initialStepState?.current, orchestration.currentPhase);
 
-      const expectedSkill = `flow.${stepCurrent}`;
-      const lastSkill = (dashboardState.lastWorkflow?.skill || '').replace(/^\//, '');
+      const expectedSkill = normalizeSkillIdentifier(`flow.${stepCurrent}`) || `flow.${stepCurrent}`;
+      const rawLastSkill = dashboardState.lastWorkflow?.skill || '';
+      const lastSkill = normalizeSkillIdentifier(rawLastSkill) || rawLastSkill.replace(/^\//, '');
       const matchesStep = !lastSkill || lastSkill === expectedSkill;
       const workflowId = dashboardState.lastWorkflow?.id && matchesStep
         ? dashboardState.lastWorkflow.id

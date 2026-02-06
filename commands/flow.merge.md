@@ -21,6 +21,13 @@ Arguments:
 
 **Note**: Use `specflow` directly, NOT `npx specflow`. It's a local CLI at `~/.claude/specflow-system/bin/`.
 
+## Agent Teams Mode (Opus 4.6)
+
+- Prefer Agent Teams for parallel worker sections when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+- Use scoped project agents from `.claude/agents/` for reusable roles when available.
+- If teams are unavailable, unsupported, or fail mid-run, fall back to Task agents using the same scopes.
+- Preserve existing safety constraints (unique write targets, synchronization barrier, timeout, and failure thresholds).
+
 ## Prerequisites
 
 | Requirement | Check Command | If Missing |
@@ -182,7 +189,12 @@ FEATURE_DIR=$(echo "$STATUS" | jq -r '.context.featureDir')
 **Use parallel sub-agents** to gather all verification data simultaneously:
 
 ```
-Launch 4 parallel Task agents:
+Launch 4 parallel workers (Agent Teams preferred; Task agents fallback):
+
+Team-mode role hints:
+- Use `specflow-quality-auditor` for status/gate verification workers
+- Use `specflow-memory-checker` for memory gate verification
+- Parent orchestrator uses `specflow-coordinator` for merge-blocking decisions
 
 Agent 1 (Status): Verify orchestration status
   - Check step.current == "verify" (from status already obtained)

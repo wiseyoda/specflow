@@ -28,6 +28,13 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 **Note**: Use `specflow` directly, NOT `npx specflow`. It's a local CLI at `~/.claude/specflow-system/bin/`.
 
+## Agent Teams Mode (Opus 4.6)
+
+- Prefer Agent Teams for parallel worker sections when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+- Use scoped project agents from `.claude/agents/` for reusable roles when available.
+- If teams are unavailable, unsupported, or fail mid-run, fall back to Task agents using the same scopes.
+- Preserve existing safety constraints (unique write targets, synchronization barrier, timeout, and failure thresholds).
+
 ## Prerequisites
 
 | Requirement | Check Command | If Missing |
@@ -198,7 +205,11 @@ This verifies all checklists are complete.
 ```
 
 ```
-Parse incomplete items from gate check, then launch parallel Task agents:
+Parse incomplete items from gate check, then launch parallel workers (Agent Teams preferred; Task agents fallback):
+
+Team-mode role hints:
+- Use `specflow-quality-auditor` for checklist verification workers
+- Parent orchestrator uses `specflow-coordinator` for batched `specflow mark` updates
 
 Agent V-001: Verify checklist item V-001 - run verification, return result
 Agent V-002: Verify checklist item V-002 - run verification, return result
@@ -239,7 +250,12 @@ Verify the implementation against the **original phase goals** from `.specify/ph
 **Use parallel sub-agents** to verify goals, scope, and UI design simultaneously:
 
 ```
-Launch 3 parallel Task agents:
+Launch 3 parallel workers (Agent Teams preferred; Task agents fallback):
+
+Team-mode role hints:
+- Use `specflow-goal-coverage` for goals matrix and scope checks
+- Use `specflow-quality-auditor` for ui-design verification worker
+- Parent orchestrator uses `specflow-coordinator` for aggregated verdict
 
 Agent 1 (Goals Coverage): Build goals matrix - map each phase goal → spec requirement → task(s)
 Agent 2 (Scope Creep): Compare planned vs implemented - find unplanned additions, missing goals
@@ -311,7 +327,12 @@ Check implementation against memory documents in `.specify/memory/`. See `.speci
 **Use parallel sub-agents** to check all 5 memory documents simultaneously:
 
 ```
-Launch 5 parallel Task agents:
+Launch 5 parallel workers (Agent Teams preferred; Task agents fallback):
+
+Team-mode role hints:
+- Use `specflow-memory-checker` for constitution/tech-stack workers
+- Use `specflow-quality-auditor` for testing/security workers
+- Parent orchestrator uses `specflow-coordinator` for compliance summary
 
 Agent 1: Constitution Compliance - Check MUST requirements, core principles (CRITICAL)
 Agent 2: Tech Stack Compliance - Verify approved technologies, versions

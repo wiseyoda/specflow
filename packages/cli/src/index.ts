@@ -15,7 +15,7 @@ import { templatesCommand } from './commands/templates.js';
 const program = new Command()
   .name('specflow')
   .version('3.0.0')
-  .description('SpecFlow CLI - Spec-driven development for Claude Code')
+  .description('SpecFlow CLI - Spec-driven development for AI coding agents')
   .option('--json', 'Output as JSON')
   .option('-q, --quiet', 'Suppress non-essential output')
   .option('--no-color', 'Disable color output')

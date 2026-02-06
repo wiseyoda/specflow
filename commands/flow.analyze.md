@@ -10,6 +10,13 @@ $ARGUMENTS
 
 **Note**: Use `specflow` directly, NOT `npx specflow`. It's a local CLI at `~/.claude/specflow-system/bin/`.
 
+## Agent Teams Mode (Opus 4.6)
+
+- Prefer Agent Teams for parallel worker sections when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+- Use scoped project agents from `.claude/agents/` for reusable roles when available.
+- If teams are unavailable, unsupported, or fail mid-run, fall back to Task agents using the same scopes.
+- Preserve existing safety constraints (unique write targets, synchronization barrier, timeout, and failure thresholds).
+
 ## Prerequisites
 
 | Requirement | Check Command | If Missing |
@@ -73,7 +80,12 @@ specflow state set orchestration.step.current=analyze orchestration.step.index=1
 **Use parallel sub-agents** to load all artifacts simultaneously:
 
 ```
-Launch 5 parallel Task agents (subagent_type: Explore):
+Launch 5 parallel workers (Agent Teams preferred; Task agents fallback) (subagent_type: Explore):
+
+Team-mode role hints:
+- `specflow-quality-auditor` for artifact extraction workers
+- `specflow-memory-checker` for constitution/ui-memory coverage
+- Parent orchestrator uses `specflow-coordinator` to build unified analysis context
 
 Agent 1: Read `.specify/phases/{PHASE_NUMBER}-*.md` → extract goals, scope, deliverables
 Agent 2: Read `{FEATURE_DIR}/spec.md` → extract requirements, user stories
@@ -93,7 +105,11 @@ Use TodoWrite: mark [ANALYZE] LOAD complete, mark [ANALYZE] DETECT in_progress.
 **Use parallel sub-agents** to run all 8 detection passes simultaneously:
 
 ```
-Launch 8 parallel Task agents (subagent_type: Explore):
+Launch 8 parallel workers (Agent Teams preferred; Task agents fallback) (subagent_type: Explore):
+
+Team-mode role hints:
+- Use `specflow-quality-auditor` for all pass workers (A-H)
+- Parent orchestrator uses `specflow-coordinator` for severity ranking and deduplication
 
 Pass A Agent: Phase Goals - Check goals in phase doc have spec requirements and tasks
 Pass B Agent: Duplication - Find near-duplicate requirements in spec.md
@@ -222,7 +238,11 @@ iteration=$(specflow state get orchestration.analyze.iteration 2>/dev/null || ec
 See `.specify/templates/parallel-execution-guide.md` for coordination protocol.
 
 ```
-Group issues by file, then launch parallel Task agents (timeout: 180s each):
+Group issues by file, then launch parallel workers (Agent Teams preferred; Task agents fallback) (timeout: 180s each):
+
+Team-mode role hints:
+- Use `specflow-fixer` for per-file fix workers
+- Parent orchestrator uses `specflow-coordinator` to approve merged edits before re-run
 
 Agent 1: Fix spec.md issues (duplications, ambiguity)
   - Scope: spec.md ONLY
@@ -276,7 +296,7 @@ When launching parallel agents (artifact loading, detection passes):
 - Each agent gets read-only access to its assigned files
 
 **2. Execution**:
-- Launch all agents simultaneously using Task tool
+- Launch all agents simultaneously using Agent Teams (preferred) or Task tool (fallback)
 - Set timeout: 180 seconds per agent (standardized)
 - Agents work independently with no shared state
 

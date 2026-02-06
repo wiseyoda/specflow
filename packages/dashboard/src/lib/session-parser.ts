@@ -1,3 +1,5 @@
+import { normalizeSkillIdentifier } from '@/lib/skill-utils';
+
 /**
  * Question option from AskUserQuestion tool call.
  */
@@ -465,8 +467,10 @@ export function isCommandInjection(content: string): {
     /## Design Phase/,
     /## Implement Phase/,
     /## Verify Phase/,
-    /^# flow\./,
+    /^# [/$]?flow[.-]/,
     /## Orchestration State/,
+    /\$flow-\w+/i,
+    /\bflow-\w+/i,
   ];
 
   // Check if content matches command patterns
@@ -476,36 +480,40 @@ export function isCommandInjection(content: string): {
     return { isCommand: false, commandName: null };
   }
 
-  // Extract command name from content
-  // Order matters - more specific patterns first
+  // Extract command name from content.
+  // Order matters: explicit command patterns first, then phase markers.
   const namePatterns = [
-    // Most specific: explicit command header (with or without /)
-    { pattern: /^# \/?flow\.(\w+)/m, prefix: 'flow.' },
-    { pattern: /^description:\s*.*?flow\.(\w+)/im, prefix: 'flow.' },
+    { pattern: /^#\s+([/$]?flow[.-][\w-]+)/m },
+    { pattern: /^description:\s*.*?([/$]?flow[.-][\w-]+)/im },
+    { pattern: /^([/$]?flow[.-][\w-]+)/im },
+    { pattern: /\b(\$flow-[\w-]+)\b/im },
+    { pattern: /\b(flow-[\w-]+)\b/im },
     // Phase-specific patterns (each skill has unique [TAG] markers)
-    { pattern: /\[IMPL\]/, prefix: '', name: 'flow.implement' },
-    { pattern: /\[MERGE\]/, prefix: '', name: 'flow.merge' },
-    { pattern: /\[VERIFY\]/, prefix: '', name: 'flow.verify' },
-    { pattern: /\[DESIGN\]/, prefix: '', name: 'flow.design' },
-    { pattern: /\[ANALYZE\]/, prefix: '', name: 'flow.analyze' },
-    { pattern: /\[ORCH\]/, prefix: '', name: 'flow.orchestrate' },
-    { pattern: /\[REVIEW\]/, prefix: '', name: 'flow.review' },
-    { pattern: /## Design Phase/i, prefix: '', name: 'flow.design' },
-    { pattern: /## Verify Phase/i, prefix: '', name: 'flow.verify' },
-    { pattern: /## Memory Protocol/i, prefix: '', name: 'flow.memory' },
+    { pattern: /\[IMPL\]/, name: 'flow.implement' },
+    { pattern: /\[MERGE\]/, name: 'flow.merge' },
+    { pattern: /\[VERIFY\]/, name: 'flow.verify' },
+    { pattern: /\[DESIGN\]/, name: 'flow.design' },
+    { pattern: /\[ANALYZE\]/, name: 'flow.analyze' },
+    { pattern: /\[ORCH\]/, name: 'flow.orchestrate' },
+    { pattern: /\[REVIEW\]/, name: 'flow.review' },
+    { pattern: /## Design Phase/i, name: 'flow.design' },
+    { pattern: /## Verify Phase/i, name: 'flow.verify' },
+    { pattern: /## Memory Protocol/i, name: 'flow.memory' },
     // Agent patterns
-    { pattern: /# @(\w+) Agent/i, prefix: '' },
-    { pattern: /## (\w+) Phase/i, prefix: '' },
-    // Generic flow pattern - only at start of line to avoid matching mentions in content
-    { pattern: /^flow\.(\w+)/im, prefix: 'flow.' },
+    { pattern: /# @(\w+) Agent/i },
+    { pattern: /## (\w+) Phase/i },
   ];
 
-  for (const { pattern, prefix, name } of namePatterns) {
+  for (const { pattern, name } of namePatterns) {
     const match = content.match(pattern);
     if (match) {
+      const normalized = normalizeSkillIdentifier(name || match[1]);
+      const inferred = match[1]
+        ? normalizeSkillIdentifier(`flow.${String(match[1]).toLowerCase()}`)
+        : null;
       return {
         isCommand: true,
-        commandName: name || (prefix + match[1]),
+        commandName: normalized || inferred || name || match[1] || 'Workflow',
       };
     }
   }

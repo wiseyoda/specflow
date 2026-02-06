@@ -8,7 +8,7 @@
  * - Zod validation for type safety
  */
 
-import { exec, type ChildProcess } from 'child_process';
+import { type ChildProcess } from 'child_process';
 import { randomUUID } from 'crypto';
 import {
   readFileSync,
@@ -21,9 +21,19 @@ import { join } from 'path';
 import { z } from 'zod';
 import { findRecentSessionFile } from '@/lib/project-hash';
 import {
+  formatProviderName,
+  resolveAgentProvider,
+  type AgentProvider,
+} from '@/lib/agent-provider';
+import {
+  getSkillFilePath,
+  normalizeSkillIdentifier,
+  parseSkillWithContext,
+  toSlashSkillCommand,
+} from '@/lib/skill-utils';
+import {
   spawnDetachedClaude,
   pollForCompletion,
-  writePidFile,
   cleanupPidFile,
   isPidAlive,
   killProcess,
@@ -83,6 +93,7 @@ export type WorkflowOutput = z.infer<typeof WorkflowOutputSchema>;
 export const WorkflowExecutionSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string().min(1), // Registry key (not necessarily UUID)
+  provider: z.enum(['claude', 'codex']).default('claude'),
   sessionId: z.string().optional(), // Populated from CLI JSON output after first response
   orchestrationId: z.string().uuid().optional(), // Links workflow to orchestration (if any)
   skill: z.string(),
@@ -119,6 +130,7 @@ export type WorkflowExecution = z.infer<typeof WorkflowExecutionSchema>;
 export const StartWorkflowRequestSchema = z.object({
   projectId: z.string().min(1), // Registry key (not necessarily UUID)
   skill: z.string().min(1),
+  provider: z.enum(['claude', 'codex']).optional(),
   timeoutMs: z.number().positive().optional(),
   /** Optional session ID to resume (uses --resume flag per FR-014) */
   resumeSessionId: z.string().optional(),
@@ -472,54 +484,23 @@ function listExecutions(projectPath: string): WorkflowExecution[] {
  * Examples:
  *   "/flow.merge" -> { skillName: "flow.merge", context: null }
  *   "/flow.merge I verified everything" -> { skillName: "flow.merge", context: "I verified everything" }
- *   "flow.orchestrate" -> { skillName: "flow.orchestrate", context: null }
+ *   "$flow-merge looks good" -> { skillName: "flow.merge", context: "looks good" }
+ *   "flow-merge" -> { skillName: "flow.merge", context: null }
  *   "Just do the thing" -> { skillName: null, context: "Just do the thing" }
  */
 function parseSkillInput(input: string): { skillName: string | null; context: string | null } {
-  const trimmed = input.trim();
-
-  // Check if it starts with a slash command
-  if (trimmed.startsWith('/')) {
-    // Find the command part (ends at space or end of string)
-    const spaceIndex = trimmed.indexOf(' ');
-    if (spaceIndex === -1) {
-      // Just the command, no context
-      return { skillName: trimmed.slice(1), context: null };
-    }
-    // Command + context
-    const skillName = trimmed.slice(1, spaceIndex);
-    const context = trimmed.slice(spaceIndex + 1).trim();
-    return { skillName, context: context || null };
-  }
-
-  // Check if it looks like a skill name without slash (e.g., "flow.orchestrate")
-  if (trimmed.startsWith('flow.') && !trimmed.includes(' ')) {
-    return { skillName: trimmed, context: null };
-  }
-
-  // Check if it starts with flow. followed by a space (e.g., "flow.orchestrate do this")
-  if (trimmed.startsWith('flow.')) {
-    const spaceIndex = trimmed.indexOf(' ');
-    if (spaceIndex !== -1) {
-      const skillName = trimmed.slice(0, spaceIndex);
-      const context = trimmed.slice(spaceIndex + 1).trim();
-      return { skillName, context: context || null };
-    }
-  }
-
-  // Plain text - treat as context only (will be used for session resume)
-  return { skillName: null, context: trimmed };
+  return parseSkillWithContext(input);
 }
 
 /**
- * Load skill file content from ~/.claude/commands/
+ * Load skill file content from provider-specific skill locations.
  */
-function loadSkillContent(skill: string): string | null {
-  const skillName = skill.replace(/^\//, '');
-  const skillFile = `${skillName}.md`;
-  const homeDir = process.env.HOME || '';
+function loadSkillContent(skill: string, provider: AgentProvider): string | null {
+  const skillName = normalizeSkillIdentifier(skill);
+  if (!skillName) return null;
 
-  const installedPath = join(homeDir, '.claude', 'commands', skillFile);
+  const homeDir = process.env.HOME || '';
+  const installedPath = getSkillFilePath(provider, homeDir, skillName);
   if (existsSync(installedPath)) {
     return readFileSync(installedPath, 'utf-8');
   }
@@ -528,25 +509,34 @@ function loadSkillContent(skill: string): string | null {
 }
 
 /**
- * Build the initial prompt for Claude CLI
+ * Build the initial prompt for agent CLI.
  * @param skillInput - Raw skill input which may include additional context (e.g., "/flow.merge I verified")
+ * @param provider - Active agent provider
  * @returns Object with prompt and parsed skill name, or null if skill not found
  */
-function buildInitialPrompt(skillInput: string): { prompt: string; skillName: string } | null {
+function buildInitialPrompt(
+  skillInput: string,
+  provider: AgentProvider
+): { prompt: string; skillName: string } | null {
   const { skillName, context } = parseSkillInput(skillInput);
 
   // If no skill name, can't build an initial prompt (this is a plain message)
   if (!skillName) return null;
 
-  const skillContent = loadSkillContent(skillName);
+  const skillContent = loadSkillContent(skillName, provider);
   if (!skillContent) return null;
 
   let prompt = `# CLI Mode Instructions
 
 You are running in non-interactive CLI mode. IMPORTANT:
-1. When you need user input, use the AskUserQuestion tool with a questions array
-2. Prefer asking all required questions in a single AskUserQuestion call
-3. After asking, wait for the user response before continuing
+1. Do NOT call AskUserQuestion or any interactive question tool
+2. Return a structured response matching the configured output schema
+3. If user input is needed, set status to "needs_input" and fill questions[]
+4. Questions should follow:
+   - question: Prompt shown to user
+   - header: Short label
+   - options: Array of {label, description}
+   - multiSelect: true for multi-select answers
 
 # Skill Instructions
 
@@ -587,7 +577,7 @@ function buildResumePrompt(answers: Record<string, string>): string {
 ${answerText}
 
 Continue the workflow using these answers.
-If you need more input, ask via AskUserQuestion.`;
+If you need more input, set status to "needs_input" and return questions[].`;
 }
 
 /**
@@ -655,7 +645,7 @@ function getProjectPath(projectId: string): string | null {
 }
 
 // =============================================================================
-// Claude CLI Result Type
+// Agent CLI Result Types
 // =============================================================================
 
 interface ClaudeCliResult {
@@ -666,6 +656,212 @@ interface ClaudeCliResult {
   structured_output?: WorkflowOutput;
   result?: string;
   total_cost_usd?: number;
+}
+
+interface ParsedAgentResult {
+  sessionId?: string;
+  output?: WorkflowOutput;
+  costUsd: number;
+  error?: string;
+  fallbackMessage?: string;
+}
+
+const WORKFLOW_OUTPUT_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    status: { type: 'string', enum: ['completed', 'needs_input', 'error'] },
+    phase: { type: 'string' },
+    message: { type: 'string' },
+    questions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          question: { type: 'string' },
+          header: { type: 'string' },
+          options: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                label: { type: 'string' },
+                description: { type: 'string' },
+              },
+              required: ['label', 'description'],
+            },
+          },
+          multiSelect: { type: 'boolean' },
+        },
+        required: ['question'],
+      },
+    },
+    artifacts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          path: { type: 'string' },
+          action: { type: 'string', enum: ['created', 'modified'] },
+        },
+      },
+    },
+  },
+  required: ['status'],
+};
+
+function toCodexStrictSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) {
+    return schema.map((entry) => toCodexStrictSchema(entry));
+  }
+
+  if (!schema || typeof schema !== 'object') {
+    return schema;
+  }
+
+  const next: Record<string, unknown> = { ...(schema as Record<string, unknown>) };
+
+  if (next.properties && typeof next.properties === 'object') {
+    const required = new Set(
+      Array.isArray(next.required)
+        ? (next.required as unknown[]).filter((value): value is string => typeof value === 'string')
+        : []
+    );
+    const properties: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(next.properties as Record<string, unknown>)) {
+      let strictValue = toCodexStrictSchema(value);
+      if (!required.has(key)) {
+        strictValue = { anyOf: [strictValue, { type: 'null' }] };
+      }
+      properties[key] = strictValue;
+      required.add(key);
+    }
+
+    next.properties = properties;
+    next.required = [...required];
+    next.additionalProperties = false;
+  }
+
+  if (next.items) {
+    next.items = toCodexStrictSchema(next.items);
+  }
+
+  if (Array.isArray(next.anyOf)) {
+    next.anyOf = next.anyOf.map((entry) => toCodexStrictSchema(entry));
+  }
+  if (Array.isArray(next.oneOf)) {
+    next.oneOf = next.oneOf.map((entry) => toCodexStrictSchema(entry));
+  }
+  if (Array.isArray(next.allOf)) {
+    next.allOf = next.allOf.map((entry) => toCodexStrictSchema(entry));
+  }
+
+  return next;
+}
+
+const CODEX_WORKFLOW_OUTPUT_SCHEMA = toCodexStrictSchema(WORKFLOW_OUTPUT_JSON_SCHEMA);
+
+function stripNullValues(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => stripNullValues(entry));
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const output: Record<string, unknown> = {};
+  for (const [key, rawValue] of Object.entries(value as Record<string, unknown>)) {
+    if (rawValue === null) continue;
+    output[key] = stripNullValues(rawValue);
+  }
+
+  return output;
+}
+
+function coerceWorkflowOutput(value: unknown): WorkflowOutput | null {
+  const cleaned = stripNullValues(value);
+  const parsed = WorkflowOutputSchema.safeParse(cleaned);
+  return parsed.success ? parsed.data : null;
+}
+
+function parseClaudeResult(stdout: string): ParsedAgentResult {
+  const cliResult = JSON.parse(stdout) as ClaudeCliResult;
+  return {
+    sessionId: cliResult.session_id,
+    output: cliResult.structured_output,
+    costUsd: cliResult.total_cost_usd || 0,
+    ...(cliResult.is_error
+      ? { error: cliResult.result || 'Unknown error' }
+      : cliResult.structured_output?.status === 'error'
+        ? { error: cliResult.structured_output.message || 'Workflow returned error status' }
+        : {}),
+    fallbackMessage: cliResult.result,
+  };
+}
+
+function parseCodexResult(stdout: string): ParsedAgentResult {
+  let threadId: string | undefined;
+  let lastAgentMessage: string | undefined;
+
+  for (const rawLine of stdout.split('\n')) {
+    const line = rawLine.trim();
+    if (!line || !line.startsWith('{')) continue;
+
+    try {
+      const event = JSON.parse(line) as Record<string, unknown>;
+      if (event.type === 'thread.started' && typeof event.thread_id === 'string') {
+        threadId = event.thread_id;
+      }
+
+      if (event.type === 'item.completed') {
+        const item = event.item;
+        if (item && typeof item === 'object') {
+          const typedItem = item as Record<string, unknown>;
+          if (typedItem.type === 'agent_message' && typeof typedItem.text === 'string') {
+            lastAgentMessage = typedItem.text;
+          }
+        }
+      }
+    } catch {
+      // Ignore non-JSON lines from CLI stderr noise.
+    }
+  }
+
+  if (!lastAgentMessage) {
+    return {
+      sessionId: threadId,
+      costUsd: 0,
+      error: 'Failed to parse Codex output: missing final agent_message payload',
+    };
+  }
+
+  try {
+    const structuredPayload = JSON.parse(lastAgentMessage);
+    const output = coerceWorkflowOutput(structuredPayload);
+    if (!output) {
+      return {
+        sessionId: threadId,
+        costUsd: 0,
+        error: 'Failed to parse Codex output: final payload does not match workflow schema',
+      };
+    }
+
+    return {
+      sessionId: threadId,
+      output,
+      costUsd: 0,
+      ...(output.status === 'error'
+        ? { error: output.message || 'Workflow returned error status' }
+        : {}),
+    };
+  } catch {
+    return {
+      sessionId: threadId,
+      output: { status: 'completed', message: lastAgentMessage },
+      costUsd: 0,
+      fallbackMessage: lastAgentMessage,
+    };
+  }
 }
 
 // =============================================================================
@@ -693,7 +889,8 @@ class WorkflowService {
     skill: string,
     timeoutMs: number = DEFAULT_TIMEOUT_MS,
     resumeSessionId?: string,
-    orchestrationId?: string
+    orchestrationId?: string,
+    providerInput?: string
   ): Promise<WorkflowExecution> {
     // Clean up old global workflows on first run (T008, FR-016, FR-017)
     cleanupGlobalWorkflows();
@@ -706,10 +903,12 @@ class WorkflowService {
 
     const id = randomUUID();
     const now = new Date().toISOString();
+    const provider = resolveAgentProvider(providerInput);
 
     const execution: WorkflowExecution = {
       id,
       projectId,
+      provider,
       skill,
       status: 'running',
       answers: {},
@@ -727,6 +926,7 @@ class WorkflowService {
     };
 
     execution.logs.push(`[${now}] Starting workflow for project ${projectId}`);
+    execution.logs.push(`[INFO] Provider: ${provider}`);
     execution.logs.push(`[INFO] Skill: ${skill}`);
     execution.logs.push(`[INFO] Timeout: ${timeoutMs}ms`);
     if (resumeSessionId) {
@@ -737,10 +937,8 @@ class WorkflowService {
     }
     saveExecution(execution, projectPath);
 
-    // Run Claude in background (don't await)
-    // Session ID will be obtained from CLI JSON output when it completes
-    // For resume, we pass isResume=true and sessionId is already set
-    this.runClaude(id, projectPath, !!resumeSessionId, resumeSessionId).catch((err) => {
+    // Run agent in background (don't await)
+    this.runAgent(id, projectPath, !!resumeSessionId, resumeSessionId).catch((err) => {
       const exec = loadExecution(id);
       if (exec) {
         exec.status = 'failed';
@@ -784,8 +982,8 @@ class WorkflowService {
     execution.logs.push(`[RESUME] With answers: ${JSON.stringify(answers)}`);
     saveExecution(execution, projectPath);
 
-    // Run Claude with session resume
-    this.runClaude(id, projectPath, true).catch((err) => {
+    // Run agent with session resume
+    this.runAgent(id, projectPath, true).catch((err) => {
       const exec = loadExecution(id);
       if (exec) {
         exec.status = 'failed';
@@ -1034,7 +1232,7 @@ class WorkflowService {
     }
 
     const index = loadWorkflowIndex(projectPath);
-    let sessionIdx = index.sessions.findIndex(s => s.sessionId === sessionId);
+    const sessionIdx = index.sessions.findIndex(s => s.sessionId === sessionId);
     const now = new Date().toISOString();
 
     // If session not in index, add it (handles discovered CLI sessions)
@@ -1199,11 +1397,11 @@ class WorkflowService {
   }
 
   /**
-   * Run Claude CLI (T006)
-   * @param isResume - If true, use --resume with session ID
+   * Run agent CLI (T006)
+   * @param isResume - If true, use resume command with session ID
    * @param resumeSessionId - Optional explicit session ID for resuming historical sessions
    */
-  private async runClaude(
+  private async runAgent(
     id: string,
     projectPath: string,
     isResume: boolean,
@@ -1211,6 +1409,9 @@ class WorkflowService {
   ): Promise<void> {
     const execution = loadExecution(id);
     if (!execution) return;
+
+    const provider = resolveAgentProvider(execution.provider);
+    execution.provider = provider;
 
     const isTestMode = execution.skill === 'test';
     // For historical session resume, use the explicit sessionId passed in
@@ -1225,26 +1426,32 @@ class WorkflowService {
     ensureGitignoreEntry(projectPath, '.specflow/workflows/');
 
     const outputFile = join(workflowDir, 'workflow-output.json');
-    const claudePath = '$HOME/.local/bin/claude';
 
     let scriptContent: string;
 
     if (isTestMode) {
       // Simple test mode
-      scriptContent = `#!/bin/bash
+      if (provider === 'codex') {
+        scriptContent = `#!/bin/bash
 cd "${projectPath}"
-${claudePath} -p --output-format json "Say hello" < /dev/null > "${outputFile}" 2>&1
+codex exec --json "Say hello" > "${outputFile}" 2>&1
 `;
+      } else {
+        scriptContent = `#!/bin/bash
+cd "${projectPath}"
+claude -p --output-format json "Say hello" < /dev/null > "${outputFile}" 2>&1
+`;
+      }
       execution.logs.push(`[TEST] Simple hello test`);
     } else if (isResume && effectiveSessionId) {
-      // Resume existing session
+      // Resume existing session.
       // Two cases:
-      // 1. Resuming with answers (from workflow resume method) - use buildResumePrompt
-      // 2. Resuming historical session (from start with resumeSessionId) - use skill as follow-up
+      // 1) Resuming with answers (from workflow resume method) - use buildResumePrompt
+      // 2) Resuming historical session (from start with resumeSessionId) - use skill as follow-up
       const hasAnswers = Object.keys(execution.answers).length > 0;
       const resumePrompt = hasAnswers
         ? buildResumePrompt(execution.answers)
-        : execution.skill; // skill contains the follow-up message for US3
+        : execution.skill;
 
       const promptFile = join(workflowDir, 'resume-prompt.txt');
       writeFileSync(promptFile, resumePrompt);
@@ -1252,18 +1459,26 @@ ${claudePath} -p --output-format json "Say hello" < /dev/null > "${outputFile}" 
       execution.logs.push(`[RESUME] Session: ${effectiveSessionId}`);
       execution.logs.push(`[INFO] Resume prompt (${resumePrompt.length} chars)`);
 
-      scriptContent = `#!/bin/bash
+      if (provider === 'codex') {
+        scriptContent = `#!/bin/bash
 cd "${projectPath}"
-${claudePath} -p --output-format json --resume "${effectiveSessionId}" --dangerously-skip-permissions < "${promptFile}" > "${outputFile}" 2>&1
+PROMPT="$(cat "${promptFile}")"
+codex exec resume --json "${effectiveSessionId}" "$PROMPT" > "${outputFile}" 2>&1
 `;
+      } else {
+        scriptContent = `#!/bin/bash
+cd "${projectPath}"
+claude -p --output-format json --resume "${effectiveSessionId}" --dangerously-skip-permissions < "${promptFile}" > "${outputFile}" 2>&1
+`;
+      }
     } else {
       // Initial run (FR-005)
-      const promptResult = buildInitialPrompt(execution.skill);
+      const promptResult = buildInitialPrompt(execution.skill, provider);
       if (!promptResult) {
         // No skill found - check if this is a plain message for an active session
         // This case is handled at the API level by resuming the session
         execution.status = 'failed';
-        execution.error = `Could not load skill: ${execution.skill}. Use a slash command like /flow.orchestrate`;
+        execution.error = `Could not load skill: ${execution.skill}. Use a command like ${toSlashSkillCommand('flow.orchestrate')}`;
         execution.updatedAt = new Date().toISOString();
         execution.logs.push(`[ERROR] Could not load skill: ${execution.skill}`);
         saveExecution(execution);
@@ -1275,17 +1490,27 @@ ${claudePath} -p --output-format json --resume "${effectiveSessionId}" --dangero
       execution.logs.push(`[INFO] Skill: ${promptResult.skillName}`);
       execution.logs.push(`[INFO] Initial prompt (${promptResult.prompt.length} chars)`);
 
-      scriptContent = `#!/bin/bash
+      if (provider === 'codex') {
+        const schemaFile = join(workflowDir, 'workflow-output-schema.json');
+        writeFileSync(schemaFile, JSON.stringify(CODEX_WORKFLOW_OUTPUT_SCHEMA, null, 2));
+        scriptContent = `#!/bin/bash
 cd "${projectPath}"
-${claudePath} -p --output-format json --dangerously-skip-permissions < "${promptFile}" > "${outputFile}" 2>&1
+PROMPT="$(cat "${promptFile}")"
+codex exec --json --output-schema "${schemaFile}" "$PROMPT" > "${outputFile}" 2>&1
 `;
+      } else {
+        scriptContent = `#!/bin/bash
+cd "${projectPath}"
+claude -p --output-format json --dangerously-skip-permissions < "${promptFile}" > "${outputFile}" 2>&1
+`;
+      }
     }
 
     // Pass through full environment with specflow CLI in PATH
     const homeDir = process.env.HOME || '/Users/ppatterson';
     const env: Record<string, string> = {
       HOME: homeDir,
-      PATH: `${homeDir}/.claude/specflow-system/bin:${homeDir}/.local/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ''}`,
+      PATH: `${homeDir}/.claude/specflow-system/bin:${homeDir}/.codex/specflow-system/bin:${homeDir}/.bun/bin:${homeDir}/.local/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ''}`,
     };
 
     // Copy relevant environment variables
@@ -1294,7 +1519,7 @@ ${claudePath} -p --output-format json --dangerously-skip-permissions < "${prompt
     if (process.env.USER) env.USER = process.env.USER;
     if (process.env.LANG) env.LANG = process.env.LANG;
 
-    execution.logs.push(`[EXEC] Spawning detached process...`);
+    execution.logs.push(`[EXEC] Spawning detached ${formatProviderName(provider)} process...`);
     saveExecution(execution);
 
     // Spawn detached process (survives dashboard restart)
@@ -1364,53 +1589,57 @@ ${claudePath} -p --output-format json --dangerously-skip-permissions < "${prompt
 
     // Parse result (FR-006, FR-007)
     try {
-      const cliResult = JSON.parse(stdout) as ClaudeCliResult;
+      const provider = resolveAgentProvider(exec.provider);
+      const parsed = provider === 'codex'
+        ? parseCodexResult(stdout)
+        : parseClaudeResult(stdout);
+
       // Only set sessionId if we don't have one (new session, not resume)
       // When resuming, keep the original sessionId we intended to resume
-      if (!exec.sessionId) {
-        exec.sessionId = cliResult.session_id;
+      if (!exec.sessionId && parsed.sessionId) {
+        exec.sessionId = parsed.sessionId;
       }
-      exec.costUsd = exec.costUsd + (cliResult.total_cost_usd || 0);
+      exec.costUsd = exec.costUsd + parsed.costUsd;
 
       exec.logs.push(`[OK] Session: ${exec.sessionId}`);
-      exec.logs.push(`[OK] Cost: $${cliResult.total_cost_usd?.toFixed(4)}`);
+      exec.logs.push(`[OK] Cost: $${parsed.costUsd.toFixed(4)}`);
 
-      if (cliResult.is_error) {
+      if (parsed.error) {
         exec.status = 'failed';
-        exec.error = cliResult.result || 'Unknown error';
+        exec.error = parsed.error;
         exec.logs.push(`[ERROR] ${exec.error}`);
-      } else if (cliResult.structured_output) {
-        exec.output = cliResult.structured_output;
+      } else if (parsed.output) {
+        exec.output = parsed.output;
 
-        if (cliResult.structured_output.status === 'needs_input') {
+        if (parsed.output.status === 'needs_input') {
           exec.status = 'waiting_for_input';
           exec.logs.push(
-            `[WAITING] ${cliResult.structured_output.questions?.length || 0} questions`
+            `[WAITING] ${parsed.output.questions?.length || 0} questions`
           );
 
           // Broadcast questions via SSE so the UI can display them
-          if (cliResult.structured_output.questions && exec.sessionId) {
+          if (parsed.output.questions && exec.sessionId) {
             const { broadcastWorkflowQuestions } = require('../watcher');
             broadcastWorkflowQuestions(
               exec.sessionId,
               exec.projectId,
-              cliResult.structured_output.questions
+              parsed.output.questions
             );
           }
-        } else if (cliResult.structured_output.status === 'completed') {
+        } else if (parsed.output.status === 'completed') {
           exec.status = 'completed';
           exec.logs.push('[COMPLETE] Workflow finished!');
-        } else if (cliResult.structured_output.status === 'error') {
+        } else if (parsed.output.status === 'error') {
           exec.status = 'failed';
-          exec.error = cliResult.structured_output.message;
+          exec.error = parsed.output.message;
           exec.logs.push(`[ERROR] ${exec.error}`);
         }
       } else {
-        // Test mode or no structured output
+        // Test mode or no structured output.
         exec.status = 'completed';
-        exec.logs.push(`[COMPLETE] ${cliResult.result?.slice(0, 100)}`);
+        exec.logs.push(`[COMPLETE] ${parsed.fallbackMessage?.slice(0, 100) || 'Done'}`);
       }
-    } catch (parseError) {
+    } catch {
       exec.status = 'failed';
       exec.error = `Parse error: ${stdout.slice(0, 200)}`;
       exec.logs.push(`[PARSE ERROR] ${exec.error}`);

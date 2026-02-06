@@ -13,7 +13,7 @@
 #   state       Manage orchestration state
 #   phase       Manage phase lifecycle (open/close/status)
 #   project     Manage project lifecycle (init)
-#   workflow    Execute SpecFlow skills via Claude CLI
+#   workflow    Execute SpecFlow skills via agent provider
 #   templates   Manage project templates
 #   help        Show this help message
 #   version     Show version
@@ -48,7 +48,7 @@ USAGE:
     specflow <command> [options]
 
 COMMANDS:
-    status      Get complete project status for Claude orientation
+    status      Get complete project status for agent orientation
                   [--json]            JSON output (default: human-readable)
                   [--quick]           Skip deep validation
 
@@ -89,7 +89,7 @@ COMMANDS:
                   [--json]            JSON output
                   [--dry-run]         Show what would happen (close only)
 
-    workflow    Execute SpecFlow skills via Claude CLI
+    workflow    Execute SpecFlow skills via agent provider
                   design              Run /flow.design skill
                   answer <id> <ans>   Answer a queued question
                   status              Check workflow status
@@ -113,10 +113,10 @@ EXAMPLES:
 
 INITIALIZATION SEQUENCE:
     1. specflow init                         # Create project structure (CLI)
-    2. /flow.init                            # Run discovery interview (Claude Code)
-    3. /flow.orchestrate                     # Start development workflow (Claude Code)
+    2. /flow.init                            # Run discovery interview in your agent
+    3. /flow.orchestrate                     # Start development workflow in your agent
 
-For Claude Code slash commands, use: /flow.orchestrate, /flow.design, etc.
+For slash-command capable agents, use: /flow.orchestrate, /flow.design, etc.
 EOF
 }
 

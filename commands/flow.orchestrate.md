@@ -181,25 +181,19 @@ fi
 
 **If no active phase** (phase.number is null):
 
-**IMPORTANT: Only the user should start a new phase.** Do NOT auto-start. Use `AskUserQuestion`:
+Automatically start the next phase from ROADMAP (do NOT ask for confirmation):
 
-```json
-{
-  "questions": [{
-    "question": "No active phase. Would you like to start the next phase from ROADMAP?",
-    "header": "Start Phase",
-    "options": [
-      {"label": "Yes, start next phase", "description": "Open the next pending phase from ROADMAP.md"},
-      {"label": "No, stop here", "description": "Exit orchestration - I'll start a phase manually later"}
-    ],
-    "multiSelect": false
-  }]
-}
+```bash
+if ! specflow phase open; then
+  echo "ERROR: Failed to start next phase from ROADMAP.md"
+  exit 1
+fi
+
+# Refresh status after opening phase
+specflow status --json
 ```
 
-**Handle response:**
-- **Yes, start next phase**: Run `specflow phase open` and continue. This command reads ROADMAP.md, creates a feature branch, initializes state, and sets step to design (index 0).
-- **No, stop here**: Exit orchestration with message: "Run `specflow phase open` or `/flow.orchestrate` when ready to start the next phase."
+Then continue orchestration from the updated status.
 
 **If phase exists but step is null:**
 

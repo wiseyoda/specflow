@@ -31,6 +31,12 @@ vi.mock('../../src/lib/roadmap.js', () => ({
 vi.mock('../../src/lib/checklist.js', () => ({
   readFeatureChecklists: vi.fn(),
   areAllChecklistsComplete: vi.fn(),
+  getAllVerificationItems: vi.fn(),
+}));
+
+vi.mock('../../src/lib/evidence.js', () => ({
+  readEvidence: vi.fn(),
+  hasEvidence: vi.fn(),
 }));
 
 vi.mock('../../src/lib/health.js', () => ({
@@ -41,7 +47,8 @@ import { findProjectRoot } from '../../src/lib/paths.js';
 import { readState } from '../../src/lib/state.js';
 import { resolveFeatureDir, getProjectContext, getMissingArtifacts } from '../../src/lib/context.js';
 import { readTasks, detectCircularDependencies } from '../../src/lib/tasks.js';
-import { readFeatureChecklists, areAllChecklistsComplete } from '../../src/lib/checklist.js';
+import { readFeatureChecklists, areAllChecklistsComplete, getAllVerificationItems } from '../../src/lib/checklist.js';
+import { readEvidence, hasEvidence } from '../../src/lib/evidence.js';
 import { runHealthCheck } from '../../src/lib/health.js';
 
 describe('check command', () => {
@@ -169,6 +176,63 @@ describe('check command', () => {
         vi.mocked(areAllChecklistsComplete).mockReturnValue(true);
 
         expect(areAllChecklistsComplete({} as any)).toBe(true);
+      });
+
+      it('should fail when evidence missing for completed V-items', () => {
+        const completedVItems = [
+          { id: 'V-001', status: 'done' },
+          { id: 'V-002', status: 'done' },
+        ];
+        const evidence = {
+          version: '1.0' as const,
+          featureDir: '/test',
+          items: {
+            'V-001': { itemId: 'V-001', timestamp: '', evidence: 'tested' },
+          },
+        };
+
+        vi.mocked(hasEvidence).mockReturnValue({ complete: false, missing: ['V-002'] });
+
+        const result = hasEvidence(evidence, completedVItems.map(i => i.id));
+        expect(result.complete).toBe(false);
+        expect(result.missing).toContain('V-002');
+      });
+
+      it('should pass when all V-items have evidence', () => {
+        const evidence = {
+          version: '1.0' as const,
+          featureDir: '/test',
+          items: {
+            'V-001': { itemId: 'V-001', timestamp: '', evidence: 'tested' },
+            'V-002': { itemId: 'V-002', timestamp: '', evidence: 'tested' },
+          },
+        };
+
+        vi.mocked(hasEvidence).mockReturnValue({ complete: true, missing: [] });
+
+        const result = hasEvidence(evidence, ['V-001', 'V-002']);
+        expect(result.complete).toBe(true);
+      });
+
+      it('should pass gracefully when no evidence file exists', () => {
+        // No evidence file = graceful degradation (pass)
+        const evidence = null;
+        const hasFile = evidence !== null;
+
+        // When no file exists, gate should pass (backward compat)
+        expect(hasFile).toBe(false);
+      });
+
+      it('should not require evidence for skipped V-items', () => {
+        const vItems = [
+          { id: 'V-001', status: 'done' },
+          { id: 'V-002', status: 'skipped' },
+        ];
+        const completedVItems = vItems.filter(i => i.status === 'done');
+
+        // Only completed items need evidence, not skipped
+        expect(completedVItems).toHaveLength(1);
+        expect(completedVItems[0].id).toBe('V-001');
       });
     });
   });

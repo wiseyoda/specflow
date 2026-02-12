@@ -15,7 +15,26 @@ description: 'Verification checklist - Post-implementation quality verification'
 ## Checklist ID Format
 
 All items use `V-###` prefix (e.g., V-001, V-002).
-Mark complete with: `specflow mark V-001`
+Mark complete with: `specflow mark V-001 --evidence "description of what was verified"`
+
+## Evidence Requirements
+
+V-items **require evidence** when marked complete. Evidence is a short description of what
+was verified and stored in `checklists/.evidence.json` alongside this file.
+
+```bash
+# Single item
+specflow mark V-001 --evidence "pnpm test: all 47 tests passed"
+
+# Batch items (shared evidence)
+specflow mark V-030 V-031 V-032 --evidence "pnpm test passed, lint clean, typecheck clean"
+
+# Marking incomplete removes evidence
+specflow mark V-001 --incomplete
+```
+
+The verify gate (`specflow check --gate verify`) validates that all completed V-items
+have evidence on record. Without `--evidence`, marking V-items will fail.
 
 ---
 

@@ -1,11 +1,11 @@
-import { readFile, writeFile, mkdir, rename, unlink } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { readFile, mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { z } from 'zod';
 import type { OrchestrationState } from '@specflow/shared';
 import { OrchestrationStateSchema, DashboardStateSchema } from '@specflow/shared';
 import { getStatePath, pathExists } from './paths.js';
 import { NotFoundError, StateError, ValidationError } from './errors.js';
+import { atomicWriteFile } from './fs-utils.js';
 
 /**
  * State file operations for SpecFlow
@@ -107,28 +107,6 @@ export async function writeRawState(data: Record<string, unknown>, projectPath?:
   const dir = dirname(statePath);
   await mkdir(dir, { recursive: true });
   await atomicWriteFile(statePath, JSON.stringify(data, null, 2));
-}
-
-/**
- * Atomically write content to a file (write to temp, then rename).
- * This prevents partial writes from corrupting the file.
- */
-async function atomicWriteFile(filePath: string, content: string): Promise<void> {
-  const dir = dirname(filePath);
-  const tempPath = join(dir, `.tmp-${randomUUID()}`);
-
-  try {
-    await writeFile(tempPath, content);
-    await rename(tempPath, filePath);
-  } catch (err) {
-    // Clean up temp file if rename failed
-    try {
-      await unlink(tempPath);
-    } catch {
-      // Ignore cleanup errors
-    }
-    throw err;
-  }
 }
 
 /** Write state to file */

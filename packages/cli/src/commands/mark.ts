@@ -10,6 +10,7 @@ import {
   type ChecklistData,
   type FeatureChecklists,
 } from '../lib/checklist.js';
+import { recordEvidence, removeEvidence } from '../lib/evidence.js';
 import { resolveFeatureDir } from '../lib/context.js';
 import { findProjectRoot } from '../lib/paths.js';
 import { handleError, NotFoundError, ValidationError, ParseError } from '../lib/errors.js';
@@ -45,6 +46,11 @@ export interface MarkOutput {
   stepComplete: boolean;
   nextAction?: string;
   message?: string;
+  evidence?: {
+    recorded: boolean;
+    itemCount: number;
+    text: string;
+  };
 }
 
 /**
@@ -320,11 +326,18 @@ function findChecklistItem(
 }
 
 /**
+ * Check if an item ID is a verification item (V-prefixed)
+ */
+function isVerificationItem(id: string): boolean {
+  return id.startsWith('V-');
+}
+
+/**
  * Mark checklist items complete or incomplete
  */
 async function markChecklistItems(
   itemIds: string[],
-  options: { incomplete?: boolean },
+  options: { incomplete?: boolean; evidence?: string },
 ): Promise<MarkOutput> {
   const projectRoot = findProjectRoot();
   if (!projectRoot) {
@@ -369,6 +382,15 @@ async function markChecklistItems(
     );
   }
 
+  // Require evidence for V-items when marking complete
+  const vItems = itemIds.filter(isVerificationItem);
+  if (!options.incomplete && vItems.length > 0 && !options.evidence) {
+    throw new ValidationError(
+      `Verification items require evidence: ${vItems.join(', ')}`,
+      'Add --evidence "description of what was verified"',
+    );
+  }
+
   // Update each file
   const checklistStatus: 'complete' | 'incomplete' = options.incomplete ? 'incomplete' : 'complete';
   for (const [filePath, { content, ids }] of fileUpdates) {
@@ -382,6 +404,13 @@ async function markChecklistItems(
       const message = err instanceof Error ? err.message : 'Unknown error';
       throw new ParseError('checklist', `Failed to write ${filePath}: ${message}`);
     }
+  }
+
+  // Record or remove evidence
+  if (options.incomplete) {
+    await removeEvidence(featureDir, itemIds);
+  } else if (options.evidence) {
+    await recordEvidence(featureDir, itemIds, options.evidence);
   }
 
   // Re-read checklists to get updated state
@@ -439,6 +468,14 @@ async function markChecklistItems(
     stepComplete: allComplete,
   };
 
+  if (options.evidence) {
+    result.evidence = {
+      recorded: true,
+      itemCount: itemIds.length,
+      text: options.evidence,
+    };
+  }
+
   if (allComplete) {
     result.nextAction = 'ready_to_close';
     result.message = 'All checklists complete! Ready to close phase.';
@@ -461,6 +498,10 @@ function formatHumanReadable(result: MarkOutput): string {
     lines.push(`Section "${result.sectionStatus.name}" complete!`);
   }
 
+  if (result.evidence?.recorded) {
+    lines.push(`Evidence recorded for ${result.evidence.itemCount} item(s)`);
+  }
+
   if (result.next) {
     lines.push(`Next: ${result.next.id} ${result.next.description}`);
   }
@@ -481,6 +522,7 @@ export const markCommand = new Command('mark')
   .option('--json', 'Output as JSON')
   .option('--incomplete', 'Mark as incomplete instead of complete')
   .option('--blocked <reason>', 'Mark as blocked with reason')
+  .option('--evidence <text>', 'Evidence of what was verified (required for V-items)')
   .action(async (items: string[], options) => {
     try {
       const parsed = parseIds(items);
@@ -506,7 +548,10 @@ export const markCommand = new Command('mark')
       if (parsed.taskIds.length > 0) {
         result = await markTasks(parsed.taskIds, options);
       } else {
-        result = await markChecklistItems(parsed.checklistIds, options);
+        result = await markChecklistItems(parsed.checklistIds, {
+          incomplete: options.incomplete,
+          evidence: options.evidence,
+        });
       }
 
       if (options.json) {

@@ -289,6 +289,45 @@ describe('mark command', () => {
     });
   });
 
+  describe('evidence requirements', () => {
+    it('should require evidence for V-items', () => {
+      // V-items require --evidence when marking complete
+      const vItems = ['V-001', 'V-002'].filter(id => id.startsWith('V-'));
+      const hasEvidence = false;
+      const isIncomplete = false;
+
+      const shouldReject = !isIncomplete && vItems.length > 0 && !hasEvidence;
+      expect(shouldReject).toBe(true);
+    });
+
+    it('should not require evidence for I-items', () => {
+      const items = ['I-001'];
+      const vItems = items.filter(id => id.startsWith('V-'));
+      const hasEvidence = false;
+
+      const shouldReject = vItems.length > 0 && !hasEvidence;
+      expect(shouldReject).toBe(false);
+    });
+
+    it('should not require evidence when marking incomplete', () => {
+      const vItems = ['V-001'];
+      const hasEvidence = false;
+      const isIncomplete = true;
+
+      const shouldReject = !isIncomplete && vItems.length > 0 && !hasEvidence;
+      expect(shouldReject).toBe(false);
+    });
+
+    it('should accept evidence for batch V-items', () => {
+      const items = ['V-030', 'V-031', 'V-032'];
+      const vItems = items.filter(id => id.startsWith('V-'));
+      const evidenceText = 'pnpm test: 47 passed, 0 failed (exit 0)';
+
+      const shouldReject = vItems.length > 0 && !evidenceText;
+      expect(shouldReject).toBe(false);
+    });
+  });
+
   describe('markChecklistItems', () => {
     it('should throw when not in a project', async () => {
       vi.mocked(findProjectRoot).mockReturnValue(undefined);

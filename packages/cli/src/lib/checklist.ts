@@ -325,6 +325,20 @@ export function getChecklistItemById(
 }
 
 /**
+ * Get all verification-prefixed items (V-###) across all checklists
+ */
+export function getAllVerificationItems(checklists: FeatureChecklists): ChecklistItem[] {
+  const allChecklists = [
+    checklists.verification,
+    checklists.implementation,
+    checklists.deferred,
+    ...checklists.other,
+  ].filter(Boolean) as ChecklistData[];
+
+  return allChecklists.flatMap(c => c.items.filter(i => i.id.startsWith('V-')));
+}
+
+/**
  * Check if all checklists are complete
  */
 export function areAllChecklistsComplete(checklists: FeatureChecklists): boolean {

@@ -223,12 +223,29 @@ For each incomplete item, agents MUST **actively verify** it:
 
 1. **Read the verification criteria** from the checklist
 2. **Execute the verification** - Run commands, check code, verify behavior
-3. **Mark complete if it passes**:
+3. **Mark complete with evidence** (V-items REQUIRE `--evidence`):
    ```bash
-   specflow mark V-001   # Verification checklist item
-   specflow mark I-001   # Implementation checklist item
+   # Single item with evidence
+   specflow mark V-001 --evidence "pnpm test: 47 passed, 0 failed (exit 0)"
+
+   # Batch items sharing the same evidence
+   specflow mark V-030 V-031 V-032 --evidence "pnpm test passed, pnpm lint clean, tsc --noEmit clean"
+
+   # Implementation items (evidence optional but recommended)
+   specflow mark I-001 --evidence "verified imports in src/lib/evidence.ts"
    ```
 4. **Document failures** - If item cannot pass, note why and ask user
+
+**Evidence Requirements by Verification Type:**
+
+| Type | Example Evidence |
+|------|-----------------|
+| Command output | `"pnpm test: 47 passed, 0 failed (exit 0)"` |
+| Code inspection | `"verified: no TODO/FIXME in src/ (grep returned 0 results)"` |
+| Behavioral check | `"manually tested login flow: redirect works, session persists"` |
+| Metric verification | `"response time p95 = 120ms (target: < 200ms)"` |
+
+**IMPORTANT**: `specflow mark V-###` without `--evidence` will fail with a validation error. The verify gate (`specflow check --gate verify`) also validates that all completed V-items have evidence recorded.
 
 **Checklist ID Prefixes:**
 

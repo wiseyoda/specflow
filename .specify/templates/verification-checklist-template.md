@@ -98,9 +98,19 @@ Verify all phase goals from `.specify/phases/NNNN-*.md` are achieved:
 Verify integration with existing system:
 
 - [ ] V-060 No regressions in existing functionality
-- [ ] V-061 Integration tests pass
+- [ ] V-061 Integration tests pass (if applicable)
 - [ ] V-062 Database migrations applied successfully (if applicable)
-- [ ] V-063 Environment variables documented
+- [ ] V-063 Environment variables documented (if applicable)
+
+## Integration Wiring Verification _(if phase creates new modules)_
+
+Verify every new module is reachable from an entry point:
+
+- [ ] V-070 Every new exported function/class has at least one caller outside its own file and tests
+- [ ] V-071 Every new route/endpoint is registered in the app router or discovery mechanism
+- [ ] V-072 Every new service/component is imported and used by at least one handler/page
+- [ ] V-073 No orphaned exports — code exported but never imported by any non-test file
+- [ ] V-074 Entry-point trace: can follow call chain from app startup to each new module
 
 ---
 

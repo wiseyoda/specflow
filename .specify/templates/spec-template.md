@@ -21,8 +21,9 @@ This spec uses standardized IDs for traceability through the workflow:
 | `SC-###` | Success Criteria | SC-001 | Measurable outcomes |
 | `US-###` | User Story | US-001 | User journeys |
 | `IR-###` | Inherited Requirement | IR-001 | Deferred from prior phase |
+| `WR-###` | Wiring Requirement | WR-001 | Caller/entry-point connections |
 
-**Traceability chain**: Phase Goal → FR-### → T### → V-###
+**Traceability chain**: Phase Goal → FR-### (+ WR-###) → T### → V-###
 
 ---
 
@@ -145,6 +146,18 @@ _Example of marking unclear requirements:_
 
 - **[Entity 1]**: [What it represents, key attributes without implementation]
 - **[Entity 2]**: [What it represents, relationships to other entities]
+
+### Wiring Requirements _(include if phase creates new modules or services)_
+
+<!--
+  Each new module/service/component MUST specify how it connects to existing code.
+  A wiring requirement defines WHO calls the new code and WHERE the call originates.
+  If a module has no caller outside its own file and tests, it is dead code.
+  Delete this section if the phase only modifies existing code.
+-->
+
+- **WR-001**: [NewService] MUST be imported by [ExistingHandler] in `[file-path]`
+- **WR-002**: [NewRoute] MUST be registered in [router] at `[file-path]`
 
 ## Success Criteria _(mandatory)_
 

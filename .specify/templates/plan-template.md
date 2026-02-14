@@ -98,6 +98,27 @@ ios/ or android/
 **Structure Decision**: [Document the selected structure and reference the real
 directories captured above]
 
+## Integration Architecture _(include if phase creates new modules)_
+
+<!--
+  Map each new module to its caller and the entry point that triggers the call chain.
+  This section is consumed by the TASKS phase to generate explicit wiring tasks.
+  Delete this section if the phase only modifies existing files.
+-->
+
+### Caller Mappings
+
+| New Module | Called By | Entry Point | File(s) to Modify |
+|------------|----------|-------------|-------------------|
+| [NewService] | [ExistingHandler] | [route/CLI/event] | [files needing import additions] |
+
+### Wiring Sequence
+
+1. `src/[new-module].ts` exports `[Symbol]`
+2. `src/[barrel]/index.ts` re-exports `[Symbol]`
+3. `src/[caller].ts` imports and calls `[Symbol]`
+4. `src/[entry-point].ts` registers the caller
+
 ## Complexity Tracking
 
 > **Fill ONLY if Constitution Check has violations that must be justified**

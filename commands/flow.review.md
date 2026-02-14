@@ -190,8 +190,8 @@ Each agent returns: `{category: "BP", findings: [{id, file, lines, problem, fix,
 | BP | Compare against coding-standards.md; check for anti-patterns, inconsistent naming, missing error codes |
 | RF | Functions >100 lines, deep nesting (>3 levels), duplicate code blocks, complex conditionals |
 | HD | Missing `set -euo pipefail`, unvalidated inputs, missing error handling, security gaps |
-| MF | TODO/FIXME comments, stub implementations, placeholder values, incomplete error messages |
-| OC | Unused functions, unreferenced files, dead code paths, commented-out code blocks |
+| MF | TODO/FIXME comments, stub implementations, placeholder values, incomplete error messages, **modules that exist but are not wired to any route/handler/entry point** (module is built and exported but never registered — distinct from OC because the code IS complete, just unreachable) |
+| OC | Unused functions, unreferenced files, dead code paths, commented-out code blocks, **exported symbols with zero non-test importers** (check barrel/index files for exports that no route or handler references) |
 | OE | Unused abstractions, over-parameterized functions, premature optimization, excessive indirection |
 | OD | README doesn't match implementation, stale comments, incorrect usage examples |
 

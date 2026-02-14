@@ -39,7 +39,7 @@ Analyze spec.md, plan.md, and tasks.md for inconsistencies, gaps, and quality is
 
 1. [ANALYZE] INITIALIZE - Get project status and verify gate
 2. [ANALYZE] LOAD - Load all artifacts in parallel
-3. [ANALYZE] DETECT - Run 8 detection passes
+3. [ANALYZE] DETECT - Run 9 detection passes
 4. [ANALYZE] FIX - Auto-fix loop (max 5 iterations)
 5. [ANALYZE] REPORT - Generate analysis report
 
@@ -102,13 +102,13 @@ Use TodoWrite: mark [ANALYZE] LOAD complete, mark [ANALYZE] DETECT in_progress.
 
 ### 3. Detection Passes (Parallel)
 
-**Use parallel sub-agents** to run all 8 detection passes simultaneously:
+**Use parallel sub-agents** to run all 9 detection passes simultaneously:
 
 ```
-Launch 8 parallel workers (Agent Teams preferred; Task agents fallback) (subagent_type: Explore):
+Launch 9 parallel workers (Agent Teams preferred; Task agents fallback) (subagent_type: Explore):
 
 Team-mode role hints:
-- Use `specflow-quality-auditor` for all pass workers (A-H)
+- Use `specflow-quality-auditor` for all pass workers (A-I)
 - Parent orchestrator uses `specflow-coordinator` for severity ranking and deduplication
 
 Pass A Agent: Phase Goals - Check goals in phase doc have spec requirements and tasks
@@ -119,6 +119,7 @@ Pass E Agent: Constitution - Check MUST principles, mandated sections
 Pass F Agent: Coverage Gaps - Find requirements without tasks, tasks without requirements
 Pass G Agent: Inconsistency - Find terminology drift, conflicting tech choices
 Pass H Agent: UI Coverage - Check ui-design.md components have implementing tasks
+Pass I Agent: Integration Wiring — Check new modules have [W] tasks and caller mappings
 ```
 
 **Expected speedup**: ~85% faster (8 parallel passes vs. sequential)
@@ -137,13 +138,14 @@ Each agent returns findings in format: `{pass: "A", findings: [{id, severity, lo
 | **F. Coverage Gaps**      | Requirements with zero tasks; tasks with no mapped requirement                                  |
 | **G. Inconsistency**      | Terminology drift, conflicting tech choices, ordering contradictions                            |
 | **H. UI Coverage**        | Components in ui-design.md without implementing tasks; interactions not mapped to tasks         |
+| **I. Integration Wiring** | New modules/services in tasks.md without [W] wiring tasks; modules without callers in plan.md Integration Architecture; WR-### requirements without corresponding tasks |
 
 Use TodoWrite: mark [ANALYZE] DETECT complete, mark [ANALYZE] FIX in_progress.
 
 ### 4. Severity
 
 - **CRITICAL**: Phase goal not covered, Constitution MUST violation, zero-coverage blocking requirement
-- **HIGH**: Duplicate/conflicting requirements, untestable acceptance criteria
+- **HIGH**: Duplicate/conflicting requirements, untestable acceptance criteria, new module without any wiring task
 - **MEDIUM**: Terminology drift, missing non-functional coverage
 - **LOW**: Style/wording improvements
 
@@ -272,6 +274,7 @@ Agent 3: Fix tasks.md issues (missing tasks, wrong IDs)
 | Ambiguity | Add measurable criteria |
 | Coverage gap | Add requirement or task |
 | Constitution violation | Modify to comply OR flag for user |
+| Integration wiring gap | Add [W] task to tasks.md referencing Integration Architecture from plan.md |
 
 - Stay in analyze step until clean (do not advance)
 - Output after each iteration: "Iteration N/5: Found M issues. Fixing..."

@@ -199,7 +199,13 @@ Agent 1 (Codebase): Search files, functions, patterns related to change
   - Look for existing implementations in same area
   - Identify dependencies and integration points
   - Note patterns and conventions established
-  → Return: relevant files, patterns found, dependencies
+  - **Entry Point Discovery** (REQUIRED):
+    - Find all entry points: route registrations, CLI command registries,
+      exported API surfaces, barrel/index files
+    - For each, note file path and the pattern used to register new modules
+    - Identify WHERE new code from this phase will be registered/imported
+  → Return: relevant files, patterns found, dependencies,
+    **entry point registry** (file → registration pattern)
 
 Agent 2 (Memory): Read memory documents per `.specify/templates/memory-loading-guide.md`
   - Scope: .specify/memory/
@@ -278,6 +284,14 @@ Parse phase file and discovery findings. For unclear aspects:
   - Multiple reasonable interpretations exist
   - No reasonable default exists
 - **LIMIT: Maximum 3 markers**
+
+**Integration requirements (for each new module)**:
+
+For every new module/service introduced in this spec, include a wiring
+requirement (WR-###) or integration-focused FR-###:
+
+- Pattern: `WR-001: [NewService] MUST be imported by [caller] in [file-path]`
+- Reference the entry point registry from discovery.md
 
 **Existence check**: If `{PHASE_DIR}/spec.md` exists:
 - Show diff preview of what will change
@@ -444,6 +458,11 @@ Agent U2: Research unknown 2 (e.g., "library choice for Y")
 
 Write `{PHASE_DIR}/plan.md` using template structure.
 
+**Integration Architecture (REQUIRED section in plan.md when creating new modules)**:
+
+plan.md MUST include an "## Integration Architecture" section using the
+template format. Every new module needs a caller mapping.
+
 ---
 
 ### 4. TASKS Phase
@@ -475,8 +494,9 @@ Components:
 1. Checkbox: `- [ ]`
 2. Task ID: Sequential (T001, T002...)
 3. `[P]`: Only if parallelizable
-4. `[US#]`: Only for user story phase tasks
-5. Description with file path
+4. `[W]`: Only if this is a wiring/integration task
+5. `[US#]`: Only for user story phase tasks
+6. Description with file path
 
 **⚠️ DO NOT use these incorrect formats:**
 ```markdown
@@ -487,6 +507,14 @@ Components:
 ```
 
 The task ID MUST be inline with the checkbox. The CLI parses `- [ ] T###` patterns only.
+
+**Wiring tasks (REQUIRED for each new module)**:
+
+- Read the Integration Architecture section from plan.md
+- For each caller mapping entry, create a [W] wiring task
+- Wiring tasks should be the LAST task in their section (after the module is built)
+- Description pattern: `Wire [module] into [entry point] in [file]`
+- Validation: Every task creating a new file must have a corresponding [W] task
 
 **4c. Validate tasks:**
 - Every task has ID, description, file path
@@ -534,6 +562,13 @@ See `.specify/templates/goal-coverage-template.md` for full format details.
 1. Add task(s) to tasks.md that implement the requirement
 2. Re-verify coverage
 3. Update status to COVERED
+
+**Wiring coverage check (REQUIRED)**:
+
+After the goals coverage matrix, verify wiring:
+- For each goal: do implementation tasks have corresponding [W] wiring tasks?
+- Goals with tasks but no wiring are PARTIAL, not COVERED
+- Update the "Wired To" column in the coverage matrix
 
 **Do NOT proceed until all non-deferred goals have COVERED status.**
 

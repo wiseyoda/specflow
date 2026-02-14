@@ -41,10 +41,30 @@ description: 'Pre-specification discovery document for codebase context and scop
 ### Integration Points
 
 <!--
-  Document where this change will need to integrate with existing code.
+  Document WHERE new code will be called from. Every new module needs a caller.
+  This section prevents "orphaned infrastructure" — code that exists but is never invoked.
 -->
 
-- **[System/Component]**: [How integration will work]
+#### Existing Entry Points
+
+| Entry Point | File Path | Type | Will Call |
+|-------------|-----------|------|-----------|
+| [e.g., app router] | [src/routes/index.ts] | [route/CLI/handler/hook] | [New module/service] |
+
+#### New Entry Points _(if phase creates new routes/commands)_
+
+| New Entry Point | File Path | Registered In |
+|-----------------|-----------|---------------|
+| [e.g., POST /api/reports] | [src/routes/reports.ts] | [src/routes/index.ts] |
+
+#### Import Additions Required
+
+<!--
+  List existing files that need new import statements to wire in new code.
+  These become [W] wiring tasks in tasks.md.
+-->
+
+- `[existing-file.ts]` will import `[NewService]` from `[new-file.ts]`
 
 ### Constraints Discovered
 

@@ -57,6 +57,7 @@ Verify a completed feature phase is ready for merge:
 2. All checklists pass
 3. Implementation complies with memory documents
 4. User gate satisfied (if applicable)
+5. User receives a concrete, non-developer test guide with startup steps
 
 **Note**: This command verifies readiness but does NOT close the phase. Use `/flow.merge` to close, push, and merge.
 
@@ -68,10 +69,11 @@ Verify a completed feature phase is ready for merge:
 
 1. [VERIFY] CONTEXT - Get project status and load phase artifacts
 2. [VERIFY] IMPL_GATE - Verify all tasks complete
-3. [VERIFY] VERIFY_GATE - Complete all checklists
-4. [VERIFY] PHASE_GOALS - Verify against original phase goals
-5. [VERIFY] MEMORY - Check against memory docs
-6. [VERIFY] REPORT - Mark verified and report
+3. [VERIFY] WIRING - Check integration wiring (orphaned exports)
+4. [VERIFY] VERIFY_GATE - Complete all checklists
+5. [VERIFY] PHASE_GOALS - Verify against original phase goals
+6. [VERIFY] MEMORY - Check against memory docs
+7. [VERIFY] REPORT - Mark verified and report
 
 Set [VERIFY] CONTEXT to in_progress.
 
@@ -170,7 +172,35 @@ For each incomplete task, offer choices:
 
 After resolving, re-run `specflow check --gate implement` until it passes.
 
-Use TodoWrite: mark [VERIFY] IMPL_GATE complete, mark [VERIFY] VERIFY_GATE in_progress.
+Use TodoWrite: mark [VERIFY] IMPL_GATE complete, mark [VERIFY] WIRING in_progress.
+
+---
+
+## Step 2.5: Integration Wiring Check
+
+Verify every new module created in this phase is reachable from an entry point.
+
+**Load orphan warnings from implement step:**
+```bash
+ORPHANS=$(specflow state get orchestration.implement.orphanedExports 2>/dev/null)
+```
+
+**Use parallel sub-agents** to scan for orphaned exports:
+
+For each file created/modified in this phase (from `git diff --name-only main`):
+- Extract all exported symbols
+- grep codebase for import statements (exclude test files)
+- Classify: WIRED (has callers), WIRED-TRANSITIVE (via barrel), ORPHANED (no callers)
+
+**If orphaned exports map to phase goals or FR-###**: BLOCKING — must wire or defer
+**If orphaned exports are utilities/helpers**: WARNING — log but do not block
+
+Resolution options:
+1. Wire the export now (add import to appropriate caller)
+2. Defer: `specflow phase defer "Wire [module] into [caller]"`
+3. Remove: If export isn't needed, remove it
+
+Use TodoWrite: mark [VERIFY] WIRING complete, mark [VERIFY] VERIFY_GATE in_progress.
 
 ---
 
@@ -246,6 +276,16 @@ For each incomplete item, agents MUST **actively verify** it:
 | Metric verification | `"response time p95 = 120ms (target: < 200ms)"` |
 
 **IMPORTANT**: `specflow mark V-###` without `--evidence` will fail with a validation error. The verify gate (`specflow check --gate verify`) also validates that all completed V-items have evidence recorded.
+
+**Integration Wiring V-item Verification:**
+
+| V-item | Verification Method | Evidence Pattern |
+|--------|-------------------|------------------|
+| V-070 (Caller exists) | grep for import statements | `"grep: N imports of [module] in non-test files"` |
+| V-071 (Route registered) | Check router config | `"[route] registered in [file]:L[line]"` |
+| V-072 (Service imported) | Check handler imports | `"[service] imported in [handler]:L[line]"` |
+| V-073 (No orphans) | Orphaned export scan | `"0 orphaned exports across N files"` |
+| V-074 (Entry-point trace) | Trace call chain | `"traced: [entry] → [handler] → [service] → [new module]"` |
 
 **Checklist ID Prefixes:**
 
@@ -438,6 +478,34 @@ GATE_STATUS=$(specflow state get orchestration.phase.userGateStatus)
 
 If `userGateStatus` is `confirmed` or `skipped`, proceed to Step 7.
 
+**Before prompting user, build a non-developer verification guide (required):**
+
+Build a concrete "How to Verify This Change" guide from repo artifacts. Do not assume the user knows how to run the app.
+
+1. Discover app start/run commands (in this order):
+   - `README.md` / `docs/**` quickstart sections
+   - `package.json` scripts (`dev`, `start`, `preview`)
+   - `Makefile` / `justfile` (`dev`, `run`, `start`)
+   - `docker-compose.yml` or `compose.yaml`
+2. Discover required environment variables:
+   - Read `.env.example`, `.env.sample`, `.env.local.example` when present
+   - List required keys and safe setup commands (example: `cp .env.example .env`)
+   - If a secret cannot be sourced locally, say exactly where the user gets it
+3. Determine app entry point:
+   - Expected URL, port, and login/account prerequisites (if any)
+4. Convert USER GATE criteria into numbered manual test steps:
+   - Each step must include expected result
+5. Add a short troubleshooting section:
+   - Command not found
+   - Port already in use
+   - Missing environment variable
+
+**Output quality rules (required):**
+- Use plain language for non-developers
+- Include copy/paste commands
+- Do not use placeholders like `<start command>` when detection is possible
+- If detection fails, explicitly say what was checked and provide the best fallback command options
+
 **If gate is pending**, use standardized `AskUserQuestion`:
 
 ```json
@@ -447,7 +515,7 @@ If `userGateStatus` is `confirmed` or `skipped`, proceed to Step 7.
     "header": "User Gate",
     "options": [
       {"label": "Yes, verified (Recommended)", "description": "I have tested and confirmed the gate criteria are met"},
-      {"label": "Show details", "description": "Display verification instructions and test steps"},
+      {"label": "Show details", "description": "Show copy/paste setup + click-by-click verification steps"},
       {"label": "Skip gate", "description": "Proceed without user verification (not recommended)"}
     ],
     "multiSelect": false
@@ -460,7 +528,7 @@ If `userGateStatus` is `confirmed` or `skipped`, proceed to Step 7.
 | Response | Action |
 |----------|--------|
 | **Yes, verified** | `specflow state set orchestration.phase.userGateStatus=confirmed` → Proceed |
-| **Show details** | Display: 1) Gate criteria, 2) Test instructions, 3) Expected behavior → Re-ask |
+| **Show details** | Display generated guide: 1) setup commands, 2) start command, 3) URL/login path, 4) numbered test steps with expected results, 5) troubleshooting; then re-ask |
 | **Skip gate** | `specflow state set orchestration.phase.userGateStatus=skipped` → Proceed (log reason) |
 
 **If no USER GATE**: Proceed directly to mark verified.
@@ -507,11 +575,40 @@ Display summary:
 
 ## How to Verify & Test
 
-Detailed instructions on how to verify this feature as a user. Include:
-- How to start the dev server
-- Any required environment variables
-- Step-by-step testing instructions
-- Expected behavior
+Provide a **non-developer verification guide** with this exact structure:
+
+### 1) Setup (copy/paste)
+- Dependency install command(s)
+- Environment setup command(s)
+- Any login/account prerequisites
+
+### 2) Start the app
+- Exact command to run
+- How to know it started successfully (expected output)
+
+### 3) Open the app
+- URL to open
+- First screen/page expected
+
+### 4) Verify the change (step-by-step)
+1. Step mapped to gate/acceptance criteria #1
+   Expected: ...
+2. Step mapped to gate/acceptance criteria #2
+   Expected: ...
+
+### 5) Quick pass/fail checklist
+- [ ] Gate criterion 1 confirmed
+- [ ] Gate criterion 2 confirmed
+- [ ] No regressions observed in affected flow
+
+### 6) If something fails
+- What command/log to capture
+- What to send back to the agent
+
+**Rules:**
+- Use concrete commands and concrete URLs
+- Keep language non-technical
+- Include estimated time to complete the manual check (for example: "10-15 minutes")
 
 ## Deferred Items
 

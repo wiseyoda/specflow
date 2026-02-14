@@ -45,6 +45,7 @@ Complete the current phase:
 2. Commit the phase closure changes
 3. Push and merge to main
 4. Switch to main with clean state
+5. Provide a concrete post-merge testing path for non-developers
 
 ## Execution
 
@@ -237,6 +238,23 @@ GATE_STATUS=$(specflow state get orchestration.phase.userGateStatus)
 
 If `userGateStatus` is `confirmed` or `skipped`, proceed to Step 3.
 
+**If gate is pending, generate a non-developer verification guide before asking user:**
+
+Reuse guide content from `/flow.verify` output when available. If unavailable, build it from:
+- `README.md` / docs quickstart instructions
+- `package.json` scripts (`dev`, `start`, `preview`)
+- `Makefile` / `justfile` targets
+- `.env.example` / `.env.sample` environment setup
+- USER GATE criteria from phase doc
+
+Guide must include:
+1. Copy/paste setup commands
+2. Exact app start command
+3. URL and login path (if required)
+4. Numbered manual test steps mapped to gate criteria
+5. Expected result for each step
+6. Quick troubleshooting notes
+
 **If gate is pending**, use standardized `AskUserQuestion`:
 
 ```json
@@ -246,7 +264,7 @@ If `userGateStatus` is `confirmed` or `skipped`, proceed to Step 3.
     "header": "User Gate",
     "options": [
       {"label": "Yes, verified (Recommended)", "description": "I have tested and confirmed the gate criteria are met"},
-      {"label": "Show details", "description": "Display verification instructions and test steps"},
+      {"label": "Show details", "description": "Show copy/paste setup + click-by-click verification steps"},
       {"label": "Skip gate", "description": "Proceed without user verification (not recommended)"}
     ],
     "multiSelect": false
@@ -259,7 +277,7 @@ If `userGateStatus` is `confirmed` or `skipped`, proceed to Step 3.
 | Response | Action |
 |----------|--------|
 | **Yes, verified** | `specflow state set orchestration.phase.userGateStatus=confirmed` → Proceed |
-| **Show details** | Display: 1) Gate criteria, 2) Test instructions, 3) Expected behavior → Re-ask |
+| **Show details** | Display generated guide: setup, start command, URL/login, numbered checks with expected outcomes, troubleshooting; then re-ask |
 | **Skip gate** | `specflow state set orchestration.phase.userGateStatus=skipped` → Proceed (log reason) |
 | **Other (not ready)** | BLOCK merge, instruct to verify and return |
 
@@ -355,10 +373,18 @@ fi
 
 ### 7. Handle --pr-only (Skip if LOCAL_ONLY_MODE)
 
+When printing the `--pr-only` message, substitute concrete values. Do not print placeholder tokens (`{...}`).
+
 ```bash
 if [[ "$ARGUMENTS" == *"--pr-only"* ]]; then
   echo "✓ PR created (--pr-only mode)"
   echo "Review at: $PR_URL"
+  echo ""
+  echo "Test this branch before merging:"
+  echo "1) Setup: [actual copy/paste setup commands]"
+  echo "2) Start app: [actual start command]"
+  echo "3) Open: [actual URL]"
+  echo "4) Run manual checks: [actual numbered checks with expected outcomes]"
   echo ""
   echo "After review, run /flow.merge to complete"
   exit 0
@@ -447,6 +473,22 @@ Use TodoWrite: mark [MERGE] MEMORY complete, mark [MERGE] DONE in_progress.
 
 ### 11. Done
 
+**Before printing final DONE message, generate a post-merge test path (required):**
+
+Build a "Test What Was Just Merged" guide for non-developers using:
+- The verification guide from `/flow.verify` (preferred)
+- Otherwise: `README.md`, docs, scripts, env example files, phase goals, and acceptance criteria
+
+The guide MUST include:
+1. Repo sync command(s) for user's mode (local-only vs merged-to-main)
+2. Setup command(s) and env setup command(s)
+3. Exact app start command
+4. URL and first expected screen/state
+5. 3-7 manual smoke-test steps with expected outcomes
+6. What to do if a step fails (what log/output to share)
+
+**Output rule:** Replace all placeholders with concrete commands/URLs from the project. If something cannot be auto-detected, say what was checked and give the best fallback command options.
+
 **If LOCAL_ONLY_MODE=true**:
 ```text
 ✓ Closed phase $PHASE_NUMBER (local only)
@@ -457,6 +499,16 @@ Use TodoWrite: mark [MERGE] MEMORY complete, mark [MERGE] DONE in_progress.
 Phase is complete locally. To push later:
 1. Configure remote: git remote add origin <url>
 2. Push: git push -u origin $CURRENT_BRANCH
+
+Test What Was Just Implemented:
+1. Confirm branch: git branch --show-current
+2. Setup: [actual copy/paste setup commands]
+3. Start app: [actual start command]
+4. Open: [actual URL]
+5. Run smoke test steps:
+   - [actual step 1 + expected result]
+   - [actual step 2 + expected result]
+   - [actual step 3 + expected result]
 ```
 
 **If LOCAL_ONLY_MODE=false**:
@@ -466,6 +518,18 @@ Phase is complete locally. To push later:
 ✓ Pushed and merged PR
 ✓ Switched to main (clean)
 ✓ Integrated archive into memory
+
+Test What Was Just Merged:
+1. Sync main:
+   - git checkout main
+   - git pull origin main
+2. Setup: [actual copy/paste setup commands]
+3. Start app: [actual start command]
+4. Open: [actual URL]
+5. Run smoke test steps:
+   - [actual step 1 + expected result]
+   - [actual step 2 + expected result]
+   - [actual step 3 + expected result]
 
 Run /flow.orchestrate to start the next phase
 ```

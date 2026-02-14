@@ -58,6 +58,14 @@ GATE_STATUS=$(specflow state get orchestration.phase.userGateStatus)
 
 ### Step 3: Prompt user (if needed)
 
+Before prompting, generate a non-developer verification guide with:
+- Setup commands (dependencies + environment variables)
+- Exact app start command
+- URL/login path
+- Numbered manual test steps mapped to gate criteria
+- Expected result for each step
+- Quick troubleshooting tips
+
 Use this **exact** `AskUserQuestion` format for consistency:
 
 ```json
@@ -67,7 +75,7 @@ Use this **exact** `AskUserQuestion` format for consistency:
     "header": "User Gate",
     "options": [
       {"label": "Yes, verified (Recommended)", "description": "I have tested and confirmed the gate criteria are met"},
-      {"label": "Show details", "description": "Display verification instructions and test steps"},
+      {"label": "Show details", "description": "Show copy/paste setup + click-by-click verification steps"},
       {"label": "Skip gate", "description": "Proceed without user verification (not recommended)"}
     ],
     "multiSelect": false
@@ -80,7 +88,7 @@ Use this **exact** `AskUserQuestion` format for consistency:
 | Response | State Update | Next Action |
 |----------|--------------|-------------|
 | **Yes, verified** | `specflow state set orchestration.phase.userGateStatus=confirmed` | Proceed |
-| **Show details** | (no state change) | Display gate criteria + test steps, then re-prompt |
+| **Show details** | (no state change) | Display generated guide (setup, start, URL/login, numbered tests, expected outcomes, troubleshooting), then re-prompt |
 | **Skip gate** | `specflow state set orchestration.phase.userGateStatus=skipped` | Proceed (log reason) |
 | **Other** | (no state change) | Block until user responds |
 

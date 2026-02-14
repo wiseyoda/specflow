@@ -19,26 +19,26 @@ Consistent with spec-template.md, use these ID formats for traceability:
 
 ## Phase Goals Matrix
 
-Use this table to verify every phase goal has spec coverage and implementing tasks.
+Use this table to verify every phase goal has spec coverage, implementing tasks, and integration wiring.
 
 ```markdown
 ## Phase Goals Coverage
 
-| # | Phase Goal | Spec Requirement(s) | Task(s) | Status |
-|---|------------|---------------------|---------|--------|
-| 1 | [Goal from phase doc] | FR-001, FR-002 | T001-T005 | COVERED |
-| 2 | [Goal from phase doc] | FR-003, NFR-001 | T010-T012 | COVERED |
-| 3 | [Goal from phase doc] | NONE | NONE | MISSING |
-| 4 | [Goal from phase doc] | FR-004 | Deferred | DEFERRED |
+| # | Phase Goal | Spec Requirement(s) | Task(s) | Wired To | Status |
+|---|------------|---------------------|---------|----------|--------|
+| 1 | [Goal from phase doc] | FR-001, FR-002 | T001-T005 | T005 [W] → handler.ts | COVERED |
+| 2 | [Goal from phase doc] | FR-003, NFR-001 | T010-T012 | T012 [W] → router.ts | COVERED |
+| 3 | [Goal from phase doc] | NONE | NONE | - | MISSING |
+| 4 | [Goal from phase doc] | FR-004 | T020-T022 | NONE | PARTIAL |
 ```
 
 ## Status Values
 
 | Status | Meaning | Action Required |
 |--------|---------|-----------------|
-| `COVERED` | Goal has requirement(s) and task(s) | None - ready for implementation |
-| `PARTIAL` | Goal has requirement but no tasks | Add tasks to tasks.md |
-| `MISSING` | Goal has no requirement or tasks | CRITICAL - add to spec.md first |
+| `COVERED` | Goal has requirement(s), task(s), AND wiring | None — ready for implementation |
+| `PARTIAL` | Goal has requirements/tasks but missing wiring, OR tasks but no requirements | Add [W] wiring task or missing items |
+| `MISSING` | Goal has no requirement or tasks | CRITICAL — add to spec.md first |
 | `DEFERRED` | Goal explicitly deferred to backlog | Document reason in plan.md |
 
 ## Storage Location
@@ -52,9 +52,9 @@ The goal coverage matrix MUST be persisted (not just output to console) so it su
 
 ## Phase Goals Coverage
 
-| # | Phase Goal | Spec Requirement(s) | Task(s) | Status |
-|---|------------|---------------------|---------|--------|
-| 1 | Goal from phase doc | FR-001, FR-002 | T001-T005 | COVERED |
+| # | Phase Goal | Spec Requirement(s) | Task(s) | Wired To | Status |
+|---|------------|---------------------|---------|----------|--------|
+| 1 | Goal from phase doc | FR-001, FR-002 | T001-T005 | T005 [W] → handler.ts | COVERED |
 ...
 
 Coverage: N/N goals (100%)
@@ -86,13 +86,13 @@ This matrix MUST be generated at these checkpoints:
 Phase: 1055 - Smart Batching Orchestration
 Source: `.specify/phases/1055-smart-batching.md`
 
-| # | Phase Goal | Spec Requirement(s) | Task(s) | Status |
-|---|------------|---------------------|---------|--------|
-| 1 | Batch parser for orchestrate commands | FR-001 Batch Command Parser | T001-T003 | COVERED |
-| 2 | Smart sequencing with dependencies | FR-002 Dependency Resolution | T004-T008 | COVERED |
-| 3 | Self-healing on failures | FR-003 Auto-Recovery | T009-T012 | COVERED |
-| 4 | Progress persistence across sessions | NFR-001 State Persistence | T013-T015 | COVERED |
-| 5 | Minimal user interaction | FR-004 Auto-Decision | T016-T018 | COVERED |
+| # | Phase Goal | Spec Requirement(s) | Task(s) | Wired To | Status |
+|---|------------|---------------------|---------|----------|--------|
+| 1 | Batch parser for orchestrate commands | FR-001 Batch Command Parser | T001-T003 | T003 [W] → orchestrate.ts | COVERED |
+| 2 | Smart sequencing with dependencies | FR-002 Dependency Resolution | T004-T008 | T008 [W] → scheduler.ts | COVERED |
+| 3 | Self-healing on failures | FR-003 Auto-Recovery | T009-T012 | T012 [W] → orchestrate.ts | COVERED |
+| 4 | Progress persistence across sessions | NFR-001 State Persistence | T013-T015 | T015 [W] → state.ts | COVERED |
+| 5 | Minimal user interaction | FR-004 Auto-Decision | T016-T018 | T018 [W] → prompts.ts | COVERED |
 
 Coverage: 5/5 goals (100%)
 ```
@@ -105,12 +105,12 @@ Coverage: 5/5 goals (100%)
 Phase: 0080 - CLI Migration
 Source: `.specify/phases/0080-cli-migration.md`
 
-| # | Phase Goal | Spec Requirement(s) | Task(s) | Status |
-|---|------------|---------------------|---------|--------|
-| 1 | Migrate status command to TypeScript | FR-001 Status Command | T001-T005 | COVERED |
-| 2 | Add JSON output for all commands | FR-002 JSON Output | T006-T010 | COVERED |
-| 3 | Maintain backward compatibility | NONE | NONE | MISSING |
-| 4 | Performance parity with bash | NFR-001 (partial) | T011 | PARTIAL |
+| # | Phase Goal | Spec Requirement(s) | Task(s) | Wired To | Status |
+|---|------------|---------------------|---------|----------|--------|
+| 1 | Migrate status command to TypeScript | FR-001 Status Command | T001-T005 | T005 [W] → index.ts | COVERED |
+| 2 | Add JSON output for all commands | FR-002 JSON Output | T006-T010 | T010 [W] → formatter.ts | COVERED |
+| 3 | Maintain backward compatibility | NONE | NONE | - | MISSING |
+| 4 | Performance parity with bash | NFR-001 (partial) | T011 | NONE | PARTIAL |
 
 Coverage: 2/4 goals (50%)
 

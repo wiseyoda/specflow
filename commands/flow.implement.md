@@ -223,6 +223,19 @@ Team-mode role hint:
 
 **Expected benefit**: Early defect detection, continuous compliance checking
 
+### 4.3 Section Wiring Checkpoint
+
+After completing each section's tasks, quick wiring check:
+
+For each file CREATED in this section:
+1. Identify its primary export(s)
+2. grep: Is this export imported by any file outside tests/?
+3. If NOT imported:
+   - Is there a [W] wiring task in an upcoming section? → Log "wiring pending" and continue
+   - No wiring task exists? → WARNING: "[file] has no caller and no upcoming wiring task"
+     - `specflow phase defer "Wire [module] — discovered during implementation"`
+   - Do NOT block — continue implementation
+
 ### 5. TDD Details
 
 **Test detection:**
@@ -264,6 +277,20 @@ Use TodoWrite: mark [IMPL] EXECUTE complete, mark [IMPL] COMPLETE in_progress.
 ```bash
 specflow check --gate implement
 ```
+
+**Orphaned export scan (before marking complete)**:
+
+For each file created/modified this phase (from `git diff --name-only main`):
+1. Extract exported symbols
+2. Search codebase for imports of each symbol (exclude test files)
+3. Report orphaned exports as warnings
+
+Persist for verify step:
+```bash
+specflow state set orchestration.implement.orphanedExports='["file:Symbol", ...]'
+```
+
+Do NOT block completion — these are warnings for the verify step.
 
 If gate passes:
 ```bash

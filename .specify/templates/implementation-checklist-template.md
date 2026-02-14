@@ -56,7 +56,7 @@ Verify external dependencies are documented:
 - [ ] I-030 Required APIs/services identified in plan.md
 - [ ] I-031 Third-party dependencies listed with versions in tech-stack.md
 - [ ] I-032 Assumptions about data availability documented
-- [ ] I-033 Integration points with existing code identified
+- [ ] I-033 Integration points documented with caller file paths in plan.md
 - [ ] I-034 Required environment variables/configuration documented
 
 ## Task Readiness
@@ -68,6 +68,15 @@ Verify tasks.md is implementation-ready:
 - [ ] I-042 Parallel tasks marked with `[P]`
 - [ ] I-043 Tasks are sized appropriately (not too large)
 - [ ] I-044 Test file locations identified for TDD
+
+## Integration Wiring Readiness
+
+Verify new modules will be connected to callers:
+
+- [ ] I-050 Every new module/service in plan.md has a documented caller in Integration Architecture
+- [ ] I-051 At least one [W] wiring task exists in tasks.md for each new module that exports public APIs
+- [ ] I-052 Wiring requirements (WR-###) in spec.md map to [W] tasks in tasks.md
+- [ ] I-053 No new route/endpoint exists without a registration task
 
 ---
 

@@ -32,9 +32,10 @@ description: 'Task list template for feature implementation'
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
-## Format: `[ID] [P?] [Story] Description`
+## Format: `[ID] [P?] [W?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
+- **[W]**: Wiring task — connects new code to an existing caller/entry point
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
 - Include exact file paths in descriptions
 
@@ -166,6 +167,27 @@ Examples of foundational tasks (adjust based on your project):
 
 ---
 
+## Phase N-1: Integration Wiring
+
+**Purpose**: Connect all new code to existing callers and entry points. Every new module/service created in previous phases MUST have at least one wiring task here (unless already wired inline with `[W]` during its user story phase).
+
+<!--
+  Review each new file from previous phases and verify:
+  1. It is imported somewhere outside its own file and tests
+  2. Its caller is reachable from an application entry point
+  3. Any barrel/index files are updated
+  Tasks already marked [W] in user story phases don't need repeating here.
+-->
+
+- [ ] TXXX [W] Register [NewRoute] in app router at `[src/routes/index.ts]`
+- [ ] TXXX [W] Import [NewService] from [ExistingHandler] in `[src/handlers/handler.ts]`
+- [ ] TXXX [W] Update barrel exports in `[src/services/index.ts]` for new services
+- [ ] TXXX [W] Verify all new exports are reachable from app entry point
+
+**Checkpoint**: Every new module has at least one caller outside its own file
+
+---
+
 ## Phase N: Polish & Cross-Cutting Concerns
 
 **Purpose**: Improvements that affect multiple user stories
@@ -189,6 +211,8 @@ Examples of foundational tasks (adjust based on your project):
   - User stories can then proceed in parallel (if staffed)
   - Or sequentially in priority order (P1 → P2 → P3)
 - **Polish (Final Phase)**: Depends on all desired user stories being complete
+- **Integration Wiring (Phase N-1)**: Depends on all user story phases — connects new code to callers
+- **Polish (Final Phase)**: Depends on Integration Wiring completion
 
 ### User Story Dependencies
 
@@ -269,3 +293,5 @@ With multiple developers:
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
+- [W] tasks = wiring/integration (connects new code to existing callers)
+- Every phase that creates new files SHOULD have at least one [W] task

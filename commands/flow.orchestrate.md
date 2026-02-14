@@ -228,6 +228,14 @@ specflow state set orchestration.phase.goals='["Goal 1", "Goal 2", ...]'
 specflow state set orchestration.phase.hasUserGate=true  # or false
 ```
 
+**Check for integration architecture (if design complete):**
+```bash
+FEATURE_DIR=$(specflow state get orchestration.phase.featureDir 2>/dev/null)
+if grep -q "## Integration Architecture" "${FEATURE_DIR}/plan.md" 2>/dev/null; then
+  specflow state set orchestration.phase.hasIntegrationArchitecture=true
+fi
+```
+
 **Goals flow through each step** (retrieved from state if context lost):
 - DESIGN: Goals → spec requirements → tasks
 - ANALYZE: Verify all goals have coverage in tasks
@@ -367,6 +375,14 @@ This adds to BACKLOG.md for future phases.
 specflow check --gate implement
 ```
 
+**Wiring warning check:**
+```bash
+ORPHANS=$(specflow state get orchestration.implement.orphanedExports 2>/dev/null)
+if [[ -n "$ORPHANS" && "$ORPHANS" != "null" && "$ORPHANS" != "[]" ]]; then
+  specflow state set orchestration.implement.hasWiringWarnings=true
+fi
+```
+
 If gate passes:
 
 1. Use TodoWrite: mark [ORCH] IMPLEMENT complete, mark [ORCH] VERIFY in_progress
@@ -425,6 +441,23 @@ GATE_STATUS=$(specflow state get orchestration.phase.userGateStatus)
 
 If `userGateStatus` is `confirmed` or `skipped`, proceed to Phase Transition.
 
+**If gate is pending, generate a non-developer verification guide first:**
+
+Build from:
+- `README.md` / docs quickstart
+- `package.json` scripts (`dev`, `start`, `preview`)
+- `Makefile` / `justfile` targets (if present)
+- `.env.example` / `.env.sample` setup
+- USER GATE criteria from phase doc
+
+Guide requirements:
+1. Copy/paste setup commands
+2. Exact start command
+3. URL and login path (if needed)
+4. Numbered manual test steps mapped to gate criteria
+5. Expected result for each step
+6. Basic troubleshooting notes
+
 **If gate is pending**, use standardized `AskUserQuestion`:
 
 ```json
@@ -434,7 +467,7 @@ If `userGateStatus` is `confirmed` or `skipped`, proceed to Phase Transition.
     "header": "User Gate",
     "options": [
       {"label": "Yes, verified (Recommended)", "description": "I have tested and confirmed the gate criteria are met"},
-      {"label": "Show details", "description": "Display verification instructions and test steps"},
+      {"label": "Show details", "description": "Show copy/paste setup + click-by-click verification steps"},
       {"label": "Skip gate", "description": "Proceed without user verification (not recommended)"}
     ],
     "multiSelect": false
@@ -447,7 +480,7 @@ If `userGateStatus` is `confirmed` or `skipped`, proceed to Phase Transition.
 | Response | Action |
 |----------|--------|
 | **Yes, verified** | `specflow state set orchestration.phase.userGateStatus=confirmed` → Proceed to Phase Transition |
-| **Show details** | Display: 1) Gate criteria, 2) Test instructions, 3) Expected behavior → Re-ask |
+| **Show details** | Display generated guide: setup, start command, URL/login, numbered checks with expected outcomes, troubleshooting; then re-ask |
 | **Skip gate** | `specflow state set orchestration.phase.userGateStatus=skipped` → Proceed (log reason) |
 
 Do NOT auto-advance without user response. Wait for explicit confirmation.
@@ -474,6 +507,7 @@ Or run `/flow.merge --next-phase` to complete and start the next phase.
 - Merge PR to main
 - Update ROADMAP.md status
 - Archive state
+- Provide a post-merge, non-developer test path for what was just shipped
 - (with --next-phase) Start next phase
 
 ---

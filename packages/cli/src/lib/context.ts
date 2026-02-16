@@ -24,11 +24,6 @@ export interface FeatureArtifacts {
   uiDesign: boolean;
   plan: boolean;
   tasks: boolean;
-  checklists: {
-    implementation: boolean;
-    verification: boolean;
-    deferred: boolean;
-  };
 }
 
 /**
@@ -61,8 +56,6 @@ export interface ProjectContext {
  * Check which artifacts exist in a feature directory
  */
 async function checkFeatureArtifacts(featureDir: string): Promise<FeatureArtifacts> {
-  const checklistsDir = join(featureDir, 'checklists');
-
   return {
     discovery: pathExists(join(featureDir, 'discovery.md')),
     spec: pathExists(join(featureDir, 'spec.md')),
@@ -70,11 +63,6 @@ async function checkFeatureArtifacts(featureDir: string): Promise<FeatureArtifac
     uiDesign: pathExists(join(featureDir, 'ui-design.md')),
     plan: pathExists(join(featureDir, 'plan.md')),
     tasks: pathExists(join(featureDir, 'tasks.md')),
-    checklists: {
-      implementation: pathExists(join(checklistsDir, 'implementation.md')),
-      verification: pathExists(join(checklistsDir, 'verification.md')),
-      deferred: pathExists(join(checklistsDir, 'deferred.md')),
-    },
   };
 }
 
@@ -85,9 +73,7 @@ function isFeatureComplete(artifacts: FeatureArtifacts): boolean {
   return (
     artifacts.spec &&
     artifacts.plan &&
-    artifacts.tasks &&
-    artifacts.checklists.implementation &&
-    artifacts.checklists.verification
+    artifacts.tasks
   );
 }
 
@@ -291,8 +277,6 @@ export function getMissingArtifacts(artifacts: FeatureArtifacts): string[] {
   if (!artifacts.spec) missing.push('spec.md');
   if (!artifacts.plan) missing.push('plan.md');
   if (!artifacts.tasks) missing.push('tasks.md');
-  if (!artifacts.checklists.implementation) missing.push('checklists/implementation.md');
-  if (!artifacts.checklists.verification) missing.push('checklists/verification.md');
 
   return missing;
 }
@@ -304,9 +288,6 @@ export function inferStepFromArtifacts(artifacts: FeatureArtifacts): string {
   if (!artifacts.spec) return 'design';
   if (!artifacts.plan) return 'design';
   if (!artifacts.tasks) return 'design';
-  if (!artifacts.checklists.implementation || !artifacts.checklists.verification) {
-    return 'design';
-  }
   // All design artifacts exist - could be analyze or later
   return 'analyze';
 }

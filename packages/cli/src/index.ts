@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { setOutputOptions } from './lib/output.js';
 import { stateCommand } from './commands/state/index.js';
 import { statusCommand } from './commands/status.js';
+import { contextCommand } from './commands/context.js';
 import { nextCommand } from './commands/next.js';
 import { markCommand } from './commands/mark.js';
 import { checkCommand } from './commands/check.js';
@@ -30,6 +31,7 @@ const program = new Command()
 // Add all commands
 program.addCommand(stateCommand);
 program.addCommand(statusCommand);
+program.addCommand(contextCommand);
 program.addCommand(nextCommand);
 program.addCommand(markCommand);
 program.addCommand(checkCommand);

@@ -46,7 +46,7 @@ packages/cli/                → TypeScript CLI implementation
 │   └── lib/                → Shared libraries
 │       ├── tasks.ts        → Parse tasks.md
 │       ├── roadmap.ts      → Parse ROADMAP.md
-│       ├── checklist.ts    → Parse checklists
+│       ├── evidence.ts     → Evidence sidecar for [V] tasks
 │       ├── context.ts      → Project context resolution
 │       ├── health.ts       → Health check logic
 │       ├── state.ts        → State file operations
@@ -73,20 +73,22 @@ specflow project init               # Same as specflow init
 specflow state get orchestration.phase.number
 specflow state set orchestration.step.current=verify
 
-# Mark tasks or checklist items
+# Mark tasks
 specflow mark T007              # Single task
 specflow mark T007 T008 T009    # Multiple tasks
 specflow mark T007..T010        # Range
 specflow mark T007 --blocked "waiting for API"  # Mark as blocked with reason
 specflow mark T007 --incomplete # Mark as incomplete
-specflow mark V-001             # Single verification item
-specflow mark V-001 V-002       # Multiple checklist items
-specflow mark I-001             # Implementation checklist item
+specflow mark T040 --evidence "tests pass"  # Optional evidence for [V] tasks
+
+# Task markers in tasks.md
+# [P] = parallel, [V] = verification, [W] = wiring
+# Example: - [ ] T040 [V] Run test suite — all tests pass
 
 # Validation gates
 specflow check --gate design    # Verify design artifacts exist
 specflow check --gate implement # Verify all tasks complete
-specflow check --gate verify    # Verify checklists complete
+specflow check --gate verify    # Verify all tasks complete
 specflow check --gate memory    # Verify memory docs healthy
 specflow check --fix            # Auto-fix issues
 
@@ -144,7 +146,7 @@ SpecFlow creates these artifacts in target projects:
 
 | Location | Purpose | Lifecycle |
 |----------|---------|-----------|
-| `specs/NNNN-name/` | Active phase artifacts (spec.md, plan.md, tasks.md, checklists/) | Created during phase, archived on close |
+| `specs/NNNN-name/` | Active phase artifacts (spec.md, plan.md, tasks.md) | Created during phase, archived on close |
 | `.specify/archive/NNNN-name/` | Archived phase specs | Created on `phase close` |
 | `.specify/phases/NNNN.md` | Future/in-progress phase details | Until phase closes |
 | `.specify/history/HISTORY.md` | Archived phase summaries | Appended on `phase close` |

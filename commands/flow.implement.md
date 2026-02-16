@@ -13,6 +13,19 @@ handoffs:
 3. **TDD by default**: Write tests first, then implement (use `--no-tdd` to skip)
 4. **Use `specflow` directly, NOT `npx specflow`** - It's a local CLI, not an npm package
 
+## Tool Usage
+
+**Use dedicated tools instead of bash for file operations:**
+
+| Instead of (bash) | Use |
+|---|---|
+| `ls`, `find` | Glob tool |
+| `grep`, `rg` | Grep tool |
+| `cat`, `head`, `tail` | Read tool |
+| `echo >`, heredoc writes | Write tool |
+
+Reserve Bash for: `specflow` CLI, `git`, `pnpm`/`npm`, and other system commands.
+
 ## User Input
 
 ```text
@@ -55,14 +68,25 @@ $ARGUMENTS
 
 Set [IMPL] INITIALIZE to in_progress.
 
+**Optimization**: If this command was invoked by `/flow.orchestrate` and you already
+have `specflow status --json` output in context (within the last few tool calls),
+reuse it instead of calling again.
+
 ```bash
-specflow status --json
+specflow context --json --memory-keys constitution,tech-stack,coding-standards,testing-strategy
 ```
+
+This returns both status and memory doc contents in one call (see `status` and `memory` fields).
+If `specflow context` is unavailable, fall back to `specflow status --json`.
 
 Parse response:
 - `context.featureDir` → FEATURE_DIR (abort if null)
 - `context.hasTasks` → must be true
 - `progress.tasksTotal` → verify tasks exist
+
+**Gate verification (standalone only):**
+If invoked by `/flow.orchestrate`, the orchestrator already verified `check --gate design` —
+skip this call. If running standalone:
 
 ```bash
 specflow check --gate design
@@ -151,7 +175,17 @@ Parse response:
    ```
    Response includes updated progress and next task.
 
+   **Batch marking**: When completing multiple [P] tasks in parallel:
+   ```bash
+   specflow mark T001 T002 T003  # One call instead of three
+   ```
+
    Use TodoWrite: when moving to a new section, mark the previous section `completed` and the new section `in_progress`.
+
+**IMPORTANT**: Do NOT call `specflow check --gate verify` or `specflow check --gate implement`
+during the task loop. Gate checks always fail on incomplete tasks. Only run them in Section 7
+(Completion). Also avoid calling `specflow status --json` between tasks — `specflow next --json`
+and `specflow mark T###` responses already include progress.
 
 3. **Continue loop** until `action: none`
 

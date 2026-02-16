@@ -15,15 +15,9 @@ vi.mock('../../src/lib/tasks.js', () => ({
   findNextTask: vi.fn(),
 }));
 
-vi.mock('../../src/lib/checklist.js', () => ({
-  readFeatureChecklists: vi.fn(),
-  findNextChecklistItem: vi.fn(),
-}));
-
 import { findProjectRoot } from '../../src/lib/paths.js';
 import { resolveFeatureDir } from '../../src/lib/context.js';
 import { readTasks, findNextTask } from '../../src/lib/tasks.js';
-import { readFeatureChecklists, findNextChecklistItem } from '../../src/lib/checklist.js';
 
 describe('next command', () => {
   beforeEach(() => {
@@ -104,57 +98,44 @@ describe('next command', () => {
   });
 
   describe('getNextVerifyItem', () => {
-    it('should return next verification checklist item', async () => {
+    it('should return next [V] verification task', async () => {
       vi.mocked(findProjectRoot).mockReturnValue('/test/project');
       vi.mocked(resolveFeatureDir).mockResolvedValue('/test/specs/0010-test');
-      vi.mocked(readFeatureChecklists).mockResolvedValue({
+      vi.mocked(readTasks).mockResolvedValue({
         featureDir: '/test/specs/0010-test',
-        verification: {
-          name: 'verification',
-          filePath: '/test/specs/0010-test/checklists/verification.md',
-          type: 'verification',
-          items: [
-            { id: 'V-001', description: 'Test item', status: 'todo', line: 5 },
-          ],
-          sections: [],
-          progress: { total: 1, completed: 0, skipped: 0, percentage: 0 },
-        },
-        other: [],
-      });
-      vi.mocked(findNextChecklistItem).mockReturnValue({
-        id: 'V-001',
-        description: 'Test item',
-        status: 'todo',
-        line: 5,
+        filePath: '/test/specs/0010-test/tasks.md',
+        tasks: [
+          { id: 'T001', description: 'Impl task', status: 'done', line: 10 },
+          { id: 'T002', description: '[V] Run test suite', status: 'todo', line: 11, isVerification: true },
+          { id: 'T003', description: '[V] Run linter', status: 'todo', line: 12, isVerification: true },
+        ],
+        sections: [],
+        progress: { total: 3, completed: 1, blocked: 0, deferred: 0, percentage: 33 },
       });
 
-      const checklists = await readFeatureChecklists('/test/specs/0010-test');
-      const nextItem = checklists.verification ? findNextChecklistItem(checklists.verification) : null;
+      const tasks = await readTasks('/test/specs/0010-test');
+      const vTasks = tasks.tasks.filter(t => t.isVerification && t.status === 'todo');
 
-      expect(nextItem?.id).toBe('V-001');
+      expect(vTasks).toHaveLength(2);
+      expect(vTasks[0].id).toBe('T002');
     });
 
-    it('should return none when verification complete', async () => {
-      vi.mocked(readFeatureChecklists).mockResolvedValue({
+    it('should return none when all [V] tasks complete', async () => {
+      vi.mocked(readTasks).mockResolvedValue({
         featureDir: '/test/specs/0010-test',
-        verification: {
-          name: 'verification',
-          filePath: '/test/specs/0010-test/checklists/verification.md',
-          type: 'verification',
-          items: [
-            { id: 'V-001', description: 'Test item', status: 'done', line: 5 },
-          ],
-          sections: [],
-          progress: { total: 1, completed: 1, skipped: 0, percentage: 100 },
-        },
-        other: [],
+        filePath: '/test/specs/0010-test/tasks.md',
+        tasks: [
+          { id: 'T001', description: 'Impl task', status: 'done', line: 10 },
+          { id: 'T002', description: '[V] Run test suite', status: 'done', line: 11, isVerification: true },
+        ],
+        sections: [],
+        progress: { total: 2, completed: 2, blocked: 0, deferred: 0, percentage: 100 },
       });
-      vi.mocked(findNextChecklistItem).mockReturnValue(null);
 
-      const checklists = await readFeatureChecklists('/test/specs/0010-test');
-      const nextItem = checklists.verification ? findNextChecklistItem(checklists.verification) : null;
+      const tasks = await readTasks('/test/specs/0010-test');
+      const vTasks = tasks.tasks.filter(t => t.isVerification && t.status === 'todo');
 
-      expect(nextItem).toBeNull();
+      expect(vTasks).toHaveLength(0);
     });
   });
 

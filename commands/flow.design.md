@@ -1,5 +1,5 @@
 ---
-description: Create all design artifacts (discovery, spec, plan, tasks, checklists) in one command with inline clarifications.
+description: Create all design artifacts (discovery, spec, plan, tasks) in one command with inline clarifications.
 handoffs:
   - label: Analyze Artifacts
     agent: specflow.analyze
@@ -21,13 +21,25 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 | Flag | Effect |
 |------|--------|
-| (none) | Full flow: discover → spec → plan → tasks → checklists |
-| `--spec` | Cascade from spec: spec → plan → tasks → checklists |
-| `--plan` | Cascade from plan: plan → tasks → checklists |
-| `--tasks` | Cascade from tasks: tasks → checklists |
-| `--checklist` | Regenerate only checklists |
+| (none) | Full flow: discover → spec → plan → tasks |
+| `--spec` | Cascade from spec: spec → plan → tasks |
+| `--plan` | Cascade from plan: plan → tasks |
+| `--tasks` | Tasks only |
 
 **Note**: Use `specflow` directly, NOT `npx specflow`. It's a local CLI at `~/.claude/specflow-system/bin/`.
+
+## Tool Usage
+
+**Use dedicated tools instead of bash for file operations:**
+
+| Instead of (bash) | Use |
+|---|---|
+| `ls`, `find` | Glob tool |
+| `grep`, `rg` | Grep tool |
+| `cat`, `head`, `tail` | Read tool |
+| `echo >`, heredoc writes | Write tool |
+
+Reserve Bash for: `specflow` CLI, `git`, `pnpm`/`npm`, and other system commands.
 
 ## Agent Teams Mode (Opus 4.6)
 
@@ -61,8 +73,6 @@ Produce all design artifacts for the current phase.
 | `ui-design.md` | `specs/NNNN-name/ui-design.md` (if UI phase) |
 | `plan.md` | `specs/NNNN-name/plan.md` |
 | `tasks.md` | `specs/NNNN-name/tasks.md` |
-| `checklists/implementation.md` | `specs/NNNN-name/checklists/implementation.md` |
-| `checklists/verification.md` | `specs/NNNN-name/checklists/verification.md` |
 
 ---
 
@@ -77,21 +87,28 @@ Produce all design artifacts for the current phase.
 3. [DESIGN] SPECIFY - Create feature specification
 4. [DESIGN] PLAN - Technical implementation plan
 5. [DESIGN] TASKS - Generate task list
-6. [DESIGN] CHECKLISTS - Create verification checklists
 
 Set [DESIGN] SETUP to in_progress, then proceed.
 
 **Get project context:**
+
+**Optimization**: If this command was invoked by `/flow.orchestrate` and you already
+have `specflow status --json` output in context (within the last few tool calls),
+reuse it instead of calling again.
+
 ```bash
-specflow status --json
+specflow context --json --memory-keys constitution,tech-stack,glossary
 ```
+
+This returns both status and memory doc contents in one call (see `status` and `memory` fields).
+If `specflow context` is unavailable, fall back to `specflow status --json`.
 
 Parse:
 - `phase.number` - Current phase number (e.g., "0060")
 - `phase.name` - Phase name (e.g., "GitHub Integration")
 - `phase.branch` - Git branch
 - `context.featureDir` - Path to artifacts directory (null if not created yet)
-- `context.hasSpec/hasPlan/hasTasks/hasChecklists` - Which artifacts exist
+- `context.hasSpec/hasPlan/hasTasks` - Which artifacts exist
 
 **Resolve PHASE_DIR** (critical - this is where ALL artifacts go):
 ```
@@ -103,18 +120,15 @@ Else:
 
   # Example: Phase 0060 "GitHub Integration" → specs/0060-github-integration/
   mkdir -p {PHASE_DIR}
-  mkdir -p {PHASE_DIR}/checklists
 ```
 
 **⚠️ CRITICAL**: Artifacts MUST go in `specs/NNNN-name/` at the project root, NOT in `.specify/phases/`. The `.specify/phases/` directory is for phase DEFINITION files (NNNN.md), not artifacts.
 
 **Determine starting phase** from cascade flags or artifact existence:
-- If `--checklist` → start at CHECKLISTS
 - If `--tasks` → start at TASKS
 - If `--plan` → start at PLAN
 - If `--spec` → start at SPECIFY
 - Otherwise, check existing artifacts to auto-resume:
-  - `tasks.md` exists, no `checklists/` → start at CHECKLISTS
   - `plan.md` exists, no `tasks.md` → start at TASKS
   - `spec.md` exists, no `plan.md` → start at PLAN
   - `discovery.md` exists, no `spec.md` → start at SPECIFY
@@ -144,7 +158,7 @@ Use TodoWrite: mark [DESIGN] SETUP complete. As you complete each phase, mark it
 
 ### 1. DISCOVER Phase
 
-**Skip if**: Starting from spec, plan, tasks, or checklists.
+**Skip if**: Starting from spec, plan, or tasks.
 
 **1a. Load phase document (SOURCE OF TRUTH):**
 
@@ -170,6 +184,11 @@ These goals will be tracked through spec → plan → tasks to ensure nothing is
 **CRITICAL**: This state write MUST execute - it enables context compaction recovery.
 
 **1b. Load context (Parallel):**
+
+**Pre-load shared context before launching agents**: Read `.specify/memory/constitution.md`,
+`.specify/memory/tech-stack.md`, and `.specify/memory/glossary.md` FIRST in the parent,
+then include their contents in the agent prompts below. This eliminates redundant reads
+across agents (each agent would otherwise read the same files independently).
 
 **Use parallel sub-agents** to gather all context simultaneously (timeout: 180s each):
 
@@ -247,7 +266,7 @@ Summarize understanding and ask user to confirm: "Does this accurately capture y
 
 ### 2. SPECIFY Phase
 
-**Skip if**: Starting from plan, tasks, or checklists.
+**Skip if**: Starting from plan or tasks.
 
 **2a. Load context:**
 - Read `.specify/phases/{PHASE_NUMBER}-*.md` - **Phase goals (source of truth)**
@@ -378,7 +397,7 @@ Write `{PHASE_DIR}/ui-design.md`
 
 ### 3. PLAN Phase
 
-**Skip if**: Starting from tasks or checklists.
+**Skip if**: Starting from tasks.
 
 **3a. Load context:**
 - Read `.specify/phases/{PHASE_NUMBER}-*.md` - **Phase goals (source of truth)**
@@ -455,8 +474,6 @@ template format. Every new module needs a caller mapping.
 
 ### 4. TASKS Phase
 
-**Skip if**: Starting from checklists.
-
 **4a. Load context:**
 - Read `.specify/phases/{PHASE_NUMBER}-*.md` - **Phase goals (source of truth)**
 - Read `plan.md` (required)
@@ -503,6 +520,18 @@ The task ID MUST be inline with the checkbox. The CLI parses `- [ ] T###` patter
 - Wiring tasks should be the LAST task in their section (after the module is built)
 - Description pattern: `Wire [module] into [entry point] in [file]`
 - Validation: Every task creating a new file must have a corresponding [W] task
+
+**Verification tasks (final section)**:
+
+Add a final "Phase N: Verification" section with [V] tasks for post-implementation checks:
+```
+- [ ] TXXX [V] Run test suite — all tests pass
+- [ ] TXXX [V] Run linter — no errors
+- [ ] TXXX [V] Run typecheck — no type errors
+- [ ] TXXX [V] Verify no TODO/FIXME in new code
+- [ ] TXXX [V] [W] Verify all new modules wired to entry points
+```
+These [V] tasks replace the old verification checklists and are verified during `/flow.verify`.
 
 **4c. Validate tasks:**
 - Every task has ID, description, file path
@@ -571,66 +600,7 @@ Check `tasks.total` > 0. If tasks.total is 0 but you wrote tasks, the format is 
 
 ---
 
-### 5. CHECKLISTS Phase
-
-**5a. Load context:**
-- Read `spec.md`, `plan.md`, `tasks.md`
-- Read templates:
-  - `.specify/templates/implementation-checklist-template.md`
-  - `.specify/templates/verification-checklist-template.md`
-
-**5b. Generate checklists (Parallel):**
-
-**Use parallel sub-agents** to generate both checklists simultaneously:
-
-```
-Launch 2 parallel workers (Agent Teams preferred; Task agents fallback):
-
-Team-mode role hints:
-- `specflow-quality-auditor` for checklist quality checks
-- `specflow-doc-assembler` for final checklist formatting
-
-Agent 1 (Implementation): Create checklists/implementation.md
-  - Use template: .specify/templates/implementation-checklist-template.md
-  - Read spec.md, plan.md for requirements
-  - Focus on REQUIREMENTS QUALITY (I-### items):
-    - Requirement Completeness: All necessary requirements present?
-    - Requirement Clarity: Specific and unambiguous?
-    - Scenario Coverage: All flows/cases addressed?
-    - Edge Case Coverage: Boundary conditions defined?
-  → Return: implementation.md content
-
-Agent 2 (Verification): Create checklists/verification.md
-  - Use template: .specify/templates/verification-checklist-template.md
-  - Read spec.md, tasks.md for acceptance criteria
-  - Focus on post-implementation verification (V-### items):
-    - Acceptance Criteria Quality: Success criteria measurable?
-    - Non-Functional Requirements: Performance, security, accessibility?
-    - Phase Goal Verification: All goals have verification items?
-  → Return: verification.md content
-```
-
-**Expected speedup**: 50% faster (2 parallel vs. sequential)
-
-Write both checklists from agent results.
-
-**5c. Add UI verification items (if ui-design.md exists):**
-
-If `ui-design.md` was created, add these items to verification.md:
-
-```markdown
-## UI Design Verification
-
-- [ ] V-UI1: UI implementation matches ui-design.md mockups
-- [ ] V-UI2: All components from Component Inventory are implemented
-- [ ] V-UI3: All interactions from Interactions table work as specified
-- [ ] V-UI4: Design constraints from ui-design.md are respected
-- [ ] V-UI5: Accessibility considerations from ui-design.md are addressed
-```
-
----
-
-### 6. Completion
+### 5. Completion
 
 **Update state:**
 ```bash
@@ -645,10 +615,7 @@ Design artifacts created:
 ├── requirements.md  - Requirements checklist
 ├── ui-design.md     - Visual mockups (if UI phase)
 ├── plan.md          - Technical implementation plan
-├── tasks.md         - X tasks across Y user stories
-└── checklists/
-    ├── implementation.md - Implementation guidance
-    └── verification.md   - Verification checklist
+└── tasks.md         - X tasks across Y user stories
 
 Next: Run /flow.analyze or /flow.orchestrate
 ```
@@ -674,7 +641,7 @@ specflow state set "orchestration.step.status=failed"
 
 See `.specify/templates/parallel-execution-guide.md` for the complete standardized protocol.
 
-**Quick Reference** for parallel agents (context loading, research, checklist generation):
+**Quick Reference** for parallel agents (context loading, research):
 
 **1. Pre-launch**:
 - Verify target files/directories exist

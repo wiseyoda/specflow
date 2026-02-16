@@ -19,6 +19,7 @@ export interface Task {
   section?: string;
   userStory?: string;
   isParallel?: boolean;
+  isVerification?: boolean;
   dependencies?: string[];
   blockedReason?: string;
   line: number;
@@ -101,6 +102,13 @@ function isParallelTask(description: string): boolean {
 }
 
 /**
+ * Check if task is a verification task [V]
+ */
+function isVerificationTask(description: string): boolean {
+  return description.includes('[V]');
+}
+
+/**
  * Extract dependencies from task description
  * Patterns: "Depends on T001", "After T002", "Requires T001, T002"
  */
@@ -162,6 +170,7 @@ function parseTaskLine(line: string, lineNumber: number): Task | null {
     status,
     userStory: extractUserStory(description) ?? undefined,
     isParallel: isParallelTask(description) || undefined,
+    isVerification: isVerificationTask(description) || undefined,
     dependencies: extractDependencies(description) || undefined,
     blockedReason: status === 'blocked' ? extractBlockedReason(description) : undefined,
     line: lineNumber,

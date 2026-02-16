@@ -13,10 +13,33 @@ description: Orchestrate the complete SpecFlow workflow from end to end with sta
 5. **ALWAYS use the SpecFlow CLI** for all state and task operations
 6. **NEVER STOP between steps** - This is a CONTINUOUS workflow. After completing each step, immediately continue to the next step. Only stop at USER GATEs or when all steps are complete.
 7. **Use `specflow` directly, NOT `npx specflow`** - The CLI is installed at `~/.claude/specflow-system/bin/specflow`, not an npm package.
+8. **Batch state set calls** - When setting multiple state keys, combine into ONE call:
+   ```bash
+   # WRONG (3 separate calls):
+   specflow state set orchestration.step.current=design
+   specflow state set orchestration.step.index=0
+   specflow state set orchestration.step.status=in_progress
+
+   # RIGHT (1 call):
+   specflow state set orchestration.step.current=design orchestration.step.index=0 orchestration.step.status=in_progress
+   ```
 
 If you find yourself about to use the Edit tool on state files or tasks.md, STOP and use the CLI instead.
 
 **CONTINUOUS EXECUTION**: Orchestration runs design → analyze → implement → verify in ONE session. Do not stop to ask "should I continue?" or report intermediate completion. Keep going until you reach a USER GATE or finish verify.
+
+## Tool Usage
+
+**Use dedicated tools instead of bash for file operations:**
+
+| Instead of (bash) | Use |
+|---|---|
+| `ls`, `find` | Glob tool |
+| `grep`, `rg` | Grep tool |
+| `cat`, `head`, `tail` | Read tool |
+| `echo >`, heredoc writes | Write tool |
+
+Reserve Bash for: `specflow` CLI, `git`, `pnpm`/`npm`, and other system commands.
 
 ## User Input
 
@@ -99,8 +122,7 @@ Response structure:
     "featureDir": "specs/0080-cli-migration",
     "hasSpec": true,
     "hasPlan": true,
-    "hasTasks": true,
-    "hasChecklists": true
+    "hasTasks": true
   }
 }
 ```
@@ -247,16 +269,15 @@ Read `.specify/phases/NNNN-phase-name.md` and extract:
 ```bash
 # phase.number, hasUserGate, and userGateCriteria are already set by `specflow phase open`
 # Only goals need to be persisted here (extracted from phase doc, not available in ROADMAP)
-specflow state set orchestration.phase.goals='["Goal 1", "Goal 2", ...]'
-```
-
-**Check for integration architecture (if design complete):**
-
-```bash
+# Combine with integration check if design is complete (batch into one call when possible)
 FEATURE_DIR=$(specflow state get orchestration.phase.featureDir 2>/dev/null)
+HAS_INTEGRATION=""
 if grep -q "## Integration Architecture" "${FEATURE_DIR}/plan.md" 2>/dev/null; then
-  specflow state set orchestration.phase.hasIntegrationArchitecture=true
+  HAS_INTEGRATION="orchestration.phase.hasIntegrationArchitecture=true"
 fi
+
+# Batch: goals + integration flag in a single call
+specflow state set orchestration.phase.goals='["Goal 1", "Goal 2", ...]' $HAS_INTEGRATION
 ```
 
 **Goals flow through each step** (retrieved from state if context lost):
@@ -272,7 +293,7 @@ To retrieve goals after compaction: `specflow state get orchestration.phase.goal
 
 ### 2. DESIGN (Step 0)
 
-**Check:** If `step.index > 0` and all artifacts exist (`context.hasSpec/hasPlan/hasTasks/hasChecklists` all true) → skip to ANALYZE.
+**Check:** If `step.index > 0` and all artifacts exist (`context.hasSpec/hasPlan/hasTasks` all true) → skip to ANALYZE.
 
 **Execute `/flow.design`** which produces ALL design artifacts:
 
@@ -280,8 +301,6 @@ To retrieve goals after compaction: `specflow state get orchestration.phase.goal
 - spec.md - feature specification
 - plan.md - technical implementation plan
 - tasks.md - actionable task list
-- checklists/implementation.md
-- checklists/verification.md
 
 See `/flow.design` for full details.
 
@@ -455,7 +474,6 @@ Before verification, record significant decisions or gotchas in `specs/NNNN-phas
 - Task completion verification
 - **Phase goals verification** - confirms all goals from phase doc were achieved
 - Memory document compliance
-- Checklist verification
 - Deferred items documentation
 
 **Check for deferred items:**
@@ -705,7 +723,7 @@ specflow mark T007 --blocked "reason"  # Mark blocked
 specflow check --fix            # Self-heal issues
 specflow check --gate design    # Verify design artifacts
 specflow check --gate implement # Verify all tasks complete
-specflow check --gate verify    # Verify checklists complete
+specflow check --gate verify    # Verify tasks complete
 
 # Phase lifecycle
 specflow phase open             # Start next phase from ROADMAP

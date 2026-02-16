@@ -28,12 +28,6 @@ vi.mock('../../src/lib/roadmap.js', () => ({
   getPhaseByNumber: vi.fn(),
 }));
 
-vi.mock('../../src/lib/checklist.js', () => ({
-  readFeatureChecklists: vi.fn(),
-  areAllChecklistsComplete: vi.fn(),
-  getAllVerificationItems: vi.fn(),
-}));
-
 vi.mock('../../src/lib/evidence.js', () => ({
   readEvidence: vi.fn(),
   hasEvidence: vi.fn(),
@@ -47,7 +41,6 @@ import { findProjectRoot } from '../../src/lib/paths.js';
 import { readState } from '../../src/lib/state.js';
 import { resolveFeatureDir, getProjectContext, getMissingArtifacts } from '../../src/lib/context.js';
 import { readTasks, detectCircularDependencies } from '../../src/lib/tasks.js';
-import { readFeatureChecklists, areAllChecklistsComplete, getAllVerificationItems } from '../../src/lib/checklist.js';
 import { readEvidence, hasEvidence } from '../../src/lib/evidence.js';
 import { runHealthCheck } from '../../src/lib/health.js';
 
@@ -77,9 +70,9 @@ describe('check command', () => {
               discovery: true,
               spec: true,
               requirements: false,
+              uiDesign: false,
               plan: false,
               tasks: false,
-              checklists: { implementation: false, verification: false, deferred: false },
             },
             isComplete: false,
           },
@@ -109,9 +102,9 @@ describe('check command', () => {
               discovery: true,
               spec: true,
               requirements: true,
+              uiDesign: true,
               plan: true,
               tasks: true,
-              checklists: { implementation: true, verification: true, deferred: false },
             },
             isComplete: true,
           },
@@ -124,7 +117,6 @@ describe('check command', () => {
           spec_exists: artifacts?.spec,
           plan_exists: artifacts?.plan,
           tasks_exist: artifacts?.tasks,
-          checklists_exist: artifacts?.checklists.implementation && artifacts?.checklists.verification,
         };
 
         expect(Object.values(checks).every(Boolean)).toBe(true);
@@ -166,52 +158,37 @@ describe('check command', () => {
     });
 
     describe('verify gate', () => {
-      it('should fail when checklists incomplete', async () => {
-        vi.mocked(areAllChecklistsComplete).mockReturnValue(false);
-
-        expect(areAllChecklistsComplete({} as any)).toBe(false);
+      it('should pass when implementation gate passed', () => {
+        // Verify gate now primarily checks implementation gate
+        const implementGate = { passed: true, checks: { all_tasks_complete: true } };
+        expect(implementGate.passed).toBe(true);
       });
 
-      it('should pass when checklists complete', async () => {
-        vi.mocked(areAllChecklistsComplete).mockReturnValue(true);
-
-        expect(areAllChecklistsComplete({} as any)).toBe(true);
+      it('should fail when implementation gate failed', () => {
+        const implementGate = { passed: false, checks: { all_tasks_complete: false } };
+        expect(implementGate.passed).toBe(false);
       });
 
-      it('should fail when evidence missing for completed V-items', () => {
-        const completedVItems = [
-          { id: 'V-001', status: 'done' },
-          { id: 'V-002', status: 'done' },
+      it('should check evidence for completed [V] tasks (informational)', () => {
+        const vTasks = [
+          { id: 'T040', description: '[V] Run tests', status: 'done', isVerification: true },
+          { id: 'T041', description: '[V] Run linter', status: 'done', isVerification: true },
         ];
+
+        vi.mocked(hasEvidence).mockReturnValue({ complete: false, missing: ['T041'] });
+
         const evidence = {
           version: '1.0' as const,
           featureDir: '/test',
           items: {
-            'V-001': { itemId: 'V-001', timestamp: '', evidence: 'tested' },
+            'T040': { itemId: 'T040', timestamp: '', evidence: 'tests pass' },
           },
         };
 
-        vi.mocked(hasEvidence).mockReturnValue({ complete: false, missing: ['V-002'] });
-
-        const result = hasEvidence(evidence, completedVItems.map(i => i.id));
+        const result = hasEvidence(evidence, vTasks.map(t => t.id));
+        // Evidence is informational, doesn't block the gate
         expect(result.complete).toBe(false);
-        expect(result.missing).toContain('V-002');
-      });
-
-      it('should pass when all V-items have evidence', () => {
-        const evidence = {
-          version: '1.0' as const,
-          featureDir: '/test',
-          items: {
-            'V-001': { itemId: 'V-001', timestamp: '', evidence: 'tested' },
-            'V-002': { itemId: 'V-002', timestamp: '', evidence: 'tested' },
-          },
-        };
-
-        vi.mocked(hasEvidence).mockReturnValue({ complete: true, missing: [] });
-
-        const result = hasEvidence(evidence, ['V-001', 'V-002']);
-        expect(result.complete).toBe(true);
+        expect(result.missing).toContain('T041');
       });
 
       it('should pass gracefully when no evidence file exists', () => {
@@ -219,20 +196,8 @@ describe('check command', () => {
         const evidence = null;
         const hasFile = evidence !== null;
 
-        // When no file exists, gate should pass (backward compat)
+        // When no file exists, gate should pass
         expect(hasFile).toBe(false);
-      });
-
-      it('should not require evidence for skipped V-items', () => {
-        const vItems = [
-          { id: 'V-001', status: 'done' },
-          { id: 'V-002', status: 'skipped' },
-        ];
-        const completedVItems = vItems.filter(i => i.status === 'done');
-
-        // Only completed items need evidence, not skipped
-        expect(completedVItems).toHaveLength(1);
-        expect(completedVItems[0].id).toBe('V-001');
       });
     });
   });

@@ -5,10 +5,10 @@ import { pathExists } from './paths.js';
 import { atomicWriteFile } from './fs-utils.js';
 
 /**
- * Evidence sidecar for verification checklists.
+ * Evidence sidecar for verification tasks.
  *
- * Stores structured evidence of what was verified alongside checklist markdown.
- * Location: {featureDir}/checklists/.evidence.json
+ * Stores structured evidence of what was verified.
+ * Location: {featureDir}/.evidence.json
  */
 
 const EvidenceRecordSchema = z.object({
@@ -28,20 +28,33 @@ export type EvidenceRecord = z.infer<typeof EvidenceRecordSchema>;
 export type EvidenceFile = z.infer<typeof EvidenceFileSchema>;
 
 function getEvidencePath(featureDir: string): string {
+  return join(featureDir, '.evidence.json');
+}
+
+/** Legacy path for backward compatibility */
+function getLegacyEvidencePath(featureDir: string): string {
   return join(featureDir, 'checklists', '.evidence.json');
 }
 
-/** Read evidence file, returns null if it doesn't exist */
+/** Read evidence file, returns null if it doesn't exist. Falls back to legacy path. */
 export async function readEvidence(featureDir: string): Promise<EvidenceFile | null> {
   const evidencePath = getEvidencePath(featureDir);
 
-  if (!pathExists(evidencePath)) {
-    return null;
+  if (pathExists(evidencePath)) {
+    const content = await readFile(evidencePath, 'utf-8');
+    const data = JSON.parse(content);
+    return EvidenceFileSchema.parse(data);
   }
 
-  const content = await readFile(evidencePath, 'utf-8');
-  const data = JSON.parse(content);
-  return EvidenceFileSchema.parse(data);
+  // Fallback to legacy checklists/.evidence.json path
+  const legacyPath = getLegacyEvidencePath(featureDir);
+  if (pathExists(legacyPath)) {
+    const content = await readFile(legacyPath, 'utf-8');
+    const data = JSON.parse(content);
+    return EvidenceFileSchema.parse(data);
+  }
+
+  return null;
 }
 
 /** Write evidence file atomically */

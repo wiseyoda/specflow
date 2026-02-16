@@ -60,7 +60,7 @@ describe('workflow design command', () => {
   });
 
   describe('phase option validation', () => {
-    const VALID_PHASES = ['discover', 'specify', 'plan', 'tasks', 'checklists'];
+    const VALID_PHASES = ['discover', 'specify', 'plan', 'tasks'];
 
     it('should accept valid phase names', () => {
       for (const phase of VALID_PHASES) {

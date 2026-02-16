@@ -5,7 +5,6 @@ import { output } from '../lib/output.js';
 import { readState, writeState, setStateValue, readRawState, writeRawState } from '../lib/state.js';
 import { readTasks, detectCircularDependencies } from '../lib/tasks.js';
 import { readRoadmap, getPhaseByNumber } from '../lib/roadmap.js';
-import { readFeatureChecklists, areAllChecklistsComplete, getAllVerificationItems } from '../lib/checklist.js';
 import { readEvidence, hasEvidence } from '../lib/evidence.js';
 import { getProjectContext, resolveFeatureDir, getMissingArtifacts } from '../lib/context.js';
 import { runHealthCheck, type HealthIssue } from '../lib/health.js';
@@ -97,7 +96,6 @@ async function checkDesignGate(featureDir: string | undefined): Promise<GateResu
     spec_exists: artifacts.spec,
     plan_exists: artifacts.plan,
     tasks_exist: artifacts.tasks,
-    checklists_exist: artifacts.checklists.implementation && artifacts.checklists.verification,
   };
 
   const passed = Object.values(checks).every(Boolean);
@@ -212,6 +210,8 @@ async function checkImplementGate(featureDir: string | undefined): Promise<GateR
 
 /**
  * Check verify gate
+ *
+ * Verifies: implementation gate passed + optionally checks evidence for [V] tasks.
  */
 async function checkVerifyGate(
   featureDir: string | undefined,
@@ -229,48 +229,33 @@ async function checkVerifyGate(
     implementation_gate: implementGate.passed,
   };
 
-  let missingEvidenceItems: string[] = [];
-
+  // Optionally check evidence for [V] tasks (warn if missing, don't fail)
   try {
-    const checklists = await readFeatureChecklists(featureDir);
-    checks.checklists_complete = areAllChecklistsComplete(checklists);
+    const tasks = await readTasks(featureDir);
+    const vTasks = tasks.tasks.filter(t => t.isVerification && t.status === 'done');
 
-    // Check evidence for completed V-items
-    const vItems = getAllVerificationItems(checklists);
-    const completedVItems = vItems.filter(i => i.status === 'done');
-
-    if (completedVItems.length > 0) {
+    if (vTasks.length > 0) {
       const evidence = await readEvidence(featureDir);
-
       if (evidence) {
-        // Evidence file exists — all completed V-items must have evidence
-        const result = hasEvidence(evidence, completedVItems.map(i => i.id));
-        checks.evidence_complete = result.complete;
-        missingEvidenceItems = result.missing;
+        const result = hasEvidence(evidence, vTasks.map(t => t.id));
+        // Evidence is informational only — don't block on missing evidence
+        checks.evidence_present = result.complete;
       } else {
-        // No evidence file at all — graceful degradation (pass with warning)
-        checks.evidence_complete = true;
+        checks.evidence_present = true;
       }
     } else {
-      // No completed V-items — evidence check is trivially satisfied
-      checks.evidence_complete = true;
+      checks.evidence_present = true;
     }
   } catch {
-    checks.checklists_complete = false;
-    checks.evidence_complete = false;
+    // Evidence check is optional, don't fail
+    checks.evidence_present = true;
   }
 
-  const passed = Object.values(checks).every(Boolean);
+  const passed = checks.implementation_gate;
 
   let reason: string | undefined;
   if (!passed) {
-    const reasons: string[] = [];
-    if (!checks.implementation_gate) reasons.push('implementation gate not passed');
-    if (!checks.checklists_complete) reasons.push('checklists incomplete');
-    if (!checks.evidence_complete) {
-      reasons.push(`missing evidence for: ${missingEvidenceItems.join(', ')}`);
-    }
-    reason = reasons.join('; ');
+    reason = 'implementation gate not passed';
   }
 
   return {

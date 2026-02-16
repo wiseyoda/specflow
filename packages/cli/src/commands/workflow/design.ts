@@ -10,7 +10,7 @@ import { findProjectRoot } from '../../lib/paths.js';
 /**
  * Valid design sub-phases
  */
-const VALID_PHASES = ['discover', 'specify', 'plan', 'tasks', 'checklists'];
+const VALID_PHASES = ['discover', 'specify', 'plan', 'tasks'];
 
 /**
  * Design command output for JSON mode

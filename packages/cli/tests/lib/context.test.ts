@@ -30,13 +30,9 @@ describe('context.ts', () => {
         discovery: false,
         spec: false,
         requirements: false,
+        uiDesign: false,
         plan: false,
         tasks: false,
-        checklists: {
-          implementation: false,
-          verification: false,
-          deferred: false,
-        },
       };
 
       const missing = getMissingArtifacts(artifacts);
@@ -44,9 +40,6 @@ describe('context.ts', () => {
       expect(missing).toContain('spec.md');
       expect(missing).toContain('plan.md');
       expect(missing).toContain('tasks.md');
-      expect(missing).toContain('checklists/implementation.md');
-      expect(missing).toContain('checklists/verification.md');
-      // deferred is optional, not in missing list
     });
 
     it('should return empty array when all required exist', () => {
@@ -54,13 +47,9 @@ describe('context.ts', () => {
         discovery: true,
         spec: true,
         requirements: true,
+        uiDesign: true,
         plan: true,
         tasks: true,
-        checklists: {
-          implementation: true,
-          verification: true,
-          deferred: false, // optional
-        },
       };
 
       const missing = getMissingArtifacts(artifacts);
@@ -72,17 +61,13 @@ describe('context.ts', () => {
         discovery: true,
         spec: true,
         requirements: false,
+        uiDesign: false,
         plan: false,
         tasks: true,
-        checklists: {
-          implementation: true,
-          verification: false,
-          deferred: false,
-        },
       };
 
       const missing = getMissingArtifacts(artifacts);
-      expect(missing).toEqual(['plan.md', 'checklists/verification.md']);
+      expect(missing).toEqual(['plan.md']);
     });
   });
 
@@ -92,9 +77,9 @@ describe('context.ts', () => {
         discovery: true,
         spec: false,
         requirements: false,
+        uiDesign: false,
         plan: false,
         tasks: false,
-        checklists: { implementation: false, verification: false, deferred: false },
       };
 
       expect(inferStepFromArtifacts(artifacts)).toBe('design');
@@ -105,9 +90,9 @@ describe('context.ts', () => {
         discovery: true,
         spec: true,
         requirements: true,
+        uiDesign: false,
         plan: false,
         tasks: false,
-        checklists: { implementation: false, verification: false, deferred: false },
       };
 
       expect(inferStepFromArtifacts(artifacts)).toBe('design');
@@ -118,22 +103,9 @@ describe('context.ts', () => {
         discovery: true,
         spec: true,
         requirements: true,
+        uiDesign: true,
         plan: true,
         tasks: false,
-        checklists: { implementation: false, verification: false, deferred: false },
-      };
-
-      expect(inferStepFromArtifacts(artifacts)).toBe('design');
-    });
-
-    it('should return design when checklists missing', () => {
-      const artifacts: FeatureArtifacts = {
-        discovery: true,
-        spec: true,
-        requirements: true,
-        plan: true,
-        tasks: true,
-        checklists: { implementation: false, verification: false, deferred: false },
       };
 
       expect(inferStepFromArtifacts(artifacts)).toBe('design');
@@ -144,9 +116,9 @@ describe('context.ts', () => {
         discovery: true,
         spec: true,
         requirements: true,
+        uiDesign: true,
         plan: true,
         tasks: true,
-        checklists: { implementation: true, verification: true, deferred: false },
       };
 
       expect(inferStepFromArtifacts(artifacts)).toBe('analyze');

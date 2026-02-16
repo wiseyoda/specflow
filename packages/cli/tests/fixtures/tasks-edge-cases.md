@@ -44,6 +44,14 @@
 
 ---
 
+## Verification
+
+- [ ] T018 [V] Run test suite — all tests pass
+- [ ] T019 [V] [W] Verify wiring to entry points
+- [x] T020 [V] Run linter — no errors
+
+---
+
 ## Edge Cases in Descriptions
 
 - [ ] T011 Task with `code blocks` and **bold** and *italic*

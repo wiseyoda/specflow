@@ -89,7 +89,7 @@ describe('evidence', () => {
       await writeEvidence(featureDir, evidence);
 
       expect(mkdir).toHaveBeenCalledWith(
-        expect.stringContaining('checklists'),
+        expect.stringContaining('0010-test'),
         { recursive: true },
       );
       expect(atomicWriteFile).toHaveBeenCalledWith(

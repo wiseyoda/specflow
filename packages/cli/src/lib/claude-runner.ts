@@ -86,7 +86,7 @@ const WORKFLOW_SCHEMA = {
     },
     phase: {
       type: 'string',
-      description: 'Current phase (discover, specify, plan, tasks, checklists)',
+      description: 'Current phase (discover, specify, plan, tasks)',
     },
     message: {
       type: 'string',

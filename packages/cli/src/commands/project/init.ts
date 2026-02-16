@@ -149,7 +149,7 @@ Each phase is designed to be:
 If a phase is running long:
 
 1. Cut scope to MVP for that phase
-2. Document deferred items in \`specs/[phase]/checklists/deferred.md\`
+2. Document deferred items in BACKLOG.md
 3. Prioritize verification gate requirements
 
 ---

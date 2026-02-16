@@ -10,6 +10,19 @@ $ARGUMENTS
 
 **Note**: Use `specflow` directly, NOT `npx specflow`. It's a local CLI at `~/.claude/specflow-system/bin/`.
 
+## Tool Usage
+
+**Use dedicated tools instead of bash for file operations:**
+
+| Instead of (bash) | Use |
+|---|---|
+| `ls`, `find` | Glob tool |
+| `grep`, `rg` | Grep tool |
+| `cat`, `head`, `tail` | Read tool |
+| `echo >`, heredoc writes | Write tool |
+
+Reserve Bash for: `specflow` CLI, `git`, `pnpm`/`npm`, and other system commands.
+
 ## Agent Teams Mode (Opus 4.6)
 
 - Prefer Agent Teams for parallel worker sections when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
@@ -47,9 +60,16 @@ Set [ANALYZE] INITIALIZE to in_progress.
 
 ### 1. Initialize
 
+**Optimization**: If this command was invoked by `/flow.orchestrate` and you already
+have `specflow status --json` output in context (within the last few tool calls),
+reuse it instead of calling again.
+
 ```bash
-specflow status --json
+specflow context --json --memory-keys constitution
 ```
+
+This returns both status and memory doc contents in one call (see `status` and `memory` fields).
+If `specflow context` is unavailable, fall back to `specflow status --json`.
 
 Parse response:
 
@@ -62,6 +82,10 @@ Parse response:
 - `.specify/phases/NNNN-*.md` = Phase definition document (goals, scope, verification gate)
 
 Use TodoWrite: mark [ANALYZE] INITIALIZE complete after gate check, mark [ANALYZE] LOAD in_progress.
+
+**Gate verification (standalone only):**
+If invoked by `/flow.orchestrate`, the orchestrator already verified `check --gate design` —
+skip this call. If running standalone:
 
 ```bash
 specflow check --gate design
@@ -76,6 +100,10 @@ specflow state set orchestration.step.current=analyze orchestration.step.index=1
 ```
 
 ### 2. Load Artifacts (Parallel)
+
+**Pre-load shared context before launching agents**: Read `.specify/memory/constitution.md`
+FIRST in the parent, then pass its content to Agent 5 in the prompt rather than having
+Agent 5 re-read it independently. This eliminates redundant reads of shared memory documents.
 
 **Use parallel sub-agents** to load all artifacts simultaneously:
 

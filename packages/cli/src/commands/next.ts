@@ -2,12 +2,6 @@ import { Command } from 'commander';
 import { output } from '../lib/output.js';
 import { readState } from '../lib/state.js';
 import { readTasks, findNextTask, type Task, type TasksData } from '../lib/tasks.js';
-import {
-  readFeatureChecklists,
-  findNextChecklistItem,
-  type ChecklistItem,
-  type ChecklistData,
-} from '../lib/checklist.js';
 import { resolveFeatureDir, getProjectContext } from '../lib/context.js';
 import { findProjectRoot } from '../lib/paths.js';
 import { handleError, NotFoundError } from '../lib/errors.js';
@@ -17,7 +11,7 @@ import { handleError, NotFoundError } from '../lib/errors.js';
  */
 export type NextActionType =
   | 'implement_task'
-  | 'verify_checklist'
+  | 'verify_task'
   | 'none';
 
 /**
@@ -51,14 +45,13 @@ export interface NextTaskOutput {
 }
 
 /**
- * Next verification item output
+ * Next verification task output
  */
 export interface NextVerifyOutput {
-  action: 'verify_checklist';
-  item: {
+  action: 'verify_task';
+  task: {
     id: string;
     description: string;
-    checklist: string;
     section?: string;
     line: number;
     file: string;
@@ -218,44 +211,40 @@ async function getNextTask(featureDir: string): Promise<NextTaskOutput | NextNon
 }
 
 /**
- * Get next verification item
+ * Get next verification task ([V] marker)
  */
 async function getNextVerifyItem(featureDir: string): Promise<NextVerifyOutput | NextNoneOutput> {
-  const checklists = await readFeatureChecklists(featureDir);
+  const tasksData = await readTasks(featureDir);
+  const vTasks = tasksData.tasks.filter(t => t.isVerification);
+  const todoVTasks = vTasks.filter(t => t.status === 'todo');
 
-  // Check verification checklist first
-  if (checklists.verification) {
-    const nextItem = findNextChecklistItem(checklists.verification);
-    if (nextItem) {
-      const remaining = checklists.verification.items.filter(i => i.status === 'todo').length;
-      const nextUp = checklists.verification.items
-        .filter(i => i.status === 'todo' && i.id !== nextItem.id)
-        .slice(0, 3)
-        .map(i => i.id);
+  if (todoVTasks.length > 0) {
+    const nextTask = todoVTasks[0];
+    const remaining = todoVTasks.length;
+    const nextUp = todoVTasks
+      .slice(1, 4)
+      .map(t => t.id);
 
-      return {
-        action: 'verify_checklist',
-        item: {
-          id: nextItem.id,
-          description: nextItem.description,
-          checklist: 'verification',
-          section: nextItem.section,
-          line: nextItem.line,
-          file: checklists.verification.filePath,
-        },
-        queue: {
-          remaining,
-          nextUp,
-        },
-      };
-    }
+    return {
+      action: 'verify_task',
+      task: {
+        id: nextTask.id,
+        description: nextTask.description,
+        section: nextTask.section,
+        line: nextTask.line,
+        file: tasksData.filePath,
+      },
+      queue: {
+        remaining,
+        nextUp,
+      },
+    };
   }
 
-  // All verification items complete
   return {
     action: 'none',
     reason: 'verification_complete',
-    suggestion: "All verification items complete. Ready for '/flow.merge'.",
+    suggestion: "All verification tasks complete. Ready for '/flow.merge'.",
   };
 }
 
@@ -307,10 +296,10 @@ function formatHumanReadable(next: NextOutput): string {
     return lines.join('\n');
   }
 
-  if (next.action === 'verify_checklist') {
+  if (next.action === 'verify_task') {
     return [
-      `Next: ${next.item.id} ${next.item.description}`,
-      `Checklist: ${next.item.checklist} | Remaining: ${next.queue.remaining}`,
+      `Next: ${next.task.id} ${next.task.description}`,
+      `Type: verification | Remaining: ${next.queue.remaining}`,
     ].join('\n');
   }
 

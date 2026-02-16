@@ -32,9 +32,10 @@ description: 'Task list template for feature implementation'
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
-## Format: `[ID] [P?] [W?] [Story] Description`
+## Format: `[ID] [P?] [V?] [W?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
+- **[V]**: Verification task — post-implementation check (test suite, lint, typecheck, wiring)
 - **[W]**: Wiring task — connects new code to an existing caller/entry point
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
 - Include exact file paths in descriptions
@@ -188,6 +189,20 @@ Examples of foundational tasks (adjust based on your project):
 
 ---
 
+## Phase N-2: Verification
+
+**Purpose**: Post-implementation checks that verify the phase is complete and correct. These [V] tasks replace the old verification checklists.
+
+- [ ] TXXX [V] Run test suite — all tests pass
+- [ ] TXXX [V] Run linter — no errors
+- [ ] TXXX [V] Run typecheck — no type errors
+- [ ] TXXX [V] Verify no TODO/FIXME in new code
+- [ ] TXXX [V] [W] Verify all new modules wired to entry points
+
+**Checkpoint**: All verification checks pass — phase is ready for merge
+
+---
+
 ## Phase N: Polish & Cross-Cutting Concerns
 
 **Purpose**: Improvements that affect multiple user stories
@@ -293,5 +308,6 @@ With multiple developers:
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
+- [V] tasks = verification checks (run after implementation, before merge)
 - [W] tasks = wiring/integration (connects new code to existing callers)
 - Every phase that creates new files SHOULD have at least one [W] task

@@ -21,6 +21,19 @@ Arguments:
 
 **Note**: Use `specflow` directly, NOT `npx specflow`. It's a local CLI at `~/.claude/specflow-system/bin/`.
 
+## Tool Usage
+
+**Use dedicated tools instead of bash for file operations:**
+
+| Instead of (bash) | Use |
+|---|---|
+| `ls`, `find` | Glob tool |
+| `grep`, `rg` | Grep tool |
+| `cat`, `head`, `tail` | Read tool |
+| `echo >`, heredoc writes | Write tool |
+
+Reserve Bash for: `specflow` CLI, `git`, `pnpm`/`npm`, `gh`, and other system commands.
+
 ## Agent Teams Mode (Opus 4.6)
 
 - Prefer Agent Teams for parallel worker sections when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.

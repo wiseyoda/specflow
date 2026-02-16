@@ -1,5 +1,5 @@
 ---
-description: Verify feature completion, compliance with memory documents, checklist status, and readiness for merge.
+description: Verify feature completion, compliance with memory documents, and readiness for merge.
 handoffs:
   - label: Start Next Feature
     agent: specflow.specify
@@ -20,13 +20,26 @@ $ARGUMENTS
 
 Arguments:
 
-- Empty: Run full verification (tasks, checklists, memory, user gate)
+- Empty: Run full verification (tasks, memory, user gate)
 - `--dry-run`: Preview verification without updating state
 - `--skip-memory`: Skip memory document compliance check
 
 You **MUST** consider the user input before proceeding (if not empty).
 
 **Note**: Use `specflow` directly, NOT `npx specflow`. It's a local CLI at `~/.claude/specflow-system/bin/`.
+
+## Tool Usage
+
+**Use dedicated tools instead of bash for file operations:**
+
+| Instead of (bash) | Use |
+|---|---|
+| `ls`, `find` | Glob tool |
+| `grep`, `rg` | Grep tool |
+| `cat`, `head`, `tail` | Read tool |
+| `echo >`, heredoc writes | Write tool |
+
+Reserve Bash for: `specflow` CLI, `git`, `pnpm`/`npm`, and other system commands.
 
 ## Agent Teams Mode (Opus 4.6)
 
@@ -41,12 +54,11 @@ You **MUST** consider the user input before proceeding (if not empty).
 |-------------|---------------|------------|
 | Implement gate passed | `specflow check --gate implement` | Run `/flow.implement` |
 | All tasks complete | `specflow status --json` → `progress.percentage == 100` | Complete remaining tasks |
-| Checklists exist | `specs/NNNN-name/checklists/` | Run `/flow.design --checklist` |
 | Constitution | `.specify/memory/constitution.md` | Run `/flow.init` |
 | Git branch | `git branch --show-current` | Should be on phase branch |
 
 **Path clarification**:
-- Artifacts (spec.md, plan.md, tasks.md, checklists/): `specs/NNNN-name/` from `context.featureDir`
+- Artifacts (spec.md, plan.md, tasks.md): `specs/NNNN-name/` from `context.featureDir`
 - Phase definition (goals, scope): `.specify/phases/NNNN-*.md`
 
 ## Goal
@@ -54,10 +66,9 @@ You **MUST** consider the user input before proceeding (if not empty).
 Verify a completed feature phase is ready for merge:
 
 1. All tasks complete (or explicitly deferred)
-2. All checklists pass
-3. Implementation complies with memory documents
-4. User gate satisfied (if applicable)
-5. User receives a concrete, non-developer test guide with startup steps
+2. Implementation complies with memory documents
+3. User gate satisfied (if applicable)
+4. User receives a concrete, non-developer test guide with startup steps
 
 **Note**: This command verifies readiness but does NOT close the phase. Use `/flow.merge` to close, push, and merge.
 
@@ -70,10 +81,9 @@ Verify a completed feature phase is ready for merge:
 1. [VERIFY] CONTEXT - Get project status and load phase artifacts
 2. [VERIFY] IMPL_GATE - Verify all tasks complete
 3. [VERIFY] WIRING - Check integration wiring (orphaned exports)
-4. [VERIFY] VERIFY_GATE - Complete all checklists
-5. [VERIFY] PHASE_GOALS - Verify against original phase goals
-6. [VERIFY] MEMORY - Check against memory docs
-7. [VERIFY] REPORT - Mark verified and report
+4. [VERIFY] PHASE_GOALS - Verify against original phase goals
+5. [VERIFY] MEMORY - Check against memory docs
+6. [VERIFY] REPORT - Mark verified and report
 
 Set [VERIFY] CONTEXT to in_progress.
 
@@ -81,9 +91,16 @@ Set [VERIFY] CONTEXT to in_progress.
 
 **Get project context first, then initialize step:**
 
+**Optimization**: If this command was invoked by `/flow.orchestrate` and you already
+have `specflow status --json` output in context (within the last few tool calls),
+reuse it instead of calling again.
+
 ```bash
-specflow status --json
+specflow context --json
 ```
+
+This returns both status and all memory doc contents in one call (see `status` and `memory` fields).
+If `specflow context` is unavailable, fall back to `specflow status --json`.
 
 Use `step.current` from the status output above to initialize step (do NOT call `state get` for this value):
 
@@ -102,7 +119,6 @@ Parse the JSON to understand:
 - Current phase number and name
 - Active feature directory
 - Task completion status
-- Checklist status
 - Whether phase has USER GATE marker
 
 If no active phase, stop: "No active phase. Use `specflow phase open` first."
@@ -201,107 +217,11 @@ Resolution options:
 2. Defer: `specflow phase defer "Wire [module] into [caller]"`
 3. Remove: If export isn't needed, remove it
 
-Use TodoWrite: mark [VERIFY] WIRING complete, mark [VERIFY] VERIFY_GATE in_progress.
+Use TodoWrite: mark [VERIFY] WIRING complete, mark [VERIFY] PHASE_GOALS in_progress.
 
 ---
 
-## Step 3: Check Verification Gate (Parallel)
-
-```bash
-specflow check --gate verify --json
-```
-
-This verifies all checklists are complete.
-
-**If gate fails** (incomplete checklist items):
-
-**Use parallel sub-agents** to verify multiple checklist items simultaneously:
-
-**File locking pattern (prevents concurrent write conflicts):**
-
-```
-1. BEFORE launching agents: Load all checklist files into memory
-   - Read verification.md, implementation.md content upfront
-   - Agents receive READ-ONLY access to content
-
-2. DURING verification: Agents verify items but DON'T write directly
-   - Each agent returns: { itemId, passed: boolean, notes }
-   - No file writes during parallel execution
-
-3. AFTER all agents complete: Batch write updates
-   - Collect all passed items from agents
-   - Build file→updates map
-   - Write each file ONCE with all updates:
-     specflow mark V-001 V-002 V-003  # Batch mark
-```
-
-```
-Parse incomplete items from gate check, then launch parallel workers (Agent Teams preferred; Task agents fallback):
-
-Team-mode role hints:
-- Use `specflow-quality-auditor` for checklist verification workers
-- Parent orchestrator uses `specflow-coordinator` for batched `specflow mark` updates
-
-Agent V-001: Verify checklist item V-001 - run verification, return result
-Agent V-002: Verify checklist item V-002 - run verification, return result
-Agent I-001: Verify checklist item I-001 - run verification, return result
-... (batch 3-5 items per parallel round)
-```
-
-**Expected speedup**: 80-90% faster (N items verified in parallel vs. sequential)
-
-For each incomplete item, agents MUST **actively verify** it:
-
-1. **Read the verification criteria** from the checklist
-2. **Execute the verification** - Run commands, check code, verify behavior
-3. **Mark complete with evidence** (V-items REQUIRE `--evidence`):
-   ```bash
-   # Single item with evidence
-   specflow mark V-001 --evidence "pnpm test: 47 passed, 0 failed (exit 0)"
-
-   # Batch items sharing the same evidence
-   specflow mark V-030 V-031 V-032 --evidence "pnpm test passed, pnpm lint clean, tsc --noEmit clean"
-
-   # Implementation items (evidence optional but recommended)
-   specflow mark I-001 --evidence "verified imports in src/lib/evidence.ts"
-   ```
-4. **Document failures** - If item cannot pass, note why and ask user
-
-**Evidence Requirements by Verification Type:**
-
-| Type | Example Evidence |
-|------|-----------------|
-| Command output | `"pnpm test: 47 passed, 0 failed (exit 0)"` |
-| Code inspection | `"verified: no TODO/FIXME in src/ (grep returned 0 results)"` |
-| Behavioral check | `"manually tested login flow: redirect works, session persists"` |
-| Metric verification | `"response time p95 = 120ms (target: < 200ms)"` |
-
-**IMPORTANT**: `specflow mark V-###` without `--evidence` will fail with a validation error. The verify gate (`specflow check --gate verify`) also validates that all completed V-items have evidence recorded.
-
-**Integration Wiring V-item Verification:**
-
-| V-item | Verification Method | Evidence Pattern |
-|--------|-------------------|------------------|
-| V-070 (Caller exists) | grep for import statements | `"grep: N imports of [module] in non-test files"` |
-| V-071 (Route registered) | Check router config | `"[route] registered in [file]:L[line]"` |
-| V-072 (Service imported) | Check handler imports | `"[service] imported in [handler]:L[line]"` |
-| V-073 (No orphans) | Orphaned export scan | `"0 orphaned exports across N files"` |
-| V-074 (Entry-point trace) | Trace call chain | `"traced: [entry] → [handler] → [service] → [new module]"` |
-
-**Checklist ID Prefixes:**
-
-- `V-###` - Verification checklist items
-- `I-###` - Implementation checklist items
-- `C-###` - Custom/other checklist items
-- `D-###` - Deferred items
-
-After resolving, re-run `specflow check --gate verify` until it passes.
-
-Use TodoWrite: mark [VERIFY] VERIFY_GATE complete, mark [VERIFY] PHASE_GOALS in_progress.
-
----
-
-## Step 4: Phase Goals Verification (Parallel)
+## Step 3: Phase Goals Verification (Parallel)
 
 Verify the implementation against the **original phase goals** from `.specify/phases/{PHASE_NUMBER}-*.md`.
 
@@ -322,7 +242,7 @@ Agent 3 (UI Design): Verify ui-design.md coverage - components, interactions, co
 
 **Expected speedup**: 30-40% faster (3 parallel checks vs. sequential)
 
-### 4a. Goals Coverage (Agent 1)
+### 3a. Goals Coverage (Agent 1)
 
 For each goal/objective listed in the phase document:
 
@@ -349,7 +269,7 @@ Achievement: 2/4 goals (50%)
 
 **Verification status values**: `ACHIEVED` (all tasks complete), `INCOMPLETE` (tasks remain), `DEFERRED` (explicitly skipped)
 
-### 4b. Scope Creep Check (Agent 2)
+### 3b. Scope Creep Check (Agent 2)
 
 Compare what was PLANNED vs what was IMPLEMENTED:
 
@@ -357,7 +277,7 @@ Compare what was PLANNED vs what was IMPLEMENTED:
 - **Missing goals**: Phase goals with no corresponding implementation (requires resolution)
 - **Scope changes**: Document any significant deviations from original phase
 
-### 4c. UI Design Verification (Agent 3, if ui-design.md exists)
+### 3c. UI Design Verification (Agent 3, if ui-design.md exists)
 
 | Check | How to Verify |
 |-------|---------------|
@@ -378,9 +298,14 @@ Use TodoWrite: mark [VERIFY] PHASE_GOALS complete, mark [VERIFY] MEMORY in_progr
 
 ---
 
-## Step 5: Memory Document Compliance (Parallel)
+## Step 4: Memory Document Compliance (Parallel)
 
 Check implementation against memory documents in `.specify/memory/`. See `.specify/templates/memory-loading-guide.md` for the complete loading protocol.
+
+**Pre-load memory docs before launching agents**: Read all 5 memory documents
+(`constitution.md`, `tech-stack.md`, `coding-standards.md`, `testing-strategy.md`,
+`security-checklist.md`) FIRST in the parent, then include their contents in each
+agent's prompt. This eliminates ~20 redundant file reads across 5 agents.
 
 **Use parallel sub-agents** to check all 5 memory documents simultaneously:
 
@@ -401,7 +326,7 @@ Agent 5: Security Checklist - Validate input handling, error handling, auth
 
 **Expected speedup**: 60-70% faster (5 parallel checks vs. sequential)
 
-### 5a. Constitution Compliance (Agent 1)
+### 4a. Constitution Compliance (Agent 1)
 
 **CRITICAL** - Constitution violations block verification.
 
@@ -411,7 +336,7 @@ Agent 5: Security Checklist - Validate input handling, error handling, auth
 | Core principles       | Review changes don't violate stated principles         |
 | Documented deviations | Any deviation from constitution should be in plan.md   |
 
-### 5b. Tech Stack Compliance (Agent 2)
+### 4b. Tech Stack Compliance (Agent 2)
 
 | Check                   | How to Verify                                      |
 | ----------------------- | -------------------------------------------------- |
@@ -419,7 +344,7 @@ Agent 5: Security Checklist - Validate input handling, error handling, auth
 | Version constraints     | Check package.json/lockfile for version compliance |
 | Undeclared dependencies | Search for imports not in approved stack           |
 
-### 5c. Coding Standards (Agent 3)
+### 4c. Coding Standards (Agent 3)
 
 | Check                  | How to Verify                                      |
 | ---------------------- | -------------------------------------------------- |
@@ -427,7 +352,7 @@ Agent 5: Security Checklist - Validate input handling, error handling, auth
 | Code organization      | Verify files are in correct directories            |
 | TypeScript conventions | Check for any type violations (run `tsc --noEmit`) |
 
-### 5d. Testing Strategy (Agent 4)
+### 4d. Testing Strategy (Agent 4)
 
 | Check         | How to Verify                            |
 | ------------- | ---------------------------------------- |
@@ -435,7 +360,7 @@ Agent 5: Security Checklist - Validate input handling, error handling, auth
 | Test patterns | Check tests follow project patterns      |
 | Missing tests | Any new functionality without tests      |
 
-### 5e. Security Checklist (Agent 5)
+### 4e. Security Checklist (Agent 5)
 
 | Check            | How to Verify                       |
 | ---------------- | ----------------------------------- |
@@ -461,20 +386,20 @@ Use TodoWrite: mark [VERIFY] MEMORY complete, mark [VERIFY] REPORT in_progress.
 
 ---
 
-## Step 6: User Gate Check
+## Step 5: User Gate Check
 
 See `.specify/templates/user-gate-guide.md` for the complete USER GATE handling protocol.
 
 **Check if USER GATE exists** using `phase.hasUserGate` from `specflow status --json` output (already obtained in Step 1 — do NOT call `state get` for this value).
 
-If `hasUserGate` is `false` or empty, skip to Step 7.
+If `hasUserGate` is `false` or empty, skip to Step 6.
 
 **If USER GATE exists, check if already handled:**
 ```bash
 GATE_STATUS=$(specflow state get orchestration.phase.userGateStatus)
 ```
 
-If `userGateStatus` is `confirmed` or `skipped`, proceed to Step 7.
+If `userGateStatus` is `confirmed` or `skipped`, proceed to Step 6.
 
 **Before prompting user, build a non-developer verification guide (required):**
 
@@ -533,7 +458,7 @@ Build a concrete "How to Verify This Change" guide from repo artifacts. Do not a
 
 ---
 
-## Step 7: Mark Verification Complete
+## Step 6: Mark Verification Complete
 
 **IMPORTANT**: Do NOT close the phase here. Only `/flow.merge` should close phases.
 
@@ -551,7 +476,7 @@ Use TodoWrite: mark [VERIFY] REPORT complete.
 
 ---
 
-## Step 8: Verification Report
+## Step 7: Verification Report
 
 Display summary:
 
@@ -566,7 +491,6 @@ Display summary:
 | Check             | Status              |
 | ----------------- | ------------------- |
 | Tasks             | {completed}/{total} |
-| Checklists        | PASS                |
 | Phase Goals       | {covered}/{total}   |
 | Memory Compliance | PASS                |
 | User Gate         | PASS / N/A          |
@@ -630,7 +554,6 @@ If verification cannot complete:
 If user approves:
 
 - Complete incomplete tasks
-- Mark checklist items after verification
 - Re-run verification after fixes
 
 ---
@@ -662,22 +585,20 @@ If user approves:
 
 See `.specify/templates/parallel-execution-guide.md` for the complete standardized protocol.
 
-When launching parallel agents (checklist verification, goal checks, memory compliance):
+When launching parallel agents (goal checks, memory compliance):
 
 **1. Pre-launch**:
-- Verify all checklist files exist before launching verification agents
 - Verify all memory documents exist before launching compliance agents
 - Skip agents for missing optional files (e.g., ui-design.md)
 
 **2. Execution**:
-- Launch checklist agents in batches of 3-5 items
 - Launch memory compliance agents (5 total) simultaneously
 - Launch goal verification agents (3 total) simultaneously
 - Set timeout: 180 seconds per agent (standardized)
 
 **3. Synchronization**:
 - Wait for each parallel batch before proceeding
-- Checklist batch → Goal batch → Memory batch (sequential batches)
+- Goal batch → Memory batch (sequential batches)
 
 **4. Result aggregation**:
 - Build compliance summary table from all agent results

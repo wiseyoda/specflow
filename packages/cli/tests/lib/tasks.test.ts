@@ -160,6 +160,17 @@ describe('tasks.ts', () => {
       expect(t014?.description).toContain('<angle>');
     });
 
+    it('should detect [V] verification tasks', async () => {
+      const content = await readFile(join(FIXTURES_DIR, 'tasks-edge-cases.md'), 'utf-8');
+      const result = parseTasksContent(content, 'test/tasks.md');
+
+      const vTasks = result.tasks.filter(t => t.isVerification);
+      expect(vTasks.length).toBe(3);
+      expect(vTasks.some(t => t.id === 'T018')).toBe(true);
+      expect(vTasks.some(t => t.id === 'T019')).toBe(true);
+      expect(vTasks.some(t => t.id === 'T020')).toBe(true);
+    });
+
     it('should handle sub-tasks (T008a, T008b, T008c)', async () => {
       const content = await readFile(join(FIXTURES_DIR, 'tasks-edge-cases.md'), 'utf-8');
       const result = parseTasksContent(content, 'test/tasks.md');

@@ -24,23 +24,24 @@ If you find yourself about to use the Edit tool on state files or tasks.md, STOP
 $ARGUMENTS
 ```
 
-| Argument | Action |
-|----------|--------|
-| (empty) or `continue` | Resume from current state |
-| `reset` | Clear state and restart current phase |
-| `status` | Show status only, don't execute |
-| `skip-to [step]` | Skip to step (design, analyze, implement, verify) |
+| Argument              | Action                                            |
+| --------------------- | ------------------------------------------------- |
+| (empty) or `continue` | Resume from current state                         |
+| `reset`               | Clear state and restart current phase             |
+| `status`              | Show status only, don't execute                   |
+| `skip-to [step]`      | Skip to step (design, analyze, implement, verify) |
 
 ## Agent Teams Mode (Opus 4.6)
 
 - Prefer Agent Teams for parallel worker sections within downstream commands (`/flow.design`, `/flow.analyze`, `/flow.implement`, `/flow.verify`, `/flow.merge`) when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
-- Use scoped project agents from `.claude/agents/` for reusable roles when available.
+- Use scoped project agents from `.claude/agents/` for reusable roles when available or create your own agent files.
 - If teams are unavailable, unsupported, or fail mid-run, downstream commands must fall back to Task agents using the same scopes.
 - Preserve existing safety constraints (unique write targets, synchronization barrier, timeout, and failure thresholds).
 
 ## Goal
 
 Execute the complete SpecFlow development workflow with:
+
 1. **State persistence** - Survives conversation compaction
 2. **Self-healing** - Detects and recovers from inconsistencies
 3. **Minimal user interaction** - Only asks when truly necessary
@@ -48,12 +49,12 @@ Execute the complete SpecFlow development workflow with:
 
 ## Workflow Overview
 
-| Step | Index | Command | Purpose | User Interaction |
-|------|-------|---------|---------|------------------|
-| design | 0 | `/flow.design` | Create all design artifacts | Progressive questions |
-| analyze | 1 | `/flow.analyze` | Cross-artifact consistency | Auto-fix loop |
-| implement | 2 | `/flow.implement` | Execute all tasks | Progress updates |
-| verify | 3 | `/flow.verify` | Verify completion | USER GATE if applicable |
+| Step      | Index | Command           | Purpose                     | User Interaction        |
+| --------- | ----- | ----------------- | --------------------------- | ----------------------- |
+| design    | 0     | `/flow.design`    | Create all design artifacts | Progressive questions   |
+| analyze   | 1     | `/flow.analyze`   | Cross-artifact consistency  | Auto-fix loop           |
+| implement | 2     | `/flow.implement` | Execute all tasks           | Progress updates        |
+| verify    | 3     | `/flow.verify`    | Verify completion           | USER GATE if applicable |
 
 ---
 
@@ -79,19 +80,33 @@ specflow status --json
 ```
 
 Response structure:
+
 ```json
 {
-  "phase": { "number": "0080", "name": "cli-migration", "branch": "0080-cli-migration", "status": "in_progress", "hasUserGate": false },
+  "phase": {
+    "number": "0080",
+    "name": "cli-migration",
+    "branch": "0080-cli-migration",
+    "status": "in_progress",
+    "hasUserGate": false
+  },
   "step": { "current": "implement", "index": 2, "status": "in_progress" },
   "progress": { "tasksCompleted": 12, "tasksTotal": 47, "percentage": 25 },
   "health": { "status": "ok", "issues": [] },
   "nextAction": "continue_implement",
   "blockers": [],
-  "context": { "featureDir": "specs/0080-cli-migration", "hasSpec": true, "hasPlan": true, "hasTasks": true, "hasChecklists": true }
+  "context": {
+    "featureDir": "specs/0080-cli-migration",
+    "hasSpec": true,
+    "hasPlan": true,
+    "hasTasks": true,
+    "hasChecklists": true
+  }
 }
 ```
 
 **Handle health issues first:**
+
 - If `health.status` = "error": Run `specflow check --fix`, then re-check status
 
 **Validate domain state on resume (cross-domain consistency):**
@@ -122,42 +137,44 @@ fi
 
 **Route based on `nextAction`:**
 
-| nextAction | Action |
-|------------|--------|
-| `fix_health` | Run `specflow check --fix`, re-check status |
-| `start_phase` | Go to Section 1 (Determine Phase) |
-| `run_design` | Go to Section 2 (DESIGN) |
-| `run_analyze` | Go to Section 3 (ANALYZE) |
-| `continue_implement` | Go to Section 4 (IMPLEMENT) |
-| `run_verify` | Go to Section 5 (VERIFY) |
-| `ready_to_merge` | Go to Section 6 (Phase Transition) - ready for `/flow.merge` |
-| `awaiting_user_gate` | Display USER GATE prompt, wait for approval |
-| `archive_phase` | Phase already complete - run `specflow phase close` or start next phase |
+| nextAction           | Action                                                                  |
+| -------------------- | ----------------------------------------------------------------------- |
+| `fix_health`         | Run `specflow check --fix`, re-check status                             |
+| `start_phase`        | Go to Section 1 (Determine Phase)                                       |
+| `run_design`         | Go to Section 2 (DESIGN)                                                |
+| `run_analyze`        | Go to Section 3 (ANALYZE)                                               |
+| `continue_implement` | Go to Section 4 (IMPLEMENT)                                             |
+| `run_verify`         | Go to Section 5 (VERIFY)                                                |
+| `ready_to_merge`     | Go to Section 6 (Phase Transition) - ready for `/flow.merge`            |
+| `awaiting_user_gate` | Display USER GATE prompt, wait for approval                             |
+| `archive_phase`      | Phase already complete - run `specflow phase close` or start next phase |
 
 **Handle arguments:**
 
-| Argument | Action |
-|----------|--------|
-| `status` | Display status and exit |
-| `reset` | `specflow state set orchestration.step.current=design orchestration.step.index=0 orchestration.step.status=in_progress`, resume |
-| `skip-to X` | `specflow state set orchestration.step.current=X orchestration.step.index=N orchestration.step.status=in_progress`, resume |
+| Argument    | Action                                                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `status`    | Display status and exit                                                                                                         |
+| `reset`     | `specflow state set orchestration.step.current=design orchestration.step.index=0 orchestration.step.status=in_progress`, resume |
+| `skip-to X` | `specflow state set orchestration.step.current=X orchestration.step.index=N orchestration.step.status=in_progress`, resume      |
 
 **Step index mapping** (source of truth: `packages/shared/src/schemas/events.ts`):
+
 ```
 STEP_INDEX_MAP = { design: 0, analyze: 1, implement: 2, verify: 3 }
 ```
+
 Valid steps: `design`, `analyze`, `implement`, `verify`
 
 **Failed step recovery:**
 
 If `step.status` = "failed", present options to user:
 
-| Option | Action |
-|--------|--------|
-| Retry | `specflow state set orchestration.step.status=in_progress`, retry step |
-| Skip | Advance to next step (use with caution) |
-| Diagnose | Run `specflow check`, show issues |
-| Abort | Exit for manual intervention |
+| Option   | Action                                                                 |
+| -------- | ---------------------------------------------------------------------- |
+| Retry    | `specflow state set orchestration.step.status=in_progress`, retry step |
+| Skip     | Advance to next step (use with caution)                                |
+| Diagnose | Run `specflow check`, show issues                                      |
+| Abort    | Exit for manual intervention                                           |
 
 ---
 
@@ -217,13 +234,13 @@ specflow state set orchestration.step.current=design orchestration.step.index=0 
 
 Read `.specify/phases/NNNN-phase-name.md` and extract:
 
-| Field | Purpose | Track Throughout |
-|-------|---------|------------------|
-| **Goals** | What this phase must accomplish | ✓ Map to spec requirements |
-| **Scope** | What's in and out of scope | ✓ Validate during analyze |
-| **Deliverables** | Expected outputs | ✓ Verify in verify step |
-| **Verification Gate** | How success is measured | ✓ Check before merge |
-| **USER GATE** | If present, requires user confirmation | ✓ Block merge until confirmed |
+| Field                 | Purpose                                | Track Throughout              |
+| --------------------- | -------------------------------------- | ----------------------------- |
+| **Goals**             | What this phase must accomplish        | ✓ Map to spec requirements    |
+| **Scope**             | What's in and out of scope             | ✓ Validate during analyze     |
+| **Deliverables**      | Expected outputs                       | ✓ Verify in verify step       |
+| **Verification Gate** | How success is measured                | ✓ Check before merge          |
+| **USER GATE**         | If present, requires user confirmation | ✓ Block merge until confirmed |
 
 **Persist goals to state** (survives conversation compaction):
 
@@ -234,6 +251,7 @@ specflow state set orchestration.phase.goals='["Goal 1", "Goal 2", ...]'
 ```
 
 **Check for integration architecture (if design complete):**
+
 ```bash
 FEATURE_DIR=$(specflow state get orchestration.phase.featureDir 2>/dev/null)
 if grep -q "## Integration Architecture" "${FEATURE_DIR}/plan.md" 2>/dev/null; then
@@ -242,6 +260,7 @@ fi
 ```
 
 **Goals flow through each step** (retrieved from state if context lost):
+
 - DESIGN: Goals → spec requirements → tasks
 - ANALYZE: Verify all goals have coverage in tasks
 - IMPLEMENT: Track which goals are being addressed
@@ -256,6 +275,7 @@ To retrieve goals after compaction: `specflow state get orchestration.phase.goal
 **Check:** If `step.index > 0` and all artifacts exist (`context.hasSpec/hasPlan/hasTasks/hasChecklists` all true) → skip to ANALYZE.
 
 **Execute `/flow.design`** which produces ALL design artifacts:
+
 - discovery.md - codebase examination, clarified intent
 - spec.md - feature specification
 - plan.md - technical implementation plan
@@ -274,6 +294,7 @@ specflow check --gate design
 **Goal coverage checkpoint:**
 
 Before advancing, verify phase goals from `.specify/phases/NNNN-*.md` are covered:
+
 - Each goal should have corresponding requirement(s) in spec.md
 - Each requirement should have implementing task(s) in tasks.md
 - If goals are missing coverage, `/flow.design` should have caught this - re-run if needed
@@ -294,6 +315,7 @@ If gate passes:
 **MANDATORY STEP - DO NOT SKIP**
 
 **Execute `/flow.analyze`** which handles:
+
 - 8-pass detection (goals, duplication, ambiguity, coverage, constitution)
 - Auto-fix loop (max 5 iterations) with parallel file fixing agents
 - State tracking for iteration count (survives compaction)
@@ -309,6 +331,7 @@ STATUS=$(specflow state get orchestration.step.status 2>/dev/null)
 ```
 
 If `status == "complete"`:
+
 1. Use TodoWrite: mark [ORCH] ANALYZE complete, mark [ORCH] IMPLEMENT in_progress
 2. Update state:
    ```bash
@@ -317,8 +340,10 @@ If `status == "complete"`:
 3. **IMMEDIATELY continue to IMPLEMENT** - DO NOT STOP
 
 If `status == "blocked"`:
+
 - Present issues to user: "Analysis found unresolvable issues"
 - Options: Retry analysis, Fix manually, Abort orchestration
+
 3. **IMMEDIATELY continue to IMPLEMENT** - DO NOT STOP
 
 ---
@@ -334,6 +359,7 @@ specflow status --json
 If `progress.tasksCompleted == progress.tasksTotal` → skip to VERIFY.
 
 **Execute `/flow.implement`** which handles:
+
 - TDD workflow (test first, then implement)
 - Task execution in dependency order
 - Progress tracking
@@ -355,11 +381,13 @@ specflow mark T###
 ```
 
 **Progress tracking:**
+
 - Use `specflow next --json` to get current task
 - Use `specflow mark T###` to mark complete
 - Commit periodically: `git commit -m "feat: implement T001-T010"`
 
 **Error recovery:**
+
 1. Log error, attempt 1 retry with different approach
 2. If still fails: `specflow mark T### --blocked "reason"`, continue with non-dependent tasks
 3. If critical path blocked: Halt, report, set step status to blocked
@@ -381,6 +409,7 @@ specflow check --gate implement
 ```
 
 **Wiring warning check:**
+
 ```bash
 ORPHANS=$(specflow state get orchestration.implement.orphanedExports 2>/dev/null)
 if [[ -n "$ORPHANS" && "$ORPHANS" != "null" && "$ORPHANS" != "[]" ]]; then
@@ -409,16 +438,20 @@ Before verification, record significant decisions or gotchas in `specs/NNNN-phas
 ## Lessons Learned
 
 ### Decisions
+
 - Chose X over Y because...
 
 ### Gotchas
+
 - Platform quirk: Issue → Workaround
 
 ### Patterns
+
 - Useful pattern discovered...
 ```
 
 **Execute `/flow.verify`** which handles:
+
 - Task completion verification
 - **Phase goals verification** - confirms all goals from phase doc were achieved
 - Memory document compliance
@@ -440,6 +473,7 @@ See `.specify/templates/user-gate-guide.md` for the complete USER GATE handling 
 If phase has USER GATE (check `phase.hasUserGate` from status):
 
 First, check if already handled:
+
 ```bash
 GATE_STATUS=$(specflow state get orchestration.phase.userGateStatus)
 ```
@@ -449,6 +483,7 @@ If `userGateStatus` is `confirmed` or `skipped`, proceed to Phase Transition.
 **If gate is pending, generate a non-developer verification guide first:**
 
 Build from:
+
 - `README.md` / docs quickstart
 - `package.json` scripts (`dev`, `start`, `preview`)
 - `Makefile` / `justfile` targets (if present)
@@ -456,6 +491,7 @@ Build from:
 - USER GATE criteria from phase doc
 
 Guide requirements:
+
 1. Copy/paste setup commands
 2. Exact start command
 3. URL and login path (if needed)
@@ -467,26 +503,37 @@ Guide requirements:
 
 ```json
 {
-  "questions": [{
-    "question": "Phase {number} has a USER GATE requiring your verification.\n\nGate Criteria:\n{criteria from phase doc}\n\nHave you verified the implementation meets these criteria?",
-    "header": "User Gate",
-    "options": [
-      {"label": "Yes, verified (Recommended)", "description": "I have tested and confirmed the gate criteria are met"},
-      {"label": "Show details", "description": "Show copy/paste setup + click-by-click verification steps"},
-      {"label": "Skip gate", "description": "Proceed without user verification (not recommended)"}
-    ],
-    "multiSelect": false
-  }]
+  "questions": [
+    {
+      "question": "Phase {number} has a USER GATE requiring your verification.\n\nGate Criteria:\n{criteria from phase doc}\n\nHave you verified the implementation meets these criteria?",
+      "header": "User Gate",
+      "options": [
+        {
+          "label": "Yes, verified (Recommended)",
+          "description": "I have tested and confirmed the gate criteria are met"
+        },
+        {
+          "label": "Show details",
+          "description": "Show copy/paste setup + click-by-click verification steps"
+        },
+        {
+          "label": "Skip gate",
+          "description": "Proceed without user verification (not recommended)"
+        }
+      ],
+      "multiSelect": false
+    }
+  ]
 }
 ```
 
 **Handle response:**
 
-| Response | Action |
-|----------|--------|
-| **Yes, verified** | `specflow state set orchestration.phase.userGateStatus=confirmed` → Proceed to Phase Transition |
-| **Show details** | Display generated guide: setup, start command, URL/login, numbered checks with expected outcomes, troubleshooting; then re-ask |
-| **Skip gate** | `specflow state set orchestration.phase.userGateStatus=skipped` → Proceed (log reason) |
+| Response          | Action                                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Yes, verified** | `specflow state set orchestration.phase.userGateStatus=confirmed` → Proceed to Phase Transition                                |
+| **Show details**  | Display generated guide: setup, start command, URL/login, numbered checks with expected outcomes, troubleshooting; then re-ask |
+| **Skip gate**     | `specflow state set orchestration.phase.userGateStatus=skipped` → Proceed (log reason)                                         |
 
 Do NOT auto-advance without user response. Wait for explicit confirmation.
 
@@ -508,6 +555,7 @@ Or run `/flow.merge --next-phase` to complete and start the next phase.
 ```
 
 **`/flow.merge` handles:**
+
 - Push branch and create PR
 - Merge PR to main
 - Update ROADMAP.md status
@@ -530,17 +578,18 @@ Or run `/flow.merge --next-phase` to complete and start the next phase.
 
 **Orchestrate is the OWNER of step transitions.** Sub-commands follow these rules:
 
-| State Field | Owner | Sub-command Behavior |
-|-------------|-------|---------------------|
-| `step.current` | Orchestrate | Only set if null/empty (standalone mode) |
-| `step.index` | Orchestrate | Only set if null/empty (standalone mode) |
-| `step.status` | Sub-command | Set to: `in_progress`, `complete`, `failed` |
-| `phase.*` | Orchestrate | Read-only for sub-commands |
+| State Field    | Owner       | Sub-command Behavior                        |
+| -------------- | ----------- | ------------------------------------------- |
+| `step.current` | Orchestrate | Only set if null/empty (standalone mode)    |
+| `step.index`   | Orchestrate | Only set if null/empty (standalone mode)    |
+| `step.status`  | Sub-command | Set to: `in_progress`, `complete`, `failed` |
+| `phase.*`      | Orchestrate | Read-only for sub-commands                  |
 
 **Valid step values**: `design`, `analyze`, `implement`, `verify`
 **Valid status values**: `in_progress`, `complete`, `failed`, `blocked`
 
 **How it works:**
+
 1. Orchestrate sets `step.current=design`, `step.index=0`, `step.status=in_progress`
 2. `/flow.design` runs, sets `step.status=complete` when done
 3. Orchestrate detects `status=complete`, advances to `step.current=analyze`, `step.index=1`
@@ -571,15 +620,15 @@ Or run `/flow.merge --next-phase` to complete and start the next phase.
 
 See `.specify/templates/error-recovery-guide.md` for the complete error recovery protocol.
 
-| Error | Severity | Recovery |
-|-------|----------|----------|
-| State corrupted | RECOVERABLE | Run `specflow check --fix`, rebuild from artifacts |
-| Branch mismatch | RECOVERABLE | Checkout `phase.branch` from status |
-| Branch deleted (post-merge) | RECOVERABLE | Check ROADMAP, run `specflow phase close` |
-| Missing artifact | RECOVERABLE | Re-run producing step (design/analyze) |
-| ROADMAP missing | CRITICAL | Halt, instruct user to run `/flow.roadmap` |
-| Constitution violation | CRITICAL | Halt, ask user for decision |
-| All tasks blocked | CRITICAL | Halt, report blockers, ask user |
+| Error                       | Severity    | Recovery                                           |
+| --------------------------- | ----------- | -------------------------------------------------- |
+| State corrupted             | RECOVERABLE | Run `specflow check --fix`, rebuild from artifacts |
+| Branch mismatch             | RECOVERABLE | Checkout `phase.branch` from status                |
+| Branch deleted (post-merge) | RECOVERABLE | Check ROADMAP, run `specflow phase close`          |
+| Missing artifact            | RECOVERABLE | Re-run producing step (design/analyze)             |
+| ROADMAP missing             | CRITICAL    | Halt, instruct user to run `/flow.roadmap`         |
+| Constitution violation      | CRITICAL    | Halt, ask user for decision                        |
+| All tasks blocked           | CRITICAL    | Halt, report blockers, ask user                    |
 
 ### Error Recovery Invocation
 
@@ -617,16 +666,27 @@ Use `AskUserQuestion` for CRITICAL errors:
 
 ```json
 {
-  "questions": [{
-    "question": "CRITICAL: {error description}\\n\\nWhat happened: {details}\\nHow to fix: {recovery steps}",
-    "header": "Error",
-    "options": [
-      {"label": "Retry (Recommended)", "description": "Attempt recovery and retry"},
-      {"label": "Skip step", "description": "Skip this step and continue (may cause issues)"},
-      {"label": "Abort", "description": "Stop orchestration and fix manually"}
-    ],
-    "multiSelect": false
-  }]
+  "questions": [
+    {
+      "question": "CRITICAL: {error description}\\n\\nWhat happened: {details}\\nHow to fix: {recovery steps}",
+      "header": "Error",
+      "options": [
+        {
+          "label": "Retry (Recommended)",
+          "description": "Attempt recovery and retry"
+        },
+        {
+          "label": "Skip step",
+          "description": "Skip this step and continue (may cause issues)"
+        },
+        {
+          "label": "Abort",
+          "description": "Stop orchestration and fix manually"
+        }
+      ],
+      "multiSelect": false
+    }
+  ]
 }
 ```
 

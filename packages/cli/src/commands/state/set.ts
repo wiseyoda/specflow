@@ -8,6 +8,7 @@ import {
   setStateValue,
   getStateValue,
   parseValue,
+  coerceValueForSchema,
 } from '../../lib/state.js';
 import { output, success } from '../../lib/output.js';
 import { handleError, ValidationError } from '../../lib/errors.js';
@@ -109,7 +110,8 @@ export const set = new Command('set')
         }
 
         // Parse value (handles JSON, numbers, booleans, strings)
-        const value = parseValue(valueStr);
+        // Then coerce to match schema expectations (e.g., number→string for phase.number)
+        const value = coerceValueForSchema(key, parseValue(valueStr));
         parsedPairs.push({ key, value });
       }
 

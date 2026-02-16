@@ -122,18 +122,18 @@ Else:
 
 **Update state (respecting orchestrate ownership):**
 
-```bash
-# Check if orchestrate already set the step
-CURRENT_STEP=$(specflow state get orchestration.step.current 2>/dev/null)
+Use `step.current` from `specflow status --json` output above (do NOT call `state get` for this value):
 
+```bash
+# CURRENT_STEP = step.current from specflow status --json output above
 # Only set step.current if not already set (standalone mode)
 # Orchestrate owns step transitions - never override if already set
 if [[ -z "$CURRENT_STEP" || "$CURRENT_STEP" == "null" ]]; then
-  specflow state set "orchestration.step.current=design" "orchestration.step.index=0"
+  specflow state set "orchestration.step.current=design" "orchestration.step.index=0" "orchestration.step.status=in_progress"
+else
+  # Always set status to in_progress (safe for both modes)
+  specflow state set "orchestration.step.status=in_progress"
 fi
-
-# Always set status to in_progress (safe for both modes)
-specflow state set "orchestration.step.status=in_progress"
 ```
 
 **State ownership note**: `/flow.orchestrate` owns step transitions (`step.current`, `step.index`). Sub-commands only update `step.status` (in_progress, complete, failed). When run standalone, sub-commands initialize step if not set.
@@ -148,11 +148,7 @@ Use TodoWrite: mark [DESIGN] SETUP complete. As you complete each phase, mark it
 
 **1a. Load phase document (SOURCE OF TRUTH):**
 
-```bash
-specflow phase
-```
-
-From the phase output, get `PHASE_NUMBER`, then read the phase document:
+Use `phase.number` from `specflow status --json` output (already parsed in Setup) to read the phase document:
 - `.specify/phases/{PHASE_NUMBER}-*.md` - This is the **authoritative source** for phase goals and scope
 
 Extract and note:
@@ -164,22 +160,14 @@ Extract and note:
 **Persist goals to state** (survives conversation compaction):
 
 ```bash
-# Store phase number for cross-command access
-specflow state set orchestration.phase.number=$PHASE_NUMBER
-
-# Store goals as JSON array for tracking through workflow
+# phase.number, hasUserGate, and userGateCriteria are already set by `specflow phase open`
+# Only goals need to be persisted here (extracted from phase doc markdown, not available in ROADMAP)
 specflow state set orchestration.phase.goals='["Goal 1", "Goal 2", "Goal 3"]'
-
-# Store USER GATE status if present
-specflow state set orchestration.phase.hasUserGate=true  # or false
-
-# Store gate criteria for compaction recovery (if gate exists)
-specflow state set orchestration.phase.userGateCriteria="Criteria text from phase doc"
 ```
 
 These goals will be tracked through spec → plan → tasks to ensure nothing is lost.
 
-**CRITICAL**: These state writes MUST execute - they enable context compaction recovery.
+**CRITICAL**: This state write MUST execute - it enables context compaction recovery.
 
 **1b. Load context (Parallel):**
 

@@ -190,7 +190,7 @@ FEATURE_DIR=$(echo "$STATUS" | jq -r '.context.featureDir')
 **Use parallel sub-agents** to gather all verification data simultaneously:
 
 ```
-Launch 4 parallel workers (Agent Teams preferred; Task agents fallback):
+Launch 3 parallel workers (Agent Teams preferred; Task agents fallback):
 
 Team-mode role hints:
 - Use `specflow-quality-auditor` for status/gate verification workers
@@ -208,18 +208,14 @@ Agent 2 (Phase Doc): Load phase document
   - Extract all phase goals for verification
   → Return: has_user_gate, gate_criteria, phase_goals
 
-Agent 3 (Gate Check): Verify implementation gate
-  - Run `specflow check --gate implement --json`
-  - Map incomplete tasks to phase goals
-  → Return: gate_passed, incomplete_goals
-
-Agent 4 (Memory Gate): Verify memory compliance
-  - Run `specflow check --gate memory --json`
-  - Check constitution.md exists and has no placeholders
-  → Return: memory_gate_passed, memory_issues
+Agent 3 (Gates): Verify implementation and memory gates
+  - Run `specflow check --json` (single call — all gates run internally)
+  - Parse gates.implement for implementation status, map incomplete tasks to phase goals
+  - Parse gates.memory for memory compliance, check constitution.md
+  → Return: implement_passed, memory_passed, incomplete_goals, memory_issues
 ```
 
-**Expected speedup**: 2x faster (4 parallel checks vs. sequential)
+**Expected speedup**: 2x faster (3 parallel checks vs. sequential)
 
 **Aggregate results and validate:**
 
@@ -283,11 +279,7 @@ Guide must include:
 
 **Verify phase goals were completed:**
 
-Read `.specify/phases/${PHASE_NUMBER}-*.md` (using PHASE_NUMBER from step 2) and check that all goals have corresponding completed tasks:
-
-```bash
-specflow check --gate implement --json
-```
+Read `.specify/phases/${PHASE_NUMBER}-*.md` (using PHASE_NUMBER from step 2) and check that all goals have corresponding completed tasks. Use the implementation gate result from Agent 3 above (do NOT re-run `specflow check --gate implement`).
 
 If any tasks are incomplete that map to phase goals, **BLOCK merge** and report which goals are incomplete.
 

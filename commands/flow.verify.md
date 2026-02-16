@@ -79,21 +79,22 @@ Set [VERIFY] CONTEXT to in_progress.
 
 ## Step 1: Get Project Context
 
-**Ensure step is initialized (standalone mode):**
-
-```bash
-CURRENT_STEP=$(specflow state get orchestration.step.current 2>/dev/null)
-
-# Only set step.current if missing or different (standalone mode)
-if [[ -z "$CURRENT_STEP" || "$CURRENT_STEP" == "null" || "$CURRENT_STEP" != "verify" ]]; then
-  specflow state set orchestration.step.current=verify orchestration.step.index=3
-fi
-
-specflow state set orchestration.step.status=in_progress
-```
+**Get project context first, then initialize step:**
 
 ```bash
 specflow status --json
+```
+
+Use `step.current` from the status output above to initialize step (do NOT call `state get` for this value):
+
+```bash
+# CURRENT_STEP = step.current from specflow status --json output above
+# Only set step.current if missing or different (standalone mode)
+if [[ -z "$CURRENT_STEP" || "$CURRENT_STEP" == "null" || "$CURRENT_STEP" != "verify" ]]; then
+  specflow state set orchestration.step.current=verify orchestration.step.index=3 orchestration.step.status=in_progress
+else
+  specflow state set orchestration.step.status=in_progress
+fi
 ```
 
 Parse the JSON to understand:
@@ -464,12 +465,9 @@ Use TodoWrite: mark [VERIFY] MEMORY complete, mark [VERIFY] REPORT in_progress.
 
 See `.specify/templates/user-gate-guide.md` for the complete USER GATE handling protocol.
 
-**Check if USER GATE exists** (from status output or state):
-```bash
-HAS_GATE=$(specflow state get orchestration.phase.hasUserGate)
-```
+**Check if USER GATE exists** using `phase.hasUserGate` from `specflow status --json` output (already obtained in Step 1 — do NOT call `state get` for this value).
 
-If `HAS_GATE` is `false` or empty, skip to Step 7.
+If `hasUserGate` is `false` or empty, skip to Step 7.
 
 **If USER GATE exists, check if already handled:**
 ```bash

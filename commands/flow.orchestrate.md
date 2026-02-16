@@ -96,8 +96,10 @@ Response structure:
 
 **Validate domain state on resume (cross-domain consistency):**
 
+Use `step.index` from the `specflow status --json` output above (do NOT call `state get` for this value):
+
 ```bash
-STEP_INDEX=$(specflow state get orchestration.step.index 2>/dev/null)
+# STEP_INDEX = step.index from specflow status --json output above
 
 # If resuming at analyze or later, verify design initialized its domain
 if [[ "$STEP_INDEX" -ge 1 ]]; then
@@ -163,8 +165,12 @@ If `step.status` = "failed", present options to user:
 
 **Validate phase exists in ROADMAP (if phase.number is set):**
 
+Use `phase.number` and `phase.branch` from the `specflow status --json` output above (do NOT call `state get` for these values):
+
 ```bash
-PHASE_NUMBER=$(specflow state get orchestration.phase.number 2>/dev/null)
+# PHASE_NUMBER = phase.number from specflow status --json output above
+# EXPECTED_BRANCH = phase.branch from specflow status --json output above
+
 if [[ -n "$PHASE_NUMBER" && "$PHASE_NUMBER" != "null" ]]; then
   # Verify phase exists in ROADMAP
   if ! grep -q "^| $PHASE_NUMBER " ROADMAP.md; then
@@ -175,7 +181,6 @@ if [[ -n "$PHASE_NUMBER" && "$PHASE_NUMBER" != "null" ]]; then
 
   # Verify current branch matches phase branch
   CURRENT_BRANCH=$(git branch --show-current)
-  EXPECTED_BRANCH=$(specflow state get orchestration.phase.branch 2>/dev/null)
   if [[ -n "$EXPECTED_BRANCH" && "$CURRENT_BRANCH" != "$EXPECTED_BRANCH" ]]; then
     echo "ERROR: Branch mismatch"
     echo "Expected: $EXPECTED_BRANCH (from state)"
@@ -223,9 +228,9 @@ Read `.specify/phases/NNNN-phase-name.md` and extract:
 **Persist goals to state** (survives conversation compaction):
 
 ```bash
-specflow state set orchestration.phase.number=$PHASE_NUMBER
+# phase.number, hasUserGate, and userGateCriteria are already set by `specflow phase open`
+# Only goals need to be persisted here (extracted from phase doc, not available in ROADMAP)
 specflow state set orchestration.phase.goals='["Goal 1", "Goal 2", ...]'
-specflow state set orchestration.phase.hasUserGate=true  # or false
 ```
 
 **Check for integration architecture (if design complete):**

@@ -327,14 +327,8 @@ When launching parallel agents (artifact loading, detection passes):
 **When analysis completes with zero issues:**
 
 ```bash
-# Clear iteration counter
-specflow state set orchestration.analyze.iteration=null
-
-# Record completion time (for drift detection in verify)
-specflow state set orchestration.analyze.completedAt=$(date +%s)
-
-# Signal completion to orchestrate
-specflow state set orchestration.step.status=complete
+# Clear iteration counter, record completion time, signal completion (single call)
+specflow state set orchestration.analyze.iteration=null orchestration.analyze.completedAt=$(date +%s) orchestration.step.status=complete
 ```
 
 **When blocked (user aborts or max iterations with issues):**

@@ -72,20 +72,17 @@ Abort if gate fails - instruct user to run `/flow.design` first.
 
 **Update state (respecting orchestrate ownership):**
 
-```bash
-CURRENT_STEP=$(specflow state get orchestration.step.current 2>/dev/null)
+Use `step.current` from `specflow status --json` output above (do NOT call `state get` for this value):
 
+```bash
+# CURRENT_STEP = step.current from specflow status --json output above
 # Only set step.current if not already set (standalone mode)
 # Orchestrate owns step transitions - sub-commands only update status
 if [[ -z "$CURRENT_STEP" || "$CURRENT_STEP" == "null" ]]; then
-  specflow state set orchestration.step.current=implement orchestration.step.index=2
+  specflow state set orchestration.step.current=implement orchestration.step.index=2 orchestration.step.status=in_progress orchestration.implement.started_at=$(date -Iseconds) orchestration.implement.current_section=""
+else
+  specflow state set orchestration.step.status=in_progress orchestration.implement.started_at=$(date -Iseconds) orchestration.implement.current_section=""
 fi
-
-specflow state set orchestration.step.status=in_progress
-
-# Initialize implementation domain (for progress tracking/compaction recovery)
-specflow state set orchestration.implement.started_at=$(date -Iseconds)
-specflow state set orchestration.implement.current_section=""
 ```
 
 ### 2. Load Context

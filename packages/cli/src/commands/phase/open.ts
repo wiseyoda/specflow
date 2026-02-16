@@ -76,6 +76,11 @@ async function openExistingPhase(
   state = setStateValue(state, 'orchestration.step.current', 'design');
   state = setStateValue(state, 'orchestration.step.index', STEP_INDEX_MAP.design);
   state = setStateValue(state, 'orchestration.step.status', 'not_started');
+  // Persist USER GATE info from roadmap
+  state = setStateValue(state, 'orchestration.phase.hasUserGate', phase.hasUserGate);
+  if (phase.verificationGate) {
+    state = setStateValue(state, 'orchestration.phase.userGateCriteria', phase.verificationGate);
+  }
   // Reset step-specific data from previous phase
   state = setStateValue(state, 'orchestration.steps', {});
   state = setStateValue(state, 'orchestration.progress', {
@@ -161,6 +166,8 @@ async function createHotfixPhase(
   state = setStateValue(state, 'orchestration.step.current', 'design');
   state = setStateValue(state, 'orchestration.step.index', STEP_INDEX_MAP.design);
   state = setStateValue(state, 'orchestration.step.status', 'not_started');
+  // Hotfixes default to no USER GATE
+  state = setStateValue(state, 'orchestration.phase.hasUserGate', false);
   // Reset step-specific data from previous phase
   state = setStateValue(state, 'orchestration.steps', {});
   state = setStateValue(state, 'orchestration.progress', {

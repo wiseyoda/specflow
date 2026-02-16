@@ -329,16 +329,7 @@ For approved promotions:
 
 After processing each phase, update state.
 
-**Initialize parent object if needed:**
-```bash
-# Check if archive_reviews exists, initialize if not
-REVIEWS=$(specflow state get memory.archive_reviews 2>/dev/null)
-if [[ -z "$REVIEWS" || "$REVIEWS" == "null" ]]; then
-  specflow state set memory.archive_reviews='{}'
-fi
-```
-
-**Then record the review:**
+**Record the review** (`state set` auto-creates intermediate objects — no initialization needed):
 ```bash
 specflow state set memory.archive_reviews.NNNN='{"reviewed_at":"2026-01-18","promotions":["P001","P003"],"skipped":["P002"]}'
 ```

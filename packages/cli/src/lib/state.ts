@@ -171,6 +171,70 @@ export function setStateValue(
   return result as OrchestrationState;
 }
 
+/**
+ * Unwrap Zod wrapper types (Optional, Nullable, Default) to get the base type.
+ */
+function unwrapZodType(schema: z.ZodTypeAny): z.ZodTypeAny {
+  const typeName = schema._def.typeName;
+  if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
+    return unwrapZodType(schema._def.innerType);
+  }
+  return schema;
+}
+
+/**
+ * Resolve the expected Zod leaf type for a dot-path in the OrchestrationStateSchema.
+ * Returns the Zod typeName (e.g., 'ZodString', 'ZodNumber', 'ZodBoolean') or null if unknown.
+ */
+export function resolveSchemaType(dotPath: string): string | null {
+  const parts = dotPath.split('.');
+  let schema: z.ZodTypeAny = OrchestrationStateSchema;
+
+  for (const part of parts) {
+    schema = unwrapZodType(schema);
+    const typeName = schema._def.typeName;
+
+    if (typeName === 'ZodObject') {
+      const shape = (schema as z.ZodObject<z.ZodRawShape>).shape;
+      if (!(part in shape)) {
+        return null;
+      }
+      schema = shape[part];
+    } else if (typeName === 'ZodRecord') {
+      // For records, any key maps to the value schema
+      schema = (schema as z.ZodRecord)._def.valueType;
+    } else {
+      return null;
+    }
+  }
+
+  schema = unwrapZodType(schema);
+  return schema._def.typeName ?? null;
+}
+
+/**
+ * Coerce a parsed value to match the expected schema type for a given dot-path.
+ * Returns the coerced value, or the original value if no coercion needed or path unknown.
+ */
+export function coerceValueForSchema(dotPath: string, value: unknown): unknown {
+  const schemaType = resolveSchemaType(dotPath);
+  if (!schemaType) return value;
+
+  if (schemaType === 'ZodString' && typeof value === 'number') {
+    return String(value);
+  }
+  if (schemaType === 'ZodNumber' && typeof value === 'string') {
+    const num = Number(value);
+    if (!Number.isNaN(num)) return num;
+  }
+  if (schemaType === 'ZodBoolean' && typeof value === 'string') {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+  }
+
+  return value;
+}
+
 /** Maximum string length for JSON parsing (1MB) */
 const MAX_JSON_PARSE_LENGTH = 1024 * 1024;
 
